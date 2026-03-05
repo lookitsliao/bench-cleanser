@@ -77,13 +77,18 @@ def compute_category_scores(
     # C3: SNEAKY_TEST_MOD
     sneaky_conf = _clamp(tests.sneaky_test_mod_score)
     sneaky_evidence: list[str] = []
+    has_misaligned_modified = False
     for tr in tests.test_reports:
         if tr.is_modified_existing:
             sneaky_evidence.append(
                 f"{tr.test_id} existed at base_commit and was modified"
             )
-    if sneaky_evidence:
-        sneaky_conf = max(sneaky_conf, 0.90)  # High confidence for deterministic signal
+            if tr.misaligned_assertion_count > 0:
+                has_misaligned_modified = True
+    if sneaky_evidence and has_misaligned_modified:
+        sneaky_conf = max(sneaky_conf, 0.90)  # High confidence: modified tests with out-of-scope assertions
+    elif sneaky_evidence:
+        sneaky_conf = max(sneaky_conf, 0.30)  # Low confidence: modified but all assertions aligned
     scores[ContaminationCategory.SNEAKY_TEST_MOD.value] = CategoryScore(
         category=ContaminationCategory.SNEAKY_TEST_MOD,
         confidence=sneaky_conf,

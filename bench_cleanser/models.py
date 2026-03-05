@@ -117,10 +117,14 @@ class PatchHunk:
     @property
     def is_doc_file(self) -> bool:
         lower = self.file_path.lower()
+        # Only match standalone docs/ directories, not substrings like "admindocs/"
+        parts = lower.replace("\\", "/").split("/")
+        if any(p == "docs" for p in parts):
+            return True
         return any(
             pat in lower
-            for pat in ["readme", "changelog", "contributing", "docs/", ".md", ".rst"]
-        )
+            for pat in ["readme", "changelog", "contributing", ".md", ".rst"]
+        ) and not lower.endswith(".py")
 
     @property
     def net_lines_changed(self) -> int:
