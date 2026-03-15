@@ -10,7 +10,8 @@ import sys
 from bench_cleanser.data_loader import (
     load_all,
     load_single_task,
-    load_swebench_lite,
+    load_swebench_live,
+    load_swebench_pro,
     load_swebench_verified,
 )
 from bench_cleanser.pipeline import (
@@ -35,9 +36,9 @@ def _parse_args() -> argparse.Namespace:
     )
     p.add_argument(
         "--dataset",
-        choices=["verified", "lite", "both"],
-        default="both",
-        help="Which SWE-bench dataset(s) to analyse (default: both)",
+        choices=["verified", "pro", "live", "both"],
+        default="verified",
+        help="Which SWE-bench dataset(s) to analyse (default: verified)",
     )
     p.add_argument(
         "--max-tasks",
@@ -65,6 +66,23 @@ def _parse_args() -> argparse.Namespace:
         "--v2",
         action="store_true",
         help="Use v2 intent-matching pipeline (4-verdict taxonomy)",
+    )
+    p.add_argument(
+        "--split",
+        default=None,
+        help="Dataset split for SWE-bench Live (e.g., test, verified, full)",
+    )
+    p.add_argument(
+        "--resume",
+        action="store_true",
+        default=False,
+        help="Resume from checkpoint — skip tasks with existing reports",
+    )
+    p.add_argument(
+        "--no-resume",
+        dest="resume",
+        action="store_false",
+        help="Reprocess all tasks even if reports already exist (default)",
     )
     p.add_argument(
         "-v", "--verbose",
@@ -179,8 +197,11 @@ def main() -> None:
         logging.info("Loading dataset: %s (max %d per set)", args.dataset, args.max_tasks)
         if args.dataset == "verified":
             records = load_swebench_verified(max_tasks=args.max_tasks)
-        elif args.dataset == "lite":
-            records = load_swebench_lite(max_tasks=args.max_tasks)
+        elif args.dataset == "pro":
+            records = load_swebench_pro(max_tasks=args.max_tasks)
+        elif args.dataset == "live":
+            split_kw = {"split": args.split} if args.split else {}
+            records = load_swebench_live(max_tasks=args.max_tasks, **split_kw)
         else:
             records = load_all(max_per_dataset=args.max_tasks)
 
@@ -189,7 +210,7 @@ def main() -> None:
     # Run pipeline
     if args.v2:
         logging.info("Using v2 intent-matching pipeline")
-        reports = asyncio.run(run_pipeline_v2(records, config))
+        reports = asyncio.run(run_pipeline_v2(records, config, resume=args.resume))
         _print_v2_summary(reports)
     else:
         reports = asyncio.run(run_pipeline(records, config))

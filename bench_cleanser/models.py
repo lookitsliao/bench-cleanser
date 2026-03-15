@@ -58,6 +58,49 @@ class Severity(str, Enum):
     SEVERE = "SEVERE"
 
 
+class RootCause(str, Enum):
+    """Root-cause taxonomy for contaminated tasks.
+
+    A task can have multiple root causes. These categories explain *why*
+    the contamination exists, distinct from the verdict *scores* (EP/ET/VS)
+    which measure *how much* contamination is present.
+    """
+    APPROACH_MISMATCH = "APPROACH_MISMATCH"
+    """Gold patch takes a fundamentally different approach than the problem
+    statement suggests.  Detection: High EXCESS_PATCH with UNRELATED hunks
+    implementing an approach-level divergence from the described fix.
+    Example: django-10999 — problem says "add lookahead"; gold patch adds
+    a regex sign-group instead."""
+
+    DEFERRED_REQUIREMENT = "DEFERRED_REQUIREMENT"
+    """Tests enforce features explicitly deferred or disclaimed in the problem
+    statement.  Detection: Explicit deferral language in the problem + OFF_TOPIC
+    assertions that exercise the deferred feature.
+    Example: astropy-13398 — "I have yet to add refraction" but F2P tests
+    require refraction support."""
+
+    SCOPE_EXPANSION = "SCOPE_EXPANSION"
+    """Gold patch and/or tests cover functionality beyond what was asked.
+    Detection: High OFF_TOPIC assertion ratio, tests exercising code paths
+    not mentioned in the problem.
+    Example: astropy-14182 — problem asks for RST writer fix; tests exercise
+    RST reader round-trip."""
+
+    IMPLICIT_CONSENSUS = "IMPLICIT_CONSENSUS"
+    """Solution requires knowledge from code review discussion or hints that
+    contradicts or extends the original problem statement.  Detection: Hints
+    contain design decisions not derivable from the problem statement alone.
+    Example: django-10999 — maintainer decided "leading sign negates all"
+    during code review, not stated in the original issue."""
+
+    INFRASTRUCTURE_LEAK = "INFRASTRUCTURE_LEAK"
+    """Tests require ancillary infrastructure changes not described in the
+    feature specification.  Detection: F2P tests exercising infrastructure
+    code paths not mentioned in the problem statement.
+    Example: astropy-13398 — CIRS round-trip tests requiring coordinate
+    transform infrastructure not described in the spec."""
+
+
 class HunkClassification(str, Enum):
     """Classification of a gold patch hunk relative to task scope."""
     IN_SCOPE = "IN_SCOPE"
@@ -540,6 +583,8 @@ class ContaminationReportV2:
     excess_test: ExcessTestDetail
     vague_spec: VagueSpecDetail
     categories: dict[str, VerdictScore] = field(default_factory=dict)
+    root_causes: list[RootCause] = field(default_factory=list)
+    root_cause_reasoning: dict[str, str] = field(default_factory=dict)
     recommendations: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -606,7 +651,102 @@ class ContaminationReportV2:
                 "reasoning": self.vague_spec.reasoning,
             },
             "recommendations": self.recommendations,
+            "root_causes": [rc.value for rc in self.root_causes],
+            "root_cause_reasoning": self.root_cause_reasoning,
         }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ContaminationReportV2:
+        """Reconstruct from a JSON-compatible dict (inverse of to_dict)."""
+        intent_d = data.get("intent", {})
+        intent = IntentStatement(
+            instance_id=data["instance_id"],
+            core_requirement=intent_d.get("core_requirement", ""),
+            behavioral_contract=intent_d.get("behavioral_contract", ""),
+            acceptance_criteria=intent_d.get("acceptance_criteria", []),
+            out_of_scope=intent_d.get("out_of_scope", ""),
+            ambiguity_score=intent_d.get("ambiguity_score", 0.0),
+        )
+
+        ep_d = data.get("excess_patch", {})
+        hunk_verdicts = [
+            HunkVerdict(
+                hunk_index=h.get("hunk_index", 0),
+                file_path=h.get("file", ""),
+                verdict=PatchVerdict(h.get("verdict", "REQUIRED")),
+                confidence=h.get("confidence", 0.0),
+                reasoning=h.get("reason", ""),
+            )
+            for h in ep_d.get("hunks", [])
+        ]
+        excess_patch = ExcessPatchDetail(
+            score=ep_d.get("score", 0.0),
+            total_hunks=ep_d.get("total_hunks", 0),
+            required_count=ep_d.get("required", 0),
+            ancillary_count=ep_d.get("ancillary", 0),
+            unrelated_count=ep_d.get("unrelated", 0),
+            hunk_verdicts=hunk_verdicts,
+        )
+
+        et_d = data.get("excess_test", {})
+        test_verdicts = []
+        for t in et_d.get("tests", []):
+            assertion_verdicts = [
+                AssertionVerdictReport(
+                    statement=a.get("statement", ""),
+                    verdict=AssertionVerdict(a.get("verdict", "ON_TOPIC")),
+                    reason=a.get("reason", ""),
+                )
+                for a in t.get("assertions", [])
+            ]
+            test_verdicts.append(TestVerdictReport(
+                test_id=t.get("test_id", ""),
+                test_name=t.get("test_name", ""),
+                intent_match=TestVerdict(t.get("intent_match", "ALIGNED")),
+                confidence=t.get("confidence", 0.0),
+                reasoning=t.get("reasoning", ""),
+                is_modified=t.get("is_modified", False),
+                modification_aligned=t.get("modification_aligned", True),
+                assertion_verdicts=assertion_verdicts,
+            ))
+        excess_test = ExcessTestDetail(
+            score=et_d.get("score", 0.0),
+            total_tests=et_d.get("total_tests", 0),
+            aligned_count=et_d.get("aligned", 0),
+            tangential_count=et_d.get("tangential", 0),
+            unrelated_count=et_d.get("unrelated", 0),
+            total_assertions=et_d.get("total_assertions", 0),
+            on_topic_assertions=et_d.get("on_topic", 0),
+            off_topic_assertions=et_d.get("off_topic", 0),
+            has_modified_tests=et_d.get("has_modified_tests", False),
+            test_verdicts=test_verdicts,
+        )
+
+        vs_d = data.get("vague_spec", {})
+        vague_spec = VagueSpecDetail(
+            score=vs_d.get("score", 0.0),
+            reasoning=vs_d.get("reasoning", ""),
+        )
+
+        root_causes = []
+        for rc_str in data.get("root_causes", []):
+            try:
+                root_causes.append(RootCause(rc_str))
+            except ValueError:
+                pass
+
+        return cls(
+            instance_id=data["instance_id"],
+            severity=Severity(data.get("severity", "CLEAN")),
+            combined_score=data.get("combined_score", 0.0),
+            intent=intent,
+            excess_patch=excess_patch,
+            excess_test=excess_test,
+            vague_spec=vague_spec,
+            root_causes=root_causes,
+            root_cause_reasoning=data.get("root_cause_reasoning", {}),
+            recommendations=data.get("recommendations", []),
+        )
 
 
 @dataclass
@@ -615,7 +755,7 @@ class PipelineConfig:
     llm_base_url: str = "https://cloudgpt-openai.azure-api.net/"
     llm_api_version: str = "2025-04-01-preview"
     llm_model: str = "gpt-5.2-20251211"
-    llm_max_tokens: int = 4096
+    llm_max_tokens: int = 16384
     llm_reasoning_effort: str = "high"
     max_concurrent_requests: int = 10
     retry_attempts: int = 7
@@ -623,9 +763,9 @@ class PipelineConfig:
     concurrency: int = 5
     cache_dir: str = ".cache/llm_responses"
     output_dir: str = "output"
-    clean_max: float = 0.2
-    minor_max: float = 0.5
-    moderate_max: float = 0.8
+    clean_max: float = 0.15
+    minor_max: float = 0.4
+    moderate_max: float = 0.7
     astred_enabled: bool = False
     astred_binary_path: str = ""
     code_visitation_enabled: bool = True

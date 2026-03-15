@@ -1,446 +1,25 @@
-# bench-cleanser
+# Deep-Dive Case Studies: 4 High-Confidence SEVERE Contamination Cases
 
-Automated contamination detection for SWE-bench benchmarks. Identifies tasks where gold patches or fail-to-pass (F2P) tests exceed the problem description, producing unfair evaluation criteria for software engineering agents. Includes LLM-primary trajectory validation and root-cause taxonomy for systematic diagnosis.
-
-## Problem
-
-SWE-bench Verified (500 tasks) and SWE-bench Pro are the primary benchmarks for evaluating software engineering agents. However, some tasks have **contaminated evaluation criteria** that penalize agents for correctly solving the *described* problem:
-
-- **Excess patches**: Gold patches include refactoring, style changes, or features not described in the problem statement
-- **Excess tests**: F2P tests assert on behavior not described in the problem (off-topic assertions)
-- **Vague specifications**: Problem statements too ambiguous to determine a unique correct solution
-
-Agents that correctly solve the *described* problem may fail these tasks because evaluation criteria test *undescribed* behavior. bench-cleanser quantifies this contamination at per-hunk and per-assertion granularity, classifies root causes, and validates agent trajectories for leakage.
-
-## Architecture
-
-### v2 Pipeline (Recommended): Intent-Matching
-
-The v2 pipeline uses a 6-stage architecture that extracts ground-truth intent from the problem statement, matches it against the gold patch and F2P tests, and classifies root causes:
-
-```
-Stage 1:   PARSE              Extract diffs from gold patch + test patch
-Stage 1.5: CODE VISITATION     Clone repo, extract full test/function source (optional)
-Stage 2:   INTENT              Extract ground-truth intent from problem statement (LLM)
-Stage 3:   STRUCTURAL DIFF     AST-level function/class change analysis
-Stage 4:   INTENT MATCHING     Classify hunks + tests against intent (LLM)
-Stage 5:   TRIAGE & REPORT     4-category scoring + actionable recommendations
-Stage 6:   ROOT CAUSE          LLM-based root-cause classification (for non-CLEAN tasks)
-```
-
-### 4 Verdict Categories
-
-| Category | Description | Recommended Action |
-|----------|-------------|-------------------|
-| **EXCESS_PATCH** | Gold patch includes changes beyond what the task describes | Filter UNRELATED hunks from evaluation |
-| **EXCESS_TEST** | F2P tests verify behavior beyond the task description | Exclude OFF_TOPIC assertions from pass/fail |
-| **VAGUE_SPEC** | Problem statement is ambiguous; multiple valid solutions exist | Interpret results with caution |
-| **CLEAN** | No contamination detected | No action needed |
-
-### 5 Root-Cause Categories
-
-Stage 6 classifies each contaminated task into one or more root causes:
-
-| Root Cause | Description | Example |
-|------------|-------------|---------|
-| **APPROACH_MISMATCH** | Gold patch solves the problem via a different approach than described | Case A: reporter suggests lookahead fix, gold patch introduces sign group |
-| **DEFERRED_REQUIREMENT** | Tests/patch encode decisions made during code review, not in the issue | Case A: maintainer decision about leading-sign semantics |
-| **SCOPE_EXPANSION** | Gold patch includes refactoring or features beyond the described fix | Case B: additional admin ordering changes beyond the reported bug |
-| **IMPLICIT_CONSENSUS** | Patch reflects undocumented team consensus not in the problem statement | Coding style changes agreed in comments but not in the issue |
-| **INFRASTRUCTURE_LEAK** | Solution derived from package installation or external data, not reasoning | Case C: agent installs the fix from PyPI instead of implementing it |
-
-### Classification Granularity
-
-Each gold patch hunk is classified as:
-- **REQUIRED** -- Directly implements the described fix
-- **ANCILLARY** -- Supports the fix but isn't described (imports, infrastructure)
-- **UNRELATED** -- Changes behavior not described in the problem
-
-Each F2P test is classified as:
-- **ALIGNED** -- Test targets the described problem
-- **TANGENTIAL** -- Test partially targets the problem
-- **UNRELATED** -- Test doesn't target the described problem
-
-Each test assertion is classified as:
-- **ON_TOPIC** -- Assertion checks behavior described in the problem
-- **OFF_TOPIC** -- Assertion checks behavior NOT described in the problem
-
-### Scoring
-
-```
-excess_patch_score = (unrelated_hunks + 0.5 * ancillary_hunks) / total_hunks
-excess_test_score  = (off_topic + 0.3 * tangential_equiv + unrelated_equiv) / total_assertions
-combined_score     = 1 - (1 - excess_patch) * (1 - excess_test) * (1 - vague_spec)
-```
-
-Where `tangential_equiv = tangential_tests * avg_assertions_per_test * 0.3` and `unrelated_equiv = unrelated_tests * avg_assertions_per_test`.
-
-Severity thresholds (configurable):
-- **CLEAN**: combined < 0.15
-- **MINOR**: 0.15 <= combined < 0.4
-- **MODERATE**: 0.4 <= combined < 0.7
-- **SEVERE**: combined >= 0.7
-
-### v1 Pipeline (Legacy)
-
-The v1 pipeline uses a 7-category overlapping taxonomy (OVERTEST, OVERPATCH, SNEAKY_TEST_MOD, SCOPE_CREEP, TEST_DESC_MISALIGN, CIRCULAR_DEPENDENCY, AMBIGUOUS_SPEC). It is retained for backward compatibility but v2 is recommended for all new analysis.
-
-## Installation
-
-```bash
-git clone <repo-url>
-cd bench-cleanser
-python -m venv .venv
-
-# Windows
-.venv\Scripts\activate
-# Linux/Mac
-# source .venv/bin/activate
-
-pip install -r requirements.txt
-```
-
-### Requirements
-
-- **Python 3.12+**
-- **Azure OpenAI access** (CloudGPT) with Azure CLI authentication (`az login`)
-- **rich** (optional) -- enhanced terminal progress display during batch runs
-
-### Dependencies
-
-| Package | Purpose |
-|---------|---------|
-| `datasets` | HuggingFace datasets for loading SWE-bench |
-| `openai` | Azure OpenAI API client |
-| `pyyaml` | Configuration file parsing |
-| `tqdm` | Progress bars (fallback when rich not installed) |
-| `azure-identity` | Azure AD authentication |
-| `azure-identity-broker` | Token brokering for Azure |
-| `msal` | Microsoft Authentication Library |
-| `requests` | HTTP client |
-
-## Configuration
-
-Edit `config.yaml` to match your environment:
-
-```yaml
-llm:
-  base_url: "https://cloudgpt-openai.azure-api.net/"
-  api_version: "2025-04-01-preview"
-  model: "gpt-5.2-20251211"
-  max_tokens: 16384
-  reasoning_effort: "high"        # Controls model reasoning depth
-  max_concurrent_requests: 10
-  retry_attempts: 7               # Exponential backoff retries on transient errors
-  retry_delay_seconds: 5.0        # Base delay between retries (capped at 60s)
-
-pipeline:
-  concurrency: 3                  # Parallel task processing
-  cache_dir: ".cache/llm_responses"
-  output_dir: "output"
-
-thresholds:
-  clean_max: 0.15
-  minor_max: 0.4
-  moderate_max: 0.7
-
-code_visitation:
-  enabled: true                   # Clone repos for full source context
-  repo_cache_dir: ".cache/repos"
-  clone_timeout_seconds: 120
-  max_source_context_lines: 200
-```
-
-### Authentication
-
-bench-cleanser authenticates to Azure OpenAI via Azure CLI:
-
-```bash
-az login
-```
-
-## Usage
-
-### Contamination Pipeline
-
-#### Full batch analysis (v2 pipeline)
-
-```bash
-python run_pipeline.py --v2 --dataset verified --max-tasks 500
-```
-
-#### Single task analysis
-
-```bash
-python run_pipeline.py --v2 --instance-id django__django-15916
-```
-
-#### SWE-bench Pro
-
-```bash
-python run_pipeline.py --v2 --dataset pro --max-tasks 500
-```
-
-#### Resume from checkpoint
-
-```bash
-python run_pipeline.py --v2 --dataset verified --resume
-```
-
-#### v1 pipeline (legacy)
-
-```bash
-python run_pipeline.py --dataset verified --max-tasks 100
-```
-
-#### Pipeline CLI Options
-
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--v2` | Use v2 intent-matching pipeline (recommended) | v1 |
-| `--config PATH` | Path to configuration YAML file | `config.yaml` |
-| `--dataset {verified,pro,live,both}` | Which SWE-bench dataset(s) to analyze | `verified` |
-| `--max-tasks N` | Maximum tasks per dataset | `500` |
-| `--instance-id ID` | Analyze a single instance (overrides `--dataset`) | -- |
-| `--output DIR` | Override output directory | from config |
-| `--concurrency N` | Parallel task processing | from config |
-| `--split SPLIT` | Dataset split for SWE-bench Live | -- |
-| `--resume` | Resume from checkpoint — skip tasks with existing reports | off |
-| `--no-resume` | Reprocess all tasks (default) | on |
-| `-v, --verbose` | Enable DEBUG logging | off |
-
-### Deep-Dive Reports
-
-Auto-generate Case A-D style markdown reports from completed pipeline JSON:
-
-```bash
-python run_deep_dive.py --reports-dir output_v2_no_fallback/reports --severity SEVERE \
-    --output case_studies/auto/deep_dive_auto.md
-```
-
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--reports-dir DIR` | Directory containing per-task JSON reports | required |
-| `--severity {SEVERE,MODERATE,MINOR,CLEAN}` | Filter by severity level | `SEVERE` |
-| `--instance-ids ID [ID ...]` | Specific instance IDs to include | all matching severity |
-| `--output PATH` | Output markdown file path | `deep_dive.md` |
-| `--config PATH` | Configuration YAML file | `config.yaml` |
-
-Deep dives include: dataset record tables, verbatim problem statements, annotated gold patches, line-by-line assertion analysis, pipeline verdict breakdowns, root-cause analysis, independent LLM analysis, and cross-case synthesis with 5-category taxonomy.
-
-### Trajectory Validation
-
-Analyze agent trajectories for leakage patterns using LLM-primary classification:
-
-```bash
-python run_trajectory_analysis.py --reports-dir output_v2_no_fallback/reports \
-    --trajectory-source huggingface --output trajectory_analysis.md
-```
-
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--reports-dir DIR` | Directory containing per-task JSON reports | required |
-| `--trajectory-source {huggingface,local}` | Source of trajectory data | `huggingface` |
-| `--output PATH` | Output markdown file path | `trajectory_analysis.md` |
-| `--config PATH` | Configuration YAML file | `config.yaml` |
-| `--no-llm` | Disable LLM classification (heuristic-only fallback) | LLM enabled |
-
-The trajectory classifier uses a three-tier approach with **LLM as primary**:
-1. **Heuristic signal extraction**: Patch similarity, pip install commands, test name references
-2. **LLM analysis** (primary): Full trajectory context + heuristic signals analyzed by LLM for leakage classification with detailed reasoning
-3. **Cross-agent comparison**: Identical patches across agents suggest gold patch leakage
-
-Leakage patterns: `GENUINE_SOLUTION`, `GOLD_PATCH_LEAK`, `PACKAGE_LEAK`, `TEST_AWARE`, `PARTIAL_MATCH`, `UNKNOWN`
-
-### Slide Deck
-
-Generate MARP markdown slides from pipeline results:
-
-```bash
-python run_slides.py --reports-dir output_v2_no_fallback/reports \
-    --output slides/bench_cleanser_findings.md
-```
-
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--reports-dir DIR` | Directory containing per-task JSON reports | required |
-| `--deep-dive PATH` | Deep-dive markdown to incorporate | -- |
-| `--trajectory PATH` | Trajectory analysis markdown to incorporate | -- |
-| `--output PATH` | Output MARP markdown file | `slides/findings.md` |
-
-## Output
-
-### Per-task JSON Report
-
-Each analyzed task produces a JSON report in `<output_dir>/reports/`:
-
-```json
-{
-  "instance_id": "django__django-15916",
-  "severity": "MODERATE",
-  "combined_score": 0.55,
-  "root_causes": ["DEFERRED_REQUIREMENT"],
-  "root_cause_reasoning": {
-    "DEFERRED_REQUIREMENT": "Tests encode decisions made during code review..."
-  },
-  "intent": {
-    "core_requirement": "Allow ModelForm Meta to specify formfield_callback",
-    "behavioral_contract": "BEFORE: ... AFTER: ...",
-    "acceptance_criteria": [
-      "modelform_factory preserves base form's callback"
-    ],
-    "out_of_scope": "Inheritance behavior of factory-produced forms",
-    "ambiguity_score": 0.3
-  },
-  "excess_patch": {
-    "score": 0.0,
-    "total_hunks": 1,
-    "required": 1,
-    "ancillary": 0,
-    "unrelated": 0,
-    "hunks": [
-      {
-        "hunk_index": 0,
-        "file": "django/forms/models.py",
-        "verdict": "REQUIRED",
-        "confidence": 0.95,
-        "reason": "Directly implements the described fix"
-      }
-    ]
-  },
-  "excess_test": {
-    "score": 0.33,
-    "total_tests": 1,
-    "aligned": 0,
-    "tangential": 1,
-    "unrelated": 0,
-    "total_assertions": 3,
-    "on_topic": 2,
-    "off_topic": 1,
-    "has_modified_tests": false,
-    "tests": [
-      {
-        "test_id": "tests/forms/test_modelform.py::test_custom_callback",
-        "test_name": "test_custom_callback",
-        "intent_match": "TANGENTIAL",
-        "assertions": [
-          {"statement": "assertEqual(widget, Textarea)", "verdict": "ON_TOPIC"},
-          {"statement": "assertEqual(callback_count, 1)", "verdict": "ON_TOPIC"},
-          {"statement": "assertIsInstance(form, InheritedForm)", "verdict": "OFF_TOPIC"}
-        ]
-      }
-    ]
-  },
-  "vague_spec": {
-    "score": 0.3,
-    "reasoning": "Mostly clear with minor edge cases undefined"
-  },
-  "recommendations": [
-    "EXCESS_TEST: 1/3 assertions test behavior beyond problem scope."
-  ]
-}
-```
-
-### Summary CSV
-
-Generated at `<output_dir>/summary.csv` with columns:
-
-```
-instance_id, severity, combined_score, excess_patch_score, excess_test_score,
-vague_spec_score, patch_hunks_total, patch_required, patch_ancillary,
-patch_unrelated, tests_total, tests_aligned, tests_tangential, tests_unrelated,
-assertions_total, assertions_on_topic, assertions_off_topic,
-has_modified_test, root_causes, recommendations
-```
-
-### Summary Statistics
-
-Generated at `<output_dir>/summary_stats.json` with severity distribution, mean/median combined scores, per-category averages, and root-cause distribution.
-
-## Project Structure
-
-```
-bench_cleanser/
-  __init__.py
-  models.py                      # Data models, enums, root-cause taxonomy (v1 + v2)
-  pipeline.py                    # Pipeline orchestrator (v1 + v2 batch/single, 6 stages)
-  llm_client.py                  # Azure OpenAI client with retry and caching
-  cache.py                       # Disk-based LLM response cache
-  data_loader.py                 # SWE-bench dataset loading (Verified, Pro, Live)
-  deep_dive.py                   # Auto-generate Case A-D style deep-dive reports
-  presentation.py                # MARP slide deck generator
-  repo_manager.py                # Git repo cloning and management
-  code_visitor.py                # Source code extraction from cloned repos
-  static_analysis.py             # Python AST: imports, calls, assertions
-  analysis/
-    scope_analyzer.py            # Stage 2: Intent extraction (LLM)
-    structural_diff.py           # Stage 3: AST-level structural analysis
-    patch_analyzer.py            # Stage 4A: Patch-intent matching (LLM)
-    test_analyzer.py             # Stage 4B: Test-intent matching (LLM)
-    cross_ref.py                 # Cross-reference analysis (v1)
-  classification/
-    scorer.py                    # Stage 5: Scoring and report building (v1 + v2)
-    taxonomy.py                  # Category/verdict definitions and thresholds
-  parsing/
-    patch_parser.py              # Unified diff parser (gold patch)
-    test_parser.py               # Test patch parser + F2P matching
-  trajectory/
-    __init__.py
-    models.py                    # Trajectory data models (LeakagePattern, TrajectoryAnalysis)
-    loader.py                    # Load trajectories from HuggingFace or local JSONL
-    classifier.py                # Three-tier classifier (heuristic + LLM-primary + cross-agent)
-    analyzer.py                  # Orchestrator: analyze, summarize, generate narratives
-tests/
-  test_scorer.py                 # Unit tests for scoring logic (v1 + v2)
-run_pipeline.py                  # Pipeline CLI entry point
-run_deep_dive.py                 # Deep-dive report CLI entry point
-run_trajectory_analysis.py       # Trajectory validation CLI entry point
-run_slides.py                    # MARP slide deck CLI entry point
-config.yaml                      # Pipeline configuration
-cloudgpt.py                      # Azure AD token provider
-requirements.txt                 # Python dependencies
-```
-
-## Error Handling
-
-bench-cleanser is designed to **fail loud** rather than produce incorrect results:
-
-- **LLM failures**: All transient errors (HTTP 500, rate limits, timeouts, connection errors) are retried with exponential backoff (base delay 5s, capped at 60s, up to 7 attempts). Non-retryable errors propagate immediately.
-- **No silent fallbacks**: If all LLM retries are exhausted, the pipeline raises `RuntimeError` rather than returning empty or degenerate results. Pipeline errors are surfaced as `SEVERE` reports with `PIPELINE_ERROR:` prefixes so they are visible in summary statistics.
-- **SDK retry disabled**: The OpenAI SDK's built-in retry mechanism is disabled (`max_retries=0`) to prevent dual-layer retry storms. All retry logic is handled by bench-cleanser's own backoff implementation.
-- **Caching**: Successful LLM responses are cached to disk. Subsequent runs reuse cached results, reducing API calls and enabling incremental reruns after transient failures.
-
-## Testing
-
-```bash
-python -m pytest tests/ -v
-```
-
-## v1 vs v2 Comparison
-
-| Aspect | v1 (7-category) | v2 (4-verdict + root cause) |
-|--------|-----------------|----------------|
-| Categories | 7 overlapping | 4 non-overlapping verdicts + 5 root causes |
-| Taxonomy | OVERTEST, OVERPATCH, SNEAKY_TEST_MOD, SCOPE_CREEP, TEST_DESC_MISALIGN, CIRCULAR_DEP, AMBIGUOUS_SPEC | EXCESS_PATCH, EXCESS_TEST, VAGUE_SPEC, CLEAN |
-| Root Causes | -- | APPROACH_MISMATCH, DEFERRED_REQUIREMENT, SCOPE_EXPANSION, IMPLICIT_CONSENSUS, INFRASTRUCTURE_LEAK |
-| Granularity | Hunk-level | Hunk + assertion-level |
-| Ground truth | Scope analysis | Intent extraction with acceptance criteria |
-| Structural analysis | Python AST only | Python AST with structural diff |
-| False positives | Known issues (aligned SNEAKY_TEST_MOD, doc-file heuristic) | Reduced via intent matching |
-| Output | Category confidence scores | Actionable per-hunk/per-assertion verdicts + root cause diagnosis |
-| Trajectory validation | -- | LLM-primary leakage classification |
-
-## Case Studies: 4 High-Confidence SEVERE Contamination Cases
-
+> **Generated:** 2026-03-11
 > **Pipeline:** bench-cleanser v2 (no-fallback mode), gpt-5.2-20251211 (Azure)
 > **Dataset:** [`princeton-nlp/SWE-bench_Verified`](https://huggingface.co/datasets/princeton-nlp/SWE-bench_Verified), test split
 > **Purpose:** Exhaustive, assertion-level traceability for the 4 strongest SEVERE contamination signals
 
 ---
 
-### Case A: `django__django-10999` — "The Regex That Solves a Different Problem"
+## Table of Contents
 
-#### A.1 HuggingFace Dataset Record
+1. [Case A: django__django-10999 — Regex Approach Mismatch](#case-a-django__django-10999)
+2. [Case B: astropy__astropy-13398 — Refraction Tests Beyond Specification](#case-b-astropy__astropy-13398)
+3. [Case C: astropy__astropy-14182 — Writer Request, Reader Tests](#case-c-astropy__astropy-14182)
+4. [Case D: astropy__astropy-14539 — Defensive Regression Tests Beyond Bug Report](#case-d-astropy__astropy-14539)
+
+---
+
+<a name="case-a-django__django-10999"></a>
+## Case A: `django__django-10999` — "The Regex That Solves a Different Problem"
+
+### A.1 HuggingFace Dataset Record
 
 | Field | Value |
 |---|---|
@@ -456,7 +35,7 @@ python -m pytest tests/ -v
 | **patch file** | `django/utils/dateparse.py` |
 | **test_patch file** | `tests/utils_tests/test_dateparse.py` |
 
-#### A.2 Verbatim Problem Statement
+### A.2 Verbatim Problem Statement
 
 > **Fix parse_duration() for some negative durations**
 >
@@ -482,7 +61,7 @@ python -m pytest tests/ -v
 
 **Key observation:** The reporter provides a *specific regex fix* — add `-?` to the lookahead, changing `(?=\d+:\d+)` to `(?=-?\d+:-?\d+)`. This is an explicit, concrete, character-level prescription.
 
-#### A.3 Hints Text (from GitHub Discussion)
+### A.3 Hints Text (from GitHub Discussion)
 
 > *Please give an example valid that's not working. There are some tests for negative values.*
 >
@@ -502,7 +81,7 @@ python -m pytest tests/ -v
 
 **Critical detail from hints:** The Django maintainers (Tim Graham) explicitly resolved the semantic debate: *"everything but a leading `-` seems like an invalid value."* This means the gold patch's approach (single leading sign) reflects the **maintainer decision** that was made during code review, NOT what was in the original problem statement.
 
-#### A.4 Complete Gold Patch (with annotation)
+### A.4 Complete Gold Patch (with annotation)
 
 ```diff
 diff --git a/django/utils/dateparse.py b/django/utils/dateparse.py
@@ -532,7 +111,7 @@ The gold patch **does not** add `-?` to the lookahead as suggested. Instead, it:
 
 This fundamentally changes the semantics: instead of allowing per-component negative signs (`-1:15:-30`), the grammar now enforces a single leading sign that applies to all components (`-1:15:30` means hours=-1, minutes=-15, seconds=-30).
 
-#### A.5 Complete Test Patch
+### A.5 Complete Test Patch
 
 ```diff
 diff --git a/tests/utils_tests/test_dateparse.py b/tests/utils_tests/test_dateparse.py
@@ -561,9 +140,9 @@ diff --git a/tests/utils_tests/test_dateparse.py b/tests/utils_tests/test_datepa
 
 This is the crux of the contamination: the test patch **changes the expected behavior** of existing test cases to match the gold patch's sign-group approach.
 
-#### A.6 Pipeline Verdict Detail
+### A.6 Pipeline Verdict Detail
 
-##### Intent Extraction (Stage 2)
+#### Intent Extraction (Stage 2)
 
 The LLM extracted this intent **without seeing the gold patch**:
 
@@ -577,13 +156,13 @@ The LLM extracted this intent **without seeing the gold patch**:
 
 The intent extraction correctly identifies the lookahead fix as the ask. Note: the acceptance criterion #1 specifically says "lookahead allows optional minus signs" — exactly what the problem statement requests.
 
-##### Patch Verdict (Stage 4A)
+#### Patch Verdict (Stage 4A)
 
 | Hunk | File | Verdict | Confidence | Reasoning |
 |---|---|---|---|---|
 | 0 | `django/utils/dateparse.py` | **UNRELATED** | 0.92 | The problem explicitly requests adding `-?` to the lookahead `(?=\d+:\d+)`. The gold patch instead introduces a new `(?P<sign>-?)` group and removes all per-component `-?` optionals. The lookahead is left unchanged. This implements a completely different grammar (single leading sign) than the one described. |
 
-##### Test Verdict (Stage 4B)
+#### Test Verdict (Stage 4B)
 
 | Test | Verdict | Assertions |
 |---|---|---|
@@ -592,7 +171,7 @@ The intent extraction correctly identifies the lookahead fix as the ask. Note: t
 
 **Note:** The pipeline's assertion counter found only 1 formal assertion in the subTest loop structure. The F2P tests are technically aligned in that they test negative duration parsing — the contamination is entirely on the **patch** side.
 
-##### Scoring Breakdown
+#### Scoring Breakdown
 
 | Component | Score | Derivation |
 |---|---|---|
@@ -602,7 +181,7 @@ The intent extraction correctly identifies the lookahead fix as the ask. Note: t
 
 $$\text{combined} = 1 - (1 - 1.0)(1 - 0.0)(1 - 0.3) = 1 - 0 = \mathbf{1.000}$$
 
-#### A.7 Independent Deep Analysis
+### A.7 Independent Deep Analysis
 
 **Why the gold patch is different from the problem statement:**
 
@@ -631,9 +210,10 @@ The gold patch's approach was a design decision made during code review, not der
 
 ---
 
-### Case B: `astropy__astropy-13398` — "Tests Demand Refraction That the Spec Explicitly Defers"
+<a name="case-b-astropy__astropy-13398"></a>
+## Case B: `astropy__astropy-13398` — "Tests Demand Refraction That the Spec Explicitly Defers"
 
-#### B.1 HuggingFace Dataset Record
+### B.1 HuggingFace Dataset Record
 
 | Field | Value |
 |---|---|
@@ -649,7 +229,7 @@ The gold patch's approach was a design decision made during code review, not der
 | **patch files** | `builtin_frames/__init__.py`, `intermediate_rotation_transforms.py`, `itrs.py`, `itrs_observed_transforms.py` (new file, 145 lines) |
 | **test_patch files** | `test_intermediate_transformations.py` |
 
-#### B.2 Verbatim Problem Statement (Key Excerpts)
+### B.2 Verbatim Problem Statement (Key Excerpts)
 
 > **A direct approach to ITRS to Observed transformations that stays within the ITRS.**
 >
@@ -659,7 +239,7 @@ The gold patch's approach was a design decision made during code review, not der
 
 This last sentence is the critical line for contamination analysis.
 
-#### B.3 Hints Text (Community Discussion, abridged)
+### B.3 Hints Text (Community Discussion, abridged)
 
 The hints text is 3,800+ characters of extensive GitHub discussion. Key points:
 
@@ -671,7 +251,7 @@ The hints text is 3,800+ characters of extensive GitHub discussion. Key points:
 
 **Critical hint from the discussion:** While the PR description says refraction is deferred, in a later comment the author says refraction is "tested and working". This means the gold patch includes refraction despite the problem statement deferring it, and the F2P tests require it.
 
-#### B.4 Gold Patch Summary
+### B.4 Gold Patch Summary
 
 The gold patch is large (4 files, 8 hunks, ~250 lines added). Key components:
 
@@ -682,11 +262,11 @@ The gold patch is large (4 files, 8 hunks, ~250 lines added). Key components:
 | `itrs.py` | Adds `location` attribute to ITRS frame (EarthLocationAttribute), extensive docstring for topocentric ITRS |
 | `itrs_observed_transforms.py` | **New file** (145 lines): Implements `itrs_to_observed()`, `observed_to_itrs()`, `add_refraction()`, `remove_refraction()` — full ITRS↔AltAz/HADec transforms with refraction support using `erfa.refco()` |
 
-#### B.5 Complete Test Patch — Line-by-Line Analysis
+### B.5 Complete Test Patch — Line-by-Line Analysis
 
 The test patch adds 4 new F2P tests totaling ~120 lines. Here is the assertion-level breakdown:
 
-##### Test 1: `test_itrs_topo_to_altaz_with_refraction` (12 assertions)
+#### Test 1: `test_itrs_topo_to_altaz_with_refraction` (12 assertions)
 
 ```python
 # --- SECTION 1: No-refraction ITRS→AltAz (ON_TOPIC) ---
@@ -712,7 +292,7 @@ assert_allclose(altaz33.distance - altaz3.distance, 0*u.cm, atol=10.0*u.cm)  # [
 
 **Result: 6 ON_TOPIC, 6 OFF_TOPIC.** The test is structurally split into halves: the first half tests non-refractive ITRS→AltAz transforms (described in the problem), the second half tests refraction (explicitly deferred).
 
-##### Test 2: `test_itrs_topo_to_hadec_with_refraction` (12 assertions)
+#### Test 2: `test_itrs_topo_to_hadec_with_refraction` (12 assertions)
 
 Identical structure to Test 1 but for HADec instead of AltAz:
 
@@ -736,7 +316,7 @@ assert_allclose(hadec33.distance - hadec3.distance, ...)  # OFF_TOPIC
 
 **Result: 6 ON_TOPIC, 6 OFF_TOPIC.**
 
-##### Test 3: `test_cirs_itrs_topo` (4 assertions)
+#### Test 3: `test_cirs_itrs_topo` (4 assertions)
 
 ```python
 def test_cirs_itrs_topo():
@@ -757,7 +337,7 @@ def test_cirs_itrs_topo():
 
 **Result: 0 ON_TOPIC, 4 OFF_TOPIC.** This test verifies CIRS↔ITRS topocentric round-tripping, which is NOT about ITRS↔AltAz/HADec transforms. It tests the intermediate transform infrastructure changes (CIRS→ITRS with `location=`), not the described feature.
 
-##### Test 4: `test_itrs_straight_overhead` (3 assertions)
+#### Test 4: `test_itrs_straight_overhead` (3 assertions)
 
 ```python
 def test_itrs_straight_overhead():
@@ -782,9 +362,9 @@ def test_itrs_straight_overhead():
 
 **Result: 3 ON_TOPIC, 0 OFF_TOPIC.** This test directly validates the core feature: topocentric ITRS → AltAz/HADec.
 
-#### B.6 Pipeline Verdict Detail
+### B.6 Pipeline Verdict Detail
 
-##### Intent Extraction
+#### Intent Extraction
 
 | Field | Value |
 |---|---|
@@ -794,7 +374,7 @@ def test_itrs_straight_overhead():
 
 The LLM correctly identified refraction as out of scope based on the problem statement's explicit deferral.
 
-##### Patch Verdicts (8 hunks)
+#### Patch Verdicts (8 hunks)
 
 | # | File | Verdict | Conf. | Note |
 |---|---|---|---|---|
@@ -807,7 +387,9 @@ The LLM correctly identified refraction as out of scope based on the problem sta
 | 6 | `itrs.py` | ANCILLARY | 0.50 | Frame attribute + docstring for topocentric ITRS |
 | 7 | `itrs_observed_transforms.py` | ANCILLARY | 0.50 | Entire new module (145 lines, includes refraction) |
 
-##### Test Verdicts
+**Commentary on ANCILLARY verdicts:** The pipeline classified the main transform module (`itrs_observed_transforms.py`) as ANCILLARY rather than REQUIRED. This is arguably too conservative — the new module IS the feature. However, because it includes both the described transforms AND unmentioned refraction code (~60 lines of `add_refraction`/`remove_refraction`), the LLM was split. The ANCILLARY verdicts at 0.50 confidence reflect genuine uncertainty.
+
+#### Test Verdicts
 
 | Test | Verdict | ON_TOPIC | OFF_TOPIC |
 |---|---|---|---|
@@ -817,7 +399,7 @@ The LLM correctly identified refraction as out of scope based on the problem sta
 | `test_itrs_straight_overhead` | ALIGNED | 3 | 0 |
 | **Total** | | **15** | **16** |
 
-##### Scoring Breakdown
+#### Scoring Breakdown
 
 | Component | Score | Derivation |
 |---|---|---|
@@ -827,7 +409,7 @@ The LLM correctly identified refraction as out of scope based on the problem sta
 
 $$\text{combined} = 1 - (1 - 0.5625)(1 - 0.7661)(1 - 0.55) = 1 - 0.4375 \times 0.2339 \times 0.45 = 1 - 0.04605 = \mathbf{0.954}$$
 
-#### B.7 Independent Deep Analysis
+### B.7 Independent Deep Analysis
 
 **The smoking gun is the test names themselves.** Two of the four F2P tests are literally named `test_itrs_topo_to_altaz_with_refraction` and `test_itrs_topo_to_hadec_with_refraction`. The problem statement says "I have yet to add refraction." These test names advertise behavior the spec explicitly defers.
 
@@ -849,9 +431,10 @@ Items 2 and 3 go beyond the specification. An agent would need ~60 lines of refr
 
 ---
 
-### Case C: `astropy__astropy-14182` — "Asked for a Writer Fix, Tested the Reader"
+<a name="case-c-astropy__astropy-14182"></a>
+## Case C: `astropy__astropy-14182` — "Asked for a Writer Fix, Tested the Reader"
 
-#### C.1 HuggingFace Dataset Record
+### C.1 HuggingFace Dataset Record
 
 | Field | Value |
 |---|---|
@@ -868,7 +451,7 @@ Items 2 and 3 go beyond the specification. An agent would need ~60 lines of refr
 | **patch file** | `astropy/io/ascii/rst.py` |
 | **test_patch file** | `astropy/io/ascii/tests/test_rst.py` |
 
-#### C.2 Verbatim Problem Statement
+### C.2 Verbatim Problem Statement
 
 > **Please support header rows in RestructuredText output**
 >
@@ -887,11 +470,11 @@ Items 2 and 3 go beyond the specification. An agent would need ~60 lines of refr
 
 The request is unambiguous: make the **writer** accept `header_rows`. No mention of reading RST with `header_rows`, no mention of round-trip capability.
 
-#### C.3 Gold Patch — Annotated
+### C.3 Gold Patch — Annotated
 
 The gold patch modifies `astropy/io/ascii/rst.py` in 3 hunks:
 
-##### Hunk 0: Remove hardcoded `start_line`
+#### Hunk 0: Remove hardcoded `start_line`
 
 ```diff
  class SimpleRSTData(FixedWidthData):
@@ -901,7 +484,7 @@ The gold patch modifies `astropy/io/ascii/rst.py` in 3 hunks:
 
 This removes the hardcoded `start_line = 3` to allow dynamic calculation. This change is **required for the reader to work with variable header rows** but is NOT related to the writer feature that was requested.
 
-##### Hunk 1: Update docstring
+#### Hunk 1: Update docstring
 
 ```diff
      Example::
@@ -928,7 +511,7 @@ This removes the hardcoded `start_line = 3` to allow dynamic calculation. This c
 
 Docstring updates showing the new writer functionality.
 
-##### Hunk 2: Core implementation
+#### Hunk 2: Core implementation
 
 ```diff
 -    def __init__(self):
@@ -953,7 +536,7 @@ This hunk does THREE things:
 2. `write()` uses `header_rows` count for separator placement — **directly requested**
 3. `read()` method added for dynamic `start_line` — **NOT requested** (reader support)
 
-#### C.4 The F2P Test — Line-by-Line
+### C.4 The F2P Test — Line-by-Line
 
 ```python
 def test_rst_with_header_rows():
@@ -982,9 +565,9 @@ def test_rst_with_header_rows():
     assert out.getvalue().splitlines() == lines  # [5] ← ON_TOPIC: tests writer output
 ```
 
-#### C.5 Pipeline Verdict Detail
+### C.5 Pipeline Verdict Detail
 
-##### Intent Extraction
+#### Intent Extraction
 
 | Field | Value |
 |---|---|
@@ -995,13 +578,13 @@ def test_rst_with_header_rows():
 
 The LLM explicitly identified RST **reading** with `header_rows` as out of scope.
 
-##### Test Verdict
+#### Test Verdict
 
 | Test | Verdict | ON_TOPIC | OFF_TOPIC |
 |---|---|---|---|
 | `test_rst_with_header_rows` | TANGENTIAL | 1 | 5 |
 
-##### Per-Assertion Verdict Table
+#### Per-Assertion Verdict Table
 
 | # | Assertion | Verdict | Reason |
 |---|---|---|---|
@@ -1012,7 +595,7 @@ The LLM explicitly identified RST **reading** with `header_rows` as out of scope
 | 4 | `assert tbl["ints"].dtype == np.int8` | **OFF_TOPIC** | Same: reader dtype parsing |
 | 5 | `assert out.getvalue().splitlines() == lines` | **ON_TOPIC** | Directly verifies that `.write()` with `header_rows` produces correct RST output |
 
-##### Scoring Breakdown
+#### Scoring Breakdown
 
 | Component | Score | Derivation |
 |---|---|---|
@@ -1022,7 +605,7 @@ The LLM explicitly identified RST **reading** with `header_rows` as out of scope
 
 $$\text{combined} = 1 - (1 - 0.333)(1 - 0.833)(1 - 0.4) = 1 - 0.667 \times 0.167 \times 0.6 = 1 - 0.0668 = \mathbf{0.933}$$
 
-#### C.6 Independent Deep Analysis
+### C.6 Independent Deep Analysis
 
 **This is the cleanest contamination case of all four.** The analysis is straightforward:
 
@@ -1045,9 +628,10 @@ This means a 100% correct implementation of the stated problem would score 0% on
 
 ---
 
-### Case D: `astropy__astropy-14539` — "One-Character Fix, Nine Extra Assertions"
+<a name="case-d-astropy__astropy-14539"></a>
+## Case D: `astropy__astropy-14539` — "One-Character Fix, Nine Extra Assertions"
 
-#### D.1 HuggingFace Dataset Record
+### D.1 HuggingFace Dataset Record
 
 | Field | Value |
 |---|---|
@@ -1063,7 +647,7 @@ This means a 100% correct implementation of the stated problem would score 0% on
 | **patch file** | `astropy/io/fits/diff.py` |
 | **test_patch file** | `astropy/io/fits/tests/test_diff.py` |
 
-#### D.2 Verbatim Problem Statement
+### D.2 Verbatim Problem Statement
 
 > **`io.fits.FITSDiff` may sometimes report differences between identical files**
 >
@@ -1085,7 +669,7 @@ This means a 100% correct implementation of the stated problem would score 0% on
 >
 > I suspect the handling of VLAs is the culprit here as I couldn't reproduce the bug without using at least one VLA column.
 
-#### D.3 Hints Text
+### D.3 Hints Text
 
 > Seems due to the use of `Q`, only `P` is handled in the diff code. This:
 > ```diff
@@ -1098,7 +682,7 @@ This means a 100% correct implementation of the stated problem would score 0% on
 
 **Key observation:** The hints text literally provides the one-line fix. The exact same change appears in the gold patch.
 
-#### D.4 Complete Gold Patch
+### D.4 Complete Gold Patch
 
 ```diff
 diff --git a/astropy/io/fits/diff.py b/astropy/io/fits/diff.py
@@ -1115,15 +699,15 @@ diff --git a/astropy/io/fits/diff.py b/astropy/io/fits/diff.py
                          idx
 ```
 
-This is a textbook one-line bug fix: `"P"` → `"P" or "Q"`. The `Q` format descriptor is used for 64-bit VLAs (vs `P` for 32-bit VLAs). The diff code only checked for `P`, so `Q`-format columns fell through to the generic comparison path, which doesn't handle VLAs correctly.
+This is a textbook one-line bug fix: `"P"` → `"P" or "Q"`.  The `Q` format descriptor is used for 64-bit VLAs (vs `P` for 32-bit VLAs). The diff code only checked for `P`, so `Q`-format columns fell through to the generic comparison path, which doesn't handle VLAs correctly.
 
 **The patch itself is perfectly aligned with the problem.**
 
-#### D.5 Complete Test Patch — Detailed Analysis
+### D.5 Complete Test Patch — Detailed Analysis
 
 The test patch modifies two existing tests:
 
-##### Test 1: `test_identical_tables` (MODIFIED)
+#### Test 1: `test_identical_tables` (MODIFIED)
 
 ```diff
          c10 = Column("J", format="PI(2)", array=[[0, 1], [2, 3]])
@@ -1144,7 +728,7 @@ The test patch modifies two existing tests:
 
 **2 ON_TOPIC assertions** (the core test: `diff.identical` must be `True`, and the column count/names reflect the added VLA column).
 
-##### Test 2: `test_different_table_data` (MODIFIED, x3 instances in F2P)
+#### Test 2: `test_different_table_data` (MODIFIED, x3 instances in F2P)
 
 This is where the contamination signal appears. The existing test creates two different tables and verifies that `FITSDiff` correctly reports their differences. The test patch adds a `Q`-format column `K` to both tables:
 
@@ -1170,9 +754,9 @@ This is where the contamination signal appears. The existing test creates two di
 +        assert "15 different table data element(s) found (68.18% different)" in report  # [CHANGED] OFF_TOPIC
 ```
 
-#### D.6 Pipeline Verdict Detail
+### D.6 Pipeline Verdict Detail
 
-##### Intent Extraction
+#### Intent Extraction
 
 | Field | Value |
 |---|---|
@@ -1181,7 +765,7 @@ This is where the contamination signal appears. The existing test creates two di
 | **out_of_scope** | Changing public API, modifying FITS file writing/reading, altering non-VLA diff semantics, adding new diff features |
 | **ambiguity_score** | 0.3 |
 
-##### Per-Test and Per-Assertion Verdicts
+#### Per-Test and Per-Assertion Verdicts
 
 | Test | Verdict | ON_TOPIC | OFF_TOPIC |
 |---|---|---|---|
@@ -1193,7 +777,7 @@ This is where the contamination signal appears. The existing test creates two di
 
 **Why `test_different_table_data` appears 3 times:** The pipeline identified 3 separate hunk ranges within the same test function (the column addition, the assertion additions, and the updated counts). Each was evaluated independently.
 
-##### Detailed Assertion Reasoning
+#### Detailed Assertion Reasoning
 
 | # | Assertion | Verdict | Reasoning |
 |---|---|---|---|
@@ -1206,7 +790,7 @@ This is where the contamination signal appears. The existing test creates two di
 | 7 | `np.isclose(diff.diff_ratio, 0.682, ...)` | OFF_TOPIC | Updated diff ratio |
 | 8 | `"15 different table data element(s) found (68.18% different)"` | OFF_TOPIC | Updated report string |
 
-##### Scoring Breakdown
+#### Scoring Breakdown
 
 | Component | Score | Derivation |
 |---|---|---|
@@ -1216,7 +800,7 @@ This is where the contamination signal appears. The existing test creates two di
 
 $$\text{combined} = 1 - (1 - 0.0)(1 - 0.818)(1 - 0.3) = 1 - 1.0 \times 0.182 \times 0.7 = 1 - 0.1274 = \mathbf{0.873}$$
 
-#### D.7 Independent Deep Analysis
+### D.7 Independent Deep Analysis
 
 **The patch is clean — the contamination is purely in the tests.**
 
@@ -1225,8 +809,8 @@ The gold patch is exactly the one-line fix described in the hints. It perfectly 
 **What an agent would produce:**
 
 An agent reading the problem statement and hints would:
-1. Add `or "Q" in col.format` — correct fix
-2. Add/modify `test_identical_tables` to include a `Q`-format column — this is reasonable
+1. Add `or "Q" in col.format` — correct fix ✓
+2. Add/modify `test_identical_tables` to include a `Q`-format column — this is reasonable ✓
 3. **Not necessarily** add a `Q`-format column to `test_different_table_data` — this tests a different scenario (correctly detecting differences, not fixing false positives)
 
 **Would the agent's fix pass?** The agent's fix would pass `test_identical_tables` but fail `test_different_table_data` because:
@@ -1242,9 +826,9 @@ This makes the contamination more subtle: the test modifications are legitimate 
 
 ---
 
-### Cross-Case Synthesis
+## Cross-Case Synthesis
 
-#### Contamination Pattern Taxonomy
+### Contamination Pattern Taxonomy
 
 | Pattern | Cases | Description |
 |---|---|---|
@@ -1252,7 +836,7 @@ This makes the contamination more subtle: the test modifications are legitimate 
 | **Scope Creep in Tests** | B, D | Tests verify behavior explicitly deferred or beyond the bug scope |
 | **Feature Split** | C | Problem asks for feature X; gold patch implements X+Y; test requires both |
 
-#### Impact on SWE-bench Evaluation
+### Impact on SWE-bench Evaluation
 
 The contamination in these cases creates an unfair evaluation dynamic:
 
@@ -1262,7 +846,7 @@ The contamination in these cases creates an unfair evaluation dynamic:
 
 3. **Background knowledge substitutes for the problem statement.** In Cases B and D, the tests require domain knowledge (ERFA refraction API, FITS Q-format VLA columns in diff scenarios) that is not mentioned in the problem description. While a skilled agent might infer these, they are not derivable from the problem text alone.
 
-#### Scoring Formula Validation
+### Scoring Formula Validation
 
 All four cases were verified against the formula:
 
@@ -1275,7 +859,7 @@ $$\text{combined} = 1 - (1 - \text{EP}) \times (1 - \text{ET}) \times (1 - \text
 | C | 0.333 | 0.833 | 0.400 | 0.933 | 0.933 | ✓ |
 | D | 0.000 | 0.818 | 0.300 | 0.873 | 0.873 | ✓ |
 
-#### Confidence Summary
+### Confidence Summary
 
 | Case | Instance | Combined | Primary Signal | Confidence |
 |---|---|---|---|---|

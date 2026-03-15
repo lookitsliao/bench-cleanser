@@ -38,6 +38,7 @@ from bench_cleanser.models import (
     ContaminationReportV2,
     ParsedTask,
     PipelineConfig,
+    RootCause,
     Severity,
     TaskRecord,
     VagueSpecDetail,
@@ -91,7 +92,7 @@ def load_config(config_path: str) -> PipelineConfig:
         llm_base_url=_expand(llm.get("base_url", "https://cloudgpt-openai.azure-api.net/")),
         llm_api_version=llm.get("api_version", "2025-04-01-preview"),
         llm_model=llm.get("model", "gpt-5.2-20251211"),
-        llm_max_tokens=llm.get("max_tokens", 4096),
+        llm_max_tokens=llm.get("max_tokens", 16384),
         llm_reasoning_effort=llm.get("reasoning_effort", "high"),
         max_concurrent_requests=llm.get("max_concurrent_requests", 10),
         retry_attempts=llm.get("retry_attempts", 7),
@@ -99,9 +100,9 @@ def load_config(config_path: str) -> PipelineConfig:
         concurrency=pipeline.get("concurrency", 5),
         cache_dir=pipeline.get("cache_dir", ".cache/llm_responses"),
         output_dir=pipeline.get("output_dir", "output"),
-        clean_max=thresholds.get("clean_max", 0.2),
-        minor_max=thresholds.get("minor_max", 0.5),
-        moderate_max=thresholds.get("moderate_max", 0.8),
+        clean_max=thresholds.get("clean_max", 0.15),
+        minor_max=thresholds.get("minor_max", 0.4),
+        moderate_max=thresholds.get("moderate_max", 0.7),
         astred_enabled=astred.get("enabled", False),
         astred_binary_path=astred.get("binary_path", ""),
         code_visitation_enabled=code_visit.get("enabled", True),
@@ -454,6 +455,155 @@ def _write_summary(
 # ═══════════════════════════════════════════════════════════════════════
 
 
+ROOT_CAUSE_SYSTEM_PROMPT = """\
+You are a benchmark contamination analyst. Given a contamination report \
+for a software engineering task, classify the root cause(s) of contamination.
+
+A task can have MULTIPLE root causes. Only include root causes you are \
+confident about (confidence >= 0.6).
+
+Root cause categories:
+1. APPROACH_MISMATCH — Gold patch takes a fundamentally different approach \
+than the problem statement suggests. The problem describes fix X but the \
+gold patch implements fix Y. An agent following the problem description \
+would produce a different (but possibly valid) solution.
+
+2. DEFERRED_REQUIREMENT — Tests enforce features explicitly deferred or \
+disclaimed in the problem statement. Look for phrases like "I have yet to", \
+"will add later", "not implemented yet", "future work", "TODO" in the \
+problem statement, where the tests then require that deferred feature.
+
+3. SCOPE_EXPANSION — Gold patch and/or tests extend beyond the stated \
+problem scope. The problem asks for X but the gold patch or tests also \
+cover Y. High OFF_TOPIC assertion ratio is a strong signal.
+
+4. IMPLICIT_CONSENSUS — The solution requires knowledge from code review \
+discussion or hints that extends the original problem statement. The hints \
+contain design decisions not derivable from the problem alone.
+
+5. INFRASTRUCTURE_LEAK — Tests require ancillary infrastructure changes \
+not described in the feature specification. The F2P tests exercise \
+infrastructure code paths not mentioned in the problem statement."""
+
+
+async def _classify_root_causes(
+    record: TaskRecord,
+    report: ContaminationReportV2,
+    llm: LLMClient,
+) -> tuple[list[RootCause], dict[str, str]]:
+    """Stage 6: Auto-detect root causes using LLM analysis.
+
+    Returns (root_causes, root_cause_reasoning) where reasoning maps
+    each root cause value to explanatory text.
+    """
+    ep = report.excess_patch
+    et = report.excess_test
+    intent = report.intent
+
+    # Build context for the LLM
+    prompt = f"""Analyze this contaminated SWE-bench task and identify root cause(s).
+
+INSTANCE: {record.instance_id}
+SEVERITY: {report.severity.value} (combined score: {report.combined_score:.3f})
+
+PROBLEM STATEMENT (first 3000 chars):
+{record.problem_statement[:3000]}
+
+HINTS TEXT (first 2000 chars):
+{record.hints_text[:2000] if record.hints_text else "(none)"}
+
+INTENT EXTRACTION:
+- Core requirement: {intent.core_requirement}
+- Behavioral contract: {intent.behavioral_contract[:500]}
+- Acceptance criteria: {'; '.join(intent.acceptance_criteria)}
+- Out of scope: {intent.out_of_scope}
+
+EXCESS_PATCH ANALYSIS (score: {ep.score:.3f}):
+- Total hunks: {ep.total_hunks}
+- REQUIRED: {ep.required_count}, ANCILLARY: {ep.ancillary_count}, UNRELATED: {ep.unrelated_count}
+- Hunk details:
+"""
+    for h in ep.hunk_verdicts[:10]:
+        prompt += f"  [{h.hunk_index}] {h.file_path}: {h.verdict.value} — {h.reasoning[:200]}\n"
+
+    prompt += f"""
+EXCESS_TEST ANALYSIS (score: {et.score:.3f}):
+- Total tests: {et.total_tests}
+- ALIGNED: {et.aligned_count}, TANGENTIAL: {et.tangential_count}, UNRELATED: {et.unrelated_count}
+- Total assertions: {et.total_assertions}
+- ON_TOPIC: {et.on_topic_assertions}, OFF_TOPIC: {et.off_topic_assertions}
+"""
+    for t in et.test_verdicts[:5]:
+        prompt += f"  Test '{t.test_name}': {t.intent_match.value} (ON:{t.on_topic_count}, OFF:{t.off_topic_count})\n"
+
+    prompt += f"""
+VAGUE_SPEC: {report.vague_spec.score:.3f}
+
+Respond in JSON:
+{{
+    "root_causes": [
+        {{
+            "category": "APPROACH_MISMATCH | DEFERRED_REQUIREMENT | SCOPE_EXPANSION | IMPLICIT_CONSENSUS | INFRASTRUCTURE_LEAK",
+            "confidence": 0.0 to 1.0,
+            "reasoning": "Explanation of why this root cause applies"
+        }}
+    ]
+}}
+
+Only include root causes with confidence >= 0.6. A task can have multiple root causes."""
+
+    try:
+        response = await llm.query(
+            system=ROOT_CAUSE_SYSTEM_PROMPT,
+            user=prompt,
+            cache_key=f"root_cause_{record.instance_id}",
+        )
+
+        # Parse response
+        result = _parse_root_cause_response(response)
+        root_causes = []
+        reasoning_map = {}
+
+        for entry in result.get("root_causes", []):
+            try:
+                rc = RootCause(entry.get("category", ""))
+                confidence = float(entry.get("confidence", 0.0))
+                if confidence >= 0.6:
+                    root_causes.append(rc)
+                    reasoning_map[rc.value] = entry.get("reasoning", "")
+            except (ValueError, KeyError):
+                continue
+
+        return root_causes, reasoning_map
+    except Exception as exc:
+        logger.warning("Root cause classification failed: %s", exc)
+        return [], {}
+
+
+def _parse_root_cause_response(response: str) -> dict:
+    """Parse LLM JSON response for root cause classification."""
+    import re as _re
+    text = response.strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    fence_match = _re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, _re.DOTALL)
+    if fence_match:
+        try:
+            return json.loads(fence_match.group(1))
+        except json.JSONDecodeError:
+            pass
+    brace_start = text.find("{")
+    brace_end = text.rfind("}")
+    if brace_start != -1 and brace_end != -1:
+        try:
+            return json.loads(text[brace_start:brace_end + 1])
+        except json.JSONDecodeError:
+            pass
+    return {"root_causes": []}
+
+
 async def process_single_task_v2(
     record: TaskRecord,
     llm: LLMClient,
@@ -503,16 +653,39 @@ async def process_single_task_v2(
     )
 
     report = build_report_v2(intent, excess_patch, excess_test, vague_spec, config)
+
+    # Stage 6: Root-cause auto-detection (for non-CLEAN tasks)
+    if report.severity != Severity.CLEAN:
+        try:
+            root_causes, root_cause_reasoning = await _classify_root_causes(
+                record, report, llm,
+            )
+            report.root_causes = root_causes
+            report.root_cause_reasoning = root_cause_reasoning
+        except Exception as exc:
+            logger.warning(
+                "Root-cause classification failed for %s: %s",
+                record.instance_id, exc,
+            )
+
     return report
 
 
 async def run_pipeline_v2(
     records: list[TaskRecord],
     config: PipelineConfig,
+    *,
+    resume: bool = True,
 ) -> list[ContaminationReportV2]:
     """Run the v2 pipeline on a batch of tasks with rich progress display.
 
     Reports are written to disk as they complete.
+
+    Args:
+        records: Tasks to process.
+        config: Pipeline configuration.
+        resume: If True, skip tasks that already have a report on disk
+                and load those reports at the end for summary generation.
     """
     cache = ResponseCache(config.cache_dir)
     llm = LLMClient(config, cache=cache)
@@ -535,6 +708,19 @@ async def run_pipeline_v2(
     output_dir = pathlib.Path(config.output_dir)
     reports_dir = output_dir / "reports"
     reports_dir.mkdir(parents=True, exist_ok=True)
+
+    # Resume: skip tasks that already have a report file on disk
+    skipped_ids: set[str] = set()
+    if resume:
+        existing = {p.stem for p in reports_dir.glob("*.json")}
+        skipped_ids = {r.instance_id for r in records if r.instance_id in existing}
+        if skipped_ids:
+            logger.info(
+                "Resume: skipping %d/%d tasks with existing reports",
+                len(skipped_ids),
+                len(records),
+            )
+        records = [r for r in records if r.instance_id not in skipped_ids]
 
     semaphore = asyncio.Semaphore(config.concurrency)
     severity_counts = {"CLEAN": 0, "MINOR": 0, "MODERATE": 0, "SEVERE": 0}
@@ -664,6 +850,21 @@ async def run_pipeline_v2(
         reports = list(await asyncio.gather(*tasks))
         progress_bar.close()
 
+    # Load previously completed reports (from resume) and merge
+    if skipped_ids:
+        for report_path in reports_dir.glob("*.json"):
+            if report_path.stem in skipped_ids:
+                try:
+                    data = json.loads(report_path.read_text(encoding="utf-8"))
+                    resumed = ContaminationReportV2.from_dict(data)
+                    reports.append(resumed)
+                    severity_counts[resumed.severity.value] += 1
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to load resumed report %s: %s",
+                        report_path.stem, exc,
+                    )
+
     # Write aggregate summary
     _write_summary_v2(reports, output_dir)
 
@@ -683,7 +884,7 @@ def _write_summary_v2(
         "patch_hunks_total", "patch_required", "patch_ancillary", "patch_unrelated",
         "tests_total", "tests_aligned", "tests_tangential", "tests_unrelated",
         "assertions_total", "assertions_on_topic", "assertions_off_topic",
-        "has_modified_test", "recommendations",
+        "has_modified_test", "root_causes", "recommendations",
     ]
 
     output = io.StringIO()
@@ -710,6 +911,7 @@ def _write_summary_v2(
             "assertions_on_topic": r.excess_test.on_topic_assertions,
             "assertions_off_topic": r.excess_test.off_topic_assertions,
             "has_modified_test": r.excess_test.has_modified_tests,
+            "root_causes": ";".join(rc.value for rc in r.root_causes),
             "recommendations": "; ".join(r.recommendations),
         })
 
@@ -724,9 +926,16 @@ def _write_summary_v2(
     sorted_scores = sorted(scores)
     n = len(sorted_scores)
 
+    # Root cause distribution
+    root_cause_counts: dict[str, int] = {}
+    for r in reports:
+        for rc in r.root_causes:
+            root_cause_counts[rc.value] = root_cause_counts.get(rc.value, 0) + 1
+
     stats = {
         "total_tasks": len(reports),
         "severity_distribution": severity_counts,
+        "root_cause_distribution": root_cause_counts,
         "mean_combined_score": (sum(scores) / n) if n else 0.0,
         "median_combined_score": (
             sorted_scores[n // 2] if n % 2 == 1

@@ -825,10 +825,13 @@ async def analyze_tests_v2(
 
     # Compute score:
     # off_topic assertions count directly
+    # tangential tests contribute partially (their assertions partially off-topic)
     # unrelated tests contribute their share of assertions too
     avg_assertions_per_test = total_assertions / (len(test_verdicts) or 1)
+    # Tangential tests contribute 30% of their assertion weight
+    tangential_assertion_equiv = tangential * avg_assertions_per_test * 0.3
     unrelated_assertion_equiv = unrelated * avg_assertions_per_test
-    score = min(1.0, (off_topic + unrelated_assertion_equiv) / total_assertions)
+    score = min(1.0, (off_topic + tangential_assertion_equiv + unrelated_assertion_equiv) / total_assertions)
 
     return ExcessTestDetail(
         score=score,

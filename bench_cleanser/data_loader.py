@@ -7,9 +7,11 @@ from datasets import load_dataset
 from bench_cleanser.models import TaskRecord
 
 
-def _load_dataset_as_records(name: str, max_tasks: int) -> list[TaskRecord]:
+def _load_dataset_as_records(
+    name: str, max_tasks: int, split: str = "test"
+) -> list[TaskRecord]:
     """Load a HuggingFace dataset and convert rows to TaskRecord objects."""
-    ds = load_dataset(name, split="test")
+    ds = load_dataset(name, split=split)
     records: list[TaskRecord] = []
     for row in ds:
         if len(records) >= max_tasks:
@@ -19,7 +21,9 @@ def _load_dataset_as_records(name: str, max_tasks: int) -> list[TaskRecord]:
 
 
 def load_swebench_verified(max_tasks: int = 500) -> list[TaskRecord]:
-    """Load from the SWE-bench Verified dataset.
+    """Load from the SWE-bench Verified dataset (500 tasks).
+
+    This is the primary target dataset for contamination analysis.
 
     Args:
         max_tasks: Maximum number of task records to return.
@@ -30,8 +34,10 @@ def load_swebench_verified(max_tasks: int = 500) -> list[TaskRecord]:
     return _load_dataset_as_records("princeton-nlp/SWE-bench_Verified", max_tasks)
 
 
-def load_swebench_lite(max_tasks: int = 500) -> list[TaskRecord]:
-    """Load from the SWE-bench Lite dataset.
+def load_swebench_pro(max_tasks: int = 500) -> list[TaskRecord]:
+    """Load from the SWE-bench Pro dataset.
+
+    SWE-bench Pro contains harder, professionally curated tasks.
 
     Args:
         max_tasks: Maximum number of task records to return.
@@ -39,11 +45,33 @@ def load_swebench_lite(max_tasks: int = 500) -> list[TaskRecord]:
     Returns:
         A list of up to *max_tasks* TaskRecord objects.
     """
-    return _load_dataset_as_records("princeton-nlp/SWE-bench_Lite", max_tasks)
+    return _load_dataset_as_records("SWE-bench/SWE-bench_Pro", max_tasks)
+
+
+def load_swebench_live(max_tasks: int = 500, split: str = "verified") -> list[TaskRecord]:
+    """Load from the SWE-bench Live dataset.
+
+    SWE-bench Live is a continuously updated benchmark of real-world
+    software-engineering issue resolutions.
+
+    Available splits: test (~1k), lite (~300), verified (~500), full (~1.89k).
+
+    See: https://huggingface.co/datasets/SWE-bench-Live/SWE-bench-Live
+
+    Args:
+        max_tasks: Maximum number of task records to return.
+        split: HuggingFace dataset split to load (default: ``verified``).
+
+    Returns:
+        A list of up to *max_tasks* TaskRecord objects.
+    """
+    return _load_dataset_as_records(
+        "SWE-bench-Live/SWE-bench-Live", max_tasks, split=split
+    )
 
 
 def load_all(max_per_dataset: int = 500) -> list[TaskRecord]:
-    """Load from both SWE-bench Verified and Lite, concatenated.
+    """Load from SWE-bench Verified and SWE-bench Pro, concatenated.
 
     Args:
         max_per_dataset: Maximum number of records to load from each dataset.
@@ -52,12 +80,12 @@ def load_all(max_per_dataset: int = 500) -> list[TaskRecord]:
         Combined list of TaskRecord objects from both datasets.
     """
     verified = load_swebench_verified(max_tasks=max_per_dataset)
-    lite = load_swebench_lite(max_tasks=max_per_dataset)
-    return verified + lite
+    pro = load_swebench_pro(max_tasks=max_per_dataset)
+    return verified + pro
 
 
 def load_single_task(instance_id: str) -> TaskRecord | None:
-    """Search both datasets for a specific instance_id.
+    """Search all datasets for a specific instance_id.
 
     Args:
         instance_id: The unique instance identifier to look for.
@@ -65,12 +93,16 @@ def load_single_task(instance_id: str) -> TaskRecord | None:
     Returns:
         The matching TaskRecord, or None if not found.
     """
-    for name in [
-        "princeton-nlp/SWE-bench_Verified",
-        "princeton-nlp/SWE-bench_Lite",
+    for name, split in [
+        ("princeton-nlp/SWE-bench_Verified", "test"),
+        ("SWE-bench/SWE-bench_Pro", "test"),
+        ("SWE-bench-Live/SWE-bench-Live", "verified"),
     ]:
-        ds = load_dataset(name, split="test")
-        for row in ds:
-            if row.get("instance_id") == instance_id:
-                return TaskRecord.from_dict(row)
+        try:
+            ds = load_dataset(name, split=split)
+            for row in ds:
+                if row.get("instance_id") == instance_id:
+                    return TaskRecord.from_dict(row)
+        except Exception:
+            continue
     return None
