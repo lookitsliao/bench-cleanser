@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from functools import reduce
+from typing import Any
 
 from bench_cleanser.classification.taxonomy import classify_severity
 from bench_cleanser.models import (
@@ -17,12 +18,14 @@ from bench_cleanser.models import (
     ContaminationReport,
     ContaminationReportV2,
     CrossReferenceAnalysis,
+    DualTaxonomyReport,
     ExcessPatchDetail,
     ExcessTestDetail,
     IntentStatement,
     PatchAnalysis,
     PipelineConfig,
     ScopeAnalysis,
+    TaskRecord,
     TestAnalysis,
     VagueSpecDetail,
     VerdictCategory,
@@ -435,6 +438,69 @@ def build_report_v2(
         excess_patch=excess_patch,
         excess_test=excess_test,
         vague_spec=vague_spec,
+        categories=verdict_scores,
+        recommendations=recommendations,
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# v3 Scoring: Dual Taxonomy (Task Labels + Agent Labels)
+# ═══════════════════════════════════════════════════════════════════════
+
+
+async def build_report_v3(
+    intent: IntentStatement,
+    excess_patch: ExcessPatchDetail,
+    excess_test: ExcessTestDetail,
+    vague_spec: VagueSpecDetail,
+    config: PipelineConfig,
+    record: TaskRecord | None = None,
+    llm: Any = None,
+) -> DualTaxonomyReport:
+    """Build a v3 DualTaxonomyReport from intent-matching + dual taxonomy.
+
+    Computes v2 verdict scores for backward compatibility, then runs the
+    dual taxonomy classifier (Axis 1) for fine-grained multi-label output
+    with recalibrated severity.
+    """
+    from bench_cleanser.classification.dual_taxonomy import (
+        classify_task_labels,
+        compute_task_severity,
+    )
+
+    # v2 scores (backward compat)
+    verdict_scores = compute_verdict_scores(excess_patch, excess_test, vague_spec)
+    combined_v2 = compute_combined_score(verdict_scores)
+    clean_score = verdict_scores[VerdictCategory.CLEAN.value]
+    clean_score.confidence = _clamp(1.0 - combined_v2)
+    if combined_v2 < config.clean_max:
+        clean_score.evidence.append("All evaluation criteria align with the task description")
+
+    recommendations = build_recommendations(excess_patch, excess_test, vague_spec)
+
+    # v3 dual taxonomy (Axis 1)
+    task_labels = await classify_task_labels(
+        intent, excess_patch, excess_test, vague_spec,
+        record=record, llm=llm,
+    )
+
+    # Recalibrated severity from weighted labels
+    severity, score = compute_task_severity(
+        task_labels,
+        clean_max=config.clean_max,
+        minor_max=config.minor_max,
+        moderate_max=config.moderate_max,
+    )
+
+    return DualTaxonomyReport(
+        instance_id=intent.instance_id,
+        severity=severity,
+        combined_score=score,
+        intent=intent,
+        excess_patch=excess_patch,
+        excess_test=excess_test,
+        vague_spec=vague_spec,
+        task_labels=task_labels,
         categories=verdict_scores,
         recommendations=recommendations,
     )

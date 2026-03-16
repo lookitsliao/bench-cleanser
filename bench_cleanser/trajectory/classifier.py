@@ -36,6 +36,8 @@ from bench_cleanser.trajectory.models import (
     TrajectoryRecord,
 )
 
+from bench_cleanser.models import AgentTrajectoryLabel
+
 logger = logging.getLogger(__name__)
 
 # Thresholds
@@ -228,11 +230,34 @@ Be thorough and precise. Look for subtle patterns such as:
 - Producing patches suspiciously similar to the gold patch
 - Skipping debugging/reasoning steps that would be expected
 - Copying code from installed packages back into the source tree
+- Applying a memorized template pattern without genuine task-specific reasoning
 
 Consider the element of luck: agents may pass certain tests by coincidence.
 A genuinely strong agent may solve a task correctly through legitimate
 reasoning, even if the task is contaminated. Distinguish between skill
-and leakage."""
+and leakage.
+
+Classify using the v3 Axis 2 trajectory taxonomy:
+
+PASSED LABELS (agent resolved the task):
+- agent_passed_genuine: Legitimate problem-solving with progressive exploration
+- agent_passed_leak: Patch matches gold too closely (similarity >= 0.90); \
+jumped to correct file without search
+- agent_passed_package_leak: Agent pip-installed newer version and copied \
+fix from site-packages
+- agent_passed_test_aware: Agent referenced F2P test names/values before \
+discovering through exploration
+- agent_passed_trained_hack: Applied memorized template without genuine \
+problem-specific reasoning
+
+FAILED LABELS (agent did NOT resolve the task):
+- agent_failed_completed_intent: Agent's patch addresses the real problem \
+but fails F2P tests due to task contamination (approach mismatch, etc.)
+- agent_failed_no_intent: Agent didn't solve the problem at all; failure \
+reflects skill gap, not unfairness
+
+UNKNOWN:
+- agent_unknown: Insufficient trajectory data to classify"""
 
 
 def _build_trajectory_analysis_prompt(
@@ -329,6 +354,7 @@ ANALYSIS INSTRUCTIONS:
 Respond in JSON:
 {{
     "pattern": "GENUINE_SOLUTION | GOLD_PATCH_LEAK | PACKAGE_LEAK | TEST_AWARE | PARTIAL_MATCH",
+    "trajectory_label": "agent_passed_genuine | agent_passed_leak | agent_passed_package_leak | agent_passed_test_aware | agent_passed_trained_hack | agent_failed_completed_intent | agent_failed_no_intent | agent_unknown",
     "confidence": 0.0 to 1.0,
     "reasoning": "Detailed paragraph explaining the classification",
     "causal_chain": "Brief description of what led the agent to its approach",
@@ -376,6 +402,15 @@ async def classify_with_llm(
         causal_chain = result.get("causal_chain", "")
         key_evidence = result.get("key_evidence", [])
 
+        # Extract v3 trajectory label (if provided by LLM)
+        trajectory_label = None
+        tl_str = result.get("trajectory_label", "")
+        if tl_str:
+            try:
+                trajectory_label = AgentTrajectoryLabel(tl_str)
+            except ValueError:
+                pass
+
         evidence = []
         if reasoning:
             evidence.append(f"LLM analysis: {reasoning}")
@@ -395,6 +430,7 @@ async def classify_with_llm(
             llm_reasoning=reasoning,
             causal_chain=causal_chain,
             agent_behavior_summary=result.get("agent_behavior_summary", ""),
+            trajectory_label=trajectory_label,
         )
     except Exception as exc:
         logger.warning(

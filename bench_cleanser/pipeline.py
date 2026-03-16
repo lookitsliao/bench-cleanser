@@ -24,7 +24,11 @@ from bench_cleanser.analysis.scope_analyzer import analyze_scope, extract_intent
 from bench_cleanser.analysis.structural_diff import compute_structural_diff
 from bench_cleanser.analysis.test_analyzer import analyze_tests, analyze_tests_v2
 from bench_cleanser.cache import ResponseCache
-from bench_cleanser.classification.scorer import build_report, build_report_v2
+from bench_cleanser.classification.scorer import (
+    build_report,
+    build_report_v2,
+    build_report_v3,
+)
 from bench_cleanser.code_visitor import (
     extract_fixtures,
     extract_imports,
@@ -36,6 +40,7 @@ from bench_cleanser.models import (
     CodeContext,
     ContaminationReport,
     ContaminationReportV2,
+    DualTaxonomyReport,
     ParsedTask,
     PipelineConfig,
     RootCause,
@@ -959,3 +964,377 @@ def _write_summary_v2(
 
     logger.info("v2 Summary written to %s", output_dir)
     logger.info("Severity distribution: %s", severity_counts)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# v3 Pipeline: Dual Taxonomy architecture
+# ═══════════════════════════════════════════════════════════════════════
+
+
+async def process_single_task_v3(
+    record: TaskRecord,
+    llm: LLMClient,
+    config: PipelineConfig,
+    repo_manager: RepoManager | None = None,
+) -> DualTaxonomyReport:
+    """Run the v3 pipeline on a single task.
+
+    Stages 1-4 are identical to v2.  Stage 5 uses the dual taxonomy
+    classifier instead of the old root-cause detector.
+
+    Stages:
+      1. PARSE — extract diffs from gold patch + test patch
+      2. INTENT — extract ground truth intent from problem statement
+      3. STRUCTURAL DIFF — astred_core-powered structural analysis
+      4. INTENT MATCHING — match tests + patches against intent
+      5. DUAL TAXONOMY — multi-label classification + recalibrated severity
+    """
+    # Stage 1: Parse
+    parsed = parse_task(record)
+
+    # Stage 1.5: Code visitation
+    if config.code_visitation_enabled and repo_manager is not None:
+        enrich_with_code_context(parsed, repo_manager, config)
+
+    # Stage 2: Intent extraction
+    intent = await extract_intent(record, llm)
+
+    # Stage 3: Structural diff
+    structural_diff = None
+    if repo_manager is not None:
+        repo_path = repo_manager.get_repo_path(record.repo, record.base_commit)
+        if repo_path is not None:
+            try:
+                structural_diff = compute_structural_diff(parsed, repo_path)
+            except Exception as exc:
+                logger.warning(
+                    "Structural diff failed for %s: %s", record.instance_id, exc
+                )
+
+    # Stage 4: Intent matching (parallel)
+    patch_task = analyze_patch_v2(parsed, intent, llm, structural_diff)
+    test_task = analyze_tests_v2(parsed, intent, llm, structural_diff)
+    excess_patch, excess_test = await asyncio.gather(patch_task, test_task)
+
+    # Stage 5: Dual taxonomy classification
+    vague_spec = VagueSpecDetail(
+        score=intent.ambiguity_score,
+        reasoning=intent.raw_llm_response[:500] if intent.raw_llm_response else "",
+    )
+
+    report = await build_report_v3(
+        intent, excess_patch, excess_test, vague_spec, config,
+        record=record, llm=llm,
+    )
+
+    return report
+
+
+async def run_pipeline_v3(
+    records: list[TaskRecord],
+    config: PipelineConfig,
+    *,
+    resume: bool = True,
+) -> list[DualTaxonomyReport]:
+    """Run the v3 (dual taxonomy) pipeline on a batch of tasks.
+
+    Same progress display and resume behavior as v2.
+    """
+    cache = ResponseCache(config.cache_dir)
+    llm = LLMClient(config, cache=cache)
+
+    repo_manager: RepoManager | None = None
+    if config.code_visitation_enabled:
+        repo_manager = RepoManager(
+            cache_dir=config.repo_cache_dir,
+            clone_timeout=config.clone_timeout_seconds,
+        )
+        logger.info("Code visitation enabled — pre-cloning repos")
+        clone_results = repo_manager.pre_clone_repos(records)
+        logger.info(
+            "Pre-clone complete: %d/%d repos available",
+            sum(1 for v in clone_results.values() if v),
+            len(clone_results),
+        )
+
+    output_dir = pathlib.Path(config.output_dir)
+    reports_dir = output_dir / "reports"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+
+    # Resume: skip tasks with existing reports
+    skipped_ids: set[str] = set()
+    if resume:
+        existing = {p.stem for p in reports_dir.glob("*.json")}
+        skipped_ids = {r.instance_id for r in records if r.instance_id in existing}
+        if skipped_ids:
+            logger.info(
+                "Resume: skipping %d/%d tasks with existing reports",
+                len(skipped_ids), len(records),
+            )
+        records = [r for r in records if r.instance_id not in skipped_ids]
+
+    semaphore = asyncio.Semaphore(config.concurrency)
+    severity_counts = {"CLEAN": 0, "MINOR": 0, "MODERATE": 0, "SEVERE": 0}
+
+    try:
+        from rich.progress import (
+            BarColumn,
+            MofNCompleteColumn,
+            Progress,
+            SpinnerColumn,
+            TaskProgressColumn,
+            TextColumn,
+            TimeElapsedColumn,
+        )
+        use_rich = True
+    except ImportError:
+        use_rich = False
+
+    reports: list[DualTaxonomyReport] = []
+
+    async def _process(
+        record: TaskRecord,
+        progress_callback: Any = None,
+    ) -> DualTaxonomyReport:
+        async with semaphore:
+            try:
+                report = await process_single_task_v3(
+                    record, llm, config, repo_manager=repo_manager
+                )
+            except Exception as exc:
+                logger.error(
+                    "Failed to process %s: %s", record.instance_id, exc,
+                    exc_info=True,
+                )
+                from bench_cleanser.models import (
+                    ExcessPatchDetail,
+                    ExcessTestDetail,
+                    IntentStatement,
+                )
+                dummy_intent = IntentStatement(
+                    instance_id=record.instance_id,
+                    core_requirement=f"PIPELINE_ERROR: {exc}",
+                    behavioral_contract="",
+                    acceptance_criteria=[],
+                    out_of_scope="",
+                    ambiguity_score=0.0,
+                    raw_llm_response=f"Pipeline error: {exc}",
+                )
+                report = DualTaxonomyReport(
+                    instance_id=record.instance_id,
+                    severity=Severity.SEVERE,
+                    combined_score=0.0,
+                    intent=dummy_intent,
+                    excess_patch=ExcessPatchDetail(
+                        score=0.0, total_hunks=0, required_count=0,
+                        ancillary_count=0, unrelated_count=0,
+                    ),
+                    excess_test=ExcessTestDetail(
+                        score=0.0, total_tests=0, aligned_count=0,
+                        tangential_count=0, unrelated_count=0,
+                        total_assertions=0, on_topic_assertions=0,
+                        off_topic_assertions=0, has_modified_tests=False,
+                    ),
+                    vague_spec=VagueSpecDetail(
+                        score=0.0, reasoning=f"PIPELINE_ERROR: {exc}",
+                    ),
+                )
+
+            report_path = reports_dir / f"{record.instance_id}.json"
+            report_path.write_text(
+                json.dumps(report.to_dict(), indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            severity_counts[report.severity.value] += 1
+
+            if progress_callback is not None:
+                progress_callback()
+
+            return report
+
+    if use_rich:
+        from rich.progress import (
+            BarColumn,
+            MofNCompleteColumn,
+            Progress,
+            SpinnerColumn,
+            TaskProgressColumn,
+            TextColumn,
+            TimeElapsedColumn,
+        )
+        from rich.console import Console
+
+        console = Console()
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[bold blue]bench-cleanser v3"),
+            BarColumn(bar_width=40),
+            MofNCompleteColumn(),
+            TaskProgressColumn(),
+            TimeElapsedColumn(),
+            TextColumn("[dim]{task.fields[status]}"),
+            console=console,
+        ) as progress:
+            task_id = progress.add_task(
+                "Processing", total=len(records), status="Starting...",
+            )
+
+            def _update_progress():
+                status_parts = [
+                    f"CLEAN:{severity_counts['CLEAN']}",
+                    f"MINOR:{severity_counts['MINOR']}",
+                    f"MOD:{severity_counts['MODERATE']}",
+                    f"SEV:{severity_counts['SEVERE']}",
+                ]
+                progress.update(task_id, advance=1, status=" ".join(status_parts))
+
+            tasks = [_process(record, _update_progress) for record in records]
+            reports = list(await asyncio.gather(*tasks))
+    else:
+        progress_bar = tqdm(total=len(records), desc="bench-cleanser v3", unit="task")
+
+        def _update_tqdm():
+            progress_bar.update(1)
+            progress_bar.set_postfix(severity_counts)
+
+        tasks = [_process(record, _update_tqdm) for record in records]
+        reports = list(await asyncio.gather(*tasks))
+        progress_bar.close()
+
+    # Load resumed reports
+    if skipped_ids:
+        for report_path in reports_dir.glob("*.json"):
+            if report_path.stem in skipped_ids:
+                try:
+                    data = json.loads(report_path.read_text(encoding="utf-8"))
+                    # Load as v2 for compat, wrap in DualTaxonomyReport
+                    v2 = ContaminationReportV2.from_dict(data)
+                    resumed = DualTaxonomyReport(
+                        instance_id=v2.instance_id,
+                        severity=v2.severity,
+                        combined_score=v2.combined_score,
+                        intent=v2.intent,
+                        excess_patch=v2.excess_patch,
+                        excess_test=v2.excess_test,
+                        vague_spec=v2.vague_spec,
+                        categories=v2.categories,
+                        root_causes=v2.root_causes,
+                        root_cause_reasoning=v2.root_cause_reasoning,
+                        recommendations=v2.recommendations,
+                    )
+                    reports.append(resumed)
+                    severity_counts[resumed.severity.value] += 1
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to load resumed report %s: %s",
+                        report_path.stem, exc,
+                    )
+
+    _write_summary_v3(reports, output_dir)
+
+    return reports
+
+
+def _write_summary_v3(
+    reports: list[DualTaxonomyReport],
+    output_dir: pathlib.Path,
+) -> None:
+    """Write v3 aggregate summary CSV and stats JSON."""
+    csv_path = output_dir / "summary.csv"
+    fieldnames = [
+        "instance_id", "severity", "combined_score",
+        "excess_patch_score", "excess_test_score", "vague_spec_score",
+        "task_labels", "primary_label", "label_count",
+        "patch_hunks_total", "patch_required", "patch_ancillary", "patch_unrelated",
+        "tests_total", "tests_aligned", "tests_tangential", "tests_unrelated",
+        "assertions_total", "assertions_on_topic", "assertions_off_topic",
+        "recommendations",
+    ]
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+
+    for r in reports:
+        # Determine primary label (highest weighted confidence)
+        from bench_cleanser.classification.dual_taxonomy import LABEL_DEFINITIONS
+        primary = ""
+        best_score = -1.0
+        for tl in r.task_labels:
+            w = LABEL_DEFINITIONS.get(tl.label.value, {}).get("weight", 0.0)
+            ws = w * tl.confidence
+            if ws > best_score:
+                best_score = ws
+                primary = tl.label.value
+
+        writer.writerow({
+            "instance_id": r.instance_id,
+            "severity": r.severity.value,
+            "combined_score": f"{r.combined_score:.4f}",
+            "excess_patch_score": f"{r.excess_patch.score:.4f}",
+            "excess_test_score": f"{r.excess_test.score:.4f}",
+            "vague_spec_score": f"{r.vague_spec.score:.4f}",
+            "task_labels": ";".join(tl.label.value for tl in r.task_labels),
+            "primary_label": primary,
+            "label_count": len(r.task_labels),
+            "patch_hunks_total": r.excess_patch.total_hunks,
+            "patch_required": r.excess_patch.required_count,
+            "patch_ancillary": r.excess_patch.ancillary_count,
+            "patch_unrelated": r.excess_patch.unrelated_count,
+            "tests_total": r.excess_test.total_tests,
+            "tests_aligned": r.excess_test.aligned_count,
+            "tests_tangential": r.excess_test.tangential_count,
+            "tests_unrelated": r.excess_test.unrelated_count,
+            "assertions_total": r.excess_test.total_assertions,
+            "assertions_on_topic": r.excess_test.on_topic_assertions,
+            "assertions_off_topic": r.excess_test.off_topic_assertions,
+            "recommendations": "; ".join(r.recommendations),
+        })
+
+    csv_path.write_text(output.getvalue(), encoding="utf-8")
+
+    # Stats JSON
+    severity_counts: dict[str, int] = {"CLEAN": 0, "MINOR": 0, "MODERATE": 0, "SEVERE": 0}
+    for r in reports:
+        severity_counts[r.severity.value] += 1
+
+    # Label distribution
+    label_counts: dict[str, int] = {}
+    for r in reports:
+        for tl in r.task_labels:
+            label_counts[tl.label.value] = label_counts.get(tl.label.value, 0) + 1
+
+    scores = [r.combined_score for r in reports]
+    n = len(scores)
+    sorted_scores = sorted(scores)
+
+    stats = {
+        "total_tasks": n,
+        "severity_distribution": severity_counts,
+        "label_distribution": label_counts,
+        "mean_combined_score": (sum(scores) / n) if n else 0.0,
+        "median_combined_score": (
+            sorted_scores[n // 2] if n % 2 == 1
+            else (sorted_scores[n // 2 - 1] + sorted_scores[n // 2]) / 2
+        ) if n else 0.0,
+        "mean_excess_patch": (
+            sum(r.excess_patch.score for r in reports) / n if n else 0.0
+        ),
+        "mean_excess_test": (
+            sum(r.excess_test.score for r in reports) / n if n else 0.0
+        ),
+        "mean_vague_spec": (
+            sum(r.vague_spec.score for r in reports) / n if n else 0.0
+        ),
+    }
+    stats_path = output_dir / "summary_stats.json"
+    stats_path.write_text(
+        json.dumps(stats, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    logger.info("v3 Summary written to %s", output_dir)
+    logger.info("Severity distribution: %s", severity_counts)
+    logger.info("Label distribution: %s", label_counts)

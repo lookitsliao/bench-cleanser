@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from bench_cleanser.models import AgentTrajectoryLabel
+
 
 class LeakagePattern(str, Enum):
     """Classification of how an agent arrived at its solution."""
@@ -94,12 +96,30 @@ class TrajectoryAnalysis:
     llm_reasoning: str = ""                     # LLM's detailed reasoning
     causal_chain: str = ""                      # What led the agent to its approach
     agent_behavior_summary: str = ""            # Brief characterization of agent behavior
+    trajectory_label: AgentTrajectoryLabel | None = None  # v3 label (populated by dual taxonomy)
+
+    @property
+    def agent_trajectory_label(self) -> AgentTrajectoryLabel:
+        """Return the v3 trajectory label, mapping from LeakagePattern if needed."""
+        if self.trajectory_label is not None:
+            return self.trajectory_label
+        # Backward-compat mapping from LeakagePattern → AgentTrajectoryLabel
+        _map = {
+            LeakagePattern.GENUINE_SOLUTION: AgentTrajectoryLabel.AGENT_PASSED_GENUINE,
+            LeakagePattern.GOLD_PATCH_LEAK: AgentTrajectoryLabel.AGENT_PASSED_LEAK,
+            LeakagePattern.PACKAGE_LEAK: AgentTrajectoryLabel.AGENT_PASSED_PACKAGE_LEAK,
+            LeakagePattern.TEST_AWARE: AgentTrajectoryLabel.AGENT_PASSED_TEST_AWARE,
+            LeakagePattern.PARTIAL_MATCH: AgentTrajectoryLabel.AGENT_UNKNOWN,
+            LeakagePattern.UNKNOWN: AgentTrajectoryLabel.AGENT_UNKNOWN,
+        }
+        return _map.get(self.leakage_pattern, AgentTrajectoryLabel.AGENT_UNKNOWN)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "instance_id": self.instance_id,
             "agent_name": self.agent_name,
             "leakage_pattern": self.leakage_pattern.value,
+            "trajectory_label": self.agent_trajectory_label.value,
             "confidence": round(self.confidence, 4),
             "evidence": self.evidence,
             "gold_patch_similarity": round(self.gold_patch_similarity, 4),

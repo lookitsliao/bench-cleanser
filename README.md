@@ -1,6 +1,6 @@
 # bench-cleanser
 
-Automated contamination detection for SWE-bench benchmarks. Identifies tasks where gold patches or fail-to-pass (F2P) tests exceed the problem description, producing unfair evaluation criteria for software engineering agents. Includes LLM-primary trajectory validation and root-cause taxonomy for systematic diagnosis.
+Automated contamination detection for SWE-bench benchmarks. Identifies tasks where gold patches or fail-to-pass (F2P) tests exceed the problem description, producing unfair evaluation criteria for software engineering agents. Features a **dual taxonomy** classification system (v3), LLM-primary trajectory validation, and weighted severity scoring for systematic diagnosis.
 
 ## Problem
 
@@ -9,14 +9,19 @@ SWE-bench Verified (500 tasks) and SWE-bench Pro are the primary benchmarks for 
 - **Excess patches**: Gold patches include refactoring, style changes, or features not described in the problem statement
 - **Excess tests**: F2P tests assert on behavior not described in the problem (off-topic assertions)
 - **Vague specifications**: Problem statements too ambiguous to determine a unique correct solution
+- **Approach mismatches**: Gold patch takes a fundamentally different strategy than the problem suggests
+- **Deferred requirements**: Tests enforce features the problem explicitly defers
 
-Agents that correctly solve the *described* problem may fail these tasks because evaluation criteria test *undescribed* behavior. bench-cleanser quantifies this contamination at per-hunk and per-assertion granularity, classifies root causes, and validates agent trajectories for leakage.
+Agents that correctly solve the *described* problem may fail these tasks because evaluation criteria test *undescribed* behavior. bench-cleanser quantifies this contamination at per-hunk and per-assertion granularity, classifies contamination using a structured multi-label taxonomy, and validates agent trajectories for leakage.
 
 ## Architecture
 
-### v2 Pipeline (Recommended): Intent-Matching
+### v3 Pipeline (Recommended): Dual Taxonomy
 
-The v2 pipeline uses a 6-stage architecture that extracts ground-truth intent from the problem statement, matches it against the gold patch and F2P tests, and classifies root causes:
+The v3 pipeline extends v2 with a structured **dual taxonomy** system that classifies contamination along two orthogonal axes:
+
+- **Axis 1 (Task Contamination):** What's wrong with the benchmark task itself — multi-label, agent-independent
+- **Axis 2 (Agent Trajectory):** How a specific agent behaved on the task — single primary label per agent-task pair
 
 ```
 Stage 1:   PARSE              Extract diffs from gold patch + test patch
@@ -24,9 +29,143 @@ Stage 1.5: CODE VISITATION     Clone repo, extract full test/function source (op
 Stage 2:   INTENT              Extract ground-truth intent from problem statement (LLM)
 Stage 3:   STRUCTURAL DIFF     AST-level function/class change analysis
 Stage 4:   INTENT MATCHING     Classify hunks + tests against intent (LLM)
+Stage 5:   DUAL TAXONOMY       Multi-label task classification + weighted severity scoring
+```
+
+Stage 5 replaces v2's combined-score formula with a weighted label system. Each contamination label has a defined weight reflecting its impact on evaluation fairness. Severity is computed from the assigned labels rather than from raw signal arithmetic.
+
+### v2 Pipeline: Intent-Matching (Backward Compatible)
+
+The v2 pipeline remains available and is preserved for backward compatibility:
+
+```
+Stage 1-4: (same as v3)
 Stage 5:   TRIAGE & REPORT     4-category scoring + actionable recommendations
 Stage 6:   ROOT CAUSE          LLM-based root-cause classification (for non-CLEAN tasks)
 ```
+
+---
+
+## Dual Taxonomy (v3)
+
+### Axis 1: Task Contamination Labels
+
+17 labels in 5 groups. Multiple labels can co-occur per task. Group E labels are exclusive with Groups A–D.
+
+#### Group A — Test Contamination
+
+| Label | Display Name | Definition | Weight |
+|-------|-------------|------------|--------|
+| `mistest_overtest` | Overtest | F2P tests verify behavior/features NOT in problem statement. Detection: OFF_TOPIC assertion ratio >= 0.3; UNRELATED test verdicts. | 0.7 |
+| `mistest_undertest` | Undertest | F2P tests don't fully cover stated acceptance criteria; a partial fix can pass. Less severe — makes task easier, not harder. | 0.2 |
+| `mistest_customtest` | Custom Test | Tests assert on implementation details so specific to the gold patch that other valid solutions would fail. Tests lock in one approach rather than testing the behavioral contract. | 0.9 |
+| `mistest_sneaky_modification` | Sneaky Modification | Pre-existing test modified to assert on NEW undescribed behavior. The test already existed so it appears legitimate, but the PR author silently altered it. Detection: `is_modified=True` + `modification_aligned=False`. | 0.8 |
+| `mistest_deferred_requirement` | Deferred Requirement | Tests require features the problem explicitly defers ("I have yet to add X", "future work", "TODO"). An agent told NOT to implement X will fail tests that require X. | 0.9 |
+
+#### Group B — Patch Contamination
+
+| Label | Display Name | Definition | Weight |
+|-------|-------------|------------|--------|
+| `mispatch_overpatch` | Overpatch | Gold patch includes changes beyond problem scope: new features, unrelated refactoring, functionality additions not described. | 0.5 |
+| `mispatch_underpatch` | Underpatch | Gold patch doesn't fully address stated requirements. Some acceptance criteria remain unfixed yet F2P tests still pass. | 0.2 |
+| `mispatch_approach_mismatch` | Approach Mismatch | Gold patch takes a fundamentally different strategy than the problem suggests. Problem describes fix X, gold patch implements fix Y. An agent following the problem would fail. | **1.0** |
+| `mispatch_ancillary_bundling` | Ancillary Bundling | Cleanup/refactoring bundled alongside the fix: whitespace, imports, docstrings, dead code removal. Not needed to solve the problem. | 0.3 |
+
+#### Group C — Description Contamination
+
+| Label | Display Name | Definition | Weight |
+|-------|-------------|------------|--------|
+| `desc_misleading` | Misleading Description | Problem statement actively directs toward a wrong approach: suggests a specific fix that is not what the gold patch does. | 0.7 |
+| `desc_incomplete` | Incomplete Description | Problem missing key information: no reproduction steps, no affected file, no root cause. Multiple valid interpretations possible. | 0.4 |
+| `desc_hidden_in_hints` | Hidden in Hints | Essential solution info exists only in hints text: function names, root cause diagnosis, or maintainer design decisions not in the problem statement. | 0.4 |
+| `desc_self_referential` | Self-Referential | Problem references its own patch/tests to define behavior: "see the test case of the patch", "attached PR". | 0.5 |
+
+#### Group D — Structural Contamination
+
+| Label | Display Name | Definition | Weight |
+|-------|-------------|------------|--------|
+| `scope_expansion` | Scope Expansion | Fix modifies parent class or broader API than described. Problem describes a specific-case bug but patch changes a base class or public API affecting additional code paths. | 0.6 |
+| `circular_test_patch_dependency` | Circular Dependency | F2P tests require out-of-scope patch changes to pass. Agent solving only the described problem would have tests fail due to missing unrelated changes. | 0.85 |
+
+#### Group E — Clean
+
+| Label | Display Name | Definition | Weight |
+|-------|-------------|------------|--------|
+| `clean` | Clean Task | No contamination. Problem is clear, gold patch addresses exactly the stated problem, tests verify the described behavioral contract. | 0.0 |
+| `hard_but_clean` | Hard But Clean | Genuinely difficult task but fairly evaluated. Difficulty is inherent (domain knowledge, multi-file, complex debugging), not from contamination. | 0.0 |
+
+#### Label Co-occurrence
+
+- Multiple A–D labels can co-occur on the same task
+- Group E labels are mutually exclusive with A–D labels
+- Common pairs: `mispatch_approach_mismatch` + `mistest_customtest`, `desc_incomplete` + `desc_hidden_in_hints`, `scope_expansion` + `mistest_overtest`
+
+### Axis 2: Agent Trajectory Labels
+
+8 labels, single primary label per agent-task pair.
+
+| Label | Display Name | Definition | Integrity |
+|-------|-------------|------------|-----------|
+| `agent_passed_genuine` | Genuine Solution | Agent derived solution through legitimate problem-solving with progressive exploration | 1.0 |
+| `agent_passed_leak` | Gold Patch Leak | Patch matches gold too closely (similarity >= 0.90); jumped to correct file without search | 0.0 |
+| `agent_passed_package_leak` | Package Leak | Agent pip-installed newer version and copied fix from site-packages | 0.1 |
+| `agent_passed_test_aware` | Test-Aware | Agent referenced F2P test names/values before discovering them through exploration | 0.2 |
+| `agent_passed_trained_hack` | Trained Hack | Agent applies memorized template without genuine problem-specific reasoning | 0.5 |
+| `agent_failed_completed_intent` | Failed but Solved | Agent's patch addresses the real problem but fails F2P tests due to task contamination | N/A (confirms Axis 1) |
+| `agent_failed_no_intent` | Failed Without Solving | Agent didn't solve the problem; failure reflects skill gap, not unfairness | N/A |
+| `agent_unknown` | Unknown | Insufficient trajectory data to classify | N/A |
+
+**Cross-axis diagnostic:** `agent_failed_completed_intent` + `mispatch_approach_mismatch` = strongest contamination confirmation. The agent solved the described problem but failed because the gold patch uses a different approach.
+
+### Severity Scoring
+
+v3 severity is computed from weighted label confidences:
+
+$$\text{severity}_\text{task} = 1 - \prod_{i \in \text{labels}} (1 - w_i \cdot c_i)$$
+
+where $w_i$ = label weight, $c_i$ = detection confidence (0.0–1.0).
+
+**Key property:** Weak signals cannot compound to SEVERE. `desc_incomplete` alone (w=0.4) can never reach SEVERE even at confidence 1.0. Only high-weight labels can drive SEVERE:
+
+| Weight | Labels |
+|--------|--------|
+| **1.0** | `mispatch_approach_mismatch` |
+| **0.9** | `mistest_customtest`, `mistest_deferred_requirement` |
+| **0.85** | `circular_test_patch_dependency` |
+| **0.8** | `mistest_sneaky_modification` |
+| **0.7** | `mistest_overtest`, `desc_misleading` |
+| **0.6** | `scope_expansion` |
+| **0.5** | `mispatch_overpatch`, `desc_self_referential` |
+| **0.4** | `desc_incomplete`, `desc_hidden_in_hints` |
+| **0.3** | `mispatch_ancillary_bundling` |
+| **0.2** | `mistest_undertest`, `mispatch_underpatch` |
+| **0.0** | `clean`, `hard_but_clean` |
+
+Severity thresholds (configurable):
+- **CLEAN**: severity < 0.15
+- **MINOR**: 0.15 <= severity < 0.4
+- **MODERATE**: 0.4 <= severity < 0.7
+- **SEVERE**: severity >= 0.7
+
+### Classification Granularity (Shared Across v2/v3)
+
+Each gold patch hunk is classified as:
+- **REQUIRED** — Directly implements the described fix
+- **ANCILLARY** — Supports the fix but isn't described (imports, infrastructure)
+- **UNRELATED** — Changes behavior not described in the problem
+
+Each F2P test is classified as:
+- **ALIGNED** — Test targets the described problem
+- **TANGENTIAL** — Test partially targets the problem
+- **UNRELATED** — Test doesn't target the described problem
+
+Each test assertion is classified as:
+- **ON_TOPIC** — Assertion checks behavior described in the problem
+- **OFF_TOPIC** — Assertion checks behavior NOT described in the problem
+
+---
+
+## v2 Taxonomy (Backward Compatible)
 
 ### 4 Verdict Categories
 
@@ -39,33 +178,15 @@ Stage 6:   ROOT CAUSE          LLM-based root-cause classification (for non-CLEA
 
 ### 5 Root-Cause Categories
 
-Stage 6 classifies each contaminated task into one or more root causes:
+| Root Cause | Description | v3 Equivalent |
+|------------|-------------|---------------|
+| **APPROACH_MISMATCH** | Gold patch solves the problem via a different approach than described | `mispatch_approach_mismatch` |
+| **DEFERRED_REQUIREMENT** | Tests/patch encode decisions made during code review, not in the issue | `mistest_deferred_requirement` |
+| **SCOPE_EXPANSION** | Gold patch includes refactoring or features beyond the described fix | `scope_expansion` + `mispatch_overpatch` |
+| **IMPLICIT_CONSENSUS** | Patch reflects undocumented team consensus not in the problem statement | `desc_hidden_in_hints` |
+| **INFRASTRUCTURE_LEAK** | Solution derived from package installation or external data, not reasoning | `agent_passed_package_leak` (Axis 2) |
 
-| Root Cause | Description | Example |
-|------------|-------------|---------|
-| **APPROACH_MISMATCH** | Gold patch solves the problem via a different approach than described | Case A: reporter suggests lookahead fix, gold patch introduces sign group |
-| **DEFERRED_REQUIREMENT** | Tests/patch encode decisions made during code review, not in the issue | Case A: maintainer decision about leading-sign semantics |
-| **SCOPE_EXPANSION** | Gold patch includes refactoring or features beyond the described fix | Case B: additional admin ordering changes beyond the reported bug |
-| **IMPLICIT_CONSENSUS** | Patch reflects undocumented team consensus not in the problem statement | Coding style changes agreed in comments but not in the issue |
-| **INFRASTRUCTURE_LEAK** | Solution derived from package installation or external data, not reasoning | Case C: agent installs the fix from PyPI instead of implementing it |
-
-### Classification Granularity
-
-Each gold patch hunk is classified as:
-- **REQUIRED** -- Directly implements the described fix
-- **ANCILLARY** -- Supports the fix but isn't described (imports, infrastructure)
-- **UNRELATED** -- Changes behavior not described in the problem
-
-Each F2P test is classified as:
-- **ALIGNED** -- Test targets the described problem
-- **TANGENTIAL** -- Test partially targets the problem
-- **UNRELATED** -- Test doesn't target the described problem
-
-Each test assertion is classified as:
-- **ON_TOPIC** -- Assertion checks behavior described in the problem
-- **OFF_TOPIC** -- Assertion checks behavior NOT described in the problem
-
-### Scoring
+### v2 Scoring Formula
 
 ```
 excess_patch_score = (unrelated_hunks + 0.5 * ancillary_hunks) / total_hunks
@@ -73,17 +194,7 @@ excess_test_score  = (off_topic + 0.3 * tangential_equiv + unrelated_equiv) / to
 combined_score     = 1 - (1 - excess_patch) * (1 - excess_test) * (1 - vague_spec)
 ```
 
-Where `tangential_equiv = tangential_tests * avg_assertions_per_test * 0.3` and `unrelated_equiv = unrelated_tests * avg_assertions_per_test`.
-
-Severity thresholds (configurable):
-- **CLEAN**: combined < 0.15
-- **MINOR**: 0.15 <= combined < 0.4
-- **MODERATE**: 0.4 <= combined < 0.7
-- **SEVERE**: combined >= 0.7
-
-### v1 Pipeline (Legacy)
-
-The v1 pipeline uses a 7-category overlapping taxonomy (OVERTEST, OVERPATCH, SNEAKY_TEST_MOD, SCOPE_CREEP, TEST_DESC_MISALIGN, CIRCULAR_DEPENDENCY, AMBIGUOUS_SPEC). It is retained for backward compatibility but v2 is recommended for all new analysis.
+---
 
 ## Installation
 
@@ -104,7 +215,7 @@ pip install -r requirements.txt
 
 - **Python 3.12+**
 - **Azure OpenAI access** (CloudGPT) with Azure CLI authentication (`az login`)
-- **rich** (optional) -- enhanced terminal progress display during batch runs
+- **rich** (optional) — enhanced terminal progress display during batch runs
 
 ### Dependencies
 
@@ -163,6 +274,12 @@ az login
 
 ### Contamination Pipeline
 
+#### Full batch analysis (v3 pipeline — recommended)
+
+```bash
+python run_pipeline.py --v3 --dataset verified --max-tasks 500
+```
+
 #### Full batch analysis (v2 pipeline)
 
 ```bash
@@ -172,19 +289,19 @@ python run_pipeline.py --v2 --dataset verified --max-tasks 500
 #### Single task analysis
 
 ```bash
-python run_pipeline.py --v2 --instance-id django__django-15916
+python run_pipeline.py --v3 --instance-id django__django-15916
 ```
 
 #### SWE-bench Pro
 
 ```bash
-python run_pipeline.py --v2 --dataset pro --max-tasks 500
+python run_pipeline.py --v3 --dataset pro --max-tasks 500
 ```
 
 #### Resume from checkpoint
 
 ```bash
-python run_pipeline.py --v2 --dataset verified --resume
+python run_pipeline.py --v3 --dataset verified --resume
 ```
 
 #### v1 pipeline (legacy)
@@ -197,7 +314,8 @@ python run_pipeline.py --dataset verified --max-tasks 100
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `--v2` | Use v2 intent-matching pipeline (recommended) | v1 |
+| `--v3` | Use v3 dual taxonomy pipeline (recommended) | v1 |
+| `--v2` | Use v2 intent-matching pipeline | v1 |
 | `--config PATH` | Path to configuration YAML file | `config.yaml` |
 | `--dataset {verified,pro,live,both}` | Which SWE-bench dataset(s) to analyze | `verified` |
 | `--max-tasks N` | Maximum tasks per dataset | `500` |
@@ -211,10 +329,10 @@ python run_pipeline.py --dataset verified --max-tasks 100
 
 ### Deep-Dive Reports
 
-Auto-generate Case A-D style markdown reports from completed pipeline JSON:
+Auto-generate Case A–D style markdown reports from completed pipeline JSON:
 
 ```bash
-python run_deep_dive.py --reports-dir output_v2_no_fallback/reports --severity SEVERE \
+python run_deep_dive.py --reports-dir output_v3/reports --severity SEVERE \
     --output case_studies/auto/deep_dive_auto.md
 ```
 
@@ -226,14 +344,14 @@ python run_deep_dive.py --reports-dir output_v2_no_fallback/reports --severity S
 | `--output PATH` | Output markdown file path | `deep_dive.md` |
 | `--config PATH` | Configuration YAML file | `config.yaml` |
 
-Deep dives include: dataset record tables, verbatim problem statements, annotated gold patches, line-by-line assertion analysis, pipeline verdict breakdowns, root-cause analysis, independent LLM analysis, and cross-case synthesis with 5-category taxonomy.
+Deep dives include: dataset record tables, verbatim problem statements, annotated gold patches, line-by-line assertion analysis, pipeline verdict breakdowns, dual taxonomy label assignments with evidence, independent LLM analysis, and cross-case synthesis.
 
 ### Trajectory Validation
 
 Analyze agent trajectories for leakage patterns using LLM-primary classification:
 
 ```bash
-python run_trajectory_analysis.py --reports-dir output_v2_no_fallback/reports \
+python run_trajectory_analysis.py --reports-dir output_v3/reports \
     --trajectory-source huggingface --output trajectory_analysis.md
 ```
 
@@ -250,14 +368,14 @@ The trajectory classifier uses a three-tier approach with **LLM as primary**:
 2. **LLM analysis** (primary): Full trajectory context + heuristic signals analyzed by LLM for leakage classification with detailed reasoning
 3. **Cross-agent comparison**: Identical patches across agents suggest gold patch leakage
 
-Leakage patterns: `GENUINE_SOLUTION`, `GOLD_PATCH_LEAK`, `PACKAGE_LEAK`, `TEST_AWARE`, `PARTIAL_MATCH`, `UNKNOWN`
+Axis 2 labels: `agent_passed_genuine`, `agent_passed_leak`, `agent_passed_package_leak`, `agent_passed_test_aware`, `agent_passed_trained_hack`, `agent_failed_completed_intent`, `agent_failed_no_intent`, `agent_unknown`
 
 ### Slide Deck
 
 Generate MARP markdown slides from pipeline results:
 
 ```bash
-python run_slides.py --reports-dir output_v2_no_fallback/reports \
+python run_slides.py --reports-dir output_v3/reports \
     --output slides/bench_cleanser_findings.md
 ```
 
@@ -270,7 +388,7 @@ python run_slides.py --reports-dir output_v2_no_fallback/reports \
 
 ## Output
 
-### Per-task JSON Report
+### Per-task JSON Report (v3)
 
 Each analyzed task produces a JSON report in `<output_dir>/reports/`:
 
@@ -279,9 +397,27 @@ Each analyzed task produces a JSON report in `<output_dir>/reports/`:
   "instance_id": "django__django-15916",
   "severity": "MODERATE",
   "combined_score": 0.55,
-  "root_causes": ["DEFERRED_REQUIREMENT"],
-  "root_cause_reasoning": {
-    "DEFERRED_REQUIREMENT": "Tests encode decisions made during code review..."
+  "task_labels": [
+    {
+      "label": "mistest_overtest",
+      "confidence": 0.72,
+      "evidence": ["3/6 OFF_TOPIC assertions", "1 UNRELATED test"],
+      "reasoning": "F2P tests exercise inheritance behavior beyond the described feature"
+    },
+    {
+      "label": "mispatch_ancillary_bundling",
+      "confidence": 0.60,
+      "evidence": ["2 ANCILLARY hunks (cleanup/infra)"],
+      "reasoning": "Import reorganization bundled with the core fix"
+    }
+  ],
+  "agent_labels": {
+    "SWE-agent": {
+      "label": "agent_passed_genuine",
+      "confidence": 0.85,
+      "evidence": ["Progressive exploration", "Solution derived from problem analysis"],
+      "reasoning": "Agent followed logical debugging path"
+    }
   },
   "intent": {
     "core_requirement": "Allow ModelForm Meta to specify formfield_callback",
@@ -318,22 +454,15 @@ Each analyzed task produces a JSON report in `<output_dir>/reports/`:
     "on_topic": 2,
     "off_topic": 1,
     "has_modified_tests": false,
-    "tests": [
-      {
-        "test_id": "tests/forms/test_modelform.py::test_custom_callback",
-        "test_name": "test_custom_callback",
-        "intent_match": "TANGENTIAL",
-        "assertions": [
-          {"statement": "assertEqual(widget, Textarea)", "verdict": "ON_TOPIC"},
-          {"statement": "assertEqual(callback_count, 1)", "verdict": "ON_TOPIC"},
-          {"statement": "assertIsInstance(form, InheritedForm)", "verdict": "OFF_TOPIC"}
-        ]
-      }
-    ]
+    "tests": [...]
   },
   "vague_spec": {
     "score": 0.3,
     "reasoning": "Mostly clear with minor edge cases undefined"
+  },
+  "root_causes": ["DEFERRED_REQUIREMENT"],
+  "root_cause_reasoning": {
+    "DEFERRED_REQUIREMENT": "Tests encode decisions made during code review..."
   },
   "recommendations": [
     "EXCESS_TEST: 1/3 assertions test behavior beyond problem scope."
@@ -343,27 +472,37 @@ Each analyzed task produces a JSON report in `<output_dir>/reports/`:
 
 ### Summary CSV
 
-Generated at `<output_dir>/summary.csv` with columns:
+Generated at `<output_dir>/summary.csv`.
 
+**v3 columns:**
 ```
 instance_id, severity, combined_score, excess_patch_score, excess_test_score,
 vague_spec_score, patch_hunks_total, patch_required, patch_ancillary,
 patch_unrelated, tests_total, tests_aligned, tests_tangential, tests_unrelated,
 assertions_total, assertions_on_topic, assertions_off_topic,
-has_modified_test, root_causes, recommendations
+has_modified_test, task_labels, primary_label, label_count,
+root_causes, recommendations
+```
+
+The `task_labels` column uses semicolon-separated label names, `primary_label` is the highest weighted confidence label, and `label_count` is the total number of assigned labels.
+
+**v2 columns** (backward compatible):
+```
+instance_id, severity, combined_score, excess_patch_score, excess_test_score,
+vague_spec_score, ..., root_causes, recommendations
 ```
 
 ### Summary Statistics
 
-Generated at `<output_dir>/summary_stats.json` with severity distribution, mean/median combined scores, per-category averages, and root-cause distribution.
+Generated at `<output_dir>/summary_stats.json` with severity distribution, mean/median combined scores, per-category averages, root-cause distribution, and **label distribution** (v3: count per `TaskContaminationLabel`).
 
 ## Project Structure
 
 ```
 bench_cleanser/
   __init__.py
-  models.py                      # Data models, enums, root-cause taxonomy (v1 + v2)
-  pipeline.py                    # Pipeline orchestrator (v1 + v2 batch/single, 6 stages)
+  models.py                      # Data models, enums (v1 + v2 + v3 dual taxonomy)
+  pipeline.py                    # Pipeline orchestrator (v1/v2/v3 batch/single)
   llm_client.py                  # Azure OpenAI client with retry and caching
   cache.py                       # Disk-based LLM response cache
   data_loader.py                 # SWE-bench dataset loading (Verified, Pro, Live)
@@ -379,19 +518,20 @@ bench_cleanser/
     test_analyzer.py             # Stage 4B: Test-intent matching (LLM)
     cross_ref.py                 # Cross-reference analysis (v1)
   classification/
-    scorer.py                    # Stage 5: Scoring and report building (v1 + v2)
+    scorer.py                    # Stage 5: Scoring and report building (v1/v2/v3)
+    dual_taxonomy.py             # v3 dual taxonomy classifier (Axis 1 + Axis 2)
     taxonomy.py                  # Category/verdict definitions and thresholds
   parsing/
     patch_parser.py              # Unified diff parser (gold patch)
     test_parser.py               # Test patch parser + F2P matching
   trajectory/
     __init__.py
-    models.py                    # Trajectory data models (LeakagePattern, TrajectoryAnalysis)
+    models.py                    # Trajectory data models (LeakagePattern, AgentTrajectoryLabel)
     loader.py                    # Load trajectories from HuggingFace or local JSONL
     classifier.py                # Three-tier classifier (heuristic + LLM-primary + cross-agent)
     analyzer.py                  # Orchestrator: analyze, summarize, generate narratives
 tests/
-  test_scorer.py                 # Unit tests for scoring logic (v1 + v2)
+  test_scorer.py                 # Unit tests for scoring logic (v1/v2/v3)
 run_pipeline.py                  # Pipeline CLI entry point
 run_deep_dive.py                 # Deep-dive report CLI entry point
 run_trajectory_analysis.py       # Trajectory validation CLI entry point
@@ -416,19 +556,24 @@ bench-cleanser is designed to **fail loud** rather than produce incorrect result
 python -m pytest tests/ -v
 ```
 
-## v1 vs v2 Comparison
+## v1 vs v2 vs v3 Comparison
 
-| Aspect | v1 (7-category) | v2 (4-verdict + root cause) |
-|--------|-----------------|----------------|
-| Categories | 7 overlapping | 4 non-overlapping verdicts + 5 root causes |
-| Taxonomy | OVERTEST, OVERPATCH, SNEAKY_TEST_MOD, SCOPE_CREEP, TEST_DESC_MISALIGN, CIRCULAR_DEP, AMBIGUOUS_SPEC | EXCESS_PATCH, EXCESS_TEST, VAGUE_SPEC, CLEAN |
-| Root Causes | -- | APPROACH_MISMATCH, DEFERRED_REQUIREMENT, SCOPE_EXPANSION, IMPLICIT_CONSENSUS, INFRASTRUCTURE_LEAK |
-| Granularity | Hunk-level | Hunk + assertion-level |
-| Ground truth | Scope analysis | Intent extraction with acceptance criteria |
-| Structural analysis | Python AST only | Python AST with structural diff |
-| False positives | Known issues (aligned SNEAKY_TEST_MOD, doc-file heuristic) | Reduced via intent matching |
-| Output | Category confidence scores | Actionable per-hunk/per-assertion verdicts + root cause diagnosis |
-| Trajectory validation | -- | LLM-primary leakage classification |
+| Aspect | v1 (7-category) | v2 (4-verdict + root cause) | v3 (dual taxonomy) |
+|--------|------------------|----------------------------|---------------------|
+| **Task taxonomy** | 7 overlapping categories | 4 non-overlapping verdicts + 5 root causes | 17 multi-label task contamination labels (Axis 1) |
+| **Agent taxonomy** | — | LeakagePattern (6 values) | 8 agent trajectory labels with integrity scores (Axis 2) |
+| **Label categories** | OVERTEST, OVERPATCH, etc. | EXCESS_PATCH, EXCESS_TEST, VAGUE_SPEC, CLEAN | 5 groups: Test (A), Patch (B), Description (C), Structural (D), Clean (E) |
+| **Root causes** | — | 5 categories | Absorbed into Axis 1 labels with defined weights |
+| **Granularity** | Hunk-level | Hunk + assertion-level | Hunk + assertion-level + multi-label |
+| **Ground truth** | Scope analysis | Intent extraction with acceptance criteria | Intent extraction + weighted label assignment |
+| **Scoring** | Category confidence | `1 - (1-EP)(1-ET)(1-VS)` | $1 - \prod(1 - w_i \cdot c_i)$ per label |
+| **Severity calibration** | Weak signals compound | Weak signals compound to SEVERE | Only high-weight labels (w >= 0.7) can drive SEVERE |
+| **False positive rate** | High | ~10% precision at MODERATE | Reduced: `desc_incomplete` alone cannot reach SEVERE |
+| **Output** | Category confidence scores | Actionable per-hunk/per-assertion verdicts + root causes | Multi-label task report + per-agent trajectory label |
+| **Backward compat** | — | Preserved in v3 | Full v2 fields in `DualTaxonomyReport` |
+| **Trajectory validation** | — | LLM-primary leakage classification | v3 Axis 2 labels (8 structured categories) |
+
+---
 
 ## Case Studies: 4 High-Confidence SEVERE Contamination Cases
 
@@ -439,6 +584,8 @@ python -m pytest tests/ -v
 ---
 
 ### Case A: `django__django-10999` — "The Regex That Solves a Different Problem"
+
+**v3 Labels:** `mispatch_approach_mismatch` (1.0), `desc_misleading` (0.7)
 
 #### A.1 HuggingFace Dataset Record
 
@@ -512,13 +659,13 @@ diff --git a/django/utils/dateparse.py b/django/utils/dateparse.py
  standard_duration_re = re.compile(
      r'^'
      r'(?:(?P<days>-?\d+) (days?, )?)?'
--    r'((?:(?P<hours>-?\d+):)(?=\d+:\d+))?'   # ← REMOVED: -? from hours, unchanged lookahead
--    r'(?:(?P<minutes>-?\d+):)?'               # ← REMOVED: -? from minutes
--    r'(?P<seconds>-?\d+)'                     # ← REMOVED: -? from seconds
-+    r'(?P<sign>-?)'                           # ← ADDED: new sign group at front
-+    r'((?:(?P<hours>\d+):)(?=\d+:\d+))?'      # ← hours no longer allows -?
-+    r'(?:(?P<minutes>\d+):)?'                  # ← minutes no longer allows -?
-+    r'(?P<seconds>\d+)'                        # ← seconds no longer allows -?
+-    r'((?:(?P<hours>-?\d+):)(?=\d+:\d+))?'   # <- REMOVED: -? from hours, unchanged lookahead
+-    r'(?:(?P<minutes>-?\d+):)?'               # <- REMOVED: -? from minutes
+-    r'(?P<seconds>-?\d+)'                     # <- REMOVED: -? from seconds
++    r'(?P<sign>-?)'                           # <- ADDED: new sign group at front
++    r'((?:(?P<hours>\d+):)(?=\d+:\d+))?'      # <- hours no longer allows -?
++    r'(?:(?P<minutes>\d+):)?'                  # <- minutes no longer allows -?
++    r'(?P<seconds>\d+)'                        # <- seconds no longer allows -?
      r'(?:\.(?P<microseconds>\d{1,6})\d{0,6})?'
      r'$'
  )
@@ -530,7 +677,7 @@ The gold patch **does not** add `-?` to the lookahead as suggested. Instead, it:
 2. **Removes** all `-?` optionals from `hours`, `minutes`, and `seconds` groups
 3. **Leaves the lookahead `(?=\d+:\d+)` unchanged** — the exact lookahead the reporter said was broken
 
-This fundamentally changes the semantics: instead of allowing per-component negative signs (`-1:15:-30`), the grammar now enforces a single leading sign that applies to all components (`-1:15:30` means hours=-1, minutes=-15, seconds=-30).
+This fundamentally changes the semantics: instead of allowing per-component negative signs (`-1:15:-30`), the grammar now enforces a single leading sign that applies to all components.
 
 #### A.5 Complete Test Patch
 
@@ -544,28 +691,26 @@ diff --git a/tests/utils_tests/test_dateparse.py b/tests/utils_tests/test_datepa
              ('-172800', timedelta(days=-2)),
 -            ('-15:30', timedelta(minutes=-15, seconds=30)),
 -            ('-1:15:30', timedelta(hours=-1, minutes=15, seconds=30)),
-+            ('-15:30', timedelta(minutes=-15, seconds=-30)),         # ← CHANGED expected value
-+            ('-1:15:30', timedelta(hours=-1, minutes=-15, seconds=-30)),  # ← CHANGED expected value
++            ('-15:30', timedelta(minutes=-15, seconds=-30)),         # <- CHANGED expected value
++            ('-1:15:30', timedelta(hours=-1, minutes=-15, seconds=-30)),  # <- CHANGED expected value
              ('-30.1', timedelta(seconds=-30, milliseconds=-100)),
-+            ('-00:01:01', timedelta(minutes=-1, seconds=-1)),        # ← ADDED new test case
-+            ('-01:01', timedelta(seconds=-61)),                       # ← ADDED new test case
-+            ('-01:-01', None),                                        # ← ADDED new test case (invalid)
++            ('-00:01:01', timedelta(minutes=-1, seconds=-1)),        # <- ADDED new test case
++            ('-01:01', timedelta(seconds=-61)),                       # <- ADDED new test case
++            ('-01:-01', None),                                        # <- ADDED new test case (invalid)
          )
          for source, expected in test_values:
              with self.subTest(source=source):
 ```
 
-**Notice the changed expectations:**
-- Old: `'-15:30'` → `timedelta(minutes=-15, seconds=30)` (only minutes negative)
-- New: `'-15:30'` → `timedelta(minutes=-15, seconds=-30)` (both negative — sign applies to all)
+**Changed expectations:**
+- Old: `'-15:30'` -> `timedelta(minutes=-15, seconds=30)` (only minutes negative)
+- New: `'-15:30'` -> `timedelta(minutes=-15, seconds=-30)` (both negative — sign applies to all)
 
-This is the crux of the contamination: the test patch **changes the expected behavior** of existing test cases to match the gold patch's sign-group approach.
+This is the crux: the test patch **changes the expected behavior** of existing test cases to match the gold patch's sign-group approach.
 
 #### A.6 Pipeline Verdict Detail
 
 ##### Intent Extraction (Stage 2)
-
-The LLM extracted this intent **without seeing the gold patch**:
 
 | Field | Value |
 |---|---|
@@ -575,22 +720,11 @@ The LLM extracted this intent **without seeing the gold patch**:
 | **out_of_scope** | No changes to ISO 8601 parsing, no changes to how timedelta values are computed/normalized, no documentation or unrelated refactoring |
 | **ambiguity_score** | 0.3 |
 
-The intent extraction correctly identifies the lookahead fix as the ask. Note: the acceptance criterion #1 specifically says "lookahead allows optional minus signs" — exactly what the problem statement requests.
-
 ##### Patch Verdict (Stage 4A)
 
 | Hunk | File | Verdict | Confidence | Reasoning |
 |---|---|---|---|---|
-| 0 | `django/utils/dateparse.py` | **UNRELATED** | 0.92 | The problem explicitly requests adding `-?` to the lookahead `(?=\d+:\d+)`. The gold patch instead introduces a new `(?P<sign>-?)` group and removes all per-component `-?` optionals. The lookahead is left unchanged. This implements a completely different grammar (single leading sign) than the one described. |
-
-##### Test Verdict (Stage 4B)
-
-| Test | Verdict | Assertions |
-|---|---|---|
-| `test_negative` | ALIGNED | (subTest pattern — assertion count not enumerable from static analysis) |
-| `test_parse_postgresql_format` | ALIGNED | 0 off-topic assertions detected |
-
-**Note:** The pipeline's assertion counter found only 1 formal assertion in the subTest loop structure. The F2P tests are technically aligned in that they test negative duration parsing — the contamination is entirely on the **patch** side.
+| 0 | `django/utils/dateparse.py` | **UNRELATED** | 0.92 | The problem explicitly requests adding `-?` to the lookahead. The gold patch instead introduces a new `(?P<sign>-?)` group and removes all per-component `-?` optionals. The lookahead is left unchanged. |
 
 ##### Scoring Breakdown
 
@@ -606,32 +740,19 @@ $$\text{combined} = 1 - (1 - 1.0)(1 - 0.0)(1 - 0.3) = 1 - 0 = \mathbf{1.000}$$
 
 **Why the gold patch is different from the problem statement:**
 
-The reporter's fix: `r'((?:(?P<hours>-?\d+):)(?=-?\d+:-?\d+))?'` — adds `-?` to the lookahead. This would allow patterns like `-1:-15:-30` to match, where each component independently has a sign. Under this grammar:
-- `'-1:15:30'` → hours=-1, minutes=+15, seconds=+30
-- `'-1:-15:-30'` → hours=-1, minutes=-15, seconds=-30
+The reporter's fix: `r'((?:(?P<hours>-?\d+):)(?=-?\d+:-?\d+))?'` — adds `-?` to the lookahead. This would allow patterns like `-1:-15:-30` to match, where each component independently has a sign.
 
-The gold patch's fix: `r'(?P<sign>-?)((?:(?P<hours>\d+):)(?=\d+:\d+))?...'` — introduces a single leading sign. Under this grammar:
-- `'-1:15:30'` → sign='-', hours=1, minutes=15, seconds=30 → all negated: hours=-1, minutes=-15, seconds=-30
-- `'-1:-15:-30'` → **does not match at all** (no `-?` in individual groups)
+The gold patch's fix: `r'(?P<sign>-?)((?:(?P<hours>\d+):)(?=\d+:\d+))?...'` — introduces a single leading sign. Under this grammar, `parse_duration('-1:15:30')` returns `timedelta(hours=-1, minutes=-15, seconds=-30)` (all components negated), whereas the reporter's fix would give `timedelta(hours=-1, minutes=15, seconds=30)`.
 
-**The semantic difference is non-trivial:** `parse_duration('-1:15:30')` returns `timedelta(hours=-1, minutes=15, seconds=30)` under the old behavior (and the reporter's proposed fix), but `timedelta(hours=-1, minutes=-15, seconds=-30)` under the gold patch. The test patch explicitly changes the expected values to match the gold patch's semantics.
-
-**Would an agent following the problem statement pass the tests?** Almost certainly NO. An agent reading the problem statement would:
-1. See the explicit regex fix: add `-?` to the lookahead
-2. Implement that fix
-3. Run `test_negative` and find that `'-1:15:30'` now matches BUT produces `timedelta(hours=-1, minutes=15, seconds=30)` (old semantic)
-4. The test expects `timedelta(hours=-1, minutes=-15, seconds=-30)` (gold patch semantic)
-5. **FAIL**
-
-The only way to pass is to know about the maintainer discussion (in hints_text) where they decided that "a leading `-` should negate the entire value." This information is NOT in the problem statement.
+**Would an agent following the problem statement pass the tests?** Almost certainly NO. An agent implementing the described lookahead fix would produce different parsed values than the test expects.
 
 **Contamination verdict: CONFIRMED — HIGH CONFIDENCE.**
-
-The gold patch's approach was a design decision made during code review, not derivable from the problem statement alone. The F2P tests enforce this specific design decision.
 
 ---
 
 ### Case B: `astropy__astropy-13398` — "Tests Demand Refraction That the Spec Explicitly Defers"
+
+**v3 Labels:** `mistest_deferred_requirement` (0.9), `mistest_overtest` (0.7), `mispatch_overpatch` (0.5), `mispatch_ancillary_bundling` (0.6)
 
 #### B.1 HuggingFace Dataset Record
 
@@ -643,207 +764,45 @@ The gold patch's approach was a design decision made during code review, not der
 | **version** | `5.0` |
 | **created_at** | `2022-06-24T15:22:11Z` |
 | **difficulty** | `1-4 hours` |
-| **environment_setup_commit** | `cdf311e0714e611d48b0a31eb1f0e2cbffab7f23` |
-| **FAIL_TO_PASS** | `["astropy/coordinates/tests/test_intermediate_transformations.py::test_itrs_topo_to_altaz_with_refraction", "astropy/coordinates/tests/test_intermediate_transformations.py::test_itrs_topo_to_hadec_with_refraction", "astropy/coordinates/tests/test_intermediate_transformations.py::test_cirs_itrs_topo", "astropy/coordinates/tests/test_intermediate_transformations.py::test_itrs_straight_overhead"]` |
+| **FAIL_TO_PASS** | `["test_itrs_topo_to_altaz_with_refraction", "test_itrs_topo_to_hadec_with_refraction", "test_cirs_itrs_topo", "test_itrs_straight_overhead"]` |
 | **PASS_TO_PASS** | 68 tests in `test_intermediate_transformations.py` |
-| **patch files** | `builtin_frames/__init__.py`, `intermediate_rotation_transforms.py`, `itrs.py`, `itrs_observed_transforms.py` (new file, 145 lines) |
-| **test_patch files** | `test_intermediate_transformations.py` |
+| **patch files** | `__init__.py`, `intermediate_rotation_transforms.py`, `itrs.py`, `itrs_observed_transforms.py` (new file) |
 
 #### B.2 Verbatim Problem Statement (Key Excerpts)
 
 > **A direct approach to ITRS to Observed transformations that stays within the ITRS.**
 >
-> We have experienced recurring issues raised by folks that want to observe satellites [...] regarding the apparent inaccuracy of the ITRS to AltAz transform. [...] I came up with a more direct approach. This approach stays entirely within the ITRS and merely converts between ITRS, AltAz, and HADec coordinates.
+> We have experienced recurring issues raised by folks that want to observe satellites [...] I came up with a more direct approach.
 >
 > **"I have yet to add refraction, but I can do so if it is deemed important."**
 
 This last sentence is the critical line for contamination analysis.
 
-#### B.3 Hints Text (Community Discussion, abridged)
+#### B.3 Gold Patch Summary
 
-The hints text is 3,800+ characters of extensive GitHub discussion. Key points:
+The gold patch is large (4 files, 8 hunks, ~250 lines added) and includes a new file `itrs_observed_transforms.py` (145 lines) that implements full refraction support via `erfa.refco()` — functionality explicitly deferred in the problem statement.
 
-1. **Stuart Littlefair** supports the approach but wants error handling for nonsensical inputs
-2. **Marten van Kerkwijk** wants to ensure the transform is used only when relevant (coordinates must have distance)
-3. **The author (mkbrewer)** says: *"I already have the ability to transform to and from topocentric ITRS and Observed with the addition and removal of refraction tested and working."*
-4. Discussion about `obstime` handling for ITRS<->ITRS transforms
-5. Discussion about whether `SkyCoord` vs `TrueCoord` classes should handle satellites differently
+#### B.4 Test Analysis
 
-**Critical hint from the discussion:** While the PR description says refraction is deferred, in a later comment the author says refraction is "tested and working". This means the gold patch includes refraction despite the problem statement deferring it, and the F2P tests require it.
+| Test | ON_TOPIC | OFF_TOPIC |
+|---|---|---|
+| `test_itrs_topo_to_altaz_with_refraction` | 6 | 6 |
+| `test_itrs_topo_to_hadec_with_refraction` | 6 | 6 |
+| `test_cirs_itrs_topo` | 0 | 4 |
+| `test_itrs_straight_overhead` | 3 | 0 |
+| **Total** | **15** | **16** |
 
-#### B.4 Gold Patch Summary
+The smoking gun is the test names themselves: two F2P tests are literally named `*_with_refraction`. The problem statement says "I have yet to add refraction."
 
-The gold patch is large (4 files, 8 hunks, ~250 lines added). Key components:
-
-| File | Changes |
-|---|---|
-| `__init__.py` | Adds `from . import itrs_observed_transforms` (1 line) |
-| `intermediate_rotation_transforms.py` | Fixes typo "siderial" → "sidereal"; modifies TETE↔ITRS and CIRS↔ITRS transforms to pass `location` through instead of forcing `EARTH_CENTER` |
-| `itrs.py` | Adds `location` attribute to ITRS frame (EarthLocationAttribute), extensive docstring for topocentric ITRS |
-| `itrs_observed_transforms.py` | **New file** (145 lines): Implements `itrs_to_observed()`, `observed_to_itrs()`, `add_refraction()`, `remove_refraction()` — full ITRS↔AltAz/HADec transforms with refraction support using `erfa.refco()` |
-
-#### B.5 Complete Test Patch — Line-by-Line Analysis
-
-The test patch adds 4 new F2P tests totaling ~120 lines. Here is the assertion-level breakdown:
-
-##### Test 1: `test_itrs_topo_to_altaz_with_refraction` (12 assertions)
-
-```python
-# --- SECTION 1: No-refraction ITRS→AltAz (ON_TOPIC) ---
-assert_allclose(altaz11.az - altaz1.az, 0*u.mas, atol=0.1*u.mas)     # [0] ON_TOPIC
-assert_allclose(altaz11.alt - altaz1.alt, 0*u.mas, atol=0.1*u.mas)    # [1] ON_TOPIC
-assert_allclose(altaz11.distance - altaz1.distance, 0*u.cm, atol=10.0*u.cm)  # [2] ON_TOPIC
-
-# --- SECTION 2: Round-trip ITRS→AltAz→ITRS (ON_TOPIC) ---
-assert_allclose(itrs11.x, itrs.x)   # [3] ON_TOPIC
-assert_allclose(itrs11.y, itrs.y)   # [4] ON_TOPIC
-assert_allclose(itrs11.z, itrs.z)   # [5] ON_TOPIC
-
-# --- SECTION 3: Refraction ITRS→AltAz (OFF_TOPIC — spec defers refraction) ---
-assert_allclose(altaz22.az - altaz2.az, 0*u.mas, atol=0.1*u.mas)     # [6] OFF_TOPIC
-assert_allclose(altaz22.alt - altaz2.alt, 0*u.mas, atol=0.1*u.mas)    # [7] OFF_TOPIC
-assert_allclose(altaz22.distance - altaz2.distance, 0*u.cm, atol=10.0*u.cm)  # [8] OFF_TOPIC
-
-# --- SECTION 4: Refraction removal (OFF_TOPIC) ---
-assert_allclose(altaz33.az - altaz3.az, 0*u.mas, atol=0.1*u.mas)     # [9] OFF_TOPIC
-assert_allclose(altaz33.alt - altaz3.alt, 0*u.mas, atol=0.1*u.mas)    # [10] OFF_TOPIC
-assert_allclose(altaz33.distance - altaz3.distance, 0*u.cm, atol=10.0*u.cm)  # [11] OFF_TOPIC
-```
-
-**Result: 6 ON_TOPIC, 6 OFF_TOPIC.** The test is structurally split into halves: the first half tests non-refractive ITRS→AltAz transforms (described in the problem), the second half tests refraction (explicitly deferred).
-
-##### Test 2: `test_itrs_topo_to_hadec_with_refraction` (12 assertions)
-
-Identical structure to Test 1 but for HADec instead of AltAz:
-
-```python
-# No-refraction (ON_TOPIC): 6 assertions
-assert_allclose(hadec11.ha - hadec1.ha, ...)   # ON_TOPIC
-assert_allclose(hadec11.dec - hadec1.dec, ...)  # ON_TOPIC
-assert_allclose(hadec11.distance - hadec1.distance, ...)  # ON_TOPIC
-assert_allclose(itrs11.x, itrs.x)  # ON_TOPIC (round-trip)
-assert_allclose(itrs11.y, itrs.y)  # ON_TOPIC
-assert_allclose(itrs11.z, itrs.z)  # ON_TOPIC
-
-# Refraction (OFF_TOPIC): 6 assertions
-assert_allclose(hadec22.ha - hadec2.ha, ...)    # OFF_TOPIC
-assert_allclose(hadec22.dec - hadec2.dec, ...)   # OFF_TOPIC
-assert_allclose(hadec22.distance - hadec2.distance, ...)  # OFF_TOPIC
-assert_allclose(hadec33.ha - hadec3.ha, ...)    # OFF_TOPIC
-assert_allclose(hadec33.dec - hadec3.dec, ...)   # OFF_TOPIC
-assert_allclose(hadec33.distance - hadec3.distance, ...)  # OFF_TOPIC
-```
-
-**Result: 6 ON_TOPIC, 6 OFF_TOPIC.**
-
-##### Test 3: `test_cirs_itrs_topo` (4 assertions)
-
-```python
-def test_cirs_itrs_topo():
-    """Check basic CIRS<->ITRS topocentric transforms for round-tripping."""
-    loc = EarthLocation(lat=0*u.deg, lon=0*u.deg, height=0*u.m)
-    usph = golden_spiral_grid(200)
-    cirs = CIRS(usph, obstime='J2000', location=loc)
-    cirs6 = CIRS(usph, obstime='J2006', location=loc)
-
-    cirs2 = cirs.transform_to(ITRS(location=loc)).transform_to(cirs)
-    cirs6_2 = cirs6.transform_to(ITRS(location=loc)).transform_to(cirs)
-
-    assert_allclose(cirs.ra, cirs2.ra)       # [0] OFF_TOPIC
-    assert_allclose(cirs.dec, cirs2.dec)      # [1] OFF_TOPIC
-    assert not allclose(cirs.ra, cirs6_2.ra)  # [2] OFF_TOPIC
-    assert not allclose(cirs.dec, cirs6_2.dec)  # [3] OFF_TOPIC
-```
-
-**Result: 0 ON_TOPIC, 4 OFF_TOPIC.** This test verifies CIRS↔ITRS topocentric round-tripping, which is NOT about ITRS↔AltAz/HADec transforms. It tests the intermediate transform infrastructure changes (CIRS→ITRS with `location=`), not the described feature.
-
-##### Test 4: `test_itrs_straight_overhead` (3 assertions)
-
-```python
-def test_itrs_straight_overhead():
-    """With a precise ITRS<->Observed transformation this should give Alt=90 exactly"""
-    t = Time('J2010')
-    obj = EarthLocation(-1*u.deg, 52*u.deg, height=10.*u.km)
-    home = EarthLocation(-1*u.deg, 52*u.deg, height=0.*u.km)
-
-    itrs_geo = obj.get_itrs(t).cartesian
-    obsrepr = home.get_itrs(t).cartesian
-    itrs_repr = itrs_geo - obsrepr  # topocentric subtraction
-
-    itrs_topo = ITRS(itrs_repr, obstime=t, location=home)
-
-    aa = itrs_topo.transform_to(AltAz(obstime=t, location=home))
-    assert_allclose(aa.alt, 90*u.deg, atol=1*u.uas, rtol=0)  # [0] ON_TOPIC
-
-    hd = itrs_topo.transform_to(HADec(obstime=t, location=home))
-    assert_allclose(hd.ha, 0*u.hourangle, atol=1*u.uas, rtol=0)   # [1] ON_TOPIC
-    assert_allclose(hd.dec, 52*u.deg, atol=1*u.uas, rtol=0)        # [2] ON_TOPIC
-```
-
-**Result: 3 ON_TOPIC, 0 OFF_TOPIC.** This test directly validates the core feature: topocentric ITRS → AltAz/HADec.
-
-#### B.6 Pipeline Verdict Detail
-
-##### Intent Extraction
-
-| Field | Value |
-|---|---|
-| **core_requirement** | Implement direct transform paths for ITRS↔AltAz and ITRS↔HADec using topocentric geometry |
-| **out_of_scope** | *"Adding atmospheric refraction support (explicitly noted as not yet implemented and only optional), changing the general ITRS→ITRS transformation semantics"* |
-| **ambiguity_score** | 0.55 |
-
-The LLM correctly identified refraction as out of scope based on the problem statement's explicit deferral.
-
-##### Patch Verdicts (8 hunks)
-
-| # | File | Verdict | Conf. | Note |
-|---|---|---|---|---|
-| 0 | `__init__.py` | ANCILLARY | 0.95 | Heuristic: import-only `__init__.py` change |
-| 1 | `intermediate_rotation_transforms.py` (typo) | **UNRELATED** | 0.97 | "siderial" → "sidereal" spelling fix |
-| 2 | `intermediate_rotation_transforms.py` (TETE→ITRS) | ANCILLARY | 0.50 | Location passthrough instead of EARTH_CENTER |
-| 3 | `intermediate_rotation_transforms.py` (ITRS→TETE) | ANCILLARY | 0.50 | Matching change for inverse |
-| 4 | `intermediate_rotation_transforms.py` (CIRS→ITRS) | ANCILLARY | 0.50 | Location passthrough for CIRS path |
-| 5 | `intermediate_rotation_transforms.py` (ITRS→CIRS) | ANCILLARY | 0.50 | Matching inverse |
-| 6 | `itrs.py` | ANCILLARY | 0.50 | Frame attribute + docstring for topocentric ITRS |
-| 7 | `itrs_observed_transforms.py` | ANCILLARY | 0.50 | Entire new module (145 lines, includes refraction) |
-
-##### Test Verdicts
-
-| Test | Verdict | ON_TOPIC | OFF_TOPIC |
-|---|---|---|---|
-| `test_itrs_topo_to_altaz_with_refraction` | TANGENTIAL | 6 | 6 |
-| `test_itrs_topo_to_hadec_with_refraction` | TANGENTIAL | 6 | 6 |
-| `test_cirs_itrs_topo` | UNRELATED | 0 | 4 |
-| `test_itrs_straight_overhead` | ALIGNED | 3 | 0 |
-| **Total** | | **15** | **16** |
-
-##### Scoring Breakdown
+#### B.5 Scoring Breakdown
 
 | Component | Score | Derivation |
 |---|---|---|
-| excess_patch | 0.5625 | (1 UNRELATED + 0.5 × 7 ANCILLARY) / 8 = 4.5/8 |
-| excess_test | 0.7661 | 16 OFF_TOPIC/31 total + UNRELATED test penalty |
-| vague_spec | 0.5500 | LLM: moderately ambiguous (complex feature with many considerations) |
+| excess_patch | 0.5625 | (1 UNRELATED + 0.5 x 7 ANCILLARY) / 8 |
+| excess_test | 0.7661 | 16 OFF_TOPIC / 31 total + UNRELATED test penalty |
+| vague_spec | 0.5500 | Moderately ambiguous |
 
-$$\text{combined} = 1 - (1 - 0.5625)(1 - 0.7661)(1 - 0.55) = 1 - 0.4375 \times 0.2339 \times 0.45 = 1 - 0.04605 = \mathbf{0.954}$$
-
-#### B.7 Independent Deep Analysis
-
-**The smoking gun is the test names themselves.** Two of the four F2P tests are literally named `test_itrs_topo_to_altaz_with_refraction` and `test_itrs_topo_to_hadec_with_refraction`. The problem statement says "I have yet to add refraction." These test names advertise behavior the spec explicitly defers.
-
-**What an honest agent would produce:**
-1. ITRS↔AltAz and ITRS↔HADec transforms using topocentric geometry — YES
-2. Refraction support via `erfa.refco()` — NO (not mentioned, explicitly deferred)
-3. CIRS↔ITRS topocentric transforms — MAYBE (the infrastructure changes are necessary, but testing them separately wasn't requested)
-
-**What the F2P tests require to pass:**
-1. Non-refractive ITRS→AltAz/HADec transforms — YES
-2. Refractive ITRS→AltAz/HADec transforms (pressure > 0) — YES (tests fail without `add_refraction`/`remove_refraction`)
-3. CIRS↔ITRS topocentric round-trips — YES
-
-Items 2 and 3 go beyond the specification. An agent would need ~60 lines of refraction code (using `erfa.refco()`, `erfa.pn()`, `erfa.c2s()`, `erfa.s2c()`) that the problem statement never mentions.
-
-**Additional note on the typo fix.** Hunk 1 changes `siderial` → `sidereal` in a code comment. This is completely unrelated to the feature. While trivial, it means the gold patch includes a cosmetic fix that an agent would never guess. Notably, this specific diff hunk is in `intermediate_rotation_transforms.py` which is also where the infrastructure changes are — so an agent touching this file might or might not notice the typo, introducing a luck-based variable into evaluation.
+$$\text{combined} = 1 - (1 - 0.5625)(1 - 0.7661)(1 - 0.55) = \mathbf{0.954}$$
 
 **Contamination verdict: CONFIRMED — HIGH CONFIDENCE.**
 
@@ -851,201 +810,56 @@ Items 2 and 3 go beyond the specification. An agent would need ~60 lines of refr
 
 ### Case C: `astropy__astropy-14182` — "Asked for a Writer Fix, Tested the Reader"
 
+**v3 Labels:** `mistest_overtest` (0.9), `mistest_customtest` (0.7), `scope_expansion` (0.6)
+
 #### C.1 HuggingFace Dataset Record
 
 | Field | Value |
 |---|---|
 | **instance_id** | `astropy__astropy-14182` |
 | **repo** | `astropy/astropy` |
-| **base_commit** | `a5917978be39d13cd90b517e1de4e7a539ffaa48` |
-| **version** | `5.1` |
-| **created_at** | `2022-12-16T11:13:37Z` |
-| **difficulty** | `15 min - 1 hour` |
-| **environment_setup_commit** | `5f74eacbcc7fff707a44d8eb58adaa514cb7dcb5` |
 | **FAIL_TO_PASS** | `["astropy/io/ascii/tests/test_rst.py::test_rst_with_header_rows"]` |
-| **PASS_TO_PASS** | 9 existing RST tests |
 | **hints_text** | (empty) |
-| **patch file** | `astropy/io/ascii/rst.py` |
-| **test_patch file** | `astropy/io/ascii/tests/test_rst.py` |
 
 #### C.2 Verbatim Problem Statement
 
 > **Please support header rows in RestructuredText output**
 >
-> It would be great if the following would work:
->
 > ```python
 > >>> tbl.write(sys.stdout, format="ascii.rst", header_rows=["name", "unit"])
 > ```
->
-> Currently raises:
-> ```
-> TypeError: RST.__init__() got an unexpected keyword argument 'header_rows'
-> ```
->
-> RestructuredText output is a great way to fill autogenerated documentation with content, so having this flexible makes the life easier `:-)`
+> Currently raises: `TypeError: RST.__init__() got an unexpected keyword argument 'header_rows'`
 
-The request is unambiguous: make the **writer** accept `header_rows`. No mention of reading RST with `header_rows`, no mention of round-trip capability.
+The request is unambiguous: make the **writer** accept `header_rows`. No mention of reading RST.
 
-#### C.3 Gold Patch — Annotated
+#### C.3 Gold Patch
 
-The gold patch modifies `astropy/io/ascii/rst.py` in 3 hunks:
+The gold patch implements **writer** support AND **reader** support (a `read()` method with dynamic `start_line`). The reader functionality was never requested.
 
-##### Hunk 0: Remove hardcoded `start_line`
-
-```diff
- class SimpleRSTData(FixedWidthData):
--    start_line = 3
-     end_line = -1
-```
-
-This removes the hardcoded `start_line = 3` to allow dynamic calculation. This change is **required for the reader to work with variable header rows** but is NOT related to the writer feature that was requested.
-
-##### Hunk 1: Update docstring
-
-```diff
-     Example::
-
--        ==== ===== ======
--        Col1  Col2  Col3
--        ==== ===== ======
--          1    2.3  Hello
--          2    4.5  Worlds
--        ==== ===== ======
-+      >>> from astropy.table import QTable
-+      >>> import astropy.units as u
-+      >>> import sys
-+      >>> tbl = QTable({"wave": [350, 950] * u.nm, "response": [0.7, 1.2] * u.count})
-+      >>> tbl.write(sys.stdout,  format="ascii.rst")
-+      [output...]
-+
-+    Like other fixed-width formats, when writing a table you can provide ``header_rows``
-+    to specify a list of table rows to output as the header.  For example::
-+
-+      >>> tbl.write(sys.stdout,  format="ascii.rst", header_rows=['name', 'unit'])
-+      [output with units row...]
-```
-
-Docstring updates showing the new writer functionality.
-
-##### Hunk 2: Core implementation
-
-```diff
--    def __init__(self):
--        super().__init__(delimiter_pad=None, bookend=False)
-+    def __init__(self, header_rows=None):
-+        super().__init__(delimiter_pad=None, bookend=False, header_rows=header_rows)
-
-     def write(self, lines):
-         lines = super().write(lines)
--        lines = [lines[1]] + lines + [lines[1]]
-+        idx = len(self.header.header_rows)
-+        lines = [lines[idx]] + lines + [lines[idx]]
-         return lines
-+
-+    def read(self, table):
-+        self.data.start_line = 2 + len(self.header.header_rows)
-+        return super().read(table)
-```
-
-This hunk does THREE things:
-1. `__init__` now accepts `header_rows` — **directly requested**
-2. `write()` uses `header_rows` count for separator placement — **directly requested**
-3. `read()` method added for dynamic `start_line` — **NOT requested** (reader support)
-
-#### C.4 The F2P Test — Line-by-Line
-
-```python
-def test_rst_with_header_rows():
-    """Round-trip a table with header_rows specified"""      # ← Note: "Round-trip"
-    lines = [
-        "======= ======== ====",
-        "   wave response ints",
-        "     nm       ct     ",
-        "float64  float32 int8",
-        "======= ======== ====",
-        "  350.0      1.0    1",
-        "  950.0      2.0    2",
-        "======= ======== ====",
-    ]
-    # --- READER ASSERTIONS (OFF_TOPIC) ---
-    tbl = QTable.read(lines, format="ascii.rst", header_rows=["name", "unit", "dtype"])
-    assert tbl["wave"].unit == u.nm          # [0] ← OFF_TOPIC: tests reader parsing of units
-    assert tbl["response"].unit == u.ct      # [1] ← OFF_TOPIC: tests reader parsing of units
-    assert tbl["wave"].dtype == np.float64   # [2] ← OFF_TOPIC: tests reader parsing of dtype
-    assert tbl["response"].dtype == np.float32  # [3] ← OFF_TOPIC: tests reader parsing of dtype
-    assert tbl["ints"].dtype == np.int8      # [4] ← OFF_TOPIC: tests reader parsing of dtype
-
-    # --- WRITER ASSERTION (ON_TOPIC) ---
-    out = StringIO()
-    tbl.write(out, format="ascii.rst", header_rows=["name", "unit", "dtype"])
-    assert out.getvalue().splitlines() == lines  # [5] ← ON_TOPIC: tests writer output
-```
-
-#### C.5 Pipeline Verdict Detail
-
-##### Intent Extraction
-
-| Field | Value |
-|---|---|
-| **core_requirement** | Allow the `ascii.rst` table writer to accept and honor the `header_rows` argument |
-| **acceptance_criteria** | (1) `QTable.write(..., format='ascii.rst', header_rows=['name', 'unit'])` must not raise TypeError, (2) Output with `header_rows` must include units row, (3) Default behavior (no `header_rows`) preserved |
-| **out_of_scope** | *"Adding support for `header_rows` when **reading** RST"*, unrelated formatting changes, broad refactors |
-| **ambiguity_score** | 0.4 |
-
-The LLM explicitly identified RST **reading** with `header_rows` as out of scope.
-
-##### Test Verdict
-
-| Test | Verdict | ON_TOPIC | OFF_TOPIC |
-|---|---|---|---|
-| `test_rst_with_header_rows` | TANGENTIAL | 1 | 5 |
-
-##### Per-Assertion Verdict Table
+#### C.4 Test Analysis
 
 | # | Assertion | Verdict | Reason |
 |---|---|---|---|
-| 0 | `assert tbl["wave"].unit == u.nm` | **OFF_TOPIC** | Tests that the RST **reader** correctly parses unit metadata from header rows — problem statement only asks about the writer |
-| 1 | `assert tbl["response"].unit == u.ct` | **OFF_TOPIC** | Same: reader unit parsing |
-| 2 | `assert tbl["wave"].dtype == np.float64` | **OFF_TOPIC** | Tests reader dtype parsing from a dtype header row |
-| 3 | `assert tbl["response"].dtype == np.float32` | **OFF_TOPIC** | Same: reader dtype parsing |
-| 4 | `assert tbl["ints"].dtype == np.int8` | **OFF_TOPIC** | Same: reader dtype parsing |
-| 5 | `assert out.getvalue().splitlines() == lines` | **ON_TOPIC** | Directly verifies that `.write()` with `header_rows` produces correct RST output |
+| 0 | `assert tbl["wave"].unit == u.nm` | **OFF_TOPIC** | Tests RST **reader** unit parsing |
+| 1 | `assert tbl["response"].unit == u.ct` | **OFF_TOPIC** | Reader unit parsing |
+| 2 | `assert tbl["wave"].dtype == np.float64` | **OFF_TOPIC** | Reader dtype parsing |
+| 3 | `assert tbl["response"].dtype == np.float32` | **OFF_TOPIC** | Reader dtype parsing |
+| 4 | `assert tbl["ints"].dtype == np.int8` | **OFF_TOPIC** | Reader dtype parsing |
+| 5 | `assert out.getvalue().splitlines() == lines` | **ON_TOPIC** | Tests writer output |
 
-##### Scoring Breakdown
+**5/6 assertions test the reader.** A 100% correct implementation of the stated problem would score 0% — the test errors on the reader call before reaching the writer assertion.
 
-| Component | Score | Derivation |
-|---|---|---|
-| excess_patch | 0.333 | (0 UNRELATED + 0.5 × 2 ANCILLARY) / 3 = 1/3 |
-| excess_test | 0.833 | 5 OFF_TOPIC / 6 total assertions |
-| vague_spec | 0.400 | Mostly clear, some implied scope questions |
+#### C.5 Scoring Breakdown
 
-$$\text{combined} = 1 - (1 - 0.333)(1 - 0.833)(1 - 0.4) = 1 - 0.667 \times 0.167 \times 0.6 = 1 - 0.0668 = \mathbf{0.933}$$
+$$\text{combined} = 1 - (1 - 0.333)(1 - 0.833)(1 - 0.4) = \mathbf{0.933}$$
 
-#### C.6 Independent Deep Analysis
-
-**This is the cleanest contamination case of all four.** The analysis is straightforward:
-
-1. Problem statement asks for **writer** support of `header_rows` in `ascii.rst`.
-2. Gold patch implements writer support AND reader support (a `read()` method).
-3. The single F2P test is a "round-trip" test that reads RST with `header_rows`, checks the parsed table's units and dtypes (reader functionality), then writes it back.
-4. **5 of 6 assertions test the reader**, which was never requested.
-
-**Would an agent pass with writer-only changes?** NO. The test calls `QTable.read(lines, format="ascii.rst", header_rows=["name", "unit", "dtype"])`. Without the `read()` method and the `start_line` fix, this read call would fail (or misparse), causing the entire test function to error before reaching the writer assertion.
-
-**What if an agent only implements the writer?** The agent would:
-1. Add `header_rows` to `RST.__init__()` — passes assertion [5]
-2. NOT add `read()` method — `QTable.read()` call fails with wrong `start_line`
-3. Test errors at line `tbl = QTable.read(...)`, all 6 assertions fail
-4. **COMPLETE FAILURE** despite correctly implementing what was asked
-
-This means a 100% correct implementation of the stated problem would score 0% on the F2P test. The reader functionality is a prerequisite for the test to even reach the writer assertion.
-
-**Contamination verdict: CONFIRMED — HIGH CONFIDENCE.** This is arguably the most clear-cut contamination case in the entire dataset.
+**Contamination verdict: CONFIRMED — HIGH CONFIDENCE.** The most clear-cut contamination case.
 
 ---
 
 ### Case D: `astropy__astropy-14539` — "One-Character Fix, Nine Extra Assertions"
+
+**v3 Labels:** `mistest_overtest` (0.8), `mistest_sneaky_modification` (0.7)
 
 #### D.1 HuggingFace Dataset Record
 
@@ -1053,233 +867,60 @@ This means a 100% correct implementation of the stated problem would score 0% on
 |---|---|
 | **instance_id** | `astropy__astropy-14539` |
 | **repo** | `astropy/astropy` |
-| **base_commit** | `c0a24c1dc957a3b565294213f435fefb2ec99714` |
-| **version** | `5.1` |
-| **created_at** | `2023-03-16T18:45:19Z` |
-| **difficulty** | `15 min - 1 hour` |
-| **environment_setup_commit** | `5f74eacbcc7fff707a44d8eb58adaa514cb7dcb5` |
-| **FAIL_TO_PASS** | `["astropy/io/fits/tests/test_diff.py::TestDiff::test_identical_tables", "astropy/io/fits/tests/test_diff.py::TestDiff::test_different_table_data"]` |
-| **PASS_TO_PASS** | 46 diff-related tests |
-| **patch file** | `astropy/io/fits/diff.py` |
-| **test_patch file** | `astropy/io/fits/tests/test_diff.py` |
+| **FAIL_TO_PASS** | `["test_identical_tables", "test_different_table_data"]` |
 
 #### D.2 Verbatim Problem Statement
 
 > **`io.fits.FITSDiff` may sometimes report differences between identical files**
 >
-> In some scenarios, `io.fits.FITSDiff` may report differences between identical files, even when comparing the same file to itself. This may be caused by improper handling of VLAs (variable-length arrays).
->
-> **Expected behavior:** `io.fits.FITSDiff` only reports differences in files if they exist. Comparing a file to itself should never yield a difference.
->
-> **How to Reproduce:**
-> ```python
-> from astropy.io import fits
-> col = fits.Column('a', format='QD', array=[[0], [0, 0]])
-> hdu = fits.BinTableHDU.from_columns([col])
-> hdu.writeto('diffbug.fits', overwrite=True)
->
-> print(fits.FITSDiff('diffbug.fits', 'diffbug.fits').identical)
-> fits.printdiff('diffbug.fits', 'diffbug.fits')
-> ```
-> Prints `False` — should be `True`.
->
-> I suspect the handling of VLAs is the culprit here as I couldn't reproduce the bug without using at least one VLA column.
+> This may be caused by improper handling of VLAs (variable-length arrays).
 
-#### D.3 Hints Text
+#### D.3 Gold Patch
 
-> Seems due to the use of `Q`, only `P` is handled in the diff code. This:
-> ```diff
-> -            elif "P" in col.format:
-> +            elif "P" in col.format or "Q" in col.format:
-> ```
-> seems to work, but would need some tests etc. Do you want to work on a fix?
->
-> I'm not particularly familiar with `FITSDiff` I'd rather not handle the PR.
+One-line fix: `"P" in col.format` -> `"P" in col.format or "Q" in col.format`. Perfectly aligned with the problem.
 
-**Key observation:** The hints text literally provides the one-line fix. The exact same change appears in the gold patch.
-
-#### D.4 Complete Gold Patch
-
-```diff
-diff --git a/astropy/io/fits/diff.py b/astropy/io/fits/diff.py
---- a/astropy/io/fits/diff.py
-+++ b/astropy/io/fits/diff.py
-@@ -1449,7 +1449,7 @@ def _diff(self):
-                 arrb.dtype, np.floating
-             ):
-                 diffs = where_not_allclose(arra, arrb, rtol=self.rtol, atol=self.atol)
--            elif "P" in col.format:
-+            elif "P" in col.format or "Q" in col.format:
-                 diffs = (
-                     [
-                         idx
-```
-
-This is a textbook one-line bug fix: `"P"` → `"P" or "Q"`. The `Q` format descriptor is used for 64-bit VLAs (vs `P` for 32-bit VLAs). The diff code only checked for `P`, so `Q`-format columns fell through to the generic comparison path, which doesn't handle VLAs correctly.
-
-**The patch itself is perfectly aligned with the problem.**
-
-#### D.5 Complete Test Patch — Detailed Analysis
-
-The test patch modifies two existing tests:
-
-##### Test 1: `test_identical_tables` (MODIFIED)
-
-```diff
-         c10 = Column("J", format="PI(2)", array=[[0, 1], [2, 3]])
-+        c11 = Column("K", format="QJ(2)", array=[[0, 1], [2, 3]])   # ← ADDED: Q-format column
-
--        columns = [c1, c2, c3, c4, c5, c6, c7, c8, c9, c10]
-+        columns = [c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11]
-
-         diff = TableDataDiff(ta.data, tb.data)
-         assert diff.identical                            # [0] ON_TOPIC: identical check
--        assert len(diff.common_columns) == 10
--        assert diff.common_column_names == set("abcdefghij")
-+        assert len(diff.common_columns) == 11           # [1] ON_TOPIC: updated count
-+        assert diff.common_column_names == set("abcdefghijk")  # [2] minor update for new column
-         assert diff.diff_ratio == 0
-         assert diff.diff_total == 0
-```
-
-**2 ON_TOPIC assertions** (the core test: `diff.identical` must be `True`, and the column count/names reflect the added VLA column).
-
-##### Test 2: `test_different_table_data` (MODIFIED, x3 instances in F2P)
-
-This is where the contamination signal appears. The existing test creates two different tables and verifies that `FITSDiff` correctly reports their differences. The test patch adds a `Q`-format column `K` to both tables:
-
-```diff
-+        ca11 = Column("K", format="QJ(2)", array=[[0, 1], [2, 3]])
-         ...
-+        cb11 = Column("K", format="QJ(2)", array=[[1, 2], [3, 4]])   # Different values
-         ...
-         # New assertions verifying diff detection for column K:
-+        assert diff.diff_values[13][0] == ("K", 0)           # [NEW] OFF_TOPIC
-+        assert (diff.diff_values[13][1][0] == [0, 1]).all()   # [NEW] OFF_TOPIC
-+        assert (diff.diff_values[13][1][1] == [1, 2]).all()   # [NEW] OFF_TOPIC
-+        assert diff.diff_values[14][0] == ("K", 1)            # [NEW] OFF_TOPIC
-+        assert (diff.diff_values[14][1][0] == [2, 3]).all()   # [NEW] OFF_TOPIC
-+        assert (diff.diff_values[14][1][1] == [3, 4]).all()   # [NEW] OFF_TOPIC
-
--        assert diff.diff_total == 13
--        assert diff.diff_ratio == 0.65
-+        assert diff.diff_total == 15                          # [CHANGED] OFF_TOPIC
-+        assert np.isclose(diff.diff_ratio, 0.682, atol=1e-3, rtol=0)  # [CHANGED] OFF_TOPIC
-
--        assert "13 different table data element(s) found (65.00% different)" in report
-+        assert "15 different table data element(s) found (68.18% different)" in report  # [CHANGED] OFF_TOPIC
-```
-
-#### D.6 Pipeline Verdict Detail
-
-##### Intent Extraction
-
-| Field | Value |
-|---|---|
-| **core_requirement** | Fix `FITSDiff` false positive for identical files with VLA columns |
-| **acceptance_criteria** | (1) `FITSDiff(file, file).identical` returns `True` for VLA files, (2) `printdiff` reports no diffs for identical VLA files, (3) No false positives from VLA presence |
-| **out_of_scope** | Changing public API, modifying FITS file writing/reading, altering non-VLA diff semantics, adding new diff features |
-| **ambiguity_score** | 0.3 |
-
-##### Per-Test and Per-Assertion Verdicts
+#### D.4 Test Analysis
 
 | Test | Verdict | ON_TOPIC | OFF_TOPIC |
 |---|---|---|---|
 | `test_identical_tables` | ALIGNED (modified) | 2 | 0 |
-| `test_different_table_data` (instance 1) | TANGENTIAL | 0 | 3 |
-| `test_different_table_data` (instance 2) | TANGENTIAL | 0 | 3 |
-| `test_different_table_data` (instance 3) | TANGENTIAL | 0 | 3 |
+| `test_different_table_data` (x3 instances) | TANGENTIAL | 0 | 9 |
 | **Total** | | **2** | **9** |
 
-**Why `test_different_table_data` appears 3 times:** The pipeline identified 3 separate hunk ranges within the same test function (the column addition, the assertion additions, and the updated counts). Each was evaluated independently.
+The 9 OFF_TOPIC assertions in `test_different_table_data` test Q-format diff detection (comparing genuinely different tables), not the false-positive bug described in the problem.
 
-##### Detailed Assertion Reasoning
+#### D.5 Scoring Breakdown
 
-| # | Assertion | Verdict | Reasoning |
-|---|---|---|---|
-| 0 | `diff.diff_values[13][0] == ("K", 0)` | OFF_TOPIC | Tests that `FITSDiff` correctly reports *differences* for column K row 0 — the problem only asks about false positives for *identical* files |
-| 1 | `(diff.diff_values[13][1][0] == [0, 1]).all()` | OFF_TOPIC | Verifies the exact diff values reported for column K — beyond the identical-file bug |
-| 2 | `(diff.diff_values[13][1][1] == [1, 2]).all()` | OFF_TOPIC | Same: verifying diff output detail |
-| 3 | `diff.diff_values[14][0] == ("K", 1)` | OFF_TOPIC | Column K row 1 diff detection |
-| 4-5 | `diff.diff_values[14][1][0/1]` | OFF_TOPIC | Exact values for K row 1 |
-| 6 | `diff.diff_total == 15` | OFF_TOPIC | Updated total diff count (was 13, now 15 with K's 2 rows) |
-| 7 | `np.isclose(diff.diff_ratio, 0.682, ...)` | OFF_TOPIC | Updated diff ratio |
-| 8 | `"15 different table data element(s) found (68.18% different)"` | OFF_TOPIC | Updated report string |
+$$\text{combined} = 1 - (1 - 0.0)(1 - 0.818)(1 - 0.3) = \mathbf{0.873}$$
 
-##### Scoring Breakdown
-
-| Component | Score | Derivation |
-|---|---|---|
-| excess_patch | 0.000 | 1 REQUIRED / 1 total = no excess |
-| excess_test | 0.818 | 9 OFF_TOPIC / 11 total assertions |
-| vague_spec | 0.300 | Clear problem statement |
-
-$$\text{combined} = 1 - (1 - 0.0)(1 - 0.818)(1 - 0.3) = 1 - 1.0 \times 0.182 \times 0.7 = 1 - 0.1274 = \mathbf{0.873}$$
-
-#### D.7 Independent Deep Analysis
-
-**The patch is clean — the contamination is purely in the tests.**
-
-The gold patch is exactly the one-line fix described in the hints. It perfectly addresses the bug. The issue is that the test evaluators modified `test_different_table_data` to also verify that `Q`-format columns work in the **diff-detection** path (comparing genuinely different tables), not just the identical-file path that the bug report describes.
-
-**What an agent would produce:**
-
-An agent reading the problem statement and hints would:
-1. Add `or "Q" in col.format` — correct fix
-2. Add/modify `test_identical_tables` to include a `Q`-format column — this is reasonable
-3. **Not necessarily** add a `Q`-format column to `test_different_table_data` — this tests a different scenario (correctly detecting differences, not fixing false positives)
-
-**Would the agent's fix pass?** The agent's fix would pass `test_identical_tables` but fail `test_different_table_data` because:
-- The test expects `diff.diff_total == 15` (with column K contributing 2 diffs)
-- Without adding column K to both tables in `test_different_table_data`, the test would find 13 total diffs
-- The assertions for `diff.diff_values[13]` and `diff.diff_values[14]` would fail (these indices don't exist without column K)
-
-**Nuance:** In this case, an agent that modifies `diff.py` would actually make `test_different_table_data` PASS with its existing assertions (since the test_patch modifies the test, not the code-under-test). The F2P mechanism means the test must FAIL before the fix and PASS after. Since `test_different_table_data` previously had no Q-format column, it *would have passed before the fix anyway*. The test only fails before the fix because the test_patch adds the Q-format column, and the old code can't diff it properly. So the test IS testing the fix, just in a scenario beyond what the problem described.
-
-This makes the contamination more subtle: the test modifications are legitimate regression tests, but they require the agent to produce a test patch that extends `test_different_table_data` in a very specific way — adding column K with specific data values and updating exact numeric assertions (15, 0.682, 68.18%).
-
-**Contamination verdict: CONFIRMED — MEDIUM-HIGH CONFIDENCE.** The off-topic assertions are legitimate regression tests, but their specificity (exact diff counts, ratios, and values) goes well beyond verifying the bug fix. The 9 off-topic assertions test "Q-format columns diff correctly when tables are different" rather than "Q-format columns don't cause false positives when tables are identical."
+**Contamination verdict: CONFIRMED — MEDIUM-HIGH CONFIDENCE.**
 
 ---
 
 ### Cross-Case Synthesis
 
-#### Contamination Pattern Taxonomy
+#### Contamination Pattern Taxonomy (v3 Labels)
 
-| Pattern | Cases | Description |
+| Pattern | Cases | v3 Labels |
 |---|---|---|
-| **Approach Mismatch** | A | Problem suggests fix X; gold patch implements fix Y; tests enforce Y's semantics |
-| **Scope Creep in Tests** | B, D | Tests verify behavior explicitly deferred or beyond the bug scope |
-| **Feature Split** | C | Problem asks for feature X; gold patch implements X+Y; test requires both |
+| **Approach Mismatch** | A | `mispatch_approach_mismatch`, `desc_misleading` |
+| **Deferred Requirement** | B | `mistest_deferred_requirement`, `mistest_overtest` |
+| **Feature Split** | C | `mistest_overtest`, `mistest_customtest`, `scope_expansion` |
+| **Sneaky Test Modification** | D | `mistest_overtest`, `mistest_sneaky_modification` |
 
 #### Impact on SWE-bench Evaluation
 
-The contamination in these cases creates an unfair evaluation dynamic:
+1. **An agent that perfectly solves the stated problem can score 0%.** Case C demonstrates this: a correct writer-only implementation fails because the test errors on the reader assertion first.
 
-1. **An agent that perfectly solves the stated problem can score 0%.** Case C demonstrates this most clearly: a correct writer-only implementation fails because the test doesn't even reach the writer assertion — it errors on the reader assertion first.
+2. **Knowledge of the gold patch is required.** In Case A, the problem provides a specific fix. The gold patch implements a different fix decided during code review. An agent would need to "know" the maintainer discussion.
 
-2. **Knowledge of the gold patch is required.** In Case A, the problem statement provides a specific fix. The gold patch implements a different fix that was decided during code review. The tests enforce the code-review fix. An agent would need to "know" the maintainer discussion to produce a passing solution.
-
-3. **Background knowledge substitutes for the problem statement.** In Cases B and D, the tests require domain knowledge (ERFA refraction API, FITS Q-format VLA columns in diff scenarios) that is not mentioned in the problem description. While a skilled agent might infer these, they are not derivable from the problem text alone.
+3. **Background knowledge substitutes for the problem statement.** Cases B and D require domain knowledge not mentioned in the problem description.
 
 #### Scoring Formula Validation
 
-All four cases were verified against the formula:
-
-$$\text{combined} = 1 - (1 - \text{EP}) \times (1 - \text{ET}) \times (1 - \text{VS})$$
-
-| Case | EP | ET | VS | Manual Calc | Report | Match |
-|---|---|---|---|---|---|---|
-| A | 1.000 | 0.000 | 0.300 | 1.000 | 1.000 | ✓ |
-| B | 0.5625 | 0.7661 | 0.550 | 0.954 | 0.954 | ✓ |
-| C | 0.333 | 0.833 | 0.400 | 0.933 | 0.933 | ✓ |
-| D | 0.000 | 0.818 | 0.300 | 0.873 | 0.873 | ✓ |
-
-#### Confidence Summary
-
-| Case | Instance | Combined | Primary Signal | Confidence |
-|---|---|---|---|---|
-| A | `django__django-10999` | 1.000 | Patch approach mismatch | **HIGH** |
-| B | `astropy__astropy-13398` | 0.954 | Refraction tests beyond spec | **HIGH** |
-| C | `astropy__astropy-14182` | 0.933 | Reader tests for writer request | **HIGH** |
-| D | `astropy__astropy-14539` | 0.873 | Regression tests beyond bug | **MEDIUM-HIGH** |
+| Case | EP | ET | VS | v2 Combined | v3 Severity (projected) |
+|---|---|---|---|---|---|
+| A | 1.000 | 0.000 | 0.300 | **1.000** | SEVERE |
+| B | 0.5625 | 0.7661 | 0.550 | **0.954** | SEVERE |
+| C | 0.333 | 0.833 | 0.400 | **0.933** | SEVERE |
+| D | 0.000 | 0.818 | 0.300 | **0.873** | SEVERE |

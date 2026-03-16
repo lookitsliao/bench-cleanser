@@ -101,6 +101,133 @@ class RootCause(str, Enum):
     transform infrastructure not described in the spec."""
 
 
+# ── v3 Dual Taxonomy ──────────────────────────────────────────────────
+
+
+class TaskContaminationLabel(str, Enum):
+    """Axis 1: task-level contamination labels (multi-label per task).
+
+    Groups:
+      A – Test contamination
+      B – Patch contamination
+      C – Description contamination
+      D – Structural contamination
+      E – Clean
+    """
+    # Group A – Test Contamination
+    MISTEST_OVERTEST = "mistest_overtest"
+    MISTEST_UNDERTEST = "mistest_undertest"
+    MISTEST_CUSTOMTEST = "mistest_customtest"
+    MISTEST_SNEAKY_MODIFICATION = "mistest_sneaky_modification"
+    MISTEST_DEFERRED_REQUIREMENT = "mistest_deferred_requirement"
+    # Group B – Patch Contamination
+    MISPATCH_OVERPATCH = "mispatch_overpatch"
+    MISPATCH_UNDERPATCH = "mispatch_underpatch"
+    MISPATCH_APPROACH_MISMATCH = "mispatch_approach_mismatch"
+    MISPATCH_ANCILLARY_BUNDLING = "mispatch_ancillary_bundling"
+    # Group C – Description Contamination
+    DESC_MISLEADING = "desc_misleading"
+    DESC_INCOMPLETE = "desc_incomplete"
+    DESC_HIDDEN_IN_HINTS = "desc_hidden_in_hints"
+    DESC_SELF_REFERENTIAL = "desc_self_referential"
+    # Group D – Structural Contamination
+    SCOPE_EXPANSION = "scope_expansion"
+    CIRCULAR_TEST_PATCH_DEPENDENCY = "circular_test_patch_dependency"
+    # Group E – Clean
+    CLEAN = "clean"
+    HARD_BUT_CLEAN = "hard_but_clean"
+
+
+class AgentTrajectoryLabel(str, Enum):
+    """Axis 2: per-agent-task trajectory classification (single primary label)."""
+    AGENT_PASSED_GENUINE = "agent_passed_genuine"
+    AGENT_PASSED_LEAK = "agent_passed_leak"
+    AGENT_PASSED_PACKAGE_LEAK = "agent_passed_package_leak"
+    AGENT_PASSED_TEST_AWARE = "agent_passed_test_aware"
+    AGENT_PASSED_TRAINED_HACK = "agent_passed_trained_hack"
+    AGENT_FAILED_COMPLETED_INTENT = "agent_failed_completed_intent"
+    AGENT_FAILED_NO_INTENT = "agent_failed_no_intent"
+    AGENT_UNKNOWN = "agent_unknown"
+
+
+@dataclass
+class TaskLabelAssignment:
+    """A single Axis 1 label assigned to a task with evidence."""
+    label: TaskContaminationLabel
+    confidence: float                  # 0.0–1.0
+    evidence: list[str] = field(default_factory=list)
+    reasoning: str = ""
+
+
+@dataclass
+class AgentLabelAssignment:
+    """A single Axis 2 label assigned to an agent-task pair with evidence."""
+    label: AgentTrajectoryLabel
+    confidence: float
+    evidence: list[str] = field(default_factory=list)
+    reasoning: str = ""
+
+
+@dataclass
+class DualTaxonomyReport:
+    """v3 contamination report combining task labels and agent trajectory labels.
+
+    Preserves all v2 fields (EP/ET/VS, intent, severity) for backward
+    compatibility, plus the new multi-label dual taxonomy output.
+    """
+    instance_id: str
+    severity: Severity
+    combined_score: float
+    intent: IntentStatement
+    excess_patch: ExcessPatchDetail
+    excess_test: ExcessTestDetail
+    vague_spec: VagueSpecDetail
+    task_labels: list[TaskLabelAssignment] = field(default_factory=list)
+    agent_labels: dict[str, AgentLabelAssignment] = field(default_factory=dict)
+    # Preserved v2 fields
+    categories: dict[str, VerdictScore] = field(default_factory=dict)
+    root_causes: list[RootCause] = field(default_factory=list)
+    root_cause_reasoning: dict[str, str] = field(default_factory=dict)
+    recommendations: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a JSON-compatible dict (v3 superset of v2)."""
+        # Base v2-compatible output
+        base = ContaminationReportV2(
+            instance_id=self.instance_id,
+            severity=self.severity,
+            combined_score=self.combined_score,
+            intent=self.intent,
+            excess_patch=self.excess_patch,
+            excess_test=self.excess_test,
+            vague_spec=self.vague_spec,
+            categories=self.categories,
+            root_causes=self.root_causes,
+            root_cause_reasoning=self.root_cause_reasoning,
+            recommendations=self.recommendations,
+        ).to_dict()
+        # Add v3 dual taxonomy fields
+        base["task_labels"] = [
+            {
+                "label": tl.label.value,
+                "confidence": round(tl.confidence, 4),
+                "evidence": tl.evidence,
+                "reasoning": tl.reasoning,
+            }
+            for tl in self.task_labels
+        ]
+        base["agent_labels"] = {
+            agent: {
+                "label": al.label.value,
+                "confidence": round(al.confidence, 4),
+                "evidence": al.evidence,
+                "reasoning": al.reasoning,
+            }
+            for agent, al in self.agent_labels.items()
+        }
+        return base
+
+
 class HunkClassification(str, Enum):
     """Classification of a gold patch hunk relative to task scope."""
     IN_SCOPE = "IN_SCOPE"
