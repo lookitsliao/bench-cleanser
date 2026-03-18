@@ -18,6 +18,7 @@ import openai
 from openai import (
     APIConnectionError,
     APITimeoutError,
+    AuthenticationError,
     InternalServerError,
     RateLimitError,
 )
@@ -30,20 +31,48 @@ logger = logging.getLogger(__name__)
 # Errors that should trigger a retry with exponential back-off.
 # InternalServerError (HTTP 500) is included because Azure OpenAI
 # returns transient 500s under load.
-_RETRYABLE_ERRORS = (
+# We also catch Azure credential errors (token expiry, az CLI hiccups)
+# which are transient and resolve on retry.
+_RETRYABLE_ERRORS: tuple[type[BaseException], ...] = [
     APIConnectionError,
     APITimeoutError,
+    AuthenticationError,
     InternalServerError,
     RateLimitError,
-)
+]
+
+# Attempt to include Azure credential errors so token-refresh
+# failures are retried rather than treated as fatal.
+try:
+    from azure.identity import CredentialUnavailableError
+    _RETRYABLE_ERRORS.append(CredentialUnavailableError)
+except ImportError:
+    pass
+try:
+    from azure.core.exceptions import ClientAuthenticationError
+    _RETRYABLE_ERRORS.append(ClientAuthenticationError)
+except ImportError:
+    pass
+
+_RETRYABLE_ERRORS = tuple(_RETRYABLE_ERRORS)
 
 
-def _create_async_client(config: PipelineConfig) -> openai.AsyncAzureOpenAI:
+def _create_async_client(
+    config: PipelineConfig,
+) -> tuple[openai.AsyncAzureOpenAI, callable]:
     """Create an AsyncAzureOpenAI client using CloudGPT token provider.
 
     Uses the cloudgpt module's Azure AD token provider with ``az`` CLI
-    authentication.
+    authentication.  Wraps the provider with a caching layer so that
+    ``az`` is not invoked on every single API call — the token is reused
+    until it is close to expiry.
+
+    Returns ``(client, invalidate_token)`` where *invalidate_token* is a
+    callable that clears the cached Azure AD token, forcing the next API
+    call to acquire a fresh one (useful on 401 errors).
     """
+    import time
+
     # Add the project root to sys.path so cloudgpt.py can be imported
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if project_root not in sys.path:
@@ -51,17 +80,41 @@ def _create_async_client(config: PipelineConfig) -> openai.AsyncAzureOpenAI:
 
     from cloudgpt import get_openai_token_provider
 
-    token_provider = get_openai_token_provider(
+    raw_provider = get_openai_token_provider(
         use_azure_cli=True,
         skip_access_validation=True,
     )
 
-    return openai.AsyncAzureOpenAI(
+    # Cache the token so az CLI is invoked at most once per token lifetime.
+    # Azure AD tokens typically live 60-90 minutes; we refresh 5 min early.
+    _cached_token: str | None = None
+    _token_acquired_at: float = 0.0
+    _TOKEN_LIFETIME = 50 * 60  # refresh every 50 min (conservative)
+
+    def caching_token_provider() -> str:
+        nonlocal _cached_token, _token_acquired_at
+        now = time.monotonic()
+        if _cached_token is not None and (now - _token_acquired_at) < _TOKEN_LIFETIME:
+            return _cached_token
+        logger.info("Acquiring fresh Azure AD token (cached token expired or missing)")
+        _cached_token = raw_provider()
+        _token_acquired_at = now
+        return _cached_token
+
+    def invalidate_token() -> None:
+        nonlocal _cached_token, _token_acquired_at
+        logger.info("Invalidating cached Azure AD token (401 received)")
+        _cached_token = None
+        _token_acquired_at = 0.0
+
+    client = openai.AsyncAzureOpenAI(
         api_version=config.llm_api_version,
         azure_endpoint=config.llm_base_url,
-        azure_ad_token_provider=token_provider,
+        azure_ad_token_provider=caching_token_provider,
         max_retries=0,  # We handle retries ourselves with proper backoff
     )
+
+    return client, invalidate_token
 
 
 class LLMClient:
@@ -77,7 +130,7 @@ class LLMClient:
         config: PipelineConfig,
         cache: ResponseCache | None = None,
     ) -> None:
-        self._client = _create_async_client(config)
+        self._client, self._invalidate_token = _create_async_client(config)
         self._model = config.llm_model
         self._max_tokens = config.llm_max_tokens
         self._reasoning_effort = config.llm_reasoning_effort
@@ -126,6 +179,10 @@ class LLMClient:
                 return content
             except _RETRYABLE_ERRORS as exc:
                 last_exc = exc
+                # On 401, invalidate the cached token so the next retry
+                # acquires a fresh one from az CLI.
+                if isinstance(exc, AuthenticationError):
+                    self._invalidate_token()
                 delay = min(self._retry_delay * (2 ** (attempt - 1)), 60.0)
                 logger.warning(
                     "LLM request failed (attempt %d/%d): %s – retrying in %.1fs",

@@ -1,0 +1,25 @@
+llm:
+  base_url: "https://cloudgpt-openai.azure-api.net/"
+  api_version: "2025-04-01-preview"
+  model: "gpt-5.2-20251211"
+  max_tokens: 4096
+  reasoning_effort: "medium"
+  max_concurrent_requests: 10
+  retry_attempts: 7
+  retry_delay_seconds: 5.0
+
+pipeline:
+  concurrency: 10
+  cache_dir: ".cache/llm_responses"
+  output_dir: "output_v3"
+
+thresholds:
+  clean_max: 0.15
+  minor_max: 0.4
+  moderate_max: 0.7
+
+code_visitation:
+  enabled: false
+  repo_cache_dir: ".cache/repos"
+  clone_timeout_seconds: 300
+  max_source_context_lines: 200

@@ -43,7 +43,7 @@ class RepoManager:
     def __init__(
         self,
         cache_dir: str = ".cache/repos",
-        clone_timeout: int = 120,
+        clone_timeout: int = 300,
     ) -> None:
         self._cache_dir = pathlib.Path(cache_dir)
         self._cache_dir.mkdir(parents=True, exist_ok=True)
@@ -193,7 +193,7 @@ class RepoManager:
         timeout: int | None = None,
     ) -> subprocess.CompletedProcess[str]:
         """Run a git command with logging."""
-        effective_timeout = timeout or 60
+        effective_timeout = timeout or self._timeout
         env = os.environ.copy()
         env["GIT_TERMINAL_PROMPT"] = "0"  # never prompt for credentials
 

@@ -228,7 +228,7 @@ def get_openai_token_provider(
                 )
     elif use_azure_cli or (implicit_mode and shutil.which("az") is not None):
         current_auth_mode = "az_cli"
-        identity = AzureCliCredential(tenant_id=tenant_id)
+        identity = AzureCliCredential(tenant_id=tenant_id, process_timeout=300)
     else:
         if implicit_mode:
             # enable broker login for known supported envs if not specified using use_device_code

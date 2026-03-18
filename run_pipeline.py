@@ -18,6 +18,7 @@ from bench_cleanser.pipeline import (
     load_config,
     run_pipeline,
     run_pipeline_v2,
+    run_pipeline_v3,
     process_single_task,
 )
 from bench_cleanser.cache import ResponseCache
@@ -66,6 +67,11 @@ def _parse_args() -> argparse.Namespace:
         "--v2",
         action="store_true",
         help="Use v2 intent-matching pipeline (4-verdict taxonomy)",
+    )
+    p.add_argument(
+        "--v3",
+        action="store_true",
+        help="Use v3 dual taxonomy pipeline (17-label Axis 1 + 8-label Axis 2)",
     )
     p.add_argument(
         "--split",
@@ -167,6 +173,81 @@ def _print_v2_summary(reports: list) -> None:
         print(f"Mean combined score: {mean_combined:.4f}")
 
 
+def _print_v3_summary(reports: list) -> None:
+    """Print v3 dual taxonomy summary to terminal."""
+    from collections import Counter
+
+    severity_counts = {"CLEAN": 0, "MINOR": 0, "MODERATE": 0, "SEVERE": 0}
+    label_counter: Counter = Counter()
+    for r in reports:
+        severity_counts[r.severity.value] += 1
+        for la in r.task_labels:
+            label_counter[la.label.value] += 1
+
+    try:
+        from rich.console import Console
+        from rich.table import Table
+
+        console = Console()
+
+        # Severity table
+        sev_table = Table(title="bench-cleanser v3 Results (Dual Taxonomy)", show_header=True)
+        sev_table.add_column("Severity", style="bold")
+        sev_table.add_column("Count", justify="right")
+        sev_table.add_column("Percentage", justify="right")
+
+        colors = {"CLEAN": "green", "MINOR": "yellow", "MODERATE": "orange3", "SEVERE": "red"}
+        for sev, count in severity_counts.items():
+            pct = (count / len(reports) * 100) if reports else 0
+            sev_table.add_row(
+                f"[{colors[sev]}]{sev}[/{colors[sev]}]",
+                str(count),
+                f"{pct:.1f}%",
+            )
+
+        console.print()
+        console.print(sev_table)
+
+        # Label distribution table
+        if label_counter:
+            label_table = Table(title="Axis 1 — Task Label Distribution", show_header=True)
+            label_table.add_column("Label", style="bold")
+            label_table.add_column("Count", justify="right")
+
+            for label, count in label_counter.most_common():
+                label_table.add_row(label, str(count))
+
+            console.print()
+            console.print(label_table)
+
+        # Score summary
+        mean_combined = sum(r.combined_score for r in reports) / len(reports) if reports else 0.0
+        mean_ep = sum(r.excess_patch.score for r in reports) / len(reports) if reports else 0.0
+        mean_et = sum(r.excess_test.score for r in reports) / len(reports) if reports else 0.0
+        mean_vs = sum(r.vague_spec.score for r in reports) / len(reports) if reports else 0.0
+
+        console.print(f"\n  Total tasks: {len(reports)}")
+        console.print(f"  Mean combined score:    {mean_combined:.4f}")
+        console.print(f"  Mean EXCESS_PATCH:      {mean_ep:.4f}")
+        console.print(f"  Mean EXCESS_TEST:       {mean_et:.4f}")
+        console.print(f"  Mean VAGUE_SPEC:        {mean_vs:.4f}")
+
+    except ImportError:
+        print("\n=== bench-cleanser v3 results (Dual Taxonomy) ===")
+        print(f"Total tasks analysed: {len(reports)}")
+        for sev, count in severity_counts.items():
+            pct = (count / len(reports) * 100) if reports else 0
+            print(f"  {sev:10s}: {count:4d}  ({pct:.1f}%)")
+
+        if label_counter:
+            print("\nAxis 1 — Task Label Distribution:")
+            for label, count in label_counter.most_common():
+                print(f"  {label:40s}: {count:4d}")
+
+        mean_combined = sum(r.combined_score for r in reports) / len(reports) if reports else 0.0
+        print(f"Mean combined score: {mean_combined:.4f}")
+
+
 def main() -> None:
     args = _parse_args()
 
@@ -208,7 +289,11 @@ def main() -> None:
     logging.info("Loaded %d task(s)", len(records))
 
     # Run pipeline
-    if args.v2:
+    if args.v3:
+        logging.info("Using v3 dual taxonomy pipeline")
+        reports = asyncio.run(run_pipeline_v3(records, config, resume=args.resume))
+        _print_v3_summary(reports)
+    elif args.v2:
         logging.info("Using v2 intent-matching pipeline")
         reports = asyncio.run(run_pipeline_v2(records, config, resume=args.resume))
         _print_v2_summary(reports)

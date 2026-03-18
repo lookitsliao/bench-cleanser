@@ -615,12 +615,10 @@ async def classify_task_labels(
     )
 
     try:
-        response = await llm.chat(
+        result = await llm.query_json(
             system_prompt=TASK_CLASSIFIER_SYSTEM_PROMPT,
             user_prompt=user_prompt,
-            response_format="json",
         )
-        result = json.loads(response)
         labels: list[TaskLabelAssignment] = []
         for item in result.get("labels", []):
             label_str = item.get("label", "")
@@ -802,12 +800,10 @@ async def classify_agent_label(
         if action_summary:
             user_parts.append("TRAJECTORY:\n" + "\n".join(action_summary))
 
-        response = await llm.chat(
+        result = await llm.query_json(
             system_prompt=AGENT_CLASSIFIER_SYSTEM_PROMPT,
             user_prompt="\n\n".join(user_parts),
-            response_format="json",
         )
-        result = json.loads(response)
         label_str = result.get("label", "agent_unknown")
         try:
             label_enum = AgentTrajectoryLabel(label_str)
