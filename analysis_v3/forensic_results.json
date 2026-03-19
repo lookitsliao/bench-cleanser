@@ -1,0 +1,1567 @@
+{
+  "distributions": {
+    "severity_counts": {
+      "CLEAN": 232,
+      "SEVERE": 105,
+      "MINOR": 78,
+      "MODERATE": 85
+    },
+    "label_counts": {
+      "clean": 214,
+      "mispatch_ancillary_bundling": 108,
+      "mistest_overtest": 102,
+      "mistest_undertest": 99,
+      "desc_hidden_in_hints": 57,
+      "desc_incomplete": 53,
+      "mistest_customtest": 53,
+      "mistest_sneaky_modification": 46,
+      "mispatch_overpatch": 40,
+      "scope_expansion": 32,
+      "desc_misleading": 21,
+      "mispatch_approach_mismatch": 13,
+      "mispatch_underpatch": 7,
+      "desc_self_referential": 3,
+      "hard_but_clean": 2,
+      "mistest_deferred_requirement": 1
+    },
+    "label_mean_confidence": {
+      "clean": 0.817803738317757,
+      "mispatch_approach_mismatch": 0.6823076923076923,
+      "mispatch_underpatch": 0.8214285714285714,
+      "mispatch_ancillary_bundling": 0.6997222222222222,
+      "scope_expansion": 0.5921875,
+      "mistest_overtest": 0.7357843137254901,
+      "mistest_deferred_requirement": 0.6,
+      "desc_incomplete": 0.5667924528301886,
+      "mistest_customtest": 0.6543396226415095,
+      "mispatch_overpatch": 0.66575,
+      "mistest_sneaky_modification": 0.6965217391304348,
+      "mistest_undertest": 0.7021212121212121,
+      "desc_hidden_in_hints": 0.7012280701754385,
+      "hard_but_clean": 0.61,
+      "desc_misleading": 0.6795238095238095,
+      "desc_self_referential": 0.64
+    },
+    "score_stats": {
+      "mean": 0.310557,
+      "median": 0.216,
+      "min": 0.0,
+      "max": 0.9978,
+      "p25": 0.0,
+      "p75": 0.6017
+    },
+    "total": 500
+  },
+  "cooccurrence": {
+    "pair_counts": {
+      "mispatch_ancillary_bundling + mistest_overtest": 37,
+      "mistest_customtest + mistest_overtest": 33,
+      "mispatch_ancillary_bundling + mistest_undertest": 32,
+      "mistest_overtest + mistest_sneaky_modification": 25,
+      "mistest_overtest + mistest_undertest": 25,
+      "mispatch_ancillary_bundling + mispatch_overpatch": 23,
+      "mispatch_ancillary_bundling + scope_expansion": 20,
+      "mispatch_ancillary_bundling + mistest_customtest": 20,
+      "desc_hidden_in_hints + desc_incomplete": 20,
+      "mispatch_ancillary_bundling + mistest_sneaky_modification": 18,
+      "desc_hidden_in_hints + mistest_undertest": 17,
+      "mistest_overtest + scope_expansion": 16,
+      "desc_incomplete + mistest_overtest": 15,
+      "mispatch_overpatch + mistest_overtest": 15,
+      "desc_incomplete + mispatch_ancillary_bundling": 14,
+      "desc_hidden_in_hints + mistest_overtest": 14,
+      "desc_incomplete + mistest_undertest": 14,
+      "mistest_customtest + mistest_sneaky_modification": 12,
+      "desc_hidden_in_hints + mispatch_ancillary_bundling": 12,
+      "mistest_customtest + mistest_undertest": 12,
+      "mispatch_overpatch + scope_expansion": 11,
+      "mispatch_overpatch + mistest_undertest": 11,
+      "mistest_undertest + scope_expansion": 9,
+      "desc_hidden_in_hints + desc_misleading": 8,
+      "desc_misleading + mispatch_ancillary_bundling": 8,
+      "desc_misleading + mistest_overtest": 8,
+      "desc_incomplete + scope_expansion": 7,
+      "mispatch_approach_mismatch + mistest_overtest": 7,
+      "desc_incomplete + mistest_customtest": 7,
+      "desc_misleading + mispatch_overpatch": 7
+    },
+    "common_label_sets": {
+      "(clean)": 216,
+      "mistest_undertest": 25,
+      "mispatch_ancillary_bundling": 19,
+      "desc_hidden_in_hints": 13,
+      "mistest_customtest | mistest_overtest": 11,
+      "mispatch_ancillary_bundling | mistest_undertest": 11,
+      "desc_hidden_in_hints | desc_incomplete": 9,
+      "mistest_overtest | mistest_undertest": 9,
+      "mistest_overtest": 9,
+      "mistest_sneaky_modification": 8,
+      "mistest_overtest | mistest_sneaky_modification": 8,
+      "mispatch_ancillary_bundling | scope_expansion": 6,
+      "desc_incomplete": 5,
+      "desc_hidden_in_hints | mistest_undertest": 5,
+      "mispatch_ancillary_bundling | mistest_overtest | mistest_sneaky_modification": 4,
+      "desc_incomplete | mispatch_ancillary_bundling": 4,
+      "desc_misleading": 4,
+      "mispatch_overpatch": 4,
+      "desc_incomplete | mistest_undertest": 4,
+      "mistest_customtest": 4
+    }
+  },
+  "case_studies": {
+    "clean": {
+      "count": 214,
+      "top_cases": [
+        {
+          "instance_id": "django__django-14373",
+          "severity": "CLEAN",
+          "combined_score": 0.0,
+          "confidence": 0.93,
+          "evidence": [
+            "Problem statement clearly specifies: \u201cThe Y specifier \u2026 is supposed to always return a four-digit year padded with zeros \u2026 for year < 1000.\u201d",
+            "Gold patch changes only DateFormat.Y() to return a zero-padded 4-digit string (e.g., '%04d' % self.data.year), directly matching the stated requirement.",
+            "Only one aligned test exists: test_Y_format_year_before_1000, and there are no modified/pre-existing tests being altered to enforce unrelated behavior."
+          ],
+          "reasoning": "The task description, the gold patch, and the tests all focus narrowly on ensuring DateFormat.Y() returns a four-digit, zero-padded year for years below 1000. There\u2019s no evidence of extra requirements, overly specific implementation constraints, scope expansion, or unrelated refactoring bundled into the patch.",
+          "all_labels": [
+            "clean"
+          ]
+        },
+        {
+          "instance_id": "pytest-dev__pytest-7982",
+          "severity": "CLEAN",
+          "combined_score": 0.0,
+          "confidence": 0.93,
+          "evidence": [
+            "Problem statement explicitly identifies the regression cause: \u201cFor some reason I added a `follow_symlinks=False` in there\u2026 should be removed.\u201d",
+            "Gold patch directly implements that by changing directory traversal to follow symlinks again: uses `entry.is_dir()` instead of `entry.is_dir(follow_symlinks=False)` in `src/_pytest/pathlib.py` (single required hunk).",
+            "F2P test `test_collect_symlink_dir` checks only the requested behavior: a symlinked directory is traversed/collected, validated via `result.assert_outcomes(passed=2)`."
+          ],
+          "reasoning": "The task scope is narrow (restore collection through symlinked directories), and both the patch and the test align tightly with that scope without extra refactors, new APIs, or additional behavioral constraints. The test asserts the minimal observable outcome (tests inside symlinked dir are collected and pass) and does not appear to lock in an implementation-specific approach beyond the stated requirement.",
+          "all_labels": [
+            "clean"
+          ]
+        },
+        {
+          "instance_id": "scikit-learn__scikit-learn-13439",
+          "severity": "CLEAN",
+          "combined_score": 0.0,
+          "confidence": 0.93,
+          "evidence": [
+            "Problem statement: \"Pipeline should implement __len__\" and example shows `len(pipe)` raising an error, affecting `pipe[:len(pipe)]`.",
+            "Gold patch: adds `Pipeline.__len__` returning `len(self.steps)` (single required hunk in `sklearn/pipeline.py`).",
+            "F2P test: single aligned assertion `assert len(pipeline) == 2`, directly checking the requested behavior."
+          ],
+          "reasoning": "The change requested is narrowly defined (implement `__len__` for Pipeline). The gold patch implements exactly that with no extra refactors or scope expansion. The test checks only the essential contract (len equals number of steps) and does not enforce unrelated behavior or a particular implementation beyond the natural expectation that Pipeline length corresponds to its steps.",
+          "all_labels": [
+            "clean"
+          ]
+        }
+      ]
+    },
+    "mispatch_approach_mismatch": {
+      "count": 13,
+      "top_cases": [
+        {
+          "instance_id": "django__django-11964",
+          "severity": "SEVERE",
+          "combined_score": 0.9764,
+          "confidence": 0.9,
+          "evidence": [
+            "Gold patch modifies `django/db/models/enums.py` by changing `Choices.__str__()` to return `self.value` (global enum stringification change).",
+            "Problem statement/intent emphasizes model field values: freshly created model instance stores Enum member in `__dict__` vs retrieved instance stores primitive (`'my_str_value': <MyChoice.FIRST_CHOICE: 'first'>` vs `'my_str_value': 'first'` in hints), implying coercion/normalization at assignment/save time."
+          ],
+          "reasoning": "The patch fixes the symptom shown by `str(obj.field)` by altering `Choices.__str__`, but it does not address the underlying inconsistency described in the hints (created instances keep an Enum member in the field storage while retrieved instances have a primitive). That is a fundamentally different approach than normalizing the assigned value in model field handling.",
+          "all_labels": [
+            "mispatch_approach_mismatch",
+            "mispatch_overpatch",
+            "mistest_overtest",
+            "desc_misleading"
+          ]
+        },
+        {
+          "instance_id": "sympy__sympy-21612",
+          "severity": "SEVERE",
+          "combined_score": 0.9938,
+          "confidence": 0.9,
+          "evidence": [
+            "Gold patch changes `sympy/printing/str.py` to treat `Pow` like `Mul` for parentheses: `isinstance(item.base, (Mul, Pow))`.",
+            "Problem statement and intent extraction focus on fixing LaTeX parsing precedence/grouping for nested fractions."
+          ],
+          "reasoning": "The described approach implied by the problem is to adjust LaTeX parsing so nested fractions are grouped correctly. The gold solution instead fixes the string printer so the already-correct internal expression is displayed with parentheses.",
+          "all_labels": [
+            "desc_misleading",
+            "desc_hidden_in_hints",
+            "mispatch_approach_mismatch",
+            "mispatch_overpatch",
+            "mistest_overtest"
+          ]
+        },
+        {
+          "instance_id": "django__django-14034",
+          "severity": "SEVERE",
+          "combined_score": 0.9556,
+          "confidence": 0.85,
+          "evidence": [
+            "Gold patch hunks are in django/forms/boundfield.py and deal with MultiWidget/required attribute application (per gold patch analysis: \u201cadjusts how the HTML `required` attribute is applied \u2026 propagating required to individual subwidgets\u201d).",
+            "Problem statement and acceptance criteria focus on MultiValueField validation short-circuiting when all inputs are empty, not on rendered HTML attributes."
+          ],
+          "reasoning": "The patch addresses client-side/HTML-required rendering concerns rather than the described server-side validation bug. This is a fundamentally different axis of behavior than what the issue report requests.",
+          "all_labels": [
+            "mispatch_underpatch",
+            "mispatch_approach_mismatch",
+            "mispatch_ancillary_bundling",
+            "mistest_overtest"
+          ]
+        }
+      ]
+    },
+    "mispatch_underpatch": {
+      "count": 7,
+      "top_cases": [
+        {
+          "instance_id": "django__django-14034",
+          "severity": "SEVERE",
+          "combined_score": 0.9556,
+          "confidence": 0.9,
+          "evidence": [
+            "Problem statement requires changing validation outcome: \u201cWhen the form is passed empty values for both sub fields, form.is_valid() == True. But I expected is_valid() returns False\u2026\u201d",
+            "Gold patch only changes django/forms/boundfield.py (HTML rendering attrs) and does not touch MultiValueField.clean()/validate() logic where is_valid() behavior is determined."
+          ],
+          "reasoning": "The requested behavior is explicitly about server-side validation (form.is_valid()). The gold patch modifies BoundField widget attribute construction (HTML `required` attribute propagation) rather than validation semantics, so it cannot directly enforce that submitting empty values makes the form invalid.",
+          "all_labels": [
+            "mispatch_underpatch",
+            "mispatch_approach_mismatch",
+            "mispatch_ancillary_bundling",
+            "mistest_overtest"
+          ]
+        },
+        {
+          "instance_id": "sphinx-doc__sphinx-8595",
+          "severity": "SEVERE",
+          "combined_score": 0.7037,
+          "confidence": 0.87,
+          "evidence": [
+            "GOLD PATCH ANALYSIS: only 1 hunk in `sphinx/ext/autodoc/__init__.py`, classified ANCILLARY with note: \u201c__init__.py hunk with only import/export changes\u201d.",
+            "Problem requires changing autodoc member-selection behavior when module `__all__ = []`, but the patch does not touch member filtering / `__all__` handling code paths (per hunk summary)."
+          ],
+          "reasoning": "The stated bug is about autodoc\u2019s logic for selecting members based on an explicitly empty module-level `__all__`. A patch consisting only of import/export adjustments in the extension\u2019s `__init__.py` is very unlikely to implement (or fully implement) the required behavioral change, indicating the gold patch does not actually solve the described problem.",
+          "all_labels": [
+            "mispatch_underpatch",
+            "mistest_overtest",
+            "mistest_customtest"
+          ]
+        },
+        {
+          "instance_id": "django__django-10999",
+          "severity": "MODERATE",
+          "combined_score": 0.4784,
+          "confidence": 0.86,
+          "evidence": [
+            "Problem statement + intent extraction require changing `standard_duration_re` hours-group lookahead from `(?=\\d+:\\d+)` to allow optional minus signs (e.g., `(?=-?\\d+:-?\\d+)`).",
+            "GOLD PATCH ANALYSIS: only 1 hunk exists and it is classified as UNRELATED, indicating the patch does not implement the required hours-lookahead change in `django/utils/dateparse.py`."
+          ],
+          "reasoning": "The stated bug is specifically that negative minute/second components fail to match when an hours component is present due to an overly strict lookahead. If the sole gold hunk is unrelated to that lookahead/regex behavior, then the gold patch does not actually deliver the requested functional fix, i.e., it is incomplete relative to the described requirement.",
+          "all_labels": [
+            "mispatch_underpatch",
+            "mispatch_overpatch"
+          ]
+        }
+      ]
+    },
+    "mispatch_ancillary_bundling": {
+      "count": 108,
+      "top_cases": [
+        {
+          "instance_id": "astropy__astropy-14182",
+          "severity": "SEVERE",
+          "combined_score": 0.962,
+          "confidence": 0.86,
+          "evidence": [
+            "Gold patch Hunk 1 in `astropy/io/ascii/rst.py` updates documentation/examples to demonstrate `header_rows` usage but does not implement acceptance/handling logic"
+          ],
+          "reasoning": "Documentation/example updates are bundled alongside the functional fix. While reasonable in a real PR, this is ancillary to the benchmark\u2019s core requirement and adds non-essential changes to the gold patch.",
+          "all_labels": [
+            "mistest_overtest",
+            "mistest_customtest",
+            "mispatch_overpatch",
+            "mispatch_ancillary_bundling",
+            "desc_incomplete"
+          ]
+        },
+        {
+          "instance_id": "sphinx-doc__sphinx-7910",
+          "severity": "MODERATE",
+          "combined_score": 0.442,
+          "confidence": 0.86,
+          "evidence": [
+            "GOLD PATCH ANALYSIS: Hunk 0 [sphinx/ext/napoleon/__init__.py] marked ANCILLARY (conf=0.95) \u2014 \"__init__.py hunk with only import/export changes\"",
+            "Only Hunk 1 is identified as REQUIRED to fix decorated __init__ ownership resolution; Hunk 0 is unrelated cleanup/packaging."
+          ],
+          "reasoning": "The gold patch bundles an extra import/export-only change alongside the functional fix. Since it is explicitly classified as ancillary and not needed to address the described failure mode, this constitutes bundled non-essential changes.",
+          "all_labels": [
+            "mispatch_ancillary_bundling",
+            "desc_hidden_in_hints"
+          ]
+        },
+        {
+          "instance_id": "sympy__sympy-19495",
+          "severity": "MODERATE",
+          "combined_score": 0.6735,
+          "confidence": 0.86,
+          "evidence": [
+            "GOLD PATCH ANALYSIS: 4 hunks total, only Hunk 3 is REQUIRED; Hunks 0-2 are marked UNRELATED and are docstring-only edits (removing a docstring 'Notes' header, fixing duplicated phrase, adding a blank line).",
+            "Unrelated docstring changes do not affect the reported `ConditionSet.subs` variable-capture/incorrect-binder behavior described in the problem statement."
+          ],
+          "reasoning": "The gold patch bundles multiple documentation-only changes together with the actual behavioral fix. Those extra hunks are not necessary for satisfying the stated requirement (fix `ConditionSet.subs` substitution behavior with `ImageSet`), so the patch is contaminated by ancillary/non-functional edits.",
+          "all_labels": [
+            "mispatch_ancillary_bundling",
+            "mistest_sneaky_modification"
+          ]
+        }
+      ]
+    },
+    "scope_expansion": {
+      "count": 32,
+      "top_cases": [
+        {
+          "instance_id": "django__django-13794",
+          "severity": "SEVERE",
+          "combined_score": 0.8075,
+          "confidence": 0.75,
+          "evidence": [
+            "Problem statement scope: \"Fix Django\u2019s `add` template filter so it can concatenate ... with a lazy string\" (template filter behavior).",
+            "Gold patch hunk is in `django/utils/functional.py` and \"adds `__add__`/`__radd__` to Django\u2019s lazy proxy\" (per GOLD PATCH ANALYSIS), affecting lazy objects globally rather than only the template `add` filter."
+          ],
+          "reasoning": "The reported bug is specifically about the template `add` filter failing when one operand is a lazy string. The gold fix changes the core lazy proxy\u2019s addition semantics for all usages of lazy objects across Django, which is a broader API/behavioral change than described.",
+          "all_labels": [
+            "scope_expansion",
+            "mispatch_overpatch",
+            "mispatch_approach_mismatch"
+          ]
+        },
+        {
+          "instance_id": "scikit-learn__scikit-learn-12682",
+          "severity": "SEVERE",
+          "combined_score": 0.8455,
+          "confidence": 0.75,
+          "evidence": [
+            "Gold patch expands public APIs beyond `SparseCoder` by adding `method_max_iter` to `dict_learning` and `dict_learning_online` (Hunks 4, 7) and threading it through those workflows (Hunks 6, 11).",
+            "Gold patch also adds/exposes `transform_max_iter` on `DictionaryLearning` and `MiniBatchDictionaryLearning` (Hunks 17, 20) in addition to `SparseCoder` (Hunk 15)."
+          ],
+          "reasoning": "The problem statement is centered on `SparseCoder` and its use of `Lasso` under `lasso_cd`. The gold patch broadens the change surface to other estimators and top-level functions, constituting a scope expansion beyond what the issue description requires.",
+          "all_labels": [
+            "mispatch_ancillary_bundling",
+            "mispatch_overpatch",
+            "scope_expansion",
+            "desc_misleading"
+          ]
+        },
+        {
+          "instance_id": "django__django-14792",
+          "severity": "SEVERE",
+          "combined_score": 0.7125,
+          "confidence": 0.74,
+          "evidence": [
+            "Problem statement scopes issue to \"Reverse time zone conversion in Trunc()/Extract() database functions.\"",
+            "Gold patch changes global helper `django/utils/timezone.py::_get_timezone_name()` behavior (prefers `tzname(None)` over `str(timezone)`), affecting all callers, not just Trunc/Extract SQL generation."
+          ],
+          "reasoning": "The described bug manifests in Trunc/Extract SQL generation, but the fix is applied at a broader utility layer (`_get_timezone_name`) used across Django. That expands the effective scope from database function SQL rendering to global timezone-name formatting behavior.",
+          "all_labels": [
+            "scope_expansion",
+            "mistest_overtest"
+          ]
+        }
+      ]
+    },
+    "mistest_overtest": {
+      "count": 102,
+      "top_cases": [
+        {
+          "instance_id": "sympy__sympy-21596",
+          "severity": "SEVERE",
+          "combined_score": 0.9014,
+          "confidence": 0.96,
+          "evidence": [
+            "Only 1/7 assertions is on-topic: `assert imageset(Lambda(n, n + (n - 1)*(n + 1)*I), S.Integers).intersect(S.Reals) == FiniteSet(-1, 1)`.",
+            "6/7 assertions exercise other imageset/Reals intersections not mentioned in the problem, e.g. `assert imageset(Lambda(n, n + im*I), S.Integers ...` and several others involving `S.Naturals0`, `n/2 + im.expand()*I`, and rational-function expressions."
+          ],
+          "reasoning": "The problem statement is specifically about one regression: `2 in S1.intersect(Reals)` incorrectly returning True and `S1.intersect(Reals)` needing to simplify to `{-1, 1}` for the given `S1`. The added tests substantially broaden the required behavior to multiple unrelated ImageSet forms and domains, thereby verifying behavior beyond the stated scope.",
+          "all_labels": [
+            "mistest_overtest",
+            "mistest_sneaky_modification",
+            "mispatch_ancillary_bundling"
+          ]
+        },
+        {
+          "instance_id": "astropy__astropy-14539",
+          "severity": "SEVERE",
+          "combined_score": 0.9694,
+          "confidence": 0.95,
+          "evidence": [
+            "F2P TEST ANALYSIS: 11/11 assertions marked OFF_TOPIC; includes asserts like `assert len(diff.common_columns) == 11` and `assert diff.common_column_names == set(\"abcdefghijk\")` in `test_identical_tables`.",
+            "F2P TEST ANALYSIS: `test_different_table_data` contains OFF_TOPIC assertions about internal diff bookkeeping and reporting, e.g. `assert diff.diff_total == 15`, `assert np.isclose(diff.diff_ratio, 0.682, ...)`, and substring match on an exact report line."
+          ],
+          "reasoning": "The stated scope is eliminating false-positive diffs when comparing identical FITS files containing VLA columns (notably `format='QD'`). The tests instead enforce unrelated properties (exact common column sets, exact diff totals/ratios, and specific report text), which go beyond the problem requirement and can fail even when the core bug is correctly fixed.",
+          "all_labels": [
+            "mistest_overtest",
+            "mistest_customtest",
+            "mistest_sneaky_modification",
+            "desc_hidden_in_hints"
+          ]
+        },
+        {
+          "instance_id": "matplotlib__matplotlib-23299",
+          "severity": "SEVERE",
+          "combined_score": 0.8307,
+          "confidence": 0.95,
+          "evidence": [
+            "F2P test `test_no_backend_reset_rccontext` asserts `mpl.rcParams['backend'] != 'module://aardvark'` and then `mpl.rcParams['backend'] == 'module://aardvark'`, focusing on whether `rc_context` resets the `backend` rcParam rather than on `Gcf.figs` preservation.",
+            "Problem statement scope is: calling `matplotlib.get_backend()` should not remove figures from `plt._pylab_helpers.Gcf.figs` when the first figure was created under `rc_context`."
+          ],
+          "reasoning": "The added test enforces a new/extra behavioral contract about the `backend` rcParam being preserved across `rc_context`, which is not what the bug report asks to guarantee. This is beyond the stated expected outcome (figures remain registered in `Gcf.figs` after `get_backend()`).",
+          "all_labels": [
+            "mistest_overtest",
+            "mistest_undertest",
+            "desc_hidden_in_hints",
+            "mispatch_ancillary_bundling"
+          ]
+        }
+      ]
+    },
+    "mistest_deferred_requirement": {
+      "count": 1,
+      "top_cases": [
+        {
+          "instance_id": "astropy__astropy-13398",
+          "severity": "SEVERE",
+          "combined_score": 0.9845,
+          "confidence": 0.6,
+          "evidence": [
+            "Problem statement: \u201cI have yet to add refraction, but I can do so if it is deemed important to do so.\u201d (explicitly not yet implemented / optional).",
+            "Tests named as requiring refraction handling: test_itrs_topo_to_altaz_with_refraction and test_itrs_topo_to_hadec_with_refraction (both marked TANGENTIAL), containing multiple precision assertions on az/alt/ha/dec/distance."
+          ],
+          "reasoning": "Refraction support is explicitly presented as not yet implemented and only optional, but the test suite includes dedicated \u2018with_refraction\u2019 tests that appear to enforce refraction-related behavior as part of passing, effectively turning a deferred/optional feature into a hard requirement.",
+          "all_labels": [
+            "mispatch_approach_mismatch",
+            "mispatch_underpatch",
+            "mispatch_ancillary_bundling",
+            "scope_expansion",
+            "mistest_overtest",
+            "mistest_deferred_requirement",
+            "desc_incomplete"
+          ]
+        }
+      ]
+    },
+    "desc_incomplete": {
+      "count": 53,
+      "top_cases": [
+        {
+          "instance_id": "django__django-14349",
+          "severity": "MODERATE",
+          "combined_score": 0.6566,
+          "confidence": 0.8,
+          "evidence": [
+            "Problem statement: \"I'm not sure what the best fix is. One option is to reject URLs containing the forbidden characters early. Another is to go with the new recommendation and assume that LF, CR and tabs are to stripped silently.\"",
+            "Problem statement frames two incompatible resolutions (reject vs. silently strip) without choosing one as the required behavior."
+          ],
+          "reasoning": "The task description does not specify the intended behavioral contract for URLs containing LF/CR/tab after Python\u2019s bpo-43882 change. Because both (a) rejecting such URLs and (b) accepting them after stripping are presented as viable options, the benchmark\u2019s expected solution is underspecified.",
+          "all_labels": [
+            "desc_incomplete",
+            "mistest_customtest"
+          ]
+        },
+        {
+          "instance_id": "django__django-15957",
+          "severity": "MODERATE",
+          "combined_score": 0.6827,
+          "confidence": 0.78,
+          "evidence": [
+            "Problem statement only says sliced Prefetch() currently crashes with `AssertionError: Cannot filter a query once a slice has been taken`, but does not specify the intended semantics of the slice (global limit across all prefetched rows vs. limit per parent object).",
+            "Example use case says \u201cdisplay a list of categories while displaying couple of example objects from each category\u201d, which implies \u201cN-per-parent\u201d, but the provided code `Post.objects.all()[:3]` is ambiguous and, if naively applied, would produce \u201c3 total\u201d not \u201c3 per category\u201d.",
+            "Hints explicitly discuss that the only meaningful/efficient behavior would require \u201ctop-n-per-group\u201d / window functions and that ORM might not support it well, which is key design info not captured as an explicit requirement in the problem statement."
+          ],
+          "reasoning": "The task\u2019s core ambiguity is what it means to \u2018respect slicing\u2019 during prefetch, because prefetching must add an `IN (instances)` filter after the queryset is supplied. Without a clear semantic contract, both a minimal fix (avoid the assertion, possibly applying the slice globally) and a much more complex fix (top-N per parent) could be argued as correct. That missing specification is fundamental to judging solutions.",
+          "all_labels": [
+            "desc_incomplete",
+            "mistest_overtest",
+            "mispatch_overpatch"
+          ]
+        },
+        {
+          "instance_id": "django__django-16819",
+          "severity": "MODERATE",
+          "combined_score": 0.4001,
+          "confidence": 0.78,
+          "evidence": [
+            "Problem statement only says: \"Reduce Add/RemoveIndex migration operations\" and \"We should reduce AddIndex/RemoveIndex operations when optimizing migration operations.\"",
+            "No specific reduction rules, scenarios (e.g., consecutive add/remove of same index), or equivalence criteria are described."
+          ],
+          "reasoning": "The task description is too underspecified to uniquely determine what optimizations are required (which patterns should be reduced, how to compare indexes, whether name-only matching is sufficient, and what operations sequences must be supported). The gold patch implements one specific reduction rule (canceling AddIndex followed by RemoveIndex with the same name), but that requirement is not explicitly stated in the problem.",
+          "all_labels": [
+            "desc_incomplete",
+            "mistest_undertest"
+          ]
+        }
+      ]
+    },
+    "mistest_customtest": {
+      "count": 53,
+      "top_cases": [
+        {
+          "instance_id": "mwaskom__seaborn-3187",
+          "severity": "SEVERE",
+          "combined_score": 0.9517,
+          "confidence": 0.85,
+          "evidence": [
+            "F2P test `test_legend_has_no_offset` asserts `float(text.get_text()) > 1e7`",
+            "The test converts legend text to `float(...)`, which will fail if the label contains a multiplier/offset string (e.g., '\u00d71e6', '1e6', or other non-numeric formatting)"
+          ],
+          "reasoning": "The problem statement allows multiple valid ways to \"include\" the ScalarFormatter offset/scaling (e.g., incorporate '\u00d71e6' into the legend title, or append it to labels). By requiring legend labels to be parseable as a plain float and numerically large, the tests effectively force a particular implementation choice (show full absolute numbers as bare numerals) and reject other valid fixes that surface the offset explicitly as text.",
+          "all_labels": [
+            "mistest_customtest",
+            "mistest_undertest",
+            "desc_incomplete",
+            "mispatch_approach_mismatch",
+            "scope_expansion"
+          ]
+        },
+        {
+          "instance_id": "scikit-learn__scikit-learn-14629",
+          "severity": "SEVERE",
+          "combined_score": 0.9978,
+          "confidence": 0.85,
+          "evidence": [
+            "Test hard-requires `MultiOutputClassifier` to expose a top-level `classes_` and that it is specifically a `list` with length `n_outputs`.",
+            "A plausible alternative fix (as suggested by the problem statement) is to change `cross_val_predict` to read per-output `estimators_[i].classes_` instead of requiring `MultiOutputClassifier.classes_`; that would still satisfy the user-visible bug report but would fail this test."
+          ],
+          "reasoning": "The test locks in a particular implementation strategy (adding `classes_` to `MultiOutputClassifier` with a specific container type/shape), rejecting other valid fixes that would resolve the stated AttributeError.",
+          "all_labels": [
+            "mistest_overtest",
+            "mistest_customtest",
+            "mistest_undertest",
+            "mispatch_approach_mismatch",
+            "mispatch_overpatch",
+            "mispatch_ancillary_bundling",
+            "desc_misleading",
+            "desc_hidden_in_hints",
+            "scope_expansion"
+          ]
+        },
+        {
+          "instance_id": "sympy__sympy-15875",
+          "severity": "SEVERE",
+          "combined_score": 0.7885,
+          "confidence": 0.85,
+          "evidence": [
+            "Problem statement: for `e = -2*I + (1 + I)**2` it only requires `e.is_zero` to \"never give the wrong answer\" and indicates it may return `None` if it cannot decide; it does not require `None` specifically for this example (it could also be `True`).",
+            "F2P test assertion locks in one outcome: `assert e.is_zero is None` in `test_Add_is_zero`."
+          ],
+          "reasoning": "The test enforces a single acceptable return value (`None`) for the showcased expression, even though a valid and arguably better fix could make `e.is_zero` return `True` (since the expression is exactly zero). This makes the test overly specific and capable of rejecting correct alternative implementations that satisfy the stated contract (\"True\" or \"None\", but not incorrect \"False\").",
+          "all_labels": [
+            "mistest_customtest",
+            "mistest_undertest"
+          ]
+        }
+      ]
+    },
+    "mispatch_overpatch": {
+      "count": 40,
+      "top_cases": [
+        {
+          "instance_id": "pytest-dev__pytest-8399",
+          "severity": "SEVERE",
+          "combined_score": 0.7299,
+          "confidence": 0.85,
+          "evidence": [
+            "GOLD PATCH ANALYSIS: 5 hunks total; only 1 marked REQUIRED (`src/_pytest/unittest.py`), while 4 hunks in `src/_pytest/python.py` are marked UNRELATED (conf 0.72-0.86).",
+            "Unrelated hunks change xunit-generated fixture names such as module-level `setup_module` from `xunit_setup_module_fixture_<mod>` to `_xunit_setup_module_fixture_<mod>` (and other xunit-related fixture-name changes)."
+          ],
+          "reasoning": "The gold patch bundles multiple additional behavior changes (xunit fixture naming in `_pytest/python.py`) beyond the stated core requirement around unittest `setUpClass` fixtures. This expands the fix surface unnecessarily relative to the described problem.",
+          "all_labels": [
+            "mistest_undertest",
+            "mispatch_overpatch",
+            "scope_expansion"
+          ]
+        },
+        {
+          "instance_id": "sympy__sympy-13091",
+          "severity": "SEVERE",
+          "combined_score": 0.7079,
+          "confidence": 0.82,
+          "evidence": [
+            "GOLD PATCH ANALYSIS marks 8/45 hunks as UNRELATED.",
+            "UNRELATED hunks explicitly change comparison semantics between supported SymPy types (e.g., `sympy/core/numbers.py` hunks 2,3,5,8,9,10,11 change `Number.__gt__/__ge__/__lt__/__le__` behavior when `other` is a `NumberSymbol`)."
+          ],
+          "reasoning": "The stated requirement is to return `NotImplemented` (rather than `False`) for rich comparisons with unknown/unsupported types to enable Python fallback. Multiple gold-patch hunks modify ordering/comparison logic for known SymPy types (`Number` vs `NumberSymbol`) which is outside that scope, indicating the reference patch bundles additional behavior changes beyond what the task asks.",
+          "all_labels": [
+            "mispatch_overpatch",
+            "mispatch_ancillary_bundling",
+            "desc_misleading"
+          ]
+        },
+        {
+          "instance_id": "astropy__astropy-14182",
+          "severity": "SEVERE",
+          "combined_score": 0.962,
+          "confidence": 0.8,
+          "evidence": [
+            "Gold patch Hunk 0 in `astropy/io/ascii/rst.py` removes `start_line = 3` from `SimpleRSTData`, described as affecting FixedWidth data/reader parsing rather than RST writing or `header_rows` support"
+          ],
+          "reasoning": "The benchmark intent is limited to allowing `ascii.rst` writing to accept `header_rows` and produce extra header lines. Changing `SimpleRSTData` parsing configuration is a functional change outside that scope, indicating the gold patch includes additional, unrelated behavior changes.",
+          "all_labels": [
+            "mistest_overtest",
+            "mistest_customtest",
+            "mispatch_overpatch",
+            "mispatch_ancillary_bundling",
+            "desc_incomplete"
+          ]
+        }
+      ]
+    },
+    "mistest_sneaky_modification": {
+      "count": 46,
+      "top_cases": [
+        {
+          "instance_id": "pylint-dev__pylint-4661",
+          "severity": "SEVERE",
+          "combined_score": 0.7888,
+          "confidence": 0.85,
+          "evidence": [
+            "F2P TEST ANALYSIS: Has modified tests: True",
+            "Test 'test_pylint_home': UNRELATED (modified=True, mod_aligned=False)"
+          ],
+          "reasoning": "A pre-existing test ('test_pylint_home') was modified, and the modification is explicitly flagged as misaligned with the task (mod_aligned=False) and overall classified as UNRELATED to the benchmark\u2019s stated goal (XDG-compliant default data directory). This indicates the benchmark\u2019s evaluation was altered via a sneaky/irrelevant test change rather than purely checking the intended behavior.",
+          "all_labels": [
+            "mistest_sneaky_modification",
+            "mispatch_ancillary_bundling",
+            "desc_incomplete"
+          ]
+        },
+        {
+          "instance_id": "sympy__sympy-20438",
+          "severity": "SEVERE",
+          "combined_score": 0.9059,
+          "confidence": 0.85,
+          "evidence": [
+            "F2P metadata: `Has modified tests: True`.",
+            "Test 'test_Eq' is marked `modified=True` and classified `UNRELATED (mod_aligned=False)`.",
+            "The modified assertion in test_Eq enforces `Eq(ProductSet({1}, {2}), Interval(1, 2)) is S.false`, which is not part of the reported regression example."
+          ],
+          "reasoning": "A pre-existing test (`test_Eq`) was modified to assert new behavior that is not aligned with the issue\u2019s described failure mode. This is characteristic of sneaky modification: it can force solutions to satisfy additional, out-of-scope constraints unrelated to the original bug report.",
+          "all_labels": [
+            "mistest_overtest",
+            "mistest_sneaky_modification",
+            "mispatch_overpatch"
+          ]
+        },
+        {
+          "instance_id": "sympy__sympy-14248",
+          "severity": "SEVERE",
+          "combined_score": 0.9248,
+          "confidence": 0.84,
+          "evidence": [
+            "F2P analysis indicates modified pre-existing tests: `Test 'test_MatrixElement_printing': UNRELATED (modified=True, mod_aligned=False)` with multiple new/changed assertions.",
+            "Those modifications introduce new expected outputs like `\"(-B + A)[0, 0]\"` and `r\"\\left(-B + A\\right)_{0, 0}\"` that are not implied by the original problem statement."
+          ],
+          "reasoning": "A pre-existing test (`test_MatrixElement_printing`) was altered to assert new printing behavior that is not the described issue, indicating test changes were used to enforce additional behavior unrelated to the reported bug.",
+          "all_labels": [
+            "mistest_overtest",
+            "mistest_sneaky_modification",
+            "mistest_customtest"
+          ]
+        }
+      ]
+    },
+    "mistest_undertest": {
+      "count": 99,
+      "top_cases": [
+        {
+          "instance_id": "matplotlib__matplotlib-24970",
+          "severity": "MODERATE",
+          "combined_score": 0.5302,
+          "confidence": 0.95,
+          "evidence": [
+            "Core requirement is \u201cno DeprecationWarning\u201d for `plt.get_cmap()(np.empty((0,), dtype=np.uint8))`, but the only test (`test_index_dtype`) contains no warning-capture/assertion.",
+            "F2P TEST ANALYSIS: 1 test / 1 assertion, and the single assertion is marked OFF_TOPIC; nothing asserts that NumPy 1.24 deprecation warnings are eliminated."
+          ],
+          "reasoning": "The benchmark\u2019s stated bug is specifically about suppressing NumPy 1.24 deprecation warnings triggered by out-of-range integer assignments into uint8 arrays during colormap evaluation. The provided test suite never checks for warnings (or the empty-uint8 path), so it does not validate the key behavioral contract and can pass fixes that do not actually address the warning regression.",
+          "all_labels": [
+            "mistest_undertest",
+            "mistest_overtest"
+          ]
+        },
+        {
+          "instance_id": "pytest-dev__pytest-8399",
+          "severity": "SEVERE",
+          "combined_score": 0.7299,
+          "confidence": 0.95,
+          "evidence": [
+            "F2P TEST ANALYSIS: 1 test, 2 assertions, both marked OFF_TOPIC: `assert result.ret == 0` (twice) in `test_fixtures_setup_setUpClass_issue8394`.",
+            "No assertions check that `pytest --fixtures` hides the generated `setUpClass` fixture unless `-v`, or that the fixture name is underscore-prefixed."
+          ],
+          "reasoning": "The tests do not verify the core behavioral requirement (underscore-prefixed auto-generated fixture name and its visibility behavior under `--fixtures` vs `--fixtures -v`). They only check the command exits successfully, so many incorrect or no-op changes would pass.",
+          "all_labels": [
+            "mistest_undertest",
+            "mispatch_overpatch",
+            "scope_expansion"
+          ]
+        },
+        {
+          "instance_id": "sphinx-doc__sphinx-8551",
+          "severity": "MODERATE",
+          "combined_score": 0.5018,
+          "confidence": 0.95,
+          "evidence": [
+            "F2P test suite contains only `test_info_field_list`, classified as UNRELATED to the stated bug.",
+            "All 6 assertions are marked OFF_TOPIC and only inspect generic doctree structure and xref targets like `reftarget='str'` / `reftarget='int'`, not ambiguous resolution of unqualified names like `A` under `py:currentmodule`."
+          ],
+          "reasoning": "The problem requires fixing how implicit xrefs from `:type:`, `:rtype:`, and typed `:param:` resolve unqualified names with module context and eliminating ambiguity warnings. The provided tests do not exercise the reported reproduction (no `py:currentmodule`, no competing `mod.A` vs `mod.submod.A`, no check for warning suppression, and no verification that `A` resolves to `mod.submod.A`). Therefore the benchmark is not actually testing the requested behavior.",
+          "all_labels": [
+            "mistest_undertest",
+            "mistest_overtest"
+          ]
+        }
+      ]
+    },
+    "desc_hidden_in_hints": {
+      "count": 57,
+      "top_cases": [
+        {
+          "instance_id": "django__django-15382",
+          "severity": "MODERATE",
+          "combined_score": 0.4916,
+          "confidence": 0.95,
+          "evidence": [
+            "HINTS TEXT provides an explicit proposed patch, including exact code to add: `except EmptyResultSet: if self.negated: return '%s = %s', (1, 1)` in `Exists.as_sql`.",
+            "HINTS TEXT also provides the exact new regression test to add: `test_negated_empty_exists()` asserting `~Exists(Manager.objects.none())` is a no-op."
+          ],
+          "reasoning": "The hints disclose the core implementation location and the exact fix (try/except around `super().as_sql`, special-casing negation) as well as the precise test to add. This is critical solution information that is not present in the problem statement, effectively leaking the answer.",
+          "all_labels": [
+            "desc_hidden_in_hints",
+            "desc_incomplete"
+          ]
+        },
+        {
+          "instance_id": "django__django-12193",
+          "severity": "MINOR",
+          "combined_score": 0.36,
+          "confidence": 0.9,
+          "evidence": [
+            "HINTS TEXT: \"Changes available here: https://github.com/django/django/pull/12193\"",
+            "HINTS TEXT: \"Reproduced at 5708327c3769262b845730996ca2784245ada4d1.\""
+          ],
+          "reasoning": "The hints explicitly link to the upstream pull request containing the fix, effectively revealing the solution. This is critical information not required by the problem statement and materially reduces the task to locating/applying the known patch, constituting hidden solution content in the hints.",
+          "all_labels": [
+            "desc_hidden_in_hints"
+          ]
+        },
+        {
+          "instance_id": "django__django-13033",
+          "severity": "MINOR",
+          "combined_score": 0.36,
+          "confidence": 0.9,
+          "evidence": [
+            "Hints text provides an explicit candidate fix as a code diff: `diff --git a/django/db/models/sql/compiler.py ... - if field.is_relation ... getattr(field, 'attname', None) != name ... + ... != pieces[-1] ...`",
+            "Hints text further validates the fix works: `FWIW, I did apply the suggested fix to my local version and I do now get what looks like correct behavior...`"
+          ],
+          "reasoning": "The hints effectively disclose the core implementation change needed (including exact file, location, and one-line fix), which is beyond merely clarifying requirements. This makes the task substantially easier in a way that isn\u2019t contained in the problem statement itself, so the benchmark is contaminated via critical solution information being present only in hints.",
+          "all_labels": [
+            "desc_hidden_in_hints"
+          ]
+        }
+      ]
+    },
+    "hard_but_clean": {
+      "count": 2,
+      "top_cases": [
+        {
+          "instance_id": "astropy__astropy-14598",
+          "severity": "CLEAN",
+          "combined_score": 0.0,
+          "confidence": 0.62,
+          "evidence": [
+            "Problem statement precisely specifies the failing round-trip contract: `card2 = fits.Card.fromstring(str(card1))` should preserve `card1.value` including literal `\"''\"`, but sometimes collapses it to `\"'\"` at certain lengths/positions.",
+            "Gold patch hunks are both classified as REQUIRED and directly target `Card.fromstring` string parsing: (1) regex tightening/anchoring for string+comment parsing, (2) removal of a `.replace(\"''\", \"'\")` that was collapsing doubled quotes.",
+            "F2P test analysis reports a single ALIGNED test (`test_long_string_value_with_quotes`) and no modified tests, suggesting evaluation is focused on the described behavior rather than enforcing unrelated requirements."
+          ],
+          "reasoning": "The task appears legitimately tricky (edge cases depend on FITS card formatting/length and quote parsing), but the described behavior, the gold patch, and the added test all align around preserving doubled single-quotes during Card string round-tripping. There is no strong evidence that tests enforce out-of-scope behavior or that the gold patch bundles unrelated refactors.",
+          "all_labels": [
+            "hard_but_clean"
+          ]
+        },
+        {
+          "instance_id": "django__django-16950",
+          "severity": "CLEAN",
+          "combined_score": 0.0,
+          "confidence": 0.6,
+          "evidence": [
+            "Problem statement provides a concrete, minimal reproduction (models + admin inline setup) and the observed failure: when saving a new Thing with a SubThing inline, Thing.id ends up NULL despite UUIDField(default=uuid.uuid4).",
+            "Gold patch is a single focused hunk in django/forms/models.py addressing the described bug mechanism (clearing a to_field with a default during formset construction/validation).",
+            "F2P test suite has a single ALIGNED test targeting the same scenario (\u201cparent's auto-generated alternate key \u2026\u201d) and does not indicate modified/pre-existing tests asserting unrelated behavior."
+          ],
+          "reasoning": "The task appears fairly evaluated: the description specifies the failing behavior and how to reproduce it in Django admin with inlines and a ForeignKey(to_field='id') to a UUIDField with a default. The required fix is non-obvious (an interaction between admin inline formsets and model form handling that mutates the parent instance), making it legitimately tricky, but there is no sign that tests enforce extra requirements, lock in a specific implementation, or that the gold patch bundles unrelated changes.",
+          "all_labels": [
+            "hard_but_clean"
+          ]
+        }
+      ]
+    },
+    "desc_misleading": {
+      "count": 21,
+      "top_cases": [
+        {
+          "instance_id": "sympy__sympy-20801",
+          "severity": "SEVERE",
+          "combined_score": 0.8028,
+          "confidence": 0.9,
+          "evidence": [
+            "Problem statement: \u201cI assume we would want `S(0.0) == S.false` to return True as well?\u201d",
+            "Problem statement shows `S(0) == S.false` is `False` in both operand orders, implying consistency would mean `S(0.0) == S.false` should also be `False`, not `True`."
+          ],
+          "reasoning": "The report frames the desired behavior as making `S(0.0) == S.false` return True, which contradicts the consistency argument it presents using `S(0)` (both comparisons with `S.false` are False). This can misdirect solvers toward preserving/introducing the wrong behavior rather than fixing the asymmetry by making both directions False.",
+          "all_labels": [
+            "desc_misleading",
+            "mispatch_overpatch",
+            "desc_incomplete"
+          ]
+        },
+        {
+          "instance_id": "sympy__sympy-21612",
+          "severity": "SEVERE",
+          "combined_score": 0.9938,
+          "confidence": 0.85,
+          "evidence": [
+            "Problem statement: \"Latex parsing of fractions yields wrong expression... is parsed to: `((a**3 + b)/c)/1/(c**2)`. Expected is ... The missing brackets in the denominator result in a wrong expression.\"",
+            "Hints text: \"This is a printing, not a parsing error. If you look at the args of the result they are `(a, 1/(1/b))`\""
+          ],
+          "reasoning": "The task description frames the bug as LaTeX parsing producing an incorrect expression, but the hints clarify the parsed expression is structurally fine and the issue is actually in string printing/parenthesization. This misdirects solvers toward the parser rather than the printer.",
+          "all_labels": [
+            "desc_misleading",
+            "desc_hidden_in_hints",
+            "mispatch_approach_mismatch",
+            "mispatch_overpatch",
+            "mistest_overtest"
+          ]
+        },
+        {
+          "instance_id": "sympy__sympy-12096",
+          "severity": "SEVERE",
+          "combined_score": 0.821,
+          "confidence": 0.78,
+          "evidence": [
+            "Problem statement: \u201cIt isn't calling evalf recursively on the return of `_imp_`.\u201d",
+            "Gold patch summary: changes `_eval_evalf` to evaluate each argument via `evalf(prec)` before calling the implemented function\u2019s `_imp_` (i.e., it addresses argument evaluation, not \u201creturn of `_imp_`\u201d evaluation)."
+          ],
+          "reasoning": "The problem statement points maintainers toward adding a recursive `evalf()` on the value returned by `_imp_`, but the actual fix (and what is needed for compositions like `f(g(2))`) is to `evalf()` the arguments before passing them into `_imp_`. This makes the description misleading about what is broken and where the fix belongs.",
+          "all_labels": [
+            "desc_misleading",
+            "mispatch_approach_mismatch",
+            "mistest_undertest"
+          ]
+        }
+      ]
+    },
+    "desc_self_referential": {
+      "count": 3,
+      "top_cases": [
+        {
+          "instance_id": "django__django-11477",
+          "severity": "SEVERE",
+          "combined_score": 0.8527,
+          "confidence": 0.75,
+          "evidence": [
+            "Problem statement: \"(it's seen in test case of the patch)\"."
+          ],
+          "reasoning": "The description references the patch/test artifact rather than specifying the behavior independently, which is self-referential and reduces clarity of the intended requirement.",
+          "all_labels": [
+            "desc_incomplete",
+            "desc_hidden_in_hints",
+            "desc_self_referential",
+            "scope_expansion",
+            "mispatch_overpatch"
+          ]
+        },
+        {
+          "instance_id": "django__django-13837",
+          "severity": "MINOR",
+          "combined_score": 0.36,
+          "confidence": 0.72,
+          "evidence": [
+            "Problem statement: \u201cThe fix, which I have submitted in the attached PR, is to use Python's documented way of determining if -m was used in get_child_arguments\u201d"
+          ],
+          "reasoning": "The task description directly references the existence of an attached PR containing the fix, which can leak solution details and bias an implementation toward matching that patch rather than being derived solely from the stated behavioral requirements.",
+          "all_labels": [
+            "desc_self_referential"
+          ]
+        },
+        {
+          "instance_id": "django__django-15569",
+          "severity": "MODERATE",
+          "combined_score": 0.6094,
+          "confidence": 0.45,
+          "evidence": [
+            "Problem statement links directly to the exact code location via GitHub blame URLs and points to a specific PR: \u201cThe PR generated is https://github.com/django/django/pull/15569\u201d"
+          ],
+          "reasoning": "The task description partially anchors the solution to a specific upstream PR and exact line-level references, which can leak solution context beyond a self-contained behavioral specification.",
+          "all_labels": [
+            "desc_incomplete",
+            "desc_hidden_in_hints",
+            "desc_self_referential"
+          ]
+        }
+      ]
+    },
+    "_edge_clean_high_score": [
+      {
+        "instance_id": "django__django-12708",
+        "score": 0.124,
+        "labels": [
+          "mistest_undertest"
+        ]
+      },
+      {
+        "instance_id": "django__django-13297",
+        "score": 0.11,
+        "labels": [
+          "mistest_undertest"
+        ]
+      },
+      {
+        "instance_id": "django__django-15022",
+        "score": 0.144,
+        "labels": [
+          "mistest_undertest"
+        ]
+      },
+      {
+        "instance_id": "django__django-16938",
+        "score": 0.148,
+        "labels": [
+          "mistest_undertest"
+        ]
+      },
+      {
+        "instance_id": "matplotlib__matplotlib-20859",
+        "score": 0.14,
+        "labels": [
+          "mistest_undertest"
+        ]
+      }
+    ],
+    "_edge_severe_low_score": [],
+    "_single_label_severe": [
+      {
+        "instance_id": "sympy__sympy-14976",
+        "score": 0.702,
+        "label": "mistest_customtest"
+      }
+    ],
+    "_most_labels": [
+      {
+        "instance_id": "scikit-learn__scikit-learn-14629",
+        "label_count": 9,
+        "labels": [
+          "mistest_overtest",
+          "mistest_customtest",
+          "mistest_undertest",
+          "mispatch_approach_mismatch",
+          "mispatch_overpatch",
+          "mispatch_ancillary_bundling",
+          "desc_misleading",
+          "desc_hidden_in_hints",
+          "scope_expansion"
+        ],
+        "severity": "SEVERE",
+        "score": 0.9978
+      },
+      {
+        "instance_id": "astropy__astropy-13398",
+        "label_count": 7,
+        "labels": [
+          "mispatch_approach_mismatch",
+          "mispatch_underpatch",
+          "mispatch_ancillary_bundling",
+          "scope_expansion",
+          "mistest_overtest",
+          "mistest_deferred_requirement",
+          "desc_incomplete"
+        ],
+        "severity": "SEVERE",
+        "score": 0.9845
+      },
+      {
+        "instance_id": "sympy__sympy-16597",
+        "label_count": 6,
+        "labels": [
+          "mistest_overtest",
+          "mistest_undertest",
+          "mistest_sneaky_modification",
+          "mispatch_overpatch",
+          "mispatch_ancillary_bundling",
+          "scope_expansion"
+        ],
+        "severity": "SEVERE",
+        "score": 0.9691
+      },
+      {
+        "instance_id": "astropy__astropy-14182",
+        "label_count": 5,
+        "labels": [
+          "mistest_overtest",
+          "mistest_customtest",
+          "mispatch_overpatch",
+          "mispatch_ancillary_bundling",
+          "desc_incomplete"
+        ],
+        "severity": "SEVERE",
+        "score": 0.962
+      },
+      {
+        "instance_id": "django__django-11477",
+        "label_count": 5,
+        "labels": [
+          "desc_incomplete",
+          "desc_hidden_in_hints",
+          "desc_self_referential",
+          "scope_expansion",
+          "mispatch_overpatch"
+        ],
+        "severity": "SEVERE",
+        "score": 0.8527
+      }
+    ]
+  },
+  "excess_patch": {
+    "mean_ep_score": 0.1045142,
+    "hunk_stats": {
+      "total": 1220,
+      "required": 820,
+      "ancillary": 298,
+      "unrelated": 102
+    },
+    "high_ep_cases": [
+      {
+        "instance_id": "django__django-10999",
+        "ep_score": 1.0,
+        "hunks": "0R/0A/1U",
+        "severity": "MODERATE"
+      },
+      {
+        "instance_id": "django__django-11964",
+        "ep_score": 1.0,
+        "hunks": "0R/0A/1U",
+        "severity": "SEVERE"
+      },
+      {
+        "instance_id": "mwaskom__seaborn-3187",
+        "ep_score": 1.0,
+        "hunks": "0R/0A/2U",
+        "severity": "SEVERE"
+      },
+      {
+        "instance_id": "scikit-learn__scikit-learn-14629",
+        "ep_score": 1.0,
+        "hunks": "0R/0A/2U",
+        "severity": "SEVERE"
+      },
+      {
+        "instance_id": "sympy__sympy-21612",
+        "ep_score": 1.0,
+        "hunks": "0R/0A/1U",
+        "severity": "SEVERE"
+      },
+      {
+        "instance_id": "pytest-dev__pytest-8399",
+        "ep_score": 0.8,
+        "hunks": "1R/0A/4U",
+        "severity": "SEVERE"
+      },
+      {
+        "instance_id": "sympy__sympy-19495",
+        "ep_score": 0.75,
+        "hunks": "1R/0A/3U",
+        "severity": "MODERATE"
+      },
+      {
+        "instance_id": "pydata__xarray-6992",
+        "ep_score": 0.6875,
+        "hunks": "0R/5A/3U",
+        "severity": "SEVERE"
+      },
+      {
+        "instance_id": "astropy__astropy-7166",
+        "ep_score": 0.6667,
+        "hunks": "1R/0A/2U",
+        "severity": "MINOR"
+      },
+      {
+        "instance_id": "sympy__sympy-17318",
+        "ep_score": 0.6667,
+        "hunks": "1R/0A/2U",
+        "severity": "SEVERE"
+      }
+    ]
+  },
+  "excess_test": {
+    "mean_et_score": 0.19227,
+    "test_stats": {
+      "total": 1578,
+      "aligned": 1381,
+      "tangential": 124,
+      "unrelated": 73
+    },
+    "assertion_stats": {
+      "total": 1000,
+      "on_topic": 381,
+      "off_topic": 301
+    },
+    "modified_test_count": 54,
+    "modified_test_cases": [
+      {
+        "instance_id": "astropy__astropy-13236",
+        "et_score": 0.4875,
+        "severity": "CLEAN"
+      },
+      {
+        "instance_id": "astropy__astropy-14365",
+        "et_score": 0.6667,
+        "severity": "SEVERE"
+      },
+      {
+        "instance_id": "astropy__astropy-14539",
+        "et_score": 1.0,
+        "severity": "SEVERE"
+      },
+      {
+        "instance_id": "astropy__astropy-7671",
+        "et_score": 0.0,
+        "severity": "MODERATE"
+      },
+      {
+        "instance_id": "astropy__astropy-8872",
+        "et_score": 0.8,
+        "severity": "SEVERE"
+      },
+      {
+        "instance_id": "matplotlib__matplotlib-14623",
+        "et_score": 0.0,
+        "severity": "SEVERE"
+      },
+      {
+        "instance_id": "matplotlib__matplotlib-20488",
+        "et_score": 0.65,
+        "severity": "SEVERE"
+      },
+      {
+        "instance_id": "matplotlib__matplotlib-23314",
+        "et_score": 0.6667,
+        "severity": "SEVERE"
+      },
+      {
+        "instance_id": "matplotlib__matplotlib-24026",
+        "et_score": 0.0,
+        "severity": "MODERATE"
+      },
+      {
+        "instance_id": "matplotlib__matplotlib-25479",
+        "et_score": 1.0,
+        "severity": "SEVERE"
+      }
+    ]
+  },
+  "vague_spec": {
+    "mean_vs_score": 0.3486,
+    "mean_ambiguity": 0.3486,
+    "high_ambiguity_cases": [
+      {
+        "instance_id": "django__django-16819",
+        "ambiguity": 0.7,
+        "vs_score": 0.7,
+        "severity": "MODERATE"
+      },
+      {
+        "instance_id": "django__django-11477",
+        "ambiguity": 0.6,
+        "vs_score": 0.6,
+        "severity": "SEVERE"
+      },
+      {
+        "instance_id": "django__django-14349",
+        "ambiguity": 0.6,
+        "vs_score": 0.6,
+        "severity": "MODERATE"
+      },
+      {
+        "instance_id": "django__django-14725",
+        "ambiguity": 0.6,
+        "vs_score": 0.6,
+        "severity": "CLEAN"
+      },
+      {
+        "instance_id": "django__django-15022",
+        "ambiguity": 0.6,
+        "vs_score": 0.6,
+        "severity": "CLEAN"
+      },
+      {
+        "instance_id": "django__django-15957",
+        "ambiguity": 0.6,
+        "vs_score": 0.6,
+        "severity": "MODERATE"
+      },
+      {
+        "instance_id": "django__django-16595",
+        "ambiguity": 0.6,
+        "vs_score": 0.6,
+        "severity": "MINOR"
+      },
+      {
+        "instance_id": "matplotlib__matplotlib-21568",
+        "ambiguity": 0.6,
+        "vs_score": 0.6,
+        "severity": "SEVERE"
+      },
+      {
+        "instance_id": "psf__requests-6028",
+        "ambiguity": 0.6,
+        "vs_score": 0.6,
+        "severity": "MODERATE"
+      },
+      {
+        "instance_id": "scikit-learn__scikit-learn-13124",
+        "ambiguity": 0.6,
+        "vs_score": 0.6,
+        "severity": "SEVERE"
+      }
+    ]
+  },
+  "v2_comparison": {
+    "available": false
+  },
+  "per_project": {
+    "django": {
+      "total": 231,
+      "contamination_rate": 35.5,
+      "severity": {
+        "CLEAN": 149,
+        "MINOR": 39,
+        "MODERATE": 28,
+        "SEVERE": 15
+      },
+      "top_labels": {
+        "mispatch_ancillary_bundling": 31,
+        "desc_hidden_in_hints": 28,
+        "desc_incomplete": 25,
+        "mistest_undertest": 22,
+        "scope_expansion": 13
+      }
+    },
+    "sympy": {
+      "total": 75,
+      "contamination_rate": 81.3,
+      "severity": {
+        "CLEAN": 14,
+        "SEVERE": 33,
+        "MINOR": 9,
+        "MODERATE": 19
+      },
+      "top_labels": {
+        "mistest_overtest": 34,
+        "mistest_undertest": 21,
+        "mispatch_ancillary_bundling": 20,
+        "mistest_sneaky_modification": 19,
+        "mistest_customtest": 16
+      }
+    },
+    "sphinx-doc": {
+      "total": 44,
+      "contamination_rate": 79.5,
+      "severity": {
+        "SEVERE": 15,
+        "CLEAN": 9,
+        "MODERATE": 10,
+        "MINOR": 10
+      },
+      "top_labels": {
+        "mistest_undertest": 15,
+        "mispatch_ancillary_bundling": 14,
+        "mistest_overtest": 13,
+        "mistest_customtest": 12,
+        "mistest_sneaky_modification": 8
+      }
+    },
+    "matplotlib": {
+      "total": 34,
+      "contamination_rate": 76.5,
+      "severity": {
+        "CLEAN": 8,
+        "SEVERE": 12,
+        "MINOR": 3,
+        "MODERATE": 11
+      },
+      "top_labels": {
+        "mistest_undertest": 14,
+        "mistest_overtest": 12,
+        "mispatch_ancillary_bundling": 9,
+        "desc_hidden_in_hints": 8,
+        "mistest_customtest": 7
+      }
+    },
+    "scikit-learn": {
+      "total": 32,
+      "contamination_rate": 53.1,
+      "severity": {
+        "SEVERE": 12,
+        "MINOR": 1,
+        "CLEAN": 15,
+        "MODERATE": 4
+      },
+      "top_labels": {
+        "mistest_overtest": 14,
+        "mispatch_ancillary_bundling": 8,
+        "mistest_customtest": 8,
+        "mistest_undertest": 7,
+        "scope_expansion": 4
+      }
+    },
+    "astropy": {
+      "total": 22,
+      "contamination_rate": 50.0,
+      "severity": {
+        "CLEAN": 11,
+        "SEVERE": 7,
+        "MINOR": 3,
+        "MODERATE": 1
+      },
+      "top_labels": {
+        "mispatch_ancillary_bundling": 8,
+        "mistest_overtest": 7,
+        "mistest_sneaky_modification": 4,
+        "mistest_customtest": 3,
+        "mistest_undertest": 3
+      }
+    },
+    "pydata": {
+      "total": 22,
+      "contamination_rate": 54.5,
+      "severity": {
+        "MINOR": 4,
+        "CLEAN": 10,
+        "MODERATE": 7,
+        "SEVERE": 1
+      },
+      "top_labels": {
+        "mistest_undertest": 7,
+        "mispatch_ancillary_bundling": 5,
+        "mistest_overtest": 4,
+        "desc_incomplete": 3,
+        "mistest_sneaky_modification": 3
+      }
+    },
+    "pytest-dev": {
+      "total": 19,
+      "contamination_rate": 47.4,
+      "severity": {
+        "SEVERE": 4,
+        "CLEAN": 10,
+        "MODERATE": 3,
+        "MINOR": 2
+      },
+      "top_labels": {
+        "mistest_overtest": 5,
+        "mispatch_ancillary_bundling": 5,
+        "mistest_undertest": 3,
+        "mistest_customtest": 2,
+        "mistest_sneaky_modification": 2
+      }
+    },
+    "pylint-dev": {
+      "total": 10,
+      "contamination_rate": 80.0,
+      "severity": {
+        "SEVERE": 5,
+        "MINOR": 2,
+        "MODERATE": 1,
+        "CLEAN": 2
+      },
+      "top_labels": {
+        "mispatch_ancillary_bundling": 5,
+        "mistest_undertest": 4,
+        "mistest_overtest": 2,
+        "mispatch_overpatch": 2,
+        "mistest_sneaky_modification": 2
+      }
+    },
+    "psf": {
+      "total": 8,
+      "contamination_rate": 62.5,
+      "severity": {
+        "CLEAN": 3,
+        "MINOR": 4,
+        "MODERATE": 1
+      },
+      "top_labels": {
+        "mistest_undertest": 2,
+        "mispatch_ancillary_bundling": 2,
+        "desc_incomplete": 2,
+        "mispatch_overpatch": 1,
+        "desc_hidden_in_hints": 1
+      }
+    },
+    "mwaskom": {
+      "total": 2,
+      "contamination_rate": 100.0,
+      "severity": {
+        "MINOR": 1,
+        "SEVERE": 1
+      },
+      "top_labels": {
+        "desc_incomplete": 2,
+        "mispatch_ancillary_bundling": 1,
+        "mistest_customtest": 1,
+        "mistest_undertest": 1,
+        "mispatch_approach_mismatch": 1
+      }
+    },
+    "pallets": {
+      "total": 1,
+      "contamination_rate": 0.0,
+      "severity": {
+        "CLEAN": 1
+      },
+      "top_labels": {}
+    }
+  },
+  "confidence_analysis": {
+    "clean": {
+      "count": 214,
+      "mean_confidence": 0.818,
+      "min_confidence": 0.7,
+      "max_confidence": 0.93,
+      "median_confidence": 0.82,
+      "low_confidence_count": 0
+    },
+    "mispatch_approach_mismatch": {
+      "count": 13,
+      "mean_confidence": 0.682,
+      "min_confidence": 0.5,
+      "max_confidence": 0.9,
+      "median_confidence": 0.62,
+      "low_confidence_count": 0
+    },
+    "mispatch_underpatch": {
+      "count": 7,
+      "mean_confidence": 0.821,
+      "min_confidence": 0.7,
+      "max_confidence": 0.9,
+      "median_confidence": 0.85,
+      "low_confidence_count": 0
+    },
+    "mispatch_ancillary_bundling": {
+      "count": 108,
+      "mean_confidence": 0.7,
+      "min_confidence": 0.55,
+      "max_confidence": 0.86,
+      "median_confidence": 0.7,
+      "low_confidence_count": 0
+    },
+    "scope_expansion": {
+      "count": 32,
+      "mean_confidence": 0.592,
+      "min_confidence": 0.44,
+      "max_confidence": 0.75,
+      "median_confidence": 0.6,
+      "low_confidence_count": 6
+    },
+    "mistest_overtest": {
+      "count": 102,
+      "mean_confidence": 0.736,
+      "min_confidence": 0.45,
+      "max_confidence": 0.96,
+      "median_confidence": 0.75,
+      "low_confidence_count": 4
+    },
+    "mistest_deferred_requirement": {
+      "count": 1,
+      "mean_confidence": 0.6,
+      "min_confidence": 0.6,
+      "max_confidence": 0.6,
+      "median_confidence": 0.6,
+      "low_confidence_count": 0
+    },
+    "desc_incomplete": {
+      "count": 53,
+      "mean_confidence": 0.567,
+      "min_confidence": 0.4,
+      "max_confidence": 0.8,
+      "median_confidence": 0.55,
+      "low_confidence_count": 16
+    },
+    "mistest_customtest": {
+      "count": 53,
+      "mean_confidence": 0.654,
+      "min_confidence": 0.44,
+      "max_confidence": 0.85,
+      "median_confidence": 0.64,
+      "low_confidence_count": 2
+    },
+    "mispatch_overpatch": {
+      "count": 40,
+      "mean_confidence": 0.666,
+      "min_confidence": 0.45,
+      "max_confidence": 0.85,
+      "median_confidence": 0.7,
+      "low_confidence_count": 2
+    },
+    "mistest_sneaky_modification": {
+      "count": 46,
+      "mean_confidence": 0.697,
+      "min_confidence": 0.45,
+      "max_confidence": 0.85,
+      "median_confidence": 0.75,
+      "low_confidence_count": 3
+    },
+    "mistest_undertest": {
+      "count": 99,
+      "mean_confidence": 0.702,
+      "min_confidence": 0.44,
+      "max_confidence": 0.95,
+      "median_confidence": 0.7,
+      "low_confidence_count": 7
+    },
+    "desc_hidden_in_hints": {
+      "count": 57,
+      "mean_confidence": 0.701,
+      "min_confidence": 0.45,
+      "max_confidence": 0.95,
+      "median_confidence": 0.7,
+      "low_confidence_count": 4
+    },
+    "hard_but_clean": {
+      "count": 2,
+      "mean_confidence": 0.61,
+      "min_confidence": 0.6,
+      "max_confidence": 0.62,
+      "median_confidence": 0.62,
+      "low_confidence_count": 0
+    },
+    "desc_misleading": {
+      "count": 21,
+      "mean_confidence": 0.68,
+      "min_confidence": 0.45,
+      "max_confidence": 0.9,
+      "median_confidence": 0.7,
+      "low_confidence_count": 1
+    },
+    "desc_self_referential": {
+      "count": 3,
+      "mean_confidence": 0.64,
+      "min_confidence": 0.45,
+      "max_confidence": 0.75,
+      "median_confidence": 0.72,
+      "low_confidence_count": 1
+    }
+  }
+}
