@@ -49,10 +49,6 @@ PIP_INSTALL_RE = re.compile(
 )
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Tier 1: Heuristic signal extraction
-# ──────────────────────────────────────────────────────────────────────
-
 
 def compute_patch_similarity(patch_a: str, patch_b: str) -> float:
     """Compute similarity ratio between two patches using difflib.
@@ -210,9 +206,6 @@ def classify_heuristic_only(
     )
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Tier 2: LLM analysis (PRIMARY classifier)
-# ──────────────────────────────────────────────────────────────────────
 
 TRAJECTORY_ANALYSIS_SYSTEM_PROMPT = """\
 You are a benchmark integrity analyst specializing in detecting \
@@ -237,7 +230,7 @@ A genuinely strong agent may solve a task correctly through legitimate
 reasoning, even if the task is contaminated. Distinguish between skill
 and leakage.
 
-Classify using the v3 Axis 2 trajectory taxonomy:
+Classify using the Axis 2 trajectory taxonomy:
 
 PASSED LABELS (agent resolved the task):
 - agent_passed_genuine: Legitimate problem-solving with progressive exploration
@@ -392,7 +385,7 @@ async def classify_with_llm(
         response = await llm.query(
             system=TRAJECTORY_ANALYSIS_SYSTEM_PROMPT,
             user=prompt,
-            cache_key=f"trajectory_v2_{trajectory.instance_id}_{trajectory.agent_name}",
+            cache_key=f"trajectory_{trajectory.instance_id}_{trajectory.agent_name}",
         )
 
         result = _parse_llm_response(response)
@@ -402,7 +395,7 @@ async def classify_with_llm(
         causal_chain = result.get("causal_chain", "")
         key_evidence = result.get("key_evidence", [])
 
-        # Extract v3 trajectory label (if provided by LLM)
+        # Extract trajectory label from LLM response
         trajectory_label = None
         tl_str = result.get("trajectory_label", "")
         if tl_str:
@@ -474,10 +467,6 @@ def _parse_llm_response(response: str) -> dict[str, Any]:
     return {"pattern": "UNKNOWN", "confidence": 0.3, "reasoning": text[:500]}
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Tier 3: Cross-agent comparison
-# ──────────────────────────────────────────────────────────────────────
-
 
 def classify_cross_agent(
     analyses: list[TrajectoryAnalysis],
@@ -522,10 +511,6 @@ def classify_cross_agent(
 
     return analyses
 
-
-# ──────────────────────────────────────────────────────────────────────
-# Helpers
-# ──────────────────────────────────────────────────────────────────────
 
 
 def _summarize_actions(

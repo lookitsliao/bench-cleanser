@@ -96,14 +96,13 @@ class TrajectoryAnalysis:
     llm_reasoning: str = ""                     # LLM's detailed reasoning
     causal_chain: str = ""                      # What led the agent to its approach
     agent_behavior_summary: str = ""            # Brief characterization of agent behavior
-    trajectory_label: AgentTrajectoryLabel | None = None  # v3 label (populated by dual taxonomy)
+    trajectory_label: AgentTrajectoryLabel | None = None
 
     @property
     def agent_trajectory_label(self) -> AgentTrajectoryLabel:
-        """Return the v3 trajectory label, mapping from LeakagePattern if needed."""
+        """Return the trajectory label, mapping from LeakagePattern if needed."""
         if self.trajectory_label is not None:
             return self.trajectory_label
-        # Backward-compat mapping from LeakagePattern → AgentTrajectoryLabel
         _map = {
             LeakagePattern.GENUINE_SOLUTION: AgentTrajectoryLabel.AGENT_PASSED_GENUINE,
             LeakagePattern.GOLD_PATCH_LEAK: AgentTrajectoryLabel.AGENT_PASSED_LEAK,

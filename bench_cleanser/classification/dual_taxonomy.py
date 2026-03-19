@@ -1,330 +1,201 @@
-"""v3 Dual Taxonomy classifier: Axis 1 (task labels) + Axis 2 (agent labels).
+"""Dual Taxonomy classifier: Axis 1 (task labels) + Axis 2 (agent labels).
 
-Axis 1 assigns zero or more TaskContaminationLabel to each task based on
-pipeline signals (EP, ET, VS, intent, hints).  Axis 2 assigns a single
-AgentTrajectoryLabel per agent-task pair based on trajectory analysis.
+Axis 1 assigns zero or more TaskContaminationLabel to each task.
+Axis 2 assigns a single AgentTrajectoryLabel per agent-task pair.
 
-Both axes use a structured LLM call with the full taxonomy definitions
-embedded in the system prompt.
+8 binary labels, bucket-based severity, no ratio thresholds.
 """
 
 from __future__ import annotations
 
 import json
 import logging
-from functools import reduce
 from typing import Any
 
+from bench_cleanser.analysis.cross_ref import CrossReferenceResult
 from bench_cleanser.models import (
     AgentLabelAssignment,
     AgentTrajectoryLabel,
-    DualTaxonomyReport,
     ExcessPatchDetail,
     ExcessTestDetail,
     IntentStatement,
-    PipelineConfig,
     Severity,
     TaskContaminationLabel,
     TaskLabelAssignment,
     TaskRecord,
     VagueSpecDetail,
-    VerdictScore,
 )
 
 logger = logging.getLogger(__name__)
 
 
-# ── Label definitions: weight, display name, definition, detection prompt ───
-
-
 LABEL_DEFINITIONS: dict[str, dict[str, Any]] = {
-    # ── Group A: Test Contamination ───────────────────────────────
-    "mistest_overtest": {
-        "weight": 0.7,
-        "display": "Overtest — Tests Beyond Scope",
+    "approach_lock": {
+        "display": "Approach Lock",
         "definition": (
-            "F2P tests verify behavior or functionality beyond the problem "
-            "scope.  The tests exercise code paths, features, or edge cases "
-            "that the problem statement does not describe."
+            "The F2P tests require a specific implementation approach that "
+            "the problem statement does not determine.  An agent that solves "
+            "the described problem using a different valid approach will fail "
+            "the tests."
         ),
         "prompt": (
-            "Examine each assertion in the F2P tests.  Does the problem "
-            "statement require verifying this behavior?  If OFF_TOPIC "
-            "assertion ratio >= 0.3 or any test is UNRELATED, flag this."
+            "Would a correct-but-different solution fail the F2P tests?  "
+            "Do the tests assert on implementation details (specific class, "
+            "method, or code structure) rather than on observable behavior?  "
+            "Does the gold patch take a fundamentally different approach "
+            "than the problem statement suggests?"
         ),
     },
-    "mistest_undertest": {
-        "weight": 0.2,
-        "display": "Undertest — Insufficient Coverage",
+    "excess_tests": {
+        "display": "Excess Tests",
         "definition": (
-            "F2P tests do not fully cover stated acceptance criteria.  A "
-            "partial or incorrect fix can pass.  Less severe because it "
-            "makes the task easier rather than harder."
+            "F2P tests verify behavior or features that the problem "
+            "statement does not describe.  The tests go beyond the stated "
+            "acceptance criteria — they test additional functionality, "
+            "edge cases, or code paths not mentioned.  Includes tests "
+            "enforcing features the problem explicitly defers."
         ),
         "prompt": (
-            "Compare acceptance_criteria against F2P test assertions.  Are "
-            "there described behaviors that NO test verifies?"
+            "Do the F2P tests assert on behavior not described in the "
+            "problem?  Is there at least one test or assertion that targets "
+            "undescribed behavior?  Does the problem contain deferral "
+            "language yet F2P tests exercise the deferred feature?"
         ),
     },
-    "mistest_customtest": {
-        "weight": 0.9,
-        "display": "Custom Test — Implementation-Locked",
+    "sneaky_edit": {
+        "display": "Sneaky Edit",
         "definition": (
-            "Tests assert on implementation details so specific to the gold "
-            "patch that other valid solutions would fail.  The tests lock in "
-            "one approach rather than testing the behavioral contract."
+            "A pre-existing test was modified to assert on new behavior "
+            "not described in the problem statement.  The test existed "
+            "before the PR, making it look legitimate, but the PR author "
+            "silently changed assertions or expected values."
         ),
         "prompt": (
-            "Would a different but equally valid solution fail this test?  "
-            "Does the test assert on private methods, exact values tied to "
-            "one algorithm, or implementation structure rather than behavior?"
+            "Is there a MODIFIED (pre-existing) test?  If so, do the "
+            "changes add assertions or expected values for behavior NOT "
+            "described in the problem statement?"
         ),
     },
-    "mistest_sneaky_modification": {
-        "weight": 0.8,
-        "display": "Sneaky Test Modification",
+    "excess_patch": {
+        "display": "Excess Patch",
         "definition": (
-            "A pre-existing test is modified to assert on NEW behavior not "
-            "in the problem statement.  The test already existed so it "
-            "appears legitimate, but the PR author silently altered it."
+            "The gold patch contains behavioral code changes beyond what "
+            "the problem asks for — new features, unrelated refactoring, "
+            "scope expansion.  Pure ancillary changes (imports, whitespace, "
+            "docstrings) do NOT count; only behavioral excess matters."
         ),
         "prompt": (
-            "Is the test MODIFIED (pre-existing)?  If so, do the changes "
-            "add assertions or expected values for behavior NOT described in "
-            "the problem statement?"
+            "Does the gold patch modify code that the problem doesn't ask "
+            "for?  Are there hunks introducing NEW behavior beyond problem "
+            "scope?  Ignore purely ancillary changes (imports, whitespace, "
+            "docstrings).  Does the patch modify broader scope (base class, "
+            "public API) than the problem describes?"
         ),
     },
-    "mistest_deferred_requirement": {
-        "weight": 0.9,
-        "display": "Deferred Requirement Enforced",
+    "unclear_spec": {
+        "display": "Unclear Spec",
         "definition": (
-            "Tests require features the problem explicitly defers "
-            "('I have yet to add X', 'future work', 'TODO').  An honest "
-            "agent is told NOT to implement X, but tests fail without X."
+            "The problem statement is too ambiguous or actively misleading "
+            "to determine the correct solution.  Either key information is "
+            "missing (no repro steps, no affected component, multiple valid "
+            "interpretations) or the description points toward the wrong fix."
         ),
         "prompt": (
-            "Does the problem contain deferral language ('I have yet to', "
-            "'will add later', 'future work')?  Do F2P tests exercise the "
-            "deferred feature?"
+            "Can a competent developer determine the correct fix from the "
+            "problem statement alone?  Is the problem ambiguous enough that "
+            "multiple incompatible approaches are equally reasonable?  Does "
+            "the problem suggest a specific fix strategy that is incorrect "
+            "per the gold patch?"
         ),
     },
-    # ── Group B: Patch Contamination ──────────────────────────────
-    "mispatch_overpatch": {
-        "weight": 0.5,
-        "display": "Overpatch — Exceeds Scope",
+    "hidden_context": {
+        "display": "Hidden Context",
         "definition": (
-            "Gold patch includes code changes beyond problem scope: new "
-            "features, unrelated refactoring, or functionality additions "
-            "not described in the problem."
+            "Essential information needed to solve the problem exists only "
+            "in the hints text (code review comments, maintainer decisions) "
+            "and not in the problem statement.  The problem alone is "
+            "insufficient; the hints contain the actual specification.  "
+            "Includes problems that reference their own patch/tests."
         ),
         "prompt": (
-            "Are there UNRELATED hunks that introduce NEW behavior not "
-            "described in the problem?  Ignore ANCILLARY infrastructure."
+            "Does the hints text contain solution-critical information "
+            "absent from the problem?  Function names, root cause, or "
+            "design decisions not derivable from the problem alone?  Does "
+            "the problem reference 'see the patch' or 'attached PR'?"
         ),
     },
-    "mispatch_underpatch": {
-        "weight": 0.2,
-        "display": "Underpatch — Incomplete Fix",
+    "underspec": {
+        "display": "Underspec",
         "definition": (
-            "Gold patch does not fully address stated requirements.  Some "
-            "acceptance criteria remain unfixed yet F2P tests still pass."
+            "The F2P tests or gold patch don't fully cover the stated "
+            "acceptance criteria.  A partial or incorrect fix can pass.  "
+            "This makes the task easier (not harder) — it's a benchmark "
+            "quality issue, not a fairness issue."
         ),
         "prompt": (
-            "Does the gold patch address every requirement in the problem?  "
-            "Are there acceptance criteria with no corresponding hunk?"
-        ),
-    },
-    "mispatch_approach_mismatch": {
-        "weight": 1.0,
-        "display": "Approach Mismatch",
-        "definition": (
-            "Gold patch takes a fundamentally different strategy than what "
-            "the problem suggests.  The problem describes fix X, gold patch "
-            "implements fix Y.  An agent following the problem would fail."
-        ),
-        "prompt": (
-            "Does the problem contain an explicit code suggestion or "
-            "approach that DIFFERS from the gold patch?  Does the gold "
-            "patch modify a different class/function than the problem "
-            "implies?"
-        ),
-    },
-    "mispatch_ancillary_bundling": {
-        "weight": 0.3,
-        "display": "Ancillary Bundling",
-        "definition": (
-            "Cleanup or refactoring bundled alongside the fix: whitespace, "
-            "imports, docstrings, dead code removal.  These are not needed "
-            "to solve the problem."
-        ),
-        "prompt": (
-            "Are there ANCILLARY hunks that are purely cleanup (whitespace, "
-            "comments, imports, docstrings)?  If ancillary_count >= 2, flag."
-        ),
-    },
-    # ── Group C: Description Contamination ────────────────────────
-    "desc_misleading": {
-        "weight": 0.7,
-        "display": "Misleading Description",
-        "definition": (
-            "Problem statement actively directs toward a wrong approach: "
-            "suggests a specific fix that is not what the gold patch does."
-        ),
-        "prompt": (
-            "Does the problem contain an explicit code suggestion or fix "
-            "strategy that is INCORRECT per the gold patch?  Does the "
-            "problem's root cause analysis point to the wrong location?"
-        ),
-    },
-    "desc_incomplete": {
-        "weight": 0.4,
-        "display": "Incomplete Description",
-        "definition": (
-            "Problem missing key information: no reproduction steps, no "
-            "affected file, no root cause.  Multiple valid interpretations "
-            "possible."
-        ),
-        "prompt": (
-            "Does the problem provide: clear symptom, reproduction steps, "
-            "expected vs actual behavior, affected component?  If "
-            "ambiguity_score >= 0.4, consider this label."
-        ),
-    },
-    "desc_hidden_in_hints": {
-        "weight": 0.4,
-        "display": "Critical Info Hidden in Hints",
-        "definition": (
-            "Essential solution info exists only in hints text: function "
-            "names, root cause diagnosis, or maintainer design decisions "
-            "not in the problem statement."
-        ),
-        "prompt": (
-            "Compare problem-only solvability vs problem+hints.  Do hints "
-            "contain: exact function/class names from the gold patch, root "
-            "cause not in problem, or design decisions about approach?"
-        ),
-    },
-    "desc_self_referential": {
-        "weight": 0.5,
-        "display": "Self-Referential Spec",
-        "definition": (
-            "Problem references its own patch or test artifacts to define "
-            "behavior: 'see the test case of the patch', 'attached PR'."
-        ),
-        "prompt": (
-            "Does the problem reference 'see the patch', 'test case of "
-            "the patch', 'attached PR', or similar self-references that "
-            "delegate the specification to the solution?"
-        ),
-    },
-    # ── Group D: Structural Contamination ─────────────────────────
-    "scope_expansion": {
-        "weight": 0.6,
-        "display": "Scope Expansion",
-        "definition": (
-            "Fix modifies parent class or broader API than described.  "
-            "Problem describes a specific-case bug but the patch changes "
-            "a base class or public API affecting additional code paths."
-        ),
-        "prompt": (
-            "Does the gold patch modify code at a BROADER scope than the "
-            "problem describes?  Base class changes for a subclass bug, "
-            "new public API additions?"
-        ),
-    },
-    "circular_test_patch_dependency": {
-        "weight": 0.85,
-        "display": "Circular Dependency",
-        "definition": (
-            "F2P tests require out-of-scope patch changes to pass — a "
-            "circular dependency.  Agent solving only the described "
-            "problem would have tests that fail due to missing unrelated "
-            "changes."
-        ),
-        "prompt": (
-            "Do any F2P tests exercise code introduced by UNRELATED or "
-            "ANCILLARY hunks?  If removing those hunks would cause test "
-            "failures even with the core fix, this is a circular dependency."
-        ),
-    },
-    # ── Group E: Clean ────────────────────────────────────────────
-    "clean": {
-        "weight": 0.0,
-        "display": "Clean Task",
-        "definition": (
-            "No contamination.  Problem is clear, gold patch addresses "
-            "exactly the stated problem, tests verify the described "
-            "behavioral contract."
-        ),
-        "prompt": (
-            "All hunks REQUIRED, all assertions ON_TOPIC, problem clear."
-        ),
-    },
-    "hard_but_clean": {
-        "weight": 0.0,
-        "display": "Hard But Clean",
-        "definition": (
-            "Genuinely difficult task but fairly evaluated.  Difficulty "
-            "is inherent (domain knowledge, multi-file, complex debugging), "
-            "not from contamination."
-        ),
-        "prompt": (
-            "No contamination signals AND task appears complex (many files, "
-            "deep domain knowledge)."
+            "Can an incomplete fix pass the F2P tests?  Are there "
+            "acceptance criteria items that no F2P test verifies?  Does "
+            "the gold patch leave some stated requirements unaddressed?"
         ),
     },
 }
 
 
-# ── Severity computation from weighted labels ─────────────────────────
-
 
 def compute_task_severity(
     labels: list[TaskLabelAssignment],
-    clean_max: float = 0.15,
-    minor_max: float = 0.4,
-    moderate_max: float = 0.7,
 ) -> tuple[Severity, float]:
-    """Compute task severity from weighted label confidences.
+    """Compute task severity from bucket-based rules (no math, no weights).
 
-    Formula: severity = 1 - prod(1 - w_i * c_i) for all assigned labels.
+    Severity is determined entirely by WHICH labels are present:
 
-    Returns (severity_enum, score).
+    SEVERE:
+      - APPROACH_LOCK is present, OR
+      - Both EXCESS_TESTS and EXCESS_PATCH are present
+
+    MODERATE:
+      - SNEAKY_EDIT is present, OR
+      - EXCESS_TESTS alone (without EXCESS_PATCH)
+
+    MINOR:
+      - EXCESS_PATCH alone, OR
+      - UNCLEAR_SPEC alone, OR
+      - HIDDEN_CONTEXT alone, OR
+      - UNDERSPEC alone
+
+    CLEAN:
+      - No contamination labels
+
+    Returns (severity_enum, score) where score is a simplified 0/0.3/0.6/1.0
+    bucket indicator (not a continuous score — kept for backward compatibility).
     """
     if not labels:
         return Severity.CLEAN, 0.0
 
-    # Filter to contamination labels (exclude clean/hard_but_clean)
-    contamination_labels = [
-        la for la in labels
-        if la.label not in (
-            TaskContaminationLabel.CLEAN,
-            TaskContaminationLabel.HARD_BUT_CLEAN,
-        )
-    ]
-    if not contamination_labels:
+    label_set = {
+        la.label for la in labels
+        if la.label != TaskContaminationLabel.CLEAN
+    }
+
+    if not label_set:
         return Severity.CLEAN, 0.0
 
-    weighted_scores = []
-    for la in contamination_labels:
-        weight = LABEL_DEFINITIONS.get(la.label.value, {}).get("weight", 0.5)
-        weighted_scores.append(weight * la.confidence)
+    # SEVERE: approach_lock OR (excess_tests + excess_patch)
+    if TaskContaminationLabel.APPROACH_LOCK in label_set:
+        return Severity.SEVERE, 1.0
+    if (TaskContaminationLabel.EXCESS_TESTS in label_set
+            and TaskContaminationLabel.EXCESS_PATCH in label_set):
+        return Severity.SEVERE, 1.0
 
-    score = 1.0 - reduce(
-        lambda acc, ws: acc * (1.0 - ws), weighted_scores, 1.0
-    )
-    score = max(0.0, min(1.0, score))
+    # MODERATE: sneaky_edit OR excess_tests alone
+    if TaskContaminationLabel.SNEAKY_EDIT in label_set:
+        return Severity.MODERATE, 0.6
+    if TaskContaminationLabel.EXCESS_TESTS in label_set:
+        return Severity.MODERATE, 0.6
 
-    if score < clean_max:
-        return Severity.CLEAN, score
-    if score < minor_max:
-        return Severity.MINOR, score
-    if score < moderate_max:
-        return Severity.MODERATE, score
-    return Severity.SEVERE, score
+    # MINOR: any remaining contamination label
+    return Severity.MINOR, 0.3
 
-
-# ── Heuristic pre-classification ──────────────────────────────────────
 
 
 def _heuristic_labels(
@@ -333,34 +204,42 @@ def _heuristic_labels(
     excess_test: ExcessTestDetail,
     vague_spec: VagueSpecDetail,
     record: TaskRecord | None = None,
+    cross_ref: CrossReferenceResult | None = None,
 ) -> list[TaskLabelAssignment]:
     """Fast heuristic pre-classification from pipeline signals.
 
-    Returns labels with confidence based on numerical thresholds.
+    Uses binary signals only — no ratio thresholds or counting.
     These serve as initial candidates for the LLM to refine.
     """
     candidates: list[TaskLabelAssignment] = []
 
-    # A1: mistest_overtest — off-topic assertion ratio
-    if excess_test.total_assertions > 0:
-        off_ratio = excess_test.off_topic_assertions / excess_test.total_assertions
-        if off_ratio >= 0.3 or excess_test.unrelated_count > 0:
-            candidates.append(TaskLabelAssignment(
-                label=TaskContaminationLabel.MISTEST_OVERTEST,
-                confidence=min(off_ratio + 0.1, 1.0),
-                evidence=[
-                    f"{excess_test.off_topic_assertions}/{excess_test.total_assertions} "
-                    f"OFF_TOPIC assertions",
-                    f"{excess_test.unrelated_count} UNRELATED tests",
-                ],
-            ))
+    # EXCESS_TESTS: any OFF_TOPIC assertion or UNRELATED test
+    has_off_topic = excess_test.off_topic_assertions > 0
+    has_unrelated_test = excess_test.unrelated_count > 0
+    if has_off_topic or has_unrelated_test:
+        evidence = []
+        if has_off_topic:
+            evidence.append(f"{excess_test.off_topic_assertions} OFF_TOPIC assertions found")
+        if has_unrelated_test:
+            evidence.append(f"{excess_test.unrelated_count} UNRELATED tests found")
+        for tv in excess_test.test_verdicts:
+            if tv.is_modified and tv.off_topic_count > 0:
+                evidence.append(
+                    f"Modified test '{tv.test_name}' has {tv.off_topic_count} "
+                    f"OFF_TOPIC assertions (pre-existing test with added excess)"
+                )
+        candidates.append(TaskLabelAssignment(
+            label=TaskContaminationLabel.EXCESS_TESTS,
+            confidence=0.7,
+            evidence=evidence,
+        ))
 
-    # A4: mistest_sneaky_modification — modified tests with misaligned changes
+    # SNEAKY_EDIT: any modified test with misaligned changes
     if excess_test.has_modified_tests:
         for tv in excess_test.test_verdicts:
             if tv.is_modified and not tv.modification_aligned:
                 candidates.append(TaskLabelAssignment(
-                    label=TaskContaminationLabel.MISTEST_SNEAKY_MODIFICATION,
+                    label=TaskContaminationLabel.SNEAKY_EDIT,
                     confidence=0.8,
                     evidence=[
                         f"Test '{tv.test_name}' is pre-existing and modified "
@@ -369,39 +248,27 @@ def _heuristic_labels(
                 ))
                 break
 
-    # B1: mispatch_overpatch — unrelated hunks
+    # EXCESS_PATCH: any UNRELATED hunk with behavioral changes
+    # (pure ancillary does NOT trigger this)
     if excess_patch.unrelated_count > 0:
         candidates.append(TaskLabelAssignment(
-            label=TaskContaminationLabel.MISPATCH_OVERPATCH,
-            confidence=min(
-                excess_patch.unrelated_count / max(excess_patch.total_hunks, 1),
-                1.0,
-            ),
+            label=TaskContaminationLabel.EXCESS_PATCH,
+            confidence=0.7,
             evidence=[
-                f"{excess_patch.unrelated_count}/{excess_patch.total_hunks} "
-                f"UNRELATED hunks",
+                f"{excess_patch.unrelated_count} UNRELATED hunks with "
+                f"behavioral changes beyond problem scope",
             ],
         ))
 
-    # B4: mispatch_ancillary_bundling
-    if excess_patch.ancillary_count >= 2:
-        candidates.append(TaskLabelAssignment(
-            label=TaskContaminationLabel.MISPATCH_ANCILLARY_BUNDLING,
-            confidence=0.6,
-            evidence=[
-                f"{excess_patch.ancillary_count} ANCILLARY hunks (cleanup/infra)",
-            ],
-        ))
-
-    # C2: desc_incomplete — high ambiguity
+    # UNCLEAR_SPEC: high ambiguity score
     if vague_spec.score >= 0.4:
         candidates.append(TaskLabelAssignment(
-            label=TaskContaminationLabel.DESC_INCOMPLETE,
-            confidence=min(vague_spec.score, 1.0),
+            label=TaskContaminationLabel.UNCLEAR_SPEC,
+            confidence=0.6,
             evidence=[f"Ambiguity score: {vague_spec.score:.2f}"],
         ))
 
-    # C4: desc_self_referential — check problem statement text
+    # HIDDEN_CONTEXT: check for self-referential problem statement
     if record and record.problem_statement:
         ps_lower = record.problem_statement.lower()
         self_ref_phrases = [
@@ -411,33 +278,38 @@ def _heuristic_labels(
         for phrase in self_ref_phrases:
             if phrase in ps_lower:
                 candidates.append(TaskLabelAssignment(
-                    label=TaskContaminationLabel.DESC_SELF_REFERENTIAL,
+                    label=TaskContaminationLabel.HIDDEN_CONTEXT,
                     confidence=0.7,
                     evidence=[f'Problem contains "{phrase}"'],
                 ))
                 break
 
-    # D1: scope_expansion — UNRELATED hunks modifying different classes
-    # (A rough heuristic; the LLM refines this)
-    if excess_patch.unrelated_count > 0 and excess_patch.total_hunks >= 2:
-        unrelated_files = set()
-        for hv in excess_patch.hunk_verdicts:
-            if hv.verdict.value == "UNRELATED":
-                unrelated_files.add(hv.file_path)
-        if len(unrelated_files) > 1:
+    # APPROACH_LOCK: reporter suggested a specific fix approach
+    if intent.decomposition and intent.decomposition.suggested_fix:
+        candidates.append(TaskLabelAssignment(
+            label=TaskContaminationLabel.APPROACH_LOCK,
+            confidence=0.4,
+            evidence=[
+                f"Reporter suggests fix approach: "
+                f"{intent.decomposition.suggested_fix[:200]}",
+            ],
+        ))
+
+    # APPROACH_LOCK: circular dependency between tests and out-of-scope hunks
+    if cross_ref and cross_ref.has_circular:
+        for cd in cross_ref.circular_dependencies:
             candidates.append(TaskLabelAssignment(
-                label=TaskContaminationLabel.SCOPE_EXPANSION,
-                confidence=0.5,
+                label=TaskContaminationLabel.APPROACH_LOCK,
+                confidence=cd.confidence,
                 evidence=[
-                    f"UNRELATED hunks span {len(unrelated_files)} files: "
-                    f"{', '.join(sorted(unrelated_files))}",
+                    cd.reasoning,
+                    f"Linked UNRELATED hunks: {cd.linked_hunk_indices}",
                 ],
             ))
+            break
 
     return candidates
 
-
-# ── LLM-based classification ─────────────────────────────────────────
 
 
 TASK_CLASSIFIER_SYSTEM_PROMPT = """\
@@ -449,42 +321,48 @@ per-hunk patch verdicts, and per-assertion test verdicts.
 
 Assign ZERO OR MORE contamination labels from this taxonomy:
 
-TEST CONTAMINATION:
-- mistest_overtest: Tests verify behavior beyond problem scope
-- mistest_undertest: Tests don't fully cover the problem
-- mistest_customtest: Tests so specific they reject other valid fixes
-- mistest_sneaky_modification: Pre-existing test modified to assert new behavior
-- mistest_deferred_requirement: Tests enforce features explicitly deferred
+- approach_lock: F2P tests require a specific implementation approach the \
+problem doesn't determine.  A correct-but-different solution would fail.  \
+This includes approach mismatch (gold patch uses a fundamentally different \
+strategy than the problem suggests) and circular test-patch dependencies \
+(tests require out-of-scope patch changes).
 
-PATCH CONTAMINATION:
-- mispatch_overpatch: Gold patch includes changes beyond problem scope
-- mispatch_underpatch: Gold patch doesn't fully solve stated problem
-- mispatch_approach_mismatch: Gold patch uses fundamentally different approach \
-than problem suggests
-- mispatch_ancillary_bundling: Cleanup/refactoring bundled alongside fix
+- excess_tests: F2P tests verify behavior or features not described in the \
+problem.  Tests go beyond the stated acceptance criteria.  Includes tests \
+enforcing features the problem explicitly defers.
 
-DESCRIPTION CONTAMINATION:
-- desc_misleading: Problem statement suggests wrong approach
-- desc_incomplete: Problem missing key information
-- desc_hidden_in_hints: Critical info only in hints, not problem
-- desc_self_referential: Problem references its own patch/tests
+- sneaky_edit: A pre-existing test was modified to assert on new behavior \
+not in the problem statement.  The test looked legitimate but was silently \
+changed.
 
-STRUCTURAL CONTAMINATION:
-- scope_expansion: Fix changes parent class or broader API than described
-- circular_test_patch_dependency: F2P tests require out-of-scope patch changes
+- excess_patch: Gold patch contains behavioral code changes beyond what the \
+problem asks for.  New features, unrelated refactoring, scope expansion.  \
+Pure ancillary changes (imports, whitespace, docstrings) do NOT count.
+
+- unclear_spec: Problem statement is too ambiguous or actively misleading \
+to determine the correct solution.  Key info missing or description points \
+toward wrong fix.
+
+- hidden_context: Essential solution info exists only in hints text \
+(code review comments, maintainer decisions), not in the problem.  \
+Includes self-referential problems that reference their own patch/tests.
+
+- underspec: F2P tests or gold patch don't fully cover stated acceptance \
+criteria.  A partial fix can pass.  This is a benchmark quality issue, \
+not a fairness issue.
 
 CLEAN:
-- clean: No contamination detected
-- hard_but_clean: Legitimately difficult but fairly evaluated
+- clean: No contamination detected.
 
 RULES:
 1. Assign EVERY label that applies (tasks can have multiple labels)
-2. If ANY contamination label applies, do NOT assign clean or hard_but_clean
+2. If ANY contamination label applies, do NOT assign clean
 3. For each label, provide confidence (0.0-1.0) and specific evidence
 4. Only assign labels with confidence >= 0.4
 5. Cite specific hunks, assertions, or problem statement text as evidence
-6. Be PRECISE: distinguish mistest_overtest (tests beyond scope) from \
-mistest_customtest (tests lock in one implementation approach)
+6. Be PRECISE: distinguish approach_lock (tests reject valid alternatives) \
+from excess_tests (tests go beyond scope but don't lock approach)
+7. Do NOT flag pure ancillary changes (imports, whitespace) as excess_patch
 
 Respond in valid JSON (no markdown fences):
 {
@@ -507,6 +385,7 @@ def _build_task_classifier_user_prompt(
     vague_spec: VagueSpecDetail,
     record: TaskRecord | None = None,
     heuristic_candidates: list[TaskLabelAssignment] | None = None,
+    cross_ref: CrossReferenceResult | None = None,
 ) -> str:
     """Build the user prompt for the LLM task classifier."""
     parts: list[str] = []
@@ -533,11 +412,34 @@ def _build_task_classifier_user_prompt(
     parts.append(f"- Acceptance criteria: {json.dumps(intent.acceptance_criteria)}")
     parts.append(f"- Out of scope: {intent.out_of_scope[:300]}")
     parts.append(f"- Ambiguity score: {intent.ambiguity_score}")
+
+    if intent.decomposition:
+        d = intent.decomposition
+        parts.append("")
+        parts.append("PROBLEM DECOMPOSITION:")
+        parts.append(f"- Bug description: {d.bug_description[:500]}")
+        if d.suggested_fix:
+            parts.append(f"- Reporter's suggested fix: {d.suggested_fix[:500]}")
+            parts.append("  (Compare this to the gold patch — divergence signals APPROACH_LOCK)")
+        parts.append(f"- Legitimacy: {d.legitimacy}")
+        entities = []
+        if d.mentioned_files:
+            entities.append(f"Files: {', '.join(d.mentioned_files[:10])}")
+        if d.mentioned_functions:
+            entities.append(f"Functions: {', '.join(d.mentioned_functions[:10])}")
+        if d.mentioned_classes:
+            entities.append(f"Classes: {', '.join(d.mentioned_classes[:10])}")
+        if d.mentioned_variables:
+            entities.append(f"Variables: {', '.join(d.mentioned_variables[:10])}")
+        if d.mentioned_modules:
+            entities.append(f"Modules: {', '.join(d.mentioned_modules[:10])}")
+        if entities:
+            parts.append(f"- Code entities: {'; '.join(entities)}")
     parts.append("")
 
     # Patch analysis
     parts.append("GOLD PATCH ANALYSIS:")
-    parts.append(f"Score: {excess_patch.score:.4f} | "
+    parts.append(f"Has excess: {excess_patch.has_excess} | "
                  f"Hunks: {excess_patch.total_hunks} "
                  f"(REQUIRED={excess_patch.required_count}, "
                  f"ANCILLARY={excess_patch.ancillary_count}, "
@@ -550,7 +452,7 @@ def _build_task_classifier_user_prompt(
 
     # Test analysis
     parts.append("F2P TEST ANALYSIS:")
-    parts.append(f"Score: {excess_test.score:.4f} | "
+    parts.append(f"Has excess: {excess_test.has_excess} | "
                  f"Tests: {excess_test.total_tests} "
                  f"(ALIGNED={excess_test.aligned_count}, "
                  f"TANGENTIAL={excess_test.tangential_count}, "
@@ -560,9 +462,15 @@ def _build_task_classifier_user_prompt(
                  f"OFF_TOPIC={excess_test.off_topic_assertions})")
     parts.append(f"Has modified tests: {excess_test.has_modified_tests}")
     for tv in excess_test.test_verdicts:
-        parts.append(f"  Test '{tv.test_name}': {tv.intent_match.value} "
-                     f"(modified={tv.is_modified}, "
-                     f"mod_aligned={tv.modification_aligned})")
+        mod_tag = ""
+        if tv.is_modified:
+            mod_tag = " [MODIFIED pre-existing test"
+            if not tv.modification_aligned:
+                mod_tag += ", MISALIGNED changes"
+            if tv.off_topic_count > 0:
+                mod_tag += f", {tv.off_topic_count} OFF_TOPIC assertions"
+            mod_tag += "]"
+        parts.append(f"  Test '{tv.test_name}': {tv.intent_match.value}{mod_tag}")
         for av in tv.assertion_verdicts[:10]:
             parts.append(f"    [{av.verdict.value}] {av.statement[:120]}")
     parts.append("")
@@ -570,6 +478,19 @@ def _build_task_classifier_user_prompt(
     # Vague spec
     parts.append(f"VAGUE SPEC: score={vague_spec.score:.4f}")
     parts.append("")
+
+    if cross_ref and cross_ref.has_circular:
+        parts.append("CROSS-REFERENCE ANALYSIS:")
+        parts.append(f"Circular dependencies detected: {len(cross_ref.circular_dependencies)}")
+        for cd in cross_ref.circular_dependencies:
+            parts.append(f"  Test '{cd.test_name}' → UNRELATED hunks {cd.linked_hunk_indices} "
+                         f"(conf={cd.confidence:.2f})")
+            if cd.linked_files:
+                parts.append(f"    Files: {', '.join(cd.linked_files)}")
+            parts.append(f"    {cd.reasoning}")
+        parts.append("  This is a strong APPROACH_LOCK signal: tests require code "
+                     "the problem doesn't ask for.")
+        parts.append("")
 
     # Heuristic candidates (guidance for LLM)
     if heuristic_candidates:
@@ -589,6 +510,7 @@ async def classify_task_labels(
     vague_spec: VagueSpecDetail,
     record: TaskRecord | None = None,
     llm: Any | None = None,
+    cross_ref: CrossReferenceResult | None = None,
 ) -> list[TaskLabelAssignment]:
     """Classify task contamination labels (Axis 1).
 
@@ -597,7 +519,7 @@ async def classify_task_labels(
     heuristic classification.
     """
     heuristic = _heuristic_labels(intent, excess_patch, excess_test,
-                                  vague_spec, record)
+                                  vague_spec, record, cross_ref)
 
     if llm is None:
         # Pure heuristic fallback
@@ -612,6 +534,7 @@ async def classify_task_labels(
     # Build LLM prompt
     user_prompt = _build_task_classifier_user_prompt(
         intent, excess_patch, excess_test, vague_spec, record, heuristic,
+        cross_ref=cross_ref,
     )
 
     try:
@@ -639,19 +562,13 @@ async def classify_task_labels(
 
         # Enforce co-occurrence rules
         has_contamination = any(
-            la.label not in (
-                TaskContaminationLabel.CLEAN,
-                TaskContaminationLabel.HARD_BUT_CLEAN,
-            )
+            la.label != TaskContaminationLabel.CLEAN
             for la in labels
         )
         if has_contamination:
             labels = [
                 la for la in labels
-                if la.label not in (
-                    TaskContaminationLabel.CLEAN,
-                    TaskContaminationLabel.HARD_BUT_CLEAN,
-                )
+                if la.label != TaskContaminationLabel.CLEAN
             ]
 
         if not labels:
@@ -672,8 +589,6 @@ async def classify_task_labels(
             )]
         return heuristic
 
-
-# ── Agent trajectory classification ───────────────────────────────────
 
 
 AGENT_CLASSIFIER_SYSTEM_PROMPT = """\
@@ -760,16 +675,16 @@ async def classify_agent_label(
                 evidence=["Heuristic: resolved without leakage signals"],
             )
         # Check if agent completed problem intent despite failing
-        has_approach_mismatch = any(
-            la.label == TaskContaminationLabel.MISPATCH_APPROACH_MISMATCH
+        has_approach_lock = any(
+            la.label == TaskContaminationLabel.APPROACH_LOCK
             for la in task_labels
         )
-        if has_approach_mismatch and trajectory_data.get("final_patch"):
+        if has_approach_lock and trajectory_data.get("final_patch"):
             return AgentLabelAssignment(
                 label=AgentTrajectoryLabel.AGENT_FAILED_COMPLETED_INTENT,
                 confidence=0.4,
                 evidence=[
-                    "Task has approach mismatch and agent produced a patch",
+                    "Task has approach lock and agent produced a patch",
                 ],
             )
         return AgentLabelAssignment(
@@ -831,16 +746,3 @@ async def classify_agent_label(
             evidence=["LLM fallback"],
         )
 
-
-# ── Backward compatibility mapping ───────────────────────────────────
-
-
-# Map old LeakagePattern values to new AgentTrajectoryLabel
-LEAKAGE_PATTERN_MAP: dict[str, AgentTrajectoryLabel] = {
-    "GENUINE_SOLUTION": AgentTrajectoryLabel.AGENT_PASSED_GENUINE,
-    "GOLD_PATCH_LEAK": AgentTrajectoryLabel.AGENT_PASSED_LEAK,
-    "PACKAGE_LEAK": AgentTrajectoryLabel.AGENT_PASSED_PACKAGE_LEAK,
-    "TEST_AWARE": AgentTrajectoryLabel.AGENT_PASSED_TEST_AWARE,
-    "PARTIAL_MATCH": AgentTrajectoryLabel.AGENT_UNKNOWN,
-    "UNKNOWN": AgentTrajectoryLabel.AGENT_UNKNOWN,
-}

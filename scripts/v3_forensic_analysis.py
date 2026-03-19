@@ -25,39 +25,22 @@ OUTPUT_DIR = Path("output_v3")
 ANALYSIS_DIR = Path("analysis_v3")
 ANALYSIS_DIR.mkdir(exist_ok=True)
 
-# Plain-English label explanations for reviewers
+# Plain-English label explanations for reviewers (v4 taxonomy)
 LABEL_EXPLANATIONS = {
     "clean": "No contamination. Problem, patch, and tests are all fair and aligned.",
-    "hard_but_clean": "Genuinely difficult task, but evaluated fairly. Difficulty comes from the domain, not from unfair setup.",
-    "mistest_overtest": "Tests check things BEYOND what the problem asked for. An agent solving only the stated problem would fail extra tests.",
-    "mistest_undertest": "Tests don't fully cover the problem. A partial or wrong fix could still pass.",
-    "mistest_customtest": "Tests are so specific to the gold patch's approach that other equally valid solutions would fail.",
-    "mistest_sneaky_modification": "A pre-existing test was quietly modified to check new behavior not mentioned in the problem.",
-    "mistest_deferred_requirement": "Tests require features the problem explicitly says are for later ('TODO', 'future work').",
-    "mispatch_overpatch": "The gold patch includes functional changes beyond what the problem asks for.",
-    "mispatch_underpatch": "The gold patch doesn't fully fix the stated problem, yet tests still pass.",
-    "mispatch_approach_mismatch": "The gold patch uses a completely different strategy than what the problem suggests. An agent following the problem description would fail.",
-    "mispatch_ancillary_bundling": "The gold patch bundles cleanup (whitespace, imports, docstrings) alongside the actual fix.",
-    "desc_misleading": "The problem description actively points toward a wrong approach or incorrect root cause.",
-    "desc_incomplete": "The problem is missing key information -- no repro steps, no affected file, or ambiguous requirements.",
-    "desc_hidden_in_hints": "Critical solution info (function names, root cause) appears only in the hints text, not the main problem.",
-    "desc_self_referential": "The problem references its own patch or tests to define what should happen ('see attached PR').",
-    "scope_expansion": "The fix changes a parent class or broader API than the problem describes -- wider blast radius.",
-    "circular_test_patch_dependency": "Tests require out-of-scope patch changes to pass. Removing unrelated hunks breaks tests even with the core fix.",
+    "approach_lock": "Tests require a specific implementation approach the problem doesn't determine. A correct-but-different solution would fail.",
+    "excess_tests": "Tests check things BEYOND what the problem asked for. An agent solving only the stated problem would fail extra tests.",
+    "sneaky_edit": "A pre-existing test was quietly modified to check new behavior not mentioned in the problem.",
+    "excess_patch": "The gold patch includes behavioral changes beyond what the problem asks for (not just cleanup/imports).",
+    "unclear_spec": "The problem is too ambiguous or actively misleading -- multiple incompatible approaches are equally reasonable.",
+    "hidden_context": "Critical solution info (function names, root cause, design decisions) appears only in hints text, not the main problem.",
+    "underspec": "Tests or patch don't fully cover stated acceptance criteria. A partial fix could still pass.",
 }
 
 SEVERITY_ORDER = ["CLEAN", "MINOR", "MODERATE", "SEVERE"]
 
-LABEL_WEIGHTS = {
-    "mistest_overtest": 0.7, "mistest_undertest": 0.2, "mistest_customtest": 0.9,
-    "mistest_sneaky_modification": 0.8, "mistest_deferred_requirement": 0.9,
-    "mispatch_overpatch": 0.5, "mispatch_underpatch": 0.2,
-    "mispatch_approach_mismatch": 1.0, "mispatch_ancillary_bundling": 0.3,
-    "desc_misleading": 0.7, "desc_incomplete": 0.4, "desc_hidden_in_hints": 0.4,
-    "desc_self_referential": 0.5, "scope_expansion": 0.6,
-    "circular_test_patch_dependency": 0.85,
-    "clean": 0.0, "hard_but_clean": 0.0,
-}
+# v4: No weights — severity is bucket-based. Legacy mapping for backward compat only.
+LABEL_WEIGHTS: dict[str, float] = {}
 
 
 def load_reports(reports_dir: Path) -> list[dict]:
@@ -119,7 +102,7 @@ def analyze_cooccurrence(reports: list[dict]) -> dict:
 
     for r in reports:
         labels = extract_labels(r)
-        contam_labels = [l for l in labels if l not in ("clean", "hard_but_clean")]
+        contam_labels = [l for l in labels if l != "clean"]
         label_set_counts[tuple(sorted(contam_labels))] += 1
         for a, b in combinations(sorted(set(contam_labels)), 2):
             pair_counts[(a, b)] += 1
@@ -371,11 +354,11 @@ def build_triage_csv(reports: list[dict], output_path: Path):
     rows = []
     for r in reports:
         labels = extract_labels(r)
-        contam_labels = [l for l in labels if l not in ("clean", "hard_but_clean")]
+        contam_labels = [l for l in labels if l != "clean"]
 
-        # Primary label = highest weight contamination label
+        # Primary label = first contamination label (no weights in v4)
         if contam_labels:
-            primary = max(contam_labels, key=lambda l: LABEL_WEIGHTS.get(l, 0))
+            primary = contam_labels[0]
         else:
             primary = labels[0] if labels else "clean"
 
@@ -447,7 +430,7 @@ def per_project_breakdown(reports: list[dict]) -> dict:
         project_stats[project]["total"] += 1
         project_stats[project]["severity"][r["severity"]] += 1
         for la in extract_labels(r):
-            if la not in ("clean", "hard_but_clean"):
+            if la != "clean":
                 project_stats[project]["labels"][la] += 1
 
     result = {}

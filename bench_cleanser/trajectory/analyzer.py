@@ -13,7 +13,7 @@ import pathlib
 from collections import defaultdict
 from typing import Any
 
-from bench_cleanser.models import ContaminationReportV2, RootCause, TaskRecord
+from bench_cleanser.models import ContaminationReport, TaskRecord
 from bench_cleanser.trajectory.classifier import (
     classify_cross_agent,
     classify_heuristic_only,
@@ -36,21 +36,8 @@ async def analyze_trajectories(
     f2p_tests: dict[str, list[str]],
     problem_statements: dict[str, str],
     llm: Any | None = None,
-    contamination_reports: dict[str, ContaminationReportV2] | None = None,
+    contamination_reports: dict[str, ContaminationReport] | None = None,
 ) -> list[TrajectoryAnalysis]:
-    """Analyze a batch of trajectories using LLM-primary classification.
-
-    Args:
-        trajectories: Trajectory records to analyze.
-        gold_patches: Mapping of instance_id -> gold patch text.
-        f2p_tests: Mapping of instance_id -> F2P test name list.
-        problem_statements: Mapping of instance_id -> problem statement text.
-        llm: LLMClient for trajectory analysis (required for LLM mode).
-        contamination_reports: Optional v2 pipeline reports for context.
-
-    Returns:
-        List of TrajectoryAnalysis results.
-    """
     analyses = []
 
     for traj in trajectories:
@@ -58,24 +45,20 @@ async def analyze_trajectories(
         test_names = f2p_tests.get(traj.instance_id, [])
         problem = problem_statements.get(traj.instance_id, "")
 
-        # Extract heuristic signals first (fast)
         heuristic_signals = extract_heuristic_signals(traj, gold_patch, test_names)
 
-        # Build contamination context from pipeline report
         contamination_context = ""
         if contamination_reports and traj.instance_id in contamination_reports:
             report = contamination_reports[traj.instance_id]
             contamination_context = _build_contamination_context(report)
 
         if llm is not None and problem:
-            # LLM-primary classification
             result = await classify_with_llm(
                 traj, gold_patch, problem, test_names, llm,
                 heuristic_signals=heuristic_signals,
                 contamination_context=contamination_context,
             )
         else:
-            # Fallback to heuristic-only
             result = classify_heuristic_only(traj, gold_patch, test_names)
 
         analyses.append(result)
@@ -87,7 +70,6 @@ async def analyze_trajectories(
             result.gold_patch_similarity,
         )
 
-    # Tier 3: cross-agent comparison (group by instance_id)
     by_instance: dict[str, list[int]] = defaultdict(list)
     for i, traj in enumerate(trajectories):
         by_instance[traj.instance_id].append(i)
@@ -103,17 +85,25 @@ async def analyze_trajectories(
     return analyses
 
 
-def _build_contamination_context(report: ContaminationReportV2) -> str:
-    """Build contamination context string from a pipeline report."""
+def _build_contamination_context(report: ContaminationReport) -> str:
     lines = []
-    lines.append(f"Severity: {report.severity.value} (combined score: {report.combined_score:.3f})")
-    lines.append(f"EXCESS_PATCH: {report.excess_patch.score:.3f} "
-                 f"({report.excess_patch.unrelated_count} UNRELATED / {report.excess_patch.total_hunks} hunks)")
-    lines.append(f"EXCESS_TEST: {report.excess_test.score:.3f} "
-                 f"({report.excess_test.off_topic_assertions} OFF_TOPIC / "
-                 f"{report.excess_test.total_assertions} assertions)")
-    if report.root_causes:
-        lines.append(f"Root causes: {', '.join(rc.value for rc in report.root_causes)}")
+    lines.append(f"Severity: {report.severity.value}")
+
+    labels = [tl.label.value for tl in report.task_labels]
+    if labels:
+        lines.append(f"Labels: {', '.join(labels)}")
+
+    ep = report.excess_patch
+    if ep.has_excess:
+        lines.append(f"EXCESS_PATCH: {ep.unrelated_count} UNRELATED / {ep.total_hunks} hunks")
+
+    et = report.excess_test
+    if et.has_excess:
+        lines.append(
+            f"EXCESS_TEST: {et.off_topic_assertions} OFF_TOPIC / "
+            f"{et.total_assertions} assertions"
+        )
+
     lines.append(f"Core requirement: {report.intent.core_requirement[:300]}")
     return "\n".join(lines)
 
@@ -121,10 +111,8 @@ def _build_contamination_context(report: ContaminationReportV2) -> str:
 def generate_trajectory_summary(
     analyses: list[TrajectoryAnalysis],
 ) -> str:
-    """Generate a markdown summary of trajectory analysis results."""
     lines = ["## Trajectory Analysis Results\n"]
 
-    # Summary statistics
     pattern_counts: dict[str, int] = defaultdict(int)
     for a in analyses:
         pattern_counts[a.leakage_pattern.value] += 1
@@ -136,7 +124,6 @@ def generate_trajectory_summary(
         lines.append(f"- **{pattern}:** {count} ({pct:.1f}%)")
     lines.append("")
 
-    # Per-instance detail
     by_instance: dict[str, list[TrajectoryAnalysis]] = defaultdict(list)
     for a in analyses:
         by_instance[a.instance_id].append(a)
@@ -161,7 +148,6 @@ def generate_trajectory_summary(
                 f"{pip_str} | {ref_str} | {behavior} |"
             )
 
-        # Add causal chain if available
         for a in instance_analyses:
             if a.causal_chain:
                 lines.append(f"\n**Causal chain ({a.agent_name}):** {a.causal_chain}")
@@ -178,10 +164,6 @@ def generate_trajectory_summary(
 def compute_leakage_rates(
     analyses: list[TrajectoryAnalysis],
 ) -> dict[str, dict[str, Any]]:
-    """Compute per-agent leakage statistics.
-
-    Returns a dict mapping agent_name to their stats.
-    """
     by_agent: dict[str, list[TrajectoryAnalysis]] = defaultdict(list)
     for a in analyses:
         by_agent[a.agent_name].append(a)
@@ -223,66 +205,56 @@ def compute_leakage_rates(
 
 
 def generate_narrative(
-    report: ContaminationReportV2,
+    report: ContaminationReport,
     record: TaskRecord,
     analyses: list[TrajectoryAnalysis],
 ) -> str:
-    """Generate an end-to-end narrative for a contaminated task.
-
-    Produces a complete story starting from the contaminated task,
-    through agent evaluation behavior, to a focused diagnosis.
-    """
     lines = []
     iid = report.instance_id
 
-    # Header
     lines.append(f"## Contamination Narrative: `{iid}`\n")
 
-    # Task context
     lines.append("### Task Context\n")
     lines.append(f"**Repository:** `{record.repo}` (version {record.version})")
     lines.append(f"**Core requirement:** {report.intent.core_requirement}")
-    lines.append(f"**Severity:** {report.severity.value} (combined: {report.combined_score:.3f})")
-    if report.root_causes:
-        rc_labels = ", ".join(f"`{rc.value}`" for rc in report.root_causes)
-        lines.append(f"**Root causes:** {rc_labels}")
+    lines.append(f"**Severity:** {report.severity.value}")
+    labels = ", ".join(f"`{tl.label.value}`" for tl in report.task_labels)
+    if labels:
+        lines.append(f"**Labels:** {labels}")
     lines.append("")
 
-    # Contamination signals
     lines.append("### Contamination Signals\n")
     ep = report.excess_patch
     et = report.excess_test
-    if ep.unrelated_count > 0:
+    if ep.has_excess:
         lines.append(
-            f"- **EXCESS_PATCH ({ep.score:.3f}):** {ep.unrelated_count} of "
+            f"- **EXCESS_PATCH:** {ep.unrelated_count} of "
             f"{ep.total_hunks} hunks are UNRELATED to the stated problem"
         )
-    if et.off_topic_assertions > 0:
-        pct = et.off_topic_assertions / max(et.total_assertions, 1) * 100
-        lines.append(
-            f"- **EXCESS_TEST ({et.score:.3f}):** {et.off_topic_assertions} of "
-            f"{et.total_assertions} assertions ({pct:.0f}%) are OFF_TOPIC"
-        )
+    if et.has_excess:
+        parts = []
+        if et.off_topic_assertions > 0:
+            pct = et.off_topic_assertions / max(et.total_assertions, 1) * 100
+            parts.append(f"{et.off_topic_assertions} of {et.total_assertions} assertions ({pct:.0f}%) are OFF_TOPIC")
+        if et.unrelated_count > 0:
+            parts.append(f"{et.unrelated_count} UNRELATED tests")
+        for part in parts:
+            lines.append(f"- **EXCESS_TEST:** {part}")
     if report.vague_spec.score > 0.3:
-        lines.append(
-            f"- **VAGUE_SPEC ({report.vague_spec.score:.3f}):** Problem statement "
-            f"is ambiguous"
-        )
+        lines.append(f"- **VAGUE_SPEC:** Problem statement has significant ambiguity ({report.vague_spec.score:.2f})")
     lines.append("")
 
-    # Root cause explanation
-    if report.root_causes:
-        lines.append("### Root Cause Analysis\n")
-        for rc in report.root_causes:
-            reasoning = report.root_cause_reasoning.get(rc.value, "")
-            lines.append(f"**{rc.value}:**")
-            if reasoning:
-                lines.append(f"{reasoning}")
-            else:
-                lines.append(_default_root_cause_explanation(rc))
-            lines.append("")
+    if report.task_labels:
+        lines.append("### Label Analysis\n")
+        for tl in report.task_labels:
+            lines.append(f"**{tl.label.value}** (confidence: {tl.confidence:.2f}):")
+            if tl.reasoning:
+                lines.append(f"  {tl.reasoning}")
+            if tl.evidence:
+                for ev in tl.evidence[:3]:
+                    lines.append(f"  - {ev}")
+        lines.append("")
 
-    # Agent trajectory analysis
     if analyses:
         lines.append("### Agent Evaluation Behavior\n")
         instance_analyses = [a for a in analyses if a.instance_id == iid]
@@ -302,7 +274,6 @@ def generate_narrative(
                 lines.append(f"\n> {a.llm_reasoning[:500]}")
             lines.append("")
 
-    # Diagnosis
     lines.append("### Diagnosis\n")
     lines.append(_generate_diagnosis(report, analyses))
     lines.append("")
@@ -311,43 +282,12 @@ def generate_narrative(
     return "\n".join(lines)
 
 
-def _default_root_cause_explanation(rc: RootCause) -> str:
-    """Provide default explanation for a root cause category."""
-    explanations = {
-        RootCause.APPROACH_MISMATCH: (
-            "The gold patch implements a fundamentally different approach "
-            "than what the problem statement suggests. An agent following "
-            "the problem description would produce a different solution."
-        ),
-        RootCause.DEFERRED_REQUIREMENT: (
-            "The F2P tests enforce features that the problem statement "
-            "explicitly defers or disclaims. An agent cannot be expected "
-            "to implement deferred requirements."
-        ),
-        RootCause.SCOPE_EXPANSION: (
-            "The gold patch and/or tests extend beyond the stated problem "
-            "scope. Tests exercise code paths not mentioned in the problem."
-        ),
-        RootCause.IMPLICIT_CONSENSUS: (
-            "The solution requires knowledge from code review discussions "
-            "or hints that extend the original problem statement."
-        ),
-        RootCause.INFRASTRUCTURE_LEAK: (
-            "The F2P tests require ancillary infrastructure changes not "
-            "described in the feature specification."
-        ),
-    }
-    return explanations.get(rc, "")
-
-
 def _generate_diagnosis(
-    report: ContaminationReportV2,
+    report: ContaminationReport,
     analyses: list[TrajectoryAnalysis],
 ) -> str:
-    """Generate a focused diagnosis for a contaminated task."""
     parts = []
 
-    # Impact assessment
     instance_analyses = [a for a in analyses if a.instance_id == report.instance_id]
     leaked_count = sum(
         1 for a in instance_analyses
@@ -365,7 +305,6 @@ def _generate_diagnosis(
             f"leakage patterns on this task."
         )
 
-    # Actionable recommendation
     if report.excess_test.off_topic_assertions > 0:
         parts.append(
             f"**Action:** Remove or quarantine {report.excess_test.off_topic_assertions} "
@@ -390,24 +329,8 @@ async def run_trajectory_analysis(
     hf_split: str = "train",
     llm: Any | None = None,
 ) -> str:
-    """High-level entry point: load reports, load trajectories, analyze, report.
-
-    Args:
-        reports_dir: Path to v2 pipeline JSON reports.
-        trajectory_source: Path or HuggingFace dataset for trajectories.
-        output_path: Where to write the markdown report (None = return string).
-        severity_filter: Only analyze trajectories for this severity level.
-        instance_ids: Only analyze these specific instances.
-        agent_name: Override agent name for trajectory source.
-        hf_split: HuggingFace dataset split.
-        llm: LLMClient for LLM-primary trajectory analysis.
-
-    Returns:
-        The markdown report as a string.
-    """
     from bench_cleanser.deep_dive import load_reports_from_dir
 
-    # Load contamination reports
     reports = load_reports_from_dir(
         reports_dir, severity_filter=severity_filter, instance_ids=instance_ids,
     )
@@ -416,14 +339,12 @@ async def run_trajectory_analysis(
     if not reports:
         return "No matching contamination reports found."
 
-    # Build lookup dicts
     target_ids = {r.instance_id for r in reports}
     gold_patches: dict[str, str] = {}
     f2p_tests: dict[str, list[str]] = {}
     problem_statements: dict[str, str] = {}
-    contamination_reports: dict[str, ContaminationReportV2] = {}
+    contamination_reports: dict[str, ContaminationReport] = {}
 
-    # Load TaskRecords for gold patches, F2P tests, and problem statements
     from bench_cleanser.data_loader import load_single_task
     for report in reports:
         record = load_single_task(report.instance_id)
@@ -433,7 +354,6 @@ async def run_trajectory_analysis(
             problem_statements[report.instance_id] = record.problem_statement
         contamination_reports[report.instance_id] = report
 
-    # Load trajectories
     trajectories = load_trajectories(
         trajectory_source,
         instance_ids=target_ids,
@@ -446,17 +366,14 @@ async def run_trajectory_analysis(
     if not trajectories:
         return "No trajectories found for the target instances."
 
-    # Analyze with LLM-primary approach
     analyses = await analyze_trajectories(
         trajectories, gold_patches, f2p_tests, problem_statements,
         llm=llm,
         contamination_reports=contamination_reports,
     )
 
-    # Generate report
     summary = generate_trajectory_summary(analyses)
 
-    # Add leakage rates
     rates = compute_leakage_rates(analyses)
     summary += "\n### Per-Agent Leakage Rates\n\n"
     summary += "| Agent | Total | Genuine | Leaked | Partial | Leakage Rate | Mean Similarity |\n"
@@ -469,7 +386,6 @@ async def run_trajectory_analysis(
             f"{stats['mean_gold_patch_similarity']:.3f} |\n"
         )
 
-    # Generate end-to-end narratives for each instance
     records_map: dict[str, TaskRecord] = {}
     for report in reports:
         record = load_single_task(report.instance_id)
@@ -483,14 +399,12 @@ async def run_trajectory_analysis(
                 report, records_map[report.instance_id], analyses,
             )
 
-    # Write output
     if output_path:
         out = pathlib.Path(output_path)
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(summary, encoding="utf-8")
         logger.info("Trajectory analysis written to %s", out)
 
-    # Write JSON results
     if output_path:
         json_path = pathlib.Path(output_path).with_suffix(".json")
         json_data = {
