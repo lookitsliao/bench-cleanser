@@ -1,16 +1,23 @@
-"""Unit tests for the scorer module.
+"""Unit tests for the scorer and cross-reference modules.
 
-Tests validate the v4 binary-label + bucket-severity scorer:
-- ContaminationReport building via build_report
+Tests validate:
 - Binary signal detection (has_excess)
-- Recommendations generation
+- ContaminationReport serialization roundtrip
+- Assertion count properties
+- Cross-reference circular dependency detection
 """
 
 import pytest
 
+from bench_cleanser.analysis.cross_ref import (
+    CrossReferenceResult,
+    analyze_cross_references,
+)
 from bench_cleanser.models import (
     AssertionVerdict,
     AssertionVerdictReport,
+    CallTarget,
+    CodeContext,
     ContaminationReport,
     ExcessPatchDetail,
     ExcessTestDetail,
@@ -22,6 +29,8 @@ from bench_cleanser.models import (
     Severity,
     TaskContaminationLabel,
     TaskLabelAssignment,
+    TestedFunction,
+    TestHunk,
     TestModificationType,
     TestVerdict,
     TestVerdictReport,
@@ -294,3 +303,111 @@ class TestAssertionCounts:
         tv = et.test_verdicts[0]
         assert tv.on_topic_count == 5
         assert tv.off_topic_count == 0
+
+
+class TestCrossReference:
+    def test_no_unrelated_hunks_no_circular(self):
+        ep = _make_excess_patch([(PatchVerdict.REQUIRED, 0.9)])
+        et = _make_excess_test([(TestVerdict.ALIGNED, 2, 0, False)])
+        result = analyze_cross_references(ep, et, [])
+        assert not result.has_circular
+        assert result.max_confidence == 0.0
+
+    def test_unrelated_hunk_no_matching_test_no_circular(self):
+        ep = _make_excess_patch([(PatchVerdict.UNRELATED, 0.8)])
+        et = _make_excess_test([(TestVerdict.ALIGNED, 2, 0, False)])
+        result = analyze_cross_references(ep, et, [])
+        assert not result.has_circular
+
+    def test_circular_via_code_context(self):
+        ep = _make_excess_patch([
+            (PatchVerdict.REQUIRED, 0.9),
+            (PatchVerdict.UNRELATED, 0.8),
+        ])
+        et = _make_excess_test([(TestVerdict.TANGENTIAL, 1, 1, False)])
+
+        ctx = CodeContext(
+            pre_patch_test_source="",
+            post_patch_test_source="",
+            test_file_imports="",
+            test_file_fixtures="",
+            tested_functions=[
+                TestedFunction(
+                    name="helper_func",
+                    file_path="module1.py",
+                    source="def helper_func(): pass",
+                    is_modified_by_patch=True,
+                ),
+            ],
+            call_targets=[
+                CallTarget(
+                    name="helper_func",
+                    module="module1",
+                    file_path="module1.py",
+                    line_number=10,
+                    is_in_patch=True,
+                ),
+            ],
+            assertions=[],
+            test_file_path="tests/test_0.py",
+            repo_path="/repo",
+        )
+
+        th = TestHunk(
+            file_path="tests/test_0.py",
+            test_name="test_0",
+            full_test_id="test_0",
+            modification_type=TestModificationType.NEW,
+            added_lines=["assert True"],
+            removed_lines=[],
+            full_source="def test_0(): assert True",
+            raw_diff="@@ +1 @@\n+assert True",
+            code_context=ctx,
+        )
+
+        result = analyze_cross_references(ep, et, [th])
+        assert result.has_circular
+        assert len(result.circular_dependencies) == 1
+        cd = result.circular_dependencies[0]
+        assert cd.test_name == "test_0"
+        assert cd.confidence >= 0.7
+        assert "call-graph" in cd.reasoning
+
+    def test_no_circular_when_call_targets_in_required_hunks(self):
+        ep = _make_excess_patch([(PatchVerdict.REQUIRED, 0.9)])
+        et = _make_excess_test([(TestVerdict.ALIGNED, 2, 0, False)])
+
+        ctx = CodeContext(
+            pre_patch_test_source="",
+            post_patch_test_source="",
+            test_file_imports="",
+            test_file_fixtures="",
+            tested_functions=[],
+            call_targets=[
+                CallTarget(
+                    name="main_func",
+                    module="module0",
+                    file_path="module0.py",
+                    line_number=5,
+                    is_in_patch=True,
+                ),
+            ],
+            assertions=[],
+            test_file_path="tests/test_0.py",
+            repo_path="/repo",
+        )
+
+        th = TestHunk(
+            file_path="tests/test_0.py",
+            test_name="test_0",
+            full_test_id="test_0",
+            modification_type=TestModificationType.NEW,
+            added_lines=["assert True"],
+            removed_lines=[],
+            full_source="def test_0(): assert True",
+            raw_diff="@@ +1 @@\n+assert True",
+            code_context=ctx,
+        )
+
+        result = analyze_cross_references(ep, et, [th])
+        assert not result.has_circular

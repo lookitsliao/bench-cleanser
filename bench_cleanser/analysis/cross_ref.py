@@ -52,9 +52,24 @@ class CrossReferenceResult:
         return max(cd.confidence for cd in self.circular_dependencies)
 
 
+_COMMON_IDENTIFIERS = frozenset({
+    "test", "self", "assert", "True", "False", "None", "return",
+    "import", "from", "class", "def", "for", "while", "with",
+    "pass", "break", "continue", "raise", "try", "except", "finally",
+    "module", "file", "path", "name", "value", "data", "result",
+    "args", "kwargs", "index", "count", "item", "key", "scope",
+    "hunk", "patch", "source", "line", "text", "string", "code",
+})
+
+
 def _extract_identifiers(text: str) -> set[str]:
-    """Extract Python identifiers (3+ chars) for fallback overlap detection."""
-    return set(re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]{2,}\b", text))
+    """Extract Python identifiers (4+ chars) for fallback overlap detection.
+
+    Filters common language keywords and generic names to reduce false
+    positives. Only identifiers likely to be project-specific are kept.
+    """
+    raw = set(re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]{3,}\b", text))
+    return raw - _COMMON_IDENTIFIERS
 
 
 def _normalize_path(p: str) -> str:

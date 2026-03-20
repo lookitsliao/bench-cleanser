@@ -445,9 +445,10 @@ def _build_task_classifier_user_prompt(
                  f"ANCILLARY={excess_patch.ancillary_count}, "
                  f"UNRELATED={excess_patch.unrelated_count})")
     for hv in excess_patch.hunk_verdicts:
+        heuristic_tag = " [heuristic]" if hv.is_heuristic else ""
         parts.append(f"  Hunk {hv.hunk_index} [{hv.file_path}]: "
-                     f"{hv.verdict.value} (conf={hv.confidence:.2f}) — "
-                     f"{hv.reasoning[:200]}")
+                     f"{hv.verdict.value} (conf={hv.confidence:.2f}){heuristic_tag} — "
+                     f"{hv.reasoning[:300]}")
     parts.append("")
 
     # Test analysis
@@ -470,13 +471,19 @@ def _build_task_classifier_user_prompt(
             if tv.off_topic_count > 0:
                 mod_tag += f", {tv.off_topic_count} OFF_TOPIC assertions"
             mod_tag += "]"
-        parts.append(f"  Test '{tv.test_name}': {tv.intent_match.value}{mod_tag}")
+        parts.append(f"  Test '{tv.test_name}': {tv.intent_match.value} "
+                     f"(conf={tv.confidence:.2f}){mod_tag}")
+        if tv.reasoning:
+            parts.append(f"    Reasoning: {tv.reasoning[:300]}")
         for av in tv.assertion_verdicts[:10]:
-            parts.append(f"    [{av.verdict.value}] {av.statement[:120]}")
+            reason_tag = f" — {av.reason[:100]}" if av.reason else ""
+            parts.append(f"    [{av.verdict.value}] {av.statement[:120]}{reason_tag}")
     parts.append("")
 
     # Vague spec
     parts.append(f"VAGUE SPEC: score={vague_spec.score:.4f}")
+    if vague_spec.reasoning:
+        parts.append(f"  Reasoning: {vague_spec.reasoning[:400]}")
     parts.append("")
 
     if cross_ref and cross_ref.has_circular:
