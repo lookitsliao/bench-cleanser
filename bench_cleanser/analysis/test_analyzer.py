@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import ast
 import logging
+import re
 
 from bench_cleanser.llm_client import LLMClient
 from bench_cleanser.models import (
@@ -85,7 +86,11 @@ Respond in JSON:
 
 
 def _count_assertions(source: str) -> tuple[int, list[str]]:
-    """Count assert statements in test source via AST parsing."""
+    """Count assert statements in test source via AST parsing.
+
+    Falls back to multi-language regex matching when AST parsing fails
+    (i.e., for non-Python languages like Go, JS/TS, Ruby, Rust, Java).
+    """
     lines = []
     for line in source.splitlines():
         clean = line
@@ -98,10 +103,37 @@ def _count_assertions(source: str) -> tuple[int, list[str]]:
     try:
         tree = ast.parse(cleaned)
     except SyntaxError:
+        # Multi-language assertion pattern matching
+        _ASSERTION_PATTERNS = [
+            # Python: assert, self.assert*
+            re.compile(r"^\s*(assert\b.+)"),
+            re.compile(r"^\s*(self\.assert\w+\(.+)"),
+            # Go testify: assert.*, require.*
+            re.compile(r"^\s*(assert\.\w+\(.+)"),
+            re.compile(r"^\s*(require\.\w+\(.+)"),
+            # Go stdlib: t.Error, t.Fatal, t.Log + if-based checks
+            re.compile(r"^\s*(t\.(?:Error|Errorf|Fatal|Fatalf|Fail|FailNow)\(.+)"),
+            # JavaScript/TypeScript: expect(...), chai assert
+            re.compile(r"^\s*(expect\(.+)"),
+            re.compile(r"^\s*(assert\.\w+\(.+)"),
+            # Ruby: assert_*, expect(...).to
+            re.compile(r"^\s*(assert_\w+.+)"),
+            re.compile(r"^\s*(expect\(.+\.to\b.+)"),
+            # Rust: assert!, assert_eq!, assert_ne!
+            re.compile(r"^\s*(assert(?:_eq|_ne)?!\(.+)"),
+            # Java: Assert.*, assertEquals, assertTrue, etc.
+            re.compile(r"^\s*(Assert\.\w+\(.+)"),
+            re.compile(r"^\s*(assert(?:Equals|True|False|NotNull|Null|That|Throws)\(.+)"),
+            # C#: Assert.*
+            re.compile(r"^\s*(Assert\.\w+\(.+)"),
+        ]
         for line in lines:
             stripped = line.strip()
-            if stripped.startswith("assert"):
-                assertions.append(stripped)
+            for pattern in _ASSERTION_PATTERNS:
+                m = pattern.match(stripped)
+                if m:
+                    assertions.append(m.group(1))
+                    break
         return len(assertions), assertions
 
     UNITTEST_ASSERT_METHODS = {

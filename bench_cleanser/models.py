@@ -84,12 +84,20 @@ class TaskRecord:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> TaskRecord:
-        f2p = data.get("FAIL_TO_PASS", "[]")
-        p2p = data.get("PASS_TO_PASS", "[]")
+        f2p = data.get("FAIL_TO_PASS") or data.get("fail_to_pass", "[]")
+        p2p = data.get("PASS_TO_PASS") or data.get("pass_to_pass", "[]")
         if isinstance(f2p, str):
-            f2p = json.loads(f2p)
+            try:
+                f2p = json.loads(f2p)
+            except json.JSONDecodeError:
+                import ast as _ast
+                f2p = _ast.literal_eval(f2p)
         if isinstance(p2p, str):
-            p2p = json.loads(p2p)
+            try:
+                p2p = json.loads(p2p)
+            except json.JSONDecodeError:
+                import ast as _ast
+                p2p = _ast.literal_eval(p2p)
         return cls(
             instance_id=data["instance_id"],
             repo=data.get("repo", ""),

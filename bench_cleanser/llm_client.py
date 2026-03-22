@@ -78,7 +78,7 @@ def _create_async_client(
     if project_root not in sys.path:
         sys.path.insert(0, project_root)
 
-    from cloudgpt import get_openai_token_provider
+    from cloudgpt_aoai import get_openai_token_provider
 
     raw_provider = get_openai_token_provider(
         use_azure_cli=True,

@@ -43,7 +43,7 @@ try:
         XAst,
     )
     ASTRED_AVAILABLE = True
-except ImportError:
+except (ImportError, RuntimeError):
     ASTRED_AVAILABLE = False
     logger.info("astred_core not available; falling back to Python ast")
 
@@ -283,12 +283,19 @@ def _extract_changed_blocks_from_hunks(
     hunks: list[PatchHunk],
     repo_path: pathlib.Path | None,
 ) -> list[ChangedBlock]:
-    """Extract changed blocks by parsing patch hunks with Python ast."""
+    """Extract changed blocks by parsing patch hunks."""
     changed: list[ChangedBlock] = []
     seen: set[tuple[str, str]] = set()
 
+    # File extensions we can meaningfully analyze
+    _SUPPORTED_EXTS = {
+        ".py", ".go", ".js", ".ts", ".jsx", ".tsx", ".rb",
+        ".rs", ".java", ".kt", ".cs", ".c", ".cpp", ".h", ".hpp",
+    }
+
     for hunk in hunks:
-        if not hunk.file_path.endswith(".py"):
+        ext = pathlib.Path(hunk.file_path).suffix.lower()
+        if ext not in _SUPPORTED_EXTS:
             continue
 
         # Use function context from the @@ header
@@ -338,9 +345,28 @@ def _extract_changed_blocks_from_hunks(
 
 
 def _clean_function_context(ctx: str) -> str:
-    """Extract the function/class/method name from a @@ context header."""
-    # Patterns like "def foo(...):" or "class Foo(...):" or "    def bar(self):"
+    """Extract the function/class/method name from a @@ context header.
+
+    Handles Python, Go, JavaScript/TypeScript, Rust, Java, Ruby, C/C++.
+    """
+    # Python/Ruby: def foo(...): / class Foo(...):
     m = re.search(r"(?:def|class)\s+(\w+)", ctx)
+    if m:
+        return m.group(1)
+    # Go: func (receiver) FuncName(...) or func FuncName(...)
+    m = re.search(r"func\s+(?:\([^)]*\)\s+)?(\w+)", ctx)
+    if m:
+        return m.group(1)
+    # Rust: fn func_name(...) or pub fn func_name(...)
+    m = re.search(r"(?:pub\s+)?fn\s+(\w+)", ctx)
+    if m:
+        return m.group(1)
+    # Java/C#/C++: type FuncName(...) or void FuncName(...)
+    m = re.search(r"(?:(?:public|private|protected|static|void|int|bool|string)\s+)+(\w+)\s*\(", ctx)
+    if m:
+        return m.group(1)
+    # JavaScript/TypeScript: function funcName(...) or const funcName
+    m = re.search(r"(?:function|const|let|var)\s+(\w+)", ctx)
     if m:
         return m.group(1)
     # If it's just a name
@@ -349,11 +375,15 @@ def _clean_function_context(ctx: str) -> str:
 
 
 def _infer_block_type(hunk: PatchHunk, func_name: str) -> str:
-    """Infer block type from hunk content."""
+    """Infer block type from hunk content (multi-language)."""
     all_lines = "\n".join(hunk.added_lines + hunk.removed_lines + hunk.context_lines)
-    if re.search(r"^\s*class\s+", all_lines, re.MULTILINE):
+    # Python/Java/C#/Go/Rust class/struct/interface
+    if re.search(r"^\s*(?:class|struct|interface|impl|type\s+\w+\s+struct)\s+", all_lines, re.MULTILINE):
         return "class"
-    if re.search(r"^\s*(?:async\s+)?def\s+", all_lines, re.MULTILINE):
+    # Python/JS/Rust/Go function definitions
+    if re.search(r"^\s*(?:async\s+)?(?:def|func|fn|function)\s+", all_lines, re.MULTILINE):
+        return "function"
+    if re.search(r"^\s*(?:(?:public|private|protected|static)\s+)*(?:void|int|bool|string|[A-Z]\w*)\s+\w+\s*\(", all_lines, re.MULTILINE):
         return "function"
     if hunk.is_init_file:
         return "import"

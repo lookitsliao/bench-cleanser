@@ -45,7 +45,7 @@ def load_swebench_pro(max_tasks: int = 500) -> list[TaskRecord]:
     Returns:
         A list of up to *max_tasks* TaskRecord objects.
     """
-    return _load_dataset_as_records("SWE-bench/SWE-bench_Pro", max_tasks)
+    return _load_dataset_as_records("ScaleAI/SWE-bench_Pro", max_tasks)
 
 
 def load_swebench_live(max_tasks: int = 500, split: str = "verified") -> list[TaskRecord]:
@@ -95,7 +95,7 @@ def load_single_task(instance_id: str) -> TaskRecord | None:
     """
     for name, split in [
         ("princeton-nlp/SWE-bench_Verified", "test"),
-        ("SWE-bench/SWE-bench_Pro", "test"),
+        ("ScaleAI/SWE-bench_Pro", "test"),
         ("SWE-bench-Live/SWE-bench-Live", "verified"),
     ]:
         try:
