@@ -54,13 +54,47 @@ def compute_patch_similarity(patch_a: str, patch_b: str) -> float:
     """Compute similarity ratio between two patches using difflib.
 
     Returns a value between 0.0 (completely different) and 1.0 (identical).
+
+    Improved normalization:
+    - Strips comments and blank lines
+    - Normalizes whitespace
+    - Focuses on added/removed lines (skips diff context)
     """
     if not patch_a or not patch_b:
         return 0.0
 
-    # Normalize whitespace for fairer comparison
-    lines_a = patch_a.strip().splitlines()
-    lines_b = patch_b.strip().splitlines()
+    def _normalize_patch_lines(patch: str) -> list[str]:
+        """Extract and normalize only the changed lines from a patch."""
+        result = []
+        for raw_line in patch.strip().splitlines():
+            line = raw_line.rstrip()
+            # Skip diff headers and context lines
+            if line.startswith("diff ") or line.startswith("index "):
+                continue
+            if line.startswith("---") or line.startswith("+++"):
+                continue
+            if line.startswith("@@"):
+                continue
+            # Only keep added/removed lines
+            if line.startswith("+") or line.startswith("-"):
+                # Strip the +/- prefix
+                content = line[1:]
+                # Strip inline comments for Python/JS/Go
+                # (simple heuristic: remove # comments at end of line)
+                content = re.sub(r'\s*#\s.*$', '', content)
+                content = re.sub(r'\s*//\s.*$', '', content)
+                # Normalize whitespace
+                content = ' '.join(content.split())
+                # Skip blank lines after normalization
+                if content:
+                    result.append(content)
+        return result
+
+    lines_a = _normalize_patch_lines(patch_a)
+    lines_b = _normalize_patch_lines(patch_b)
+
+    if not lines_a or not lines_b:
+        return 0.0
 
     matcher = difflib.SequenceMatcher(None, lines_a, lines_b)
     return matcher.ratio()
@@ -263,7 +297,7 @@ def _build_trajectory_analysis_prompt(
 ) -> str:
     """Build the prompt for LLM trajectory analysis."""
     # Summarize trajectory (use full content, large context window)
-    action_summary = _summarize_actions(trajectory.actions, max_chars=30000)
+    action_summary = _summarize_actions(trajectory.actions, max_chars=500000)
 
     # Heuristic signals section
     signals_text = []
@@ -300,13 +334,13 @@ CONTAMINATION CONTEXT (from bench-cleanser pipeline):
     return f"""Analyze this AI agent's trajectory on a software engineering task.
 
 PROBLEM STATEMENT:
-{problem_statement[:5000]}
+{problem_statement[:30000]}
 
 GOLD PATCH (the correct solution — the agent should NOT have access to this):
-{gold_patch[:5000]}
+{gold_patch[:50000]}
 
 FAIL-TO-PASS TEST NAMES (used for evaluation):
-{json.dumps(f2p_test_names[:20])}
+{json.dumps(f2p_test_names[:100])}
 {contamination_section}
 HEURISTIC SIGNALS (pre-computed):
 {signals_section}
@@ -318,7 +352,7 @@ AGENT'S TRAJECTORY:
 {action_summary}
 
 AGENT'S FINAL PATCH:
-{trajectory.final_patch[:5000]}
+{trajectory.final_patch[:50000]}
 
 ---
 
@@ -514,14 +548,14 @@ def classify_cross_agent(
 
 
 def _summarize_actions(
-    actions: list[TrajectoryAction], max_chars: int = 30000
+    actions: list[TrajectoryAction], max_chars: int = 500000
 ) -> str:
     """Summarize trajectory actions, using large context window."""
     parts = []
     total = 0
     for i, action in enumerate(actions):
         # Use generous per-action limit for LLM analysis
-        content_limit = min(len(action.content), 2000)
+        content_limit = min(len(action.content), 50000)
         line = f"[Step {i}] {action.action_type.value}: {action.content[:content_limit]}"
         if action.file_path:
             line += f" (file: {action.file_path})"

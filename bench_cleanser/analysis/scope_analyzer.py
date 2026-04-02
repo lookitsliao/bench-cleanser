@@ -24,9 +24,12 @@ You will be given:
   - The repository name
   - The instance_id (for reference)
   - The problem statement (bug report, issue description, or PR description)
+  - Optionally, a Requirements section with detailed implementation requirements
+  - Optionally, an Interface section describing new public interfaces
 
 IMPORTANT: You have NOT been shown any code patch.  Do NOT speculate about
-what the fix looks like.  Focus ONLY on what the problem statement says.
+what the fix looks like.  Focus ONLY on what the problem statement,
+requirements, and interface sections say.
 
 Think through this carefully:
 
@@ -99,11 +102,17 @@ Respond in JSON with these keys:
 
 
 def _build_user_prompt(record: TaskRecord) -> str:
-    return (
-        f"Repository: {record.repo}\n"
-        f"Instance ID: {record.instance_id}\n\n"
-        f"Problem Statement:\n{record.problem_statement}\n"
-    )
+    parts = [
+        f"Repository: {record.repo}",
+        f"Instance ID: {record.instance_id}",
+        "",
+        f"Problem Statement:\n{record.problem_statement}",
+    ]
+    if record.requirements:
+        parts.append(f"\nRequirements:\n{record.requirements}")
+    if record.interface:
+        parts.append(f"\nInterface:\n{record.interface}")
+    return "\n".join(parts) + "\n"
 
 
 async def extract_intent(

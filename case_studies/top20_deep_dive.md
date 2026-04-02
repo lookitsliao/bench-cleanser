@@ -27,21 +27,21 @@
 
 | # | Instance ID | Severity | Combined | EP | ET | VS | Primary Signal | Independent Verdict |
 |---|---|---|---|---|---|---|---|---|
-| 1 | `django__django-11964` | **SEVERE** | 1.0000 | 1.0000 | 0.0000 | 0.3000 | Excess Patch | **CONFIRMED** |
+| 1 | `django__django-11964` | **SEVERE** | 1.0000 | 1.0000 | 0.0000 | 0.3000 | Scope Creep | **CONFIRMED** |
 | 2 | `astropy__astropy-7606` | **SEVERE** | 0.8688 | 0.2500 | 0.7500 | 0.3000 | Excess Test | **POSSIBLE** |
-| 3 | `astropy__astropy-7166` | **SEVERE** | 0.8000 | 0.6667 | 0.0000 | 0.4000 | Excess Patch | **FALSE POSITIVE** |
+| 3 | `astropy__astropy-7166` | **SEVERE** | 0.8000 | 0.6667 | 0.0000 | 0.4000 | Scope Creep | **FALSE POSITIVE** |
 | 4 | `astropy__astropy-8872` | **MODERATE** | 0.7833 | 0.3333 | 0.5000 | 0.3500 | Excess Test | **FALSE POSITIVE** |
-| 5 | `django__django-13112` | **MODERATE** | 0.7250 | 0.5000 | 0.0000 | 0.4500 | Excess Patch | **FALSE POSITIVE** |
-| 6 | `django__django-10554` | **MODERATE** | 0.7000 | 0.5000 | 0.0000 | 0.4000 | Excess Patch | **LIKELY** |
-| 7 | `django__django-12273` | **MODERATE** | 0.7000 | 0.5000 | 0.0000 | 0.4000 | Excess Patch | **POSSIBLE** |
+| 5 | `django__django-13112` | **MODERATE** | 0.7250 | 0.5000 | 0.0000 | 0.4500 | Scope Creep | **FALSE POSITIVE** |
+| 6 | `django__django-10554` | **MODERATE** | 0.7000 | 0.5000 | 0.0000 | 0.4000 | Scope Creep | **LIKELY** |
+| 7 | `django__django-12273` | **MODERATE** | 0.7000 | 0.5000 | 0.0000 | 0.4000 | Scope Creep | **POSSIBLE** |
 | 8 | `astropy__astropy-13236` | **MODERATE** | 0.6875 | 0.0000 | 0.3750 | 0.5000 | Vague Spec | **POSSIBLE** |
 | 9 | `django__django-11087` | **MODERATE** | 0.6875 | 0.3750 | 0.0000 | 0.5000 | Vague Spec | **POSSIBLE** |
-| 10 | `django__django-11532` | **MODERATE** | 0.6500 | 0.5000 | 0.0000 | 0.3000 | Excess Patch | **POSSIBLE** |
-| 11 | `django__django-11885` | **MODERATE** | 0.6400 | 0.4000 | 0.0000 | 0.4000 | Excess Patch | **FALSE POSITIVE** |
+| 10 | `django__django-11532` | **MODERATE** | 0.6500 | 0.5000 | 0.0000 | 0.3000 | Scope Creep | **POSSIBLE** |
+| 11 | `django__django-11885` | **MODERATE** | 0.6400 | 0.4000 | 0.0000 | 0.4000 | Scope Creep | **FALSE POSITIVE** |
 | 12 | `django__django-12406` | **MODERATE** | 0.6333 | 0.3333 | 0.0000 | 0.4500 | Vague Spec | **POSSIBLE** |
 | 13 | `django__django-11477` | **MODERATE** | 0.6000 | 0.0000 | 0.0000 | 0.6000 | Vague Spec | **POSSIBLE** |
 | 14 | `django__django-13121` | **MODERATE** | 0.6000 | 0.3333 | 0.0000 | 0.4000 | Vague Spec | **POSSIBLE** |
-| 15 | `django__django-11276` | **MODERATE** | 0.5917 | 0.4167 | 0.0000 | 0.3000 | Excess Patch | **POSSIBLE** |
+| 15 | `django__django-11276` | **MODERATE** | 0.5917 | 0.4167 | 0.0000 | 0.3000 | Scope Creep | **POSSIBLE** |
 | 16 | `astropy__astropy-8707` | **MODERATE** | 0.5833 | 0.1667 | 0.0000 | 0.5000 | Vague Spec | **POSSIBLE** |
 | 17 | `django__django-11333` | **MODERATE** | 0.5667 | 0.3333 | 0.0000 | 0.3500 | Vague Spec | **FALSE POSITIVE** |
 | 18 | `django__django-12325` | **MODERATE** | 0.5667 | 0.3333 | 0.0000 | 0.3500 | Vague Spec | **POSSIBLE** |
@@ -52,9 +52,9 @@
 
 1. **High false-positive rate at MODERATE threshold:** Only 2 of 20 cases (10%) show genuine contamination signals (CONFIRMED or LIKELY). The remaining 18 are either false positives (8 cases) or ambiguous low-confidence signals (10 cases).
 
-2. **Vague Spec dominates MODERATE scores:** 13 of 17 MODERATE cases have Vague Spec as the primary or co-primary signal. VS measures problem statement ambiguity, not contamination -- a fundamentally different signal than Excess Patch or Excess Test.
+2. **Vague Spec dominates MODERATE scores:** 13 of 17 MODERATE cases have Vague Spec as the primary or co-primary signal. VS measures problem statement ambiguity, not contamination -- a fundamentally different signal than Scope Creep or Excess Test.
 
-3. **Ancillary hunks inflate Excess Patch:** Many cases have gold patches with ancillary refactoring (imports, docstrings, dead code cleanup) that the pipeline scores as partial contamination but an agent would never need to reproduce.
+3. **Ancillary hunks inflate Scope Creep:** Many cases have gold patches with ancillary refactoring (imports, docstrings, dead code cleanup) that the pipeline scores as partial contamination but an agent would never need to reproduce.
 
 4. **The formula compounds weak signals:** The combined score formula $1 - (1-EP)(1-ET)(1-VS)$ multiplies three independent probabilities, meaning three individually-weak signals (e.g., EP=0.33, ET=0.0, VS=0.4) can produce a MODERATE combined score (0.6) even when no single signal is concerning.
 
@@ -238,7 +238,7 @@ This is a **pre-existing, unmodified** test. It appears in the FAIL_TO_PASS list
 
 | Component | Score | Derivation |
 |---|---|---|
-| EXCESS_PATCH (EP) | 1.0000 | 0 REQUIRED + 0 ANCILLARY + 1 UNRELATED of 1 total hunks. $EP = \frac{1 \times 1 + 0 \times 0.5}{1} = 1.0$ |
+| SCOPE_CREEP (EP) | 1.0000 | 0 REQUIRED + 0 ANCILLARY + 1 UNRELATED of 1 total hunks. $EP = \frac{1 \times 1 + 0 \times 0.5}{1} = 1.0$ |
 | EXCESS_TEST (ET) | 0.0000 | 0 off-topic / 0 total assertions counted by pipeline (loop assertions were not individually decomposed). |
 | VAGUE_SPEC (VS) | 0.3000 | LLM ambiguity assessment. |
 
@@ -282,7 +282,7 @@ The gold patch takes approach #2. This is valid and arguably simpler, but it has
 
 ### Key Tension
 
-The pipeline's EXCESS_PATCH classification of the `__str__` hunk as UNRELATED is technically stringent but analytically sound. The problem statement never mentions changing how `str()` works on raw enum members; it describes model field behavior. However, there is a counter-argument: the `__str__` override is a valid, simpler fix to the described symptom, and a skilled developer might choose it. The question for contamination analysis is not whether the fix is *valid*, but whether an agent working only from the problem statement would *arrive at it*.
+The pipeline's SCOPE_CREEP classification of the `__str__` hunk as UNRELATED is technically stringent but analytically sound. The problem statement never mentions changing how `str()` works on raw enum members; it describes model field behavior. However, there is a counter-argument: the `__str__` override is a valid, simpler fix to the described symptom, and a skilled developer might choose it. The question for contamination analysis is not whether the fix is *valid*, but whether an agent working only from the problem statement would *arrive at it*.
 
 The stronger contamination signal comes from the F2P tests:
 
@@ -293,7 +293,7 @@ Together, these tests **lock in** the `__str__` override approach. Any alternati
 
 ### Pipeline Accuracy Assessment
 
-The pipeline's EXCESS_PATCH score of 1.0 is arguably too aggressive. While the `__str__` override is a different approach from what the problem statement implies, it is not entirely "unrelated" -- it does solve the reported symptom. A more nuanced classification might be ANCILLARY (0.5 weight) rather than UNRELATED (1.0 weight).
+The pipeline's SCOPE_CREEP score of 1.0 is arguably too aggressive. While the `__str__` override is a different approach from what the problem statement implies, it is not entirely "unrelated" -- it does solve the reported symptom. A more nuanced classification might be ANCILLARY (0.5 weight) rather than UNRELATED (1.0 weight).
 
 The pipeline's EXCESS_TEST score of 0.0 is arguably too low. The pipeline failed to decompose the loop-based assertions in `test_str` and missed that `test_textchoices` is a pre-existing test whose FAIL_TO_PASS status is entirely an artifact of the global `__str__` change. A manual analysis reveals significant off-topic testing.
 
@@ -307,7 +307,7 @@ The contamination signal is real but requires nuance:
 
 - **AGAINST contamination:** The `__str__` override is a legitimate, arguably simpler fix. `TextChoices` inherits from `str`, so `isinstance(instance.field, str)` passes regardless of approach. A developer reading the problem statement could reason: "the issue is that `str()` on the enum member returns the wrong thing, so let me fix `__str__`." This reasoning is plausible, though it requires the developer to reframe the problem from "field stores wrong type" to "enum stringifies wrong."
 
-- **Net assessment:** The combination of (a) the problem statement framing the issue as a field-value type mismatch, (b) the hints explicitly highlighting the `__dict__` discrepancy, and (c) the F2P tests testing raw enum `__str__` behavior rather than model field behavior makes this a genuine contamination case. An uncontaminated agent would need to independently discover that the simpler workaround (override `__str__`) is the expected approach, despite the problem statement and hints pointing toward the root cause (field-level coercion). The pipeline's SEVERE classification is directionally correct, even if the EXCESS_PATCH scoring is somewhat rigid.
+- **Net assessment:** The combination of (a) the problem statement framing the issue as a field-value type mismatch, (b) the hints explicitly highlighting the `__dict__` discrepancy, and (c) the F2P tests testing raw enum `__str__` behavior rather than model field behavior makes this a genuine contamination case. An uncontaminated agent would need to independently discover that the simpler workaround (override `__str__`) is the expected approach, despite the problem statement and hints pointing toward the root cause (field-level coercion). The pipeline's SEVERE classification is directionally correct, even if the SCOPE_CREEP scoring is somewhat rigid.
 
 ---
 
@@ -486,7 +486,7 @@ $$ET = \frac{\text{off\_topic}}{\text{total\_assertions}} = \frac{3}{4} = 0.7500
 
 | Component | Score |
 |---|---|
-| EXCESS_PATCH (EP) | 0.2500 |
+| SCOPE_CREEP (EP) | 0.2500 |
 | EXCESS_TEST (ET) | 0.7500 |
 | VAGUE_SPEC (VS) | 0.3000 |
 
@@ -755,14 +755,14 @@ The intent extraction is accurate. The 0.4 ambiguity score reflects that the pro
 
 | Component | Score |
 |---|---|
-| EXCESS_PATCH (EP) | 0.6667 |
+| SCOPE_CREEP (EP) | 0.6667 |
 | EXCESS_TEST (ET) | 0.0000 |
 | VAGUE_SPEC (VS) | 0.4000 |
 
 $$\text{combined} = 1 - (1 - 0.6667)(1 - 0.0000)(1 - 0.4000) = 1 - (0.3333)(1.0)(0.6) = 1 - 0.2000 = 0.8000$$
 
 **Recommendations from pipeline:**
-- EXCESS_PATCH: 2/3 hunk(s) modify code unrelated to the problem description. Agents should not be required to reproduce these changes.
+- SCOPE_CREEP: 2/3 hunk(s) modify code unrelated to the problem description. Agents should not be required to reproduce these changes.
 - VAGUE_SPEC: Problem statement has moderate ambiguity (score: 0.40).
 
 ---
@@ -812,7 +812,7 @@ if ((inspect.isfunction(val) or inspect.isdatadescriptor(val)) and
 
 ### Analysis of the Pipeline's SEVERE Rating
 
-The pipeline rated this case as **SEVERE** with a combined score of 0.8000. The primary driver is the **EXCESS_PATCH** score of 0.6667, which reflects that 2 of 3 hunks are whitespace cleanup unrelated to the bug fix. The secondary driver is the **VAGUE_SPEC** score of 0.4, reflecting the terse two-sentence problem statement.
+The pipeline rated this case as **SEVERE** with a combined score of 0.8000. The primary driver is the **SCOPE_CREEP** score of 0.6667, which reflects that 2 of 3 hunks are whitespace cleanup unrelated to the bug fix. The secondary driver is the **VAGUE_SPEC** score of 0.4, reflecting the terse two-sentence problem statement.
 
 However, this high score is **misleading for contamination assessment:**
 
@@ -822,7 +822,7 @@ However, this high score is **misleading for contamination assessment:**
 
 ### Contamination Verdict: FALSE POSITIVE --- pipeline over-flagged
 
-This is **not** a contamination case. The SEVERE rating is driven almost entirely by whitespace-only "unrelated" hunks in the patch, which inflated the EXCESS_PATCH score to 0.6667. These whitespace changes have no functional significance and do not affect whether an agent can solve the benchmark task. The actual functional change (adding `inspect.isdatadescriptor` to the type check) is directly derivable from the problem statement and, even more explicitly, from the hints text. The test patch checks exactly the behavior described in the problem statement. An agent that understands the problem, locates the `InheritDocstrings` metaclass, and broadens the `inspect.isfunction` check to include property objects would pass all tests without needing any knowledge of the gold patch.
+This is **not** a contamination case. The SEVERE rating is driven almost entirely by whitespace-only "unrelated" hunks in the patch, which inflated the SCOPE_CREEP score to 0.6667. These whitespace changes have no functional significance and do not affect whether an agent can solve the benchmark task. The actual functional change (adding `inspect.isdatadescriptor` to the type check) is directly derivable from the problem statement and, even more explicitly, from the hints text. The test patch checks exactly the behavior described in the problem statement. An agent that understands the problem, locates the `InheritDocstrings` metaclass, and broadens the `inspect.isfunction` check to include property objects would pass all tests without needing any knowledge of the gold patch.
 
 ---
 
@@ -1031,7 +1031,7 @@ The intent extraction is accurate and well-calibrated. The problem statement is 
 
 | Component | Score |
 |---|---|
-| EXCESS_PATCH (EP) | 0.3333 |
+| SCOPE_CREEP (EP) | 0.3333 |
 | EXCESS_TEST (ET) | 0.5000 |
 | VAGUE_SPEC (VS) | 0.3500 |
 
@@ -1040,7 +1040,7 @@ $$\text{combined} = 1 - (1 - 0.3333)(1 - 0.5000)(1 - 0.3500) = 1 - (0.6667)(0.50
 **Pipeline classification: MODERATE** (threshold: combined >= 0.55 for MODERATE, >= 0.80 for SEVERE)
 
 **Recommendations from pipeline:**
-- EXCESS_PATCH: 2 hunk(s) are infrastructure changes (imports, config). Minor impact on evaluation fairness.
+- SCOPE_CREEP: 2 hunk(s) are infrastructure changes (imports, config). Minor impact on evaluation fairness.
 - EXCESS_TEST: 1/2 assertion(s) test behavior beyond problem scope.
 - VAGUE_SPEC: Problem statement has moderate ambiguity (score: 0.35).
 
@@ -1082,7 +1082,7 @@ Let us walk through what an agent would do step by step:
 
 ### Analysis of Pipeline Scores
 
-**EXCESS_PATCH (0.3333):** The pipeline identified 2 of 3 hunks as ANCILLARY. This is somewhat too aggressive:
+**SCOPE_CREEP (0.3333):** The pipeline identified 2 of 3 hunks as ANCILLARY. This is somewhat too aggressive:
 
 - Hunk 0 (docstring): Correctly classified as ANCILLARY. A documentation update is not needed to fix the bug.
 - Hunk 1 (line ~299 early-return path): Classified as ANCILLARY with low confidence (0.50). This is the weaker call. If the F2P test exercises this path (e.g., when multiplying `np.float16(1) * u.km`, the result might go through the ndarray-subclass branch), then this hunk would be REQUIRED. The pipeline's uncertainty here is appropriate.
@@ -1354,14 +1354,14 @@ The test covers both `ForeignKey` (as reported in the bug) and `ManyToManyField`
 
 | Component | Score |
 |---|---|
-| EXCESS_PATCH | 0.5000 |
+| SCOPE_CREEP | 0.5000 |
 | EXCESS_TEST | 0.0000 |
 | VAGUE_SPEC | 0.4500 |
 
 $$\text{combined} = 1 - (1 - 0.5000)(1 - 0.0000)(1 - 0.4500) = 1 - (0.5000)(1.0000)(0.5500) = 1 - 0.2750 = 0.7250$$
 
 **Recommendations:**
-- EXCESS_PATCH: 1 hunk(s) classified as ANCILLARY (infrastructure/adjacent change). Minor impact on evaluation fairness.
+- SCOPE_CREEP: 1 hunk(s) classified as ANCILLARY (infrastructure/adjacent change). Minor impact on evaluation fairness.
 - VAGUE_SPEC: Problem statement has moderate ambiguity (score: 0.45).
 
 ---
@@ -1415,7 +1415,7 @@ Step-by-step walkthrough:
 
 ### Assessment of Pipeline Signals
 
-- **EXCESS_PATCH (0.50):** The pipeline's ANCILLARY classification of the sole hunk is questionable. The hunk is not "infrastructure" -- it is the direct bug fix. The 0.50 score inflates the combined score beyond what is warranted. This hunk should arguably be classified as REQUIRED, which would yield an EP score of 0.0.
+- **SCOPE_CREEP (0.50):** The pipeline's ANCILLARY classification of the sole hunk is questionable. The hunk is not "infrastructure" -- it is the direct bug fix. The 0.50 score inflates the combined score beyond what is warranted. This hunk should arguably be classified as REQUIRED, which would yield an EP score of 0.0.
 
 - **EXCESS_TEST (0.00):** Correctly scored. The single test with its single assertion directly tests the reported scenario (relational fields under a mixed-case app label). No off-topic assertions.
 
@@ -1651,14 +1651,14 @@ def test_union_with_values_list_on_annotated_and_unannotated(self):
 
 | Component | Score |
 |---|---|
-| EXCESS_PATCH (EP) | 0.5000 |
+| SCOPE_CREEP (EP) | 0.5000 |
 | EXCESS_TEST (ET) | 0.0000 |
 | VAGUE_SPEC (VS) | 0.4000 |
 
 $$\text{combined} = 1 - (1 - 0.5000)(1 - 0.0000)(1 - 0.4000) = 1 - (0.5)(1.0)(0.6) = 1 - 0.3 = \mathbf{0.7000}$$
 
 **Recommendations from pipeline:**
-- EXCESS_PATCH: 2 hunk(s) are infrastructure changes (imports, config). Minor impact on evaluation fairness.
+- SCOPE_CREEP: 2 hunk(s) are infrastructure changes (imports, config). Minor impact on evaluation fairness.
 - VAGUE_SPEC: Problem statement has moderate ambiguity (score: 0.40).
 
 ## 6.7 Independent Deep Analysis
@@ -1992,14 +1992,14 @@ Note: The pipeline failed to extract individual assertions from these tests, res
 
 | Component | Score |
 |---|---|
-| EXCESS_PATCH (EP) | 0.5000 |
+| SCOPE_CREEP (EP) | 0.5000 |
 | EXCESS_TEST (ET) | 0.0000 |
 | VAGUE_SPEC (VS) | 0.4000 |
 
 $$\text{combined} = 1 - (1 - 0.5000)(1 - 0.0000)(1 - 0.4000) = 0.7000$$
 
 **Recommendations from pipeline:**
-- EXCESS_PATCH: 1 hunk(s) are infrastructure changes (imports, config). Minor impact on evaluation fairness.
+- SCOPE_CREEP: 1 hunk(s) are infrastructure changes (imports, config). Minor impact on evaluation fairness.
 - VAGUE_SPEC: Problem statement has moderate ambiguity (score: 0.40).
 
 ---
@@ -2040,7 +2040,7 @@ The hints-provided patch (`for parent_link in self._meta.parents.values(): setat
 
 Rationale:
 
-1. **Excess Patch (EP = 0.50):** The pipeline classified the single hunk as ANCILLARY with low confidence (0.50). In our independent analysis, this hunk IS the functional fix. The ANCILLARY classification stems from a semantic mismatch between the problem statement's direct field assignment and the patch's `pk` property setter approach. This is a pipeline classification artifact, not evidence of excess code. The patch is minimal (3 lines) and does exactly what is needed.
+1. **Scope Creep (EP = 0.50):** The pipeline classified the single hunk as ANCILLARY with low confidence (0.50). In our independent analysis, this hunk IS the functional fix. The ANCILLARY classification stems from a semantic mismatch between the problem statement's direct field assignment and the patch's `pk` property setter approach. This is a pipeline classification artifact, not evidence of excess code. The patch is minimal (3 lines) and does exactly what is needed.
 
 2. **Excess Test (ET = 0.00):** Both tests are fully aligned with the problem scope. All assertions verify the core behavioral contract (new object created, original object not overwritten). The pipeline's failure to extract assertions means this score is artificially low -- but manual analysis confirms all assertions are on-topic, so the correct ET would still be 0.00.
 
@@ -3527,14 +3527,14 @@ The pipeline found 1 aligned test with no individual assertion-level breakdown (
 
 | Component | Score | Derivation |
 |---|---|---|
-| EXCESS_PATCH | 0.4000 | 2 required, 8 ancillary, 0 unrelated out of 10 hunks |
+| SCOPE_CREEP | 0.4000 | 2 required, 8 ancillary, 0 unrelated out of 10 hunks |
 | EXCESS_TEST | 0.0000 | 0 off-topic assertions, 1 aligned test |
 | VAGUE_SPEC | 0.4000 | Moderate ambiguity: clear what, unclear how |
 
 $$\text{combined} = 1 - (1 - 0.4000)(1 - 0.0000)(1 - 0.4000) = 1 - (0.6)(1.0)(0.6) = 1 - 0.36 = \mathbf{0.6400}$$
 
 **Recommendations:**
-- EXCESS_PATCH: 8 hunk(s) are infrastructure changes (imports, defaultdict conversions, API signature updates). Minor impact on evaluation fairness.
+- SCOPE_CREEP: 8 hunk(s) are infrastructure changes (imports, defaultdict conversions, API signature updates). Minor impact on evaluation fairness.
 - VAGUE_SPEC: Problem statement has moderate ambiguity (score: 0.40) -- specifies the desired SQL output but not the implementation strategy.
 
 ---
@@ -3593,7 +3593,7 @@ An agent given only the problem statement would:
 
 ### Contamination Verdict: **FALSE POSITIVE**
 
-The combined score of 0.64 (MODERATE severity) is primarily driven by the excess_patch score (0.40) from the 8 ancillary hunks and the vague_spec score (0.40). However, these do not indicate contamination in the meaningful sense:
+The combined score of 0.64 (MODERATE severity) is primarily driven by the scope_creep score (0.40) from the 8 ancillary hunks and the vague_spec score (0.40). However, these do not indicate contamination in the meaningful sense:
 
 1. **The test is minimally scoped and directly aligned** -- it tests exactly what the problem asks for, nothing more.
 2. **The ancillary patch hunks are implementation strategy**, not behavioral excess. They would not cause an agent to fail; they simply mean the gold patch is more refactored than strictly necessary.
@@ -3912,14 +3912,14 @@ $$\text{EP} = \frac{\text{total} - \text{required}}{\text{total}} = \frac{3 - 1}
 
 | Component | Score |
 |---|---|
-| EXCESS_PATCH (EP) | 0.3333 |
+| SCOPE_CREEP (EP) | 0.3333 |
 | EXCESS_TEST (ET) | 0.0000 |
 | VAGUE_SPEC (VS) | 0.4500 |
 
 $$\text{combined} = 1 - (1-0.3333)(1-0.0000)(1-0.4500) = 1 - (0.6667)(1.0)(0.5500) = 1 - 0.3667 = 0.6333$$
 
 **Recommendations from pipeline:**
-- EXCESS_PATCH: 2 hunk(s) are infrastructure changes (imports, config). Minor impact on evaluation fairness.
+- SCOPE_CREEP: 2 hunk(s) are infrastructure changes (imports, config). Minor impact on evaluation fairness.
 - VAGUE_SPEC: Problem statement has moderate ambiguity (score: 0.45).
 
 ---
@@ -3987,7 +3987,7 @@ The specification-to-implementation gap is moderate but navigable for a knowledg
 
 **Rationale:**
 
-1. **Excess Patch (EP = 0.3333)**: The two ANCILLARY hunks (import and formfield plumbing) are strictly necessary supporting infrastructure for the REQUIRED hunk. They are not unrelated code -- they are the minimum boilerplate needed to make the core fix work. The pipeline correctly classifies them as ANCILLARY rather than UNRELATED. An agent implementing this fix would necessarily produce these hunks. This is a weak contamination signal.
+1. **Scope Creep (EP = 0.3333)**: The two ANCILLARY hunks (import and formfield plumbing) are strictly necessary supporting infrastructure for the REQUIRED hunk. They are not unrelated code -- they are the minimum boilerplate needed to make the core fix work. The pipeline correctly classifies them as ANCILLARY rather than UNRELATED. An agent implementing this fix would necessarily produce these hunks. This is a weak contamination signal.
 
 2. **Excess Test (ET = 0.0000)**: All three F2P tests are fully aligned with the problem statement. There are no off-topic assertions. The tests check exactly the behavior described in the problem (RadioSelect + blank=False should not have blank choice, RadioSelect + blank=True should retain it). This provides no contamination signal.
 
@@ -4280,7 +4280,7 @@ All identified assertions are **ON_TOPIC**. Every test directly exercises the be
 
 | Component | Score | Derivation |
 |---|---|---|
-| EXCESS_PATCH | 0.0000 | 1 REQUIRED / 1 total hunks = 0 excess |
+| SCOPE_CREEP | 0.0000 | 1 REQUIRED / 1 total hunks = 0 excess |
 | EXCESS_TEST | 0.0000 | 0 off-topic / 0 off-topic assertions (pipeline count) |
 | VAGUE_SPEC | 0.6000 | LLM assessment: significant ambiguity in problem statement |
 
@@ -4663,14 +4663,14 @@ The removal of `test_date_interval_sql` from `test_operations.py` is a companion
 
 | Component | Score |
 |---|---|
-| EXCESS_PATCH (EP) | 0.3333 |
+| SCOPE_CREEP (EP) | 0.3333 |
 | EXCESS_TEST (ET) | 0.0000 |
 | VAGUE_SPEC (VS) | 0.4000 |
 
 $$\text{combined} = 1 - (1 - 0.3333)(1 - 0.0000)(1 - 0.4000) = 1 - (0.6667)(1.0)(0.6) = 1 - 0.4000 = 0.6000$$
 
 **Recommendations:**
-- EXCESS_PATCH: 6 hunk(s) are infrastructure changes (imports, dead code removal, class deletion). Minor impact on evaluation fairness.
+- SCOPE_CREEP: 6 hunk(s) are infrastructure changes (imports, dead code removal, class deletion). Minor impact on evaluation fairness.
 - VAGUE_SPEC: Problem statement has moderate ambiguity (score: 0.40). The crash is clear, but the desired architectural solution is not.
 
 ### 14.7 Independent Deep Analysis
@@ -5030,7 +5030,7 @@ All 26 FAIL_TO_PASS tests follow a single pattern -- they check that HTML-escape
 | REQUIRED | 1 (the `escape()` rewrite) |
 | ANCILLARY | 5 (import, dict removal, unescape removal, 2x unescape callsite updates) |
 | UNRELATED | 0 |
-| **excess_patch score** | **0.4167** |
+| **scope_creep score** | **0.4167** |
 
 The excess patch score is driven by 5 ancillary hunks that are reasonable follow-on cleanup but not strictly required by the acceptance criteria. Hunk 2 (the actual `escape()` change) alone would satisfy the behavioral contract.
 
@@ -5060,7 +5060,7 @@ $$
 \text{combined\_score} = 0.5917
 $$
 
-Component breakdown: `excess_patch = 0.4167`, `excess_test = 0.0`, `vague_spec = 0.3`.
+Component breakdown: `scope_creep = 0.4167`, `excess_test = 0.0`, `vague_spec = 0.3`.
 
 **Severity classification:** MODERATE (combined score 0.5917)
 
@@ -5116,7 +5116,7 @@ Rationale:
 
 5. **The main challenge is scope, not insight:** The only non-trivial aspect is discovering that `unescape()` also needs updating (hunks 3-5) and that the `base.py` test harness needs a Jinja2 normalization fix. These are discoverable through standard test-driven development.
 
-6. **Combined score of 0.5917 is driven by ancillary hunks:** The 5 ANCILLARY hunks inflate the excess_patch score, but they are all reasonable follow-on changes that an agent would discover through test failures. They do not represent hidden or unrelated requirements.
+6. **Combined score of 0.5917 is driven by ancillary hunks:** The 5 ANCILLARY hunks inflate the scope_creep score, but they are all reasonable follow-on changes that an agent would discover through test failures. They do not represent hidden or unrelated requirements.
 
 The MODERATE severity classification from the pipeline appears appropriate. The task is not contaminated in the sense that the tests are not testing unrelated behavior or requiring hidden knowledge. The excess patch score reflects legitimate cleanup work beyond the minimal change, not suspicious overcoupling. An uncontaminated agent with access to the problem statement and the ability to run tests would have a high probability of producing a functionally equivalent patch.
 
@@ -5705,7 +5705,7 @@ This is an accurate extraction. The problem statement is explicit about the mech
 
 **Excess patch score:** $\frac{\text{unrelated hunks}}{\text{total hunks}} = \frac{0}{3} = 0.333$
 
-Note: The pipeline's `excess_patch.score` of 0.3333 reflects the ratio of non-REQUIRED hunks. However, both ANCILLARY hunks are mechanically necessary for the refactor to work correctly. The `score` field in this pipeline appears to compute $\frac{\text{ancillary} + \text{unrelated}}{\text{total}}$ rather than only unrelated hunks, which slightly inflates the signal. There are zero truly unrelated hunks.
+Note: The pipeline's `scope_creep.score` of 0.3333 reflects the ratio of non-REQUIRED hunks. However, both ANCILLARY hunks are mechanically necessary for the refactor to work correctly. The `score` field in this pipeline appears to compute $\frac{\text{ancillary} + \text{unrelated}}{\text{total}}$ rather than only unrelated hunks, which slightly inflates the signal. There are zero truly unrelated hunks.
 
 ### Test Verdict
 
@@ -6695,7 +6695,7 @@ Note: The pipeline reports 0 on-topic and 0 off-topic assertions because the ass
 
 | Component | Score |
 |---|---|
-| EXCESS_PATCH (EP) | 0.2500 |
+| SCOPE_CREEP (EP) | 0.2500 |
 | EXCESS_TEST (ET) | 0.0000 |
 | VAGUE_SPEC (VS) | 0.4000 |
 

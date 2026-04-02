@@ -4,6 +4,13 @@ Axis 1 assigns zero or more TaskContaminationLabel to each task.
 Axis 2 assigns a single AgentTrajectoryLabel per agent-task pair.
 
 8 binary labels, bucket-based severity, no ratio thresholds.
+
+Taxonomy alignment with OpenAI's SWE-bench Verified audit (April 2026):
+  - "Narrow test cases" (35.5% of audited failures) -> APPROACH_LOCK
+  - "Wide test cases" (18.8% of audited failures)   -> WIDE_TESTS
+  - Training contamination (gold patch memorization) -> Axis 2 agent_passed_leak
+
+See: https://openai.com/index/why-we-no-longer-evaluate-swe-bench-verified/
 """
 
 from __future__ import annotations
@@ -38,6 +45,7 @@ LABEL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "the described problem using a different valid approach will fail "
             "the tests."
         ),
+        "openai_equivalent": "Narrow test cases",
         "prompt": (
             "Would a correct-but-different solution fail the F2P tests?  "
             "Do the tests assert on implementation details (specific class, "
@@ -46,8 +54,8 @@ LABEL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "than the problem statement suggests?"
         ),
     },
-    "excess_tests": {
-        "display": "Excess Tests",
+    "wide_tests": {
+        "display": "Wide Tests",
         "definition": (
             "F2P tests verify behavior or features that the problem "
             "statement does not describe.  The tests go beyond the stated "
@@ -55,6 +63,7 @@ LABEL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "edge cases, or code paths not mentioned.  Includes tests "
             "enforcing features the problem explicitly defers."
         ),
+        "openai_equivalent": "Wide test cases",
         "prompt": (
             "Do the F2P tests assert on behavior not described in the "
             "problem?  Is there at least one test or assertion that targets "
@@ -62,8 +71,8 @@ LABEL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "language yet F2P tests exercise the deferred feature?"
         ),
     },
-    "sneaky_edit": {
-        "display": "Sneaky Edit",
+    "test_mutation": {
+        "display": "Test Mutation",
         "definition": (
             "A pre-existing test was modified to assert on new behavior "
             "not described in the problem statement.  The test existed "
@@ -76,8 +85,8 @@ LABEL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "described in the problem statement?"
         ),
     },
-    "excess_patch": {
-        "display": "Excess Patch",
+    "scope_creep": {
+        "display": "Scope Creep",
         "definition": (
             "The gold patch contains behavioral code changes beyond what "
             "the problem asks for — new features, unrelated refactoring, "
@@ -124,8 +133,8 @@ LABEL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "the problem reference 'see the patch' or 'attached PR'?"
         ),
     },
-    "underspec": {
-        "display": "Underspec",
+    "weak_coverage": {
+        "display": "Weak Coverage",
         "definition": (
             "The F2P tests or gold patch don't fully cover the stated "
             "acceptance criteria.  A partial or incorrect fix can pass.  "
@@ -144,33 +153,30 @@ LABEL_DEFINITIONS: dict[str, dict[str, Any]] = {
 
 def compute_task_severity(
     labels: list[TaskLabelAssignment],
-) -> tuple[Severity, float]:
+) -> Severity:
     """Compute task severity from bucket-based rules (no math, no weights).
 
     Severity is determined entirely by WHICH labels are present:
 
     SEVERE:
       - APPROACH_LOCK is present, OR
-      - Both EXCESS_TESTS and EXCESS_PATCH are present
+      - Both WIDE_TESTS and SCOPE_CREEP are present
 
     MODERATE:
-      - SNEAKY_EDIT is present, OR
-      - EXCESS_TESTS alone (without EXCESS_PATCH)
+      - TEST_MUTATION is present, OR
+      - WIDE_TESTS alone (without SCOPE_CREEP)
 
     MINOR:
-      - EXCESS_PATCH alone, OR
+      - SCOPE_CREEP alone, OR
       - UNCLEAR_SPEC alone, OR
       - HIDDEN_CONTEXT alone, OR
-      - UNDERSPEC alone
+      - WEAK_COVERAGE alone
 
     CLEAN:
       - No contamination labels
-
-    Returns (severity_enum, score) where score is a simplified 0/0.3/0.6/1.0
-    bucket indicator (not a continuous score — kept for backward compatibility).
     """
     if not labels:
-        return Severity.CLEAN, 0.0
+        return Severity.CLEAN
 
     label_set = {
         la.label for la in labels
@@ -178,23 +184,23 @@ def compute_task_severity(
     }
 
     if not label_set:
-        return Severity.CLEAN, 0.0
+        return Severity.CLEAN
 
-    # SEVERE: approach_lock OR (excess_tests + excess_patch)
+    # SEVERE: approach_lock OR (wide_tests + scope_creep)
     if TaskContaminationLabel.APPROACH_LOCK in label_set:
-        return Severity.SEVERE, 1.0
-    if (TaskContaminationLabel.EXCESS_TESTS in label_set
-            and TaskContaminationLabel.EXCESS_PATCH in label_set):
-        return Severity.SEVERE, 1.0
+        return Severity.SEVERE
+    if (TaskContaminationLabel.WIDE_TESTS in label_set
+            and TaskContaminationLabel.SCOPE_CREEP in label_set):
+        return Severity.SEVERE
 
-    # MODERATE: sneaky_edit OR excess_tests alone
-    if TaskContaminationLabel.SNEAKY_EDIT in label_set:
-        return Severity.MODERATE, 0.6
-    if TaskContaminationLabel.EXCESS_TESTS in label_set:
-        return Severity.MODERATE, 0.6
+    # MODERATE: test_mutation OR wide_tests alone
+    if TaskContaminationLabel.TEST_MUTATION in label_set:
+        return Severity.MODERATE
+    if TaskContaminationLabel.WIDE_TESTS in label_set:
+        return Severity.MODERATE
 
     # MINOR: any remaining contamination label
-    return Severity.MINOR, 0.3
+    return Severity.MINOR
 
 
 
@@ -213,7 +219,7 @@ def _heuristic_labels(
     """
     candidates: list[TaskLabelAssignment] = []
 
-    # EXCESS_TESTS: any OFF_TOPIC assertion or UNRELATED test
+    # WIDE_TESTS: any OFF_TOPIC assertion or UNRELATED test
     has_off_topic = excess_test.off_topic_assertions > 0
     has_unrelated_test = excess_test.unrelated_count > 0
     if has_off_topic or has_unrelated_test:
@@ -229,17 +235,17 @@ def _heuristic_labels(
                     f"OFF_TOPIC assertions (pre-existing test with added excess)"
                 )
         candidates.append(TaskLabelAssignment(
-            label=TaskContaminationLabel.EXCESS_TESTS,
+            label=TaskContaminationLabel.WIDE_TESTS,
             confidence=0.7,
             evidence=evidence,
         ))
 
-    # SNEAKY_EDIT: any modified test with misaligned changes
+    # TEST_MUTATION: any modified test with misaligned changes
     if excess_test.has_modified_tests:
         for tv in excess_test.test_verdicts:
             if tv.is_modified and not tv.modification_aligned:
                 candidates.append(TaskLabelAssignment(
-                    label=TaskContaminationLabel.SNEAKY_EDIT,
+                    label=TaskContaminationLabel.TEST_MUTATION,
                     confidence=0.8,
                     evidence=[
                         f"Test '{tv.test_name}' is pre-existing and modified "
@@ -248,11 +254,11 @@ def _heuristic_labels(
                 ))
                 break
 
-    # EXCESS_PATCH: any UNRELATED hunk with behavioral changes
+    # SCOPE_CREEP: any UNRELATED hunk with behavioral changes
     # (pure ancillary does NOT trigger this)
     if excess_patch.unrelated_count > 0:
         candidates.append(TaskLabelAssignment(
-            label=TaskContaminationLabel.EXCESS_PATCH,
+            label=TaskContaminationLabel.SCOPE_CREEP,
             confidence=0.7,
             evidence=[
                 f"{excess_patch.unrelated_count} UNRELATED hunks with "
@@ -316,8 +322,15 @@ TASK_CLASSIFIER_SYSTEM_PROMPT = """\
 You are a benchmark contamination analyst for SWE-bench.  Your job is to
 classify HOW a benchmark task is contaminated using a structured taxonomy.
 
-You will receive the problem statement, hints text, intent extraction,
-per-hunk patch verdicts, and per-assertion test verdicts.
+You will receive the problem statement, requirements (if any), interface
+specification (if any), hints text, intent extraction, per-hunk patch
+verdicts, and per-assertion test verdicts.
+
+NOTE: For SWE-bench Pro tasks, the problem statement is narrow but the
+requirements and interface fields contain the full specification.  When
+evaluating contamination, consider ALL three fields together as the complete
+task description.  Do NOT flag behavior as "excess" if it is described in
+the requirements or interface sections.
 
 Assign ZERO OR MORE contamination labels from this taxonomy:
 
@@ -327,15 +340,15 @@ This includes approach mismatch (gold patch uses a fundamentally different \
 strategy than the problem suggests) and circular test-patch dependencies \
 (tests require out-of-scope patch changes).
 
-- excess_tests: F2P tests verify behavior or features not described in the \
+- wide_tests: F2P tests verify behavior or features not described in the \
 problem.  Tests go beyond the stated acceptance criteria.  Includes tests \
 enforcing features the problem explicitly defers.
 
-- sneaky_edit: A pre-existing test was modified to assert on new behavior \
+- test_mutation: A pre-existing test was modified to assert on new behavior \
 not in the problem statement.  The test looked legitimate but was silently \
 changed.
 
-- excess_patch: Gold patch contains behavioral code changes beyond what the \
+- scope_creep: Gold patch contains behavioral code changes beyond what the \
 problem asks for.  New features, unrelated refactoring, scope expansion.  \
 Pure ancillary changes (imports, whitespace, docstrings) do NOT count.
 
@@ -347,7 +360,7 @@ toward wrong fix.
 (code review comments, maintainer decisions), not in the problem.  \
 Includes self-referential problems that reference their own patch/tests.
 
-- underspec: F2P tests or gold patch don't fully cover stated acceptance \
+- weak_coverage: F2P tests or gold patch don't fully cover stated acceptance \
 criteria.  A partial fix can pass.  This is a benchmark quality issue, \
 not a fairness issue.
 
@@ -361,8 +374,8 @@ RULES:
 4. Only assign labels with confidence >= 0.4
 5. Cite specific hunks, assertions, or problem statement text as evidence
 6. Be PRECISE: distinguish approach_lock (tests reject valid alternatives) \
-from excess_tests (tests go beyond scope but don't lock approach)
-7. Do NOT flag pure ancillary changes (imports, whitespace) as excess_patch
+from wide_tests (tests go beyond scope but don't lock approach)
+7. Do NOT flag pure ancillary changes (imports, whitespace) as scope_creep
 
 Respond in valid JSON (no markdown fences):
 {
@@ -396,30 +409,42 @@ def _build_task_classifier_user_prompt(
     # Problem statement
     if record and record.problem_statement:
         parts.append("PROBLEM STATEMENT:")
-        parts.append(record.problem_statement[:4000])
+        parts.append(record.problem_statement[:16000])
+        parts.append("")
+
+    # Requirements (SWE-bench Pro)
+    if record and record.requirements:
+        parts.append("REQUIREMENTS:")
+        parts.append(record.requirements[:16000])
+        parts.append("")
+
+    # Interface (SWE-bench Pro)
+    if record and record.interface:
+        parts.append("INTERFACE:")
+        parts.append(record.interface[:8000])
         parts.append("")
 
     # Hints
     if record and record.hints_text:
         parts.append("HINTS TEXT:")
-        parts.append(record.hints_text[:3000])
+        parts.append(record.hints_text[:8000])
         parts.append("")
 
     # Intent extraction
     parts.append("INTENT EXTRACTION:")
     parts.append(f"- Core requirement: {intent.core_requirement}")
-    parts.append(f"- Behavioral contract: {intent.behavioral_contract[:500]}")
+    parts.append(f"- Behavioral contract: {intent.behavioral_contract[:2000]}")
     parts.append(f"- Acceptance criteria: {json.dumps(intent.acceptance_criteria)}")
-    parts.append(f"- Out of scope: {intent.out_of_scope[:300]}")
+    parts.append(f"- Out of scope: {intent.out_of_scope[:1000]}")
     parts.append(f"- Ambiguity score: {intent.ambiguity_score}")
 
     if intent.decomposition:
         d = intent.decomposition
         parts.append("")
         parts.append("PROBLEM DECOMPOSITION:")
-        parts.append(f"- Bug description: {d.bug_description[:500]}")
+        parts.append(f"- Bug description: {d.bug_description[:2000]}")
         if d.suggested_fix:
-            parts.append(f"- Reporter's suggested fix: {d.suggested_fix[:500]}")
+            parts.append(f"- Reporter's suggested fix: {d.suggested_fix[:2000]}")
             parts.append("  (Compare this to the gold patch — divergence signals APPROACH_LOCK)")
         parts.append(f"- Legitimacy: {d.legitimacy}")
         entities = []
@@ -448,7 +473,7 @@ def _build_task_classifier_user_prompt(
         heuristic_tag = " [heuristic]" if hv.is_heuristic else ""
         parts.append(f"  Hunk {hv.hunk_index} [{hv.file_path}]: "
                      f"{hv.verdict.value} (conf={hv.confidence:.2f}){heuristic_tag} — "
-                     f"{hv.reasoning[:300]}")
+                     f"{hv.reasoning[:1000]}")
     parts.append("")
 
     # Test analysis
@@ -474,8 +499,8 @@ def _build_task_classifier_user_prompt(
         parts.append(f"  Test '{tv.test_name}': {tv.intent_match.value} "
                      f"(conf={tv.confidence:.2f}){mod_tag}")
         if tv.reasoning:
-            parts.append(f"    Reasoning: {tv.reasoning[:300]}")
-        for av in tv.assertion_verdicts[:10]:
+            parts.append(f"    Reasoning: {tv.reasoning[:1000]}")
+        for av in tv.assertion_verdicts[:50]:
             reason_tag = f" — {av.reason[:100]}" if av.reason else ""
             parts.append(f"    [{av.verdict.value}] {av.statement[:120]}{reason_tag}")
     parts.append("")
@@ -483,7 +508,7 @@ def _build_task_classifier_user_prompt(
     # Vague spec
     parts.append(f"VAGUE SPEC: score={vague_spec.score:.4f}")
     if vague_spec.reasoning:
-        parts.append(f"  Reasoning: {vague_spec.reasoning[:400]}")
+        parts.append(f"  Reasoning: {vague_spec.reasoning[:1000]}")
     parts.append("")
 
     if cross_ref and cross_ref.has_circular:
@@ -709,15 +734,15 @@ async def classify_agent_label(
             f"TASK_LABELS: {[la.label.value for la in task_labels]}",
         ]
         if trajectory_data.get("final_patch"):
-            user_parts.append(f"FINAL_PATCH_EXCERPT:\n{trajectory_data['final_patch'][:2000]}")
+            user_parts.append(f"FINAL_PATCH_EXCERPT:\n{trajectory_data['final_patch'][:20000]}")
 
         # Include trajectory summary
         action_summary = []
-        for act in actions[:30]:
+        for act in actions[:100]:
             if isinstance(act, dict):
                 action_summary.append(
                     f"[{act.get('action_type', '?')}] "
-                    f"{str(act.get('content', ''))[:150]}"
+                    f"{str(act.get('content', ''))[:2000]}"
                 )
         if action_summary:
             user_parts.append("TRAJECTORY:\n" + "\n".join(action_summary))

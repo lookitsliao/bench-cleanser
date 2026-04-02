@@ -175,7 +175,7 @@ The intent extraction correctly identifies the lookahead fix as the ask. Note: t
 
 | Component | Score | Derivation |
 |---|---|---|
-| excess_patch | **1.000** | 1 UNRELATED / 1 total = 1.0 |
+| scope_creep | **1.000** | 1 UNRELATED / 1 total = 1.0 |
 | excess_test | **0.000** | 0 off-topic / 1 total assertions |
 | vague_spec | **0.300** | LLM assessment: mostly clear, minor edge cases |
 
@@ -403,7 +403,7 @@ The LLM correctly identified refraction as out of scope based on the problem sta
 
 | Component | Score | Derivation |
 |---|---|---|
-| excess_patch | 0.5625 | (1 UNRELATED + 0.5 × 7 ANCILLARY) / 8 = 4.5/8 |
+| scope_creep | 0.5625 | (1 UNRELATED + 0.5 × 7 ANCILLARY) / 8 = 4.5/8 |
 | excess_test | 0.7661 | 16 OFF_TOPIC/31 total + UNRELATED test penalty |
 | vague_spec | 0.5500 | LLM: moderately ambiguous (complex feature with many considerations) |
 
@@ -599,7 +599,7 @@ The LLM explicitly identified RST **reading** with `header_rows` as out of scope
 
 | Component | Score | Derivation |
 |---|---|---|
-| excess_patch | 0.333 | (0 UNRELATED + 0.5 × 2 ANCILLARY) / 3 = 1/3 |
+| scope_creep | 0.333 | (0 UNRELATED + 0.5 × 2 ANCILLARY) / 3 = 1/3 |
 | excess_test | 0.833 | 5 OFF_TOPIC / 6 total assertions |
 | vague_spec | 0.400 | Mostly clear, some implied scope questions |
 
@@ -794,7 +794,7 @@ This is where the contamination signal appears. The existing test creates two di
 
 | Component | Score | Derivation |
 |---|---|---|
-| excess_patch | 0.000 | 1 REQUIRED / 1 total = no excess |
+| scope_creep | 0.000 | 1 REQUIRED / 1 total = no excess |
 | excess_test | 0.818 | 9 OFF_TOPIC / 11 total assertions |
 | vague_spec | 0.300 | Clear problem statement |
 

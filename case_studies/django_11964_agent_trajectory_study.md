@@ -453,7 +453,7 @@ None of these are illegitimate — but none are what the problem statement asks 
 
 | Component | Score | Derivation |
 |---|---|---|
-| EXCESS_PATCH (EP) | 1.0000 | 0 REQUIRED + 0 ANCILLARY + 1 UNRELATED of 1 total hunk |
+| SCOPE_CREEP (EP) | 1.0000 | 0 REQUIRED + 0 ANCILLARY + 1 UNRELATED of 1 total hunk |
 | EXCESS_TEST (ET) | 0.0000 | Pipeline failed to decompose loop assertions |
 | VAGUE_SPEC (VS) | 0.3000 | LLM ambiguity assessment |
 

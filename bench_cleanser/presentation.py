@@ -106,9 +106,9 @@ SWE-bench evaluates AI agents on real-world software engineering tasks.
 However, some tasks have **contaminated evaluation criteria**:
 
 - **APPROACH_LOCK**: Tests require a specific implementation approach not determined by the problem
-- **EXCESS_TESTS**: F2P tests verify behavior beyond the stated problem
-- **EXCESS_PATCH**: Gold patch implements changes not described in the issue
-- **SNEAKY_EDIT**: Pre-existing tests are silently modified to assert on undescribed behavior
+- **WIDE_TESTS**: F2P tests verify behavior beyond the stated problem
+- **SCOPE_CREEP**: Gold patch implements changes not described in the issue
+- **TEST_MUTATION**: Pre-existing tests are silently modified to assert on undescribed behavior
 
 > An agent that perfectly solves the stated problem can score **0%** on contaminated tasks.
 
@@ -147,12 +147,12 @@ def _taxonomy_slide() -> str:
 | Label | Description |
 |---|---|
 | <span class="label">APPROACH_LOCK</span> | Tests require specific approach not determined by problem |
-| <span class="label">EXCESS_TESTS</span> | Tests verify behavior beyond problem scope |
-| <span class="label">SNEAKY_EDIT</span> | Pre-existing test modified to assert on undescribed behavior |
-| <span class="label">EXCESS_PATCH</span> | Gold patch modifies code beyond problem scope |
+| <span class="label">WIDE_TESTS</span> | Tests verify behavior beyond problem scope |
+| <span class="label">TEST_MUTATION</span> | Pre-existing test modified to assert on undescribed behavior |
+| <span class="label">SCOPE_CREEP</span> | Gold patch modifies code beyond problem scope |
 | <span class="label">UNCLEAR_SPEC</span> | Problem statement too ambiguous to determine correct fix |
 | <span class="label">HIDDEN_CONTEXT</span> | Essential info only in hints, not problem statement |
-| <span class="label">UNDERSPEC</span> | Tests don't fully cover stated acceptance criteria |
+| <span class="label">WEAK_COVERAGE</span> | Tests don't fully cover stated acceptance criteria |
 | <span class="label">CLEAN</span> | No contamination detected |
 
 > Labels are **binary** — one instance triggers the same as many.
@@ -238,7 +238,7 @@ def _case_highlight_slide(report: ContaminationReport, index: int) -> str:
 
     signals = []
     if ep.has_excess:
-        signals.append(f"EXCESS_PATCH: {ep.unrelated_count} UNRELATED / {ep.total_hunks} hunks")
+        signals.append(f"SCOPE_CREEP: {ep.unrelated_count} UNRELATED / {ep.total_hunks} hunks")
     if et.has_excess:
         signals.append(f"EXCESS_TEST: {et.off_topic_assertions} OFF_TOPIC / {et.total_assertions} assertions")
     signal_str = " | ".join(signals) if signals else "—"
@@ -254,7 +254,7 @@ def _case_highlight_slide(report: ContaminationReport, index: int) -> str:
 
 | Signal | Detail |
 |---|---|
-| EXCESS_PATCH | {ep.required_count}R / {ep.ancillary_count}A / {ep.unrelated_count}U of {ep.total_hunks} hunks |
+| SCOPE_CREEP | {ep.required_count}R / {ep.ancillary_count}A / {ep.unrelated_count}U of {ep.total_hunks} hunks |
 | EXCESS_TEST | {et.on_topic_assertions} on-topic / {et.off_topic_assertions} off-topic of {et.total_assertions} assertions |
 | VAGUE_SPEC | {report.vague_spec.score:.2f} |
 
@@ -390,9 +390,9 @@ Based on **{n_severe} SEVERE** and analysis of **{n_total}** total tasks:
 
 2. **Label-specific remediation**
    - APPROACH_LOCK: Accept alternative valid solutions
-   - EXCESS_TESTS: Remove off-topic assertions from test patches
-   - SNEAKY_EDIT: Revert test modifications or accept aligned variants
-   - EXCESS_PATCH: Scope the gold patch to the stated problem
+   - WIDE_TESTS: Remove off-topic assertions from test patches
+   - TEST_MUTATION: Revert test modifications or accept aligned variants
+   - SCOPE_CREEP: Scope the gold patch to the stated problem
 
 3. **Trajectory auditing for leaderboard integrity**
    - Check if agents access gold patches via package installs
@@ -432,9 +432,9 @@ Severity is determined by **which labels are present**, not by scores:
 
 | Severity | Trigger |
 |---|---|
-| <span class="severe">SEVERE</span> | APPROACH_LOCK present, or EXCESS_TESTS + EXCESS_PATCH both present |
-| <span class="moderate">MODERATE</span> | SNEAKY_EDIT present, or EXCESS_TESTS alone |
-| <span class="minor">MINOR</span> | EXCESS_PATCH alone, UNCLEAR_SPEC, HIDDEN_CONTEXT, or UNDERSPEC |
+| <span class="severe">SEVERE</span> | APPROACH_LOCK present, or WIDE_TESTS + SCOPE_CREEP both present |
+| <span class="moderate">MODERATE</span> | TEST_MUTATION present, or WIDE_TESTS alone |
+| <span class="minor">MINOR</span> | SCOPE_CREEP alone, UNCLEAR_SPEC, HIDDEN_CONTEXT, or WEAK_COVERAGE |
 | <span class="clean">CLEAN</span> | No contamination labels |
 
 > One signal triggers the same severity as many — **binary, not graduated**.

@@ -153,12 +153,12 @@ def format_label_analysis(labels):
 
     LABEL_DESCRIPTIONS = {
         "approach_lock": "Tests require a specific implementation approach that the problem statement does not determine",
-        "excess_tests": "F2P tests verify behavior not described in the problem statement",
-        "sneaky_edit": "Pre-existing tests are silently modified to assert undescribed behavior",
-        "excess_patch": "Gold patch includes behavioral changes beyond what the problem scope requires",
+        "wide_tests": "F2P tests verify behavior not described in the problem statement",
+        "test_mutation": "Pre-existing tests are silently modified to assert undescribed behavior",
+        "scope_creep": "Gold patch includes behavioral changes beyond what the problem scope requires",
         "unclear_spec": "Problem statement is too ambiguous to determine a single correct solution",
         "hidden_context": "Essential information exists only in hints_text, not the problem statement",
-        "underspec": "F2P tests do not fully cover the stated acceptance criteria",
+        "weak_coverage": "F2P tests do not fully cover the stated acceptance criteria",
         "clean": "No contamination detected",
     }
 
@@ -237,7 +237,7 @@ def evaluate_false_positive_risk(report, original_data):
                     f"for multiple approaches. The approach_lock label is well-supported."
                 )
 
-        elif label == "excess_tests":
+        elif label == "wide_tests":
             n_tests = excess_test.get("total_tests", 0)
             tangential = excess_test.get("tangential", 0)
             unrelated = excess_test.get("unrelated", 0)
@@ -245,7 +245,7 @@ def evaluate_false_positive_risk(report, original_data):
                 fp_risk = "HIGH"
                 fp_reasoning = (
                     f"All {n_tests} F2P tests were classified as ALIGNED, yet the label "
-                    f"'excess_tests' was assigned. This may be a false positive — the LLM "
+                    f"'wide_tests' was assigned. This may be a false positive — the LLM "
                     f"classifier and the test analyzer disagree. Needs manual review."
                 )
             elif tangential + unrelated > 0:
@@ -261,14 +261,14 @@ def evaluate_false_positive_risk(report, original_data):
                     f"Label relies on LLM reasoning alone without structural confirmation."
                 )
 
-        elif label == "excess_patch":
+        elif label == "scope_creep":
             total = excess_patch.get("total_hunks", 0)
             unrelated = excess_patch.get("unrelated", 0)
             if unrelated == 0:
                 fp_risk = "HIGH"
                 fp_reasoning = (
                     f"No UNRELATED hunks detected in patch analysis ({total} total hunks), "
-                    f"but excess_patch was labeled. Possible FP — the patch may be larger "
+                    f"but scope_creep was labeled. Possible FP — the patch may be larger "
                     f"than minimal but still within scope."
                 )
             elif unrelated >= 2:
@@ -284,12 +284,12 @@ def evaluate_false_positive_risk(report, original_data):
                     f"Evidence present but borderline — single unrelated hunk could be debatable."
                 )
 
-        elif label == "sneaky_edit":
+        elif label == "test_mutation":
             has_modified = excess_test.get("has_modified_tests", False)
             if not has_modified:
                 fp_risk = "MODERATE"
                 fp_reasoning = (
-                    "No modified tests detected by structural analysis, but sneaky_edit "
+                    "No modified tests detected by structural analysis, but test_mutation "
                     "was flagged. The LLM may have identified implicit test modifications "
                     "not captured by diff parsing. Needs manual verification."
                 )
@@ -297,7 +297,7 @@ def evaluate_false_positive_risk(report, original_data):
                 fp_risk = "LOW"
                 fp_reasoning = (
                     "Modified pre-existing tests confirmed by structural analysis. "
-                    "Sneaky edit is structurally supported."
+                    "Test mutation is structurally supported."
                 )
 
         elif label == "unclear_spec":
@@ -312,10 +312,10 @@ def evaluate_false_positive_risk(report, original_data):
                     f"clearer than the label implies. Could be FP."
                 )
 
-        elif label == "underspec":
+        elif label == "weak_coverage":
             fp_risk = "LOW-MODERATE"
             fp_reasoning = (
-                "Underspec labels indicate F2P tests don't fully cover stated criteria. "
+                "Weak coverage labels indicate F2P tests don't fully cover stated criteria. "
                 "This is often valid but can be subjective — depends on interpretation "
                 "of what 'full coverage' means for the stated requirements."
             )
@@ -626,10 +626,10 @@ def _get_fp_risk(label_obj, report, original_data):
     excess_patch = report.get("excess_patch", {})
     excess_test = report.get("excess_test", {})
 
-    if label == "excess_patch":
+    if label == "scope_creep":
         unrelated = excess_patch.get("unrelated", 0)
         return "HIGH" if unrelated == 0 else "LOW"
-    elif label == "excess_tests":
+    elif label == "wide_tests":
         tangential = excess_test.get("tangential", 0)
         unrelated_t = excess_test.get("unrelated", 0)
         total = excess_test.get("total_tests", 0)
@@ -641,7 +641,7 @@ def _get_fp_risk(label_obj, report, original_data):
     elif label == "approach_lock":
         ambiguity = intent.get("ambiguity_score", 0)
         return "MODERATE" if ambiguity < 0.3 else "LOW"
-    elif label == "sneaky_edit":
+    elif label == "test_mutation":
         return "LOW" if excess_test.get("has_modified_tests") else "MODERATE"
     elif label == "unclear_spec":
         ambiguity = intent.get("ambiguity_score", 0)

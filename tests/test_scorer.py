@@ -184,7 +184,7 @@ class TestReportSerialization:
             vague_spec=vs,
             task_labels=[
                 TaskLabelAssignment(
-                    label=TaskContaminationLabel.EXCESS_TESTS,
+                    label=TaskContaminationLabel.WIDE_TESTS,
                     confidence=0.9,
                     evidence=["1 OFF_TOPIC assertion"],
                     reasoning="Test assertions go beyond scope",
@@ -211,7 +211,7 @@ class TestReportSerialization:
         assert restored.instance_id == report.instance_id
         assert restored.severity == report.severity
         assert len(restored.task_labels) == 1
-        assert restored.task_labels[0].label == TaskContaminationLabel.EXCESS_TESTS
+        assert restored.task_labels[0].label == TaskContaminationLabel.WIDE_TESTS
         assert restored.excess_patch.total_hunks == 2
         assert restored.excess_test.off_topic_assertions == 1
 

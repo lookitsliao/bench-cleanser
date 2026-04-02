@@ -74,8 +74,8 @@ def load_config(config_path: str) -> PipelineConfig:
     return PipelineConfig(
         llm_base_url=_expand(llm.get("base_url", "https://cloudgpt-openai.azure-api.net/")),
         llm_api_version=llm.get("api_version", "2025-04-01-preview"),
-        llm_model=llm.get("model", "gpt-5.2-20251211"),
-        llm_max_tokens=llm.get("max_tokens", 16384),
+        llm_model=llm.get("model", "gpt-5.4-pro-20260305"),
+        llm_max_tokens=llm.get("max_tokens", 65536),
         llm_reasoning_effort=llm.get("reasoning_effort", "high"),
         max_concurrent_requests=llm.get("max_concurrent_requests", 10),
         retry_attempts=llm.get("retry_attempts", 7),

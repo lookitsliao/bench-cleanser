@@ -67,11 +67,20 @@ def generate_dataset_record_table(ctx: DeepDiveContext) -> str:
 def generate_problem_statement_section(ctx: DeepDiveContext) -> str:
     letter = _case_letter(ctx.case_index)
     ps = ctx.record.problem_statement.strip()
-    return (
-        f"### {letter}.2 Problem Statement\n\n"
-        f"> {_blockquote(ps[:2000])}\n\n"
-        f"{'*(truncated)*' if len(ps) > 2000 else ''}\n"
-    )
+    parts = [
+        f"### {letter}.2 Problem Statement\n",
+        f"> {_blockquote(ps[:2000])}\n",
+        f"{'*(truncated)*' if len(ps) > 2000 else ''}\n",
+    ]
+    if ctx.record.requirements:
+        req = ctx.record.requirements.strip()
+        parts.append(f"**Requirements:**\n")
+        parts.append(f"> {_blockquote(req[:2000])}\n")
+    if ctx.record.interface:
+        iface = ctx.record.interface.strip()
+        parts.append(f"**Interface:**\n")
+        parts.append(f"> {_blockquote(iface[:2000])}\n")
+    return "\n".join(parts)
 
 
 def generate_hints_section(ctx: DeepDiveContext) -> str:
@@ -198,8 +207,8 @@ def generate_pipeline_verdict_section(ctx: DeepDiveContext) -> str:
     lines.append("#### Signal Summary\n")
     lines.append("| Signal | Value |")
     lines.append("|---|---|")
-    lines.append(f"| EXCESS_PATCH | {'Yes' if rpt.excess_patch.has_excess else 'No'} ({rpt.excess_patch.unrelated_count} UNRELATED / {rpt.excess_patch.total_hunks} hunks) |")
-    lines.append(f"| EXCESS_TEST | {'Yes' if rpt.excess_test.has_excess else 'No'} ({rpt.excess_test.off_topic_assertions} OFF_TOPIC / {rpt.excess_test.total_assertions} assertions) |")
+    lines.append(f"| SCOPE_CREEP | {'Yes' if rpt.excess_patch.has_excess else 'No'} ({rpt.excess_patch.unrelated_count} UNRELATED / {rpt.excess_patch.total_hunks} hunks) |")
+    lines.append(f"| WIDE_TESTS | {'Yes' if rpt.excess_test.has_excess else 'No'} ({rpt.excess_test.off_topic_assertions} OFF_TOPIC / {rpt.excess_test.total_assertions} assertions) |")
     lines.append(f"| VAGUE_SPEC | {rpt.vague_spec.score:.2f} |")
     lines.append("")
 
@@ -273,7 +282,7 @@ def _auto_analyze(ctx: DeepDiveContext) -> str:
         misaligned = [t for t in et.test_verdicts if t.is_modified and not t.modification_aligned]
         if misaligned:
             names = ", ".join(f"`{t.test_name}`" for t in misaligned)
-            findings.append(f"**Sneaky test edits:** Modified tests with misaligned changes: {names}")
+            findings.append(f"**Test mutation:** Modified tests with misaligned changes: {names}")
         else:
             findings.append("**Modified existing tests:** Test modifications are aligned with the problem.")
 

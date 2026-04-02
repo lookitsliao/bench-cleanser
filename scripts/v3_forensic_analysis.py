@@ -29,12 +29,12 @@ ANALYSIS_DIR.mkdir(exist_ok=True)
 LABEL_EXPLANATIONS = {
     "clean": "No contamination. Problem, patch, and tests are all fair and aligned.",
     "approach_lock": "Tests require a specific implementation approach the problem doesn't determine. A correct-but-different solution would fail.",
-    "excess_tests": "Tests check things BEYOND what the problem asked for. An agent solving only the stated problem would fail extra tests.",
-    "sneaky_edit": "A pre-existing test was quietly modified to check new behavior not mentioned in the problem.",
-    "excess_patch": "The gold patch includes behavioral changes beyond what the problem asks for (not just cleanup/imports).",
+    "wide_tests": "Tests check things BEYOND what the problem asked for. An agent solving only the stated problem would fail extra tests.",
+    "test_mutation": "A pre-existing test was quietly modified to check new behavior not mentioned in the problem.",
+    "scope_creep": "The gold patch includes behavioral changes beyond what the problem asks for (not just cleanup/imports).",
     "unclear_spec": "The problem is too ambiguous or actively misleading -- multiple incompatible approaches are equally reasonable.",
     "hidden_context": "Critical solution info (function names, root cause, design decisions) appears only in hints text, not the main problem.",
-    "underspec": "Tests or patch don't fully cover stated acceptance criteria. A partial fix could still pass.",
+    "weak_coverage": "Tests or patch don't fully cover stated acceptance criteria. A partial fix could still pass.",
 }
 
 SEVERITY_ORDER = ["CLEAN", "MINOR", "MODERATE", "SEVERE"]

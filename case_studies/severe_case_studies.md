@@ -66,7 +66,7 @@ The reporter explicitly states the fix is to add `-?` to the lookahead: `(?=\d+:
 |---|---|
 | **Severity** | SEVERE |
 | **combined_score** | 1.000 |
-| **excess_patch_score** | 1.000 |
+| **scope_creep_score** | 1.000 |
 | **excess_test_score** | 0.000 |
 | **vague_spec_score** | 0.300 |
 
@@ -139,7 +139,7 @@ The bug report shows `assertEqual(str(my_object.my_str_value), "first")` failing
 |---|---|
 | **Severity** | SEVERE |
 | **combined_score** | 1.000 |
-| **excess_patch_score** | 1.000 |
+| **scope_creep_score** | 1.000 |
 | **excess_test_score** | 0.000 |
 | **vague_spec_score** | 0.300 |
 
@@ -196,7 +196,7 @@ The author explicitly notes: "I have yet to add refraction, but I can do so if i
 |---|---|
 | **Severity** | SEVERE |
 | **combined_score** | 0.954 |
-| **excess_patch_score** | 0.5625 |
+| **scope_creep_score** | 0.5625 |
 | **excess_test_score** | 0.7661 |
 | **vague_spec_score** | 0.550 |
 
@@ -213,7 +213,7 @@ The author explicitly notes: "I have yet to add refraction, but I can do so if i
 
 ### Score Verification
 
-- excess_patch = (1 unrelated + 0.5 * 7 ancillary) / 8 = (1 + 3.5) / 8 = 0.5625 ✓
+- scope_creep = (1 unrelated + 0.5 * 7 ancillary) / 8 = (1 + 3.5) / 8 = 0.5625 ✓
 - excess_test = 16/31 off-topic assertions + unrelated test contributions → computed as 0.7661 (includes penalty for 1 fully unrelated test)
 - vague_spec = 0.55 (LLM ambiguity assessment)
 
@@ -274,7 +274,7 @@ The patch modifies `astropy/io/ascii/rst.py` to:
 |---|---|
 | **Severity** | SEVERE |
 | **combined_score** | 0.933 |
-| **excess_patch_score** | 0.333 |
+| **scope_creep_score** | 0.333 |
 | **excess_test_score** | 0.833 |
 | **vague_spec_score** | 0.400 |
 
@@ -288,7 +288,7 @@ The patch modifies `astropy/io/ascii/rst.py` to:
 
 ### Score Verification
 
-- excess_patch = (0 unrelated + 0.5 * 2 ancillary) / 3 = 1/3 = 0.333 ✓
+- scope_creep = (0 unrelated + 0.5 * 2 ancillary) / 3 = 1/3 = 0.333 ✓
 - excess_test = 5/6 off-topic = 0.833 ✓
 
 $$\text{combined} = 1 - (1 - 0.333) \times (1 - 0.833) \times (1 - 0.4)$$
@@ -346,7 +346,7 @@ A single-character fix: adding `"Q"` format support to the VLA diff branch.
 |---|---|
 | **Severity** | SEVERE |
 | **combined_score** | 0.873 |
-| **excess_patch_score** | 0.000 |
+| **scope_creep_score** | 0.000 |
 | **excess_test_score** | 0.818 |
 | **vague_spec_score** | 0.300 |
 
@@ -427,7 +427,7 @@ This is a 2-sentence problem statement — extremely concise.
 |---|---|
 | **Severity** | SEVERE |
 | **combined_score** | 0.800 |
-| **excess_patch_score** | 0.667 |
+| **scope_creep_score** | 0.667 |
 | **excess_test_score** | 0.000 |
 | **vague_spec_score** | 0.400 |
 
@@ -439,7 +439,7 @@ This is a 2-sentence problem statement — extremely concise.
 
 ### Score Verification
 
-- excess_patch = (2 unrelated + 0.5 * 0 ancillary) / 3 = 2/3 = 0.667 ✓
+- scope_creep = (2 unrelated + 0.5 * 0 ancillary) / 3 = 2/3 = 0.667 ✓
 
 $$\text{combined} = 1 - (1 - 0.667) \times (1 - 0.0) \times (1 - 0.4)$$
 $$= 1 - 0.333 \times 1.0 \times 0.6 = 1 - 0.2 = 0.8 \checkmark$$
@@ -493,7 +493,7 @@ The patch modifies two `__eq__` methods in `astropy/units/core.py`:
 |---|---|
 | **Severity** | SEVERE |
 | **combined_score** | 0.869 |
-| **excess_patch_score** | 0.250 |
+| **scope_creep_score** | 0.250 |
 | **excess_test_score** | 0.750 |
 | **vague_spec_score** | 0.300 |
 
@@ -508,7 +508,7 @@ The patch modifies two `__eq__` methods in `astropy/units/core.py`:
 
 ### Score Verification
 
-- excess_patch = (0 unrelated + 0.5 * 1 ancillary) / 2 = 0.25 ✓
+- scope_creep = (0 unrelated + 0.5 * 1 ancillary) / 2 = 0.25 ✓
 - excess_test = 3/4 off-topic = 0.75 ✓
 
 $$\text{combined} = 1 - (1 - 0.25) \times (1 - 0.75) \times (1 - 0.3)$$
@@ -532,7 +532,7 @@ The test is holistically testing the `__eq__` behavior of `UnrecognizedUnit` aft
 
 ## Summary Table
 
-| # | instance_id | combined | excess_patch | excess_test | vague_spec | Confidence |
+| # | instance_id | combined | scope_creep | excess_test | vague_spec | Confidence |
 |---|---|---|---|---|---|---|
 | 1 | `django__django-10999` | **1.000** | 1.000 | 0.000 | 0.300 | HIGH |
 | 2 | `django__django-11964` | **1.000** | 1.000 | 0.000 | 0.300 | MEDIUM |
@@ -550,7 +550,7 @@ The test is holistically testing the `__eq__` behavior of `UnrecognizedUnit` aft
 
 3. **The dominant contamination pattern is EXCESS_TEST** (off-topic assertions). In 5/7 cases, the tests require behavior not described in the problem statement. This is the most impactful finding for SWE-bench evaluation fairness.
 
-4. **EXCESS_PATCH is less common but high-impact when present.** Cases 1 and 2 have excess_patch=1.0, meaning the entire gold patch takes an approach different from what the problem statement suggests. Case 6 has cosmetic whitespace changes that inflate the score.
+4. **SCOPE_CREEP is less common but high-impact when present.** Cases 1 and 2 have scope_creep=1.0, meaning the entire gold patch takes an approach different from what the problem statement suggests. Case 6 has cosmetic whitespace changes that inflate the score.
 
 5. **VAGUE_SPEC contributes modestly** (0.3-0.55 range) and acts as a multiplier, pushing borderline cases over the SEVERE threshold.
 

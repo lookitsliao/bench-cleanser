@@ -9,12 +9,21 @@ classification decision.
 
 Usage:
     python run_trajectory_analysis.py \
-        --reports-dir output_v2_no_fallback/reports \
+        --reports-dir output_pro_v5/reports \
         --trajectory-source trajectories/ \
         --output trajectory_analysis.md
 
+    # Load from Docent collection
     python run_trajectory_analysis.py \
-        --reports-dir output_v2_no_fallback/reports \
+        --reports-dir output_pro_v5/reports \
+        --trajectory-source 032fb63d-4992-4bfc-911d-3b7dafcb931f \
+        --docent-api-key dk_... \
+        --model-filter "Gemini 2.5 Pro Preview" \
+        --output trajectory_analysis.md
+
+    # Load from HuggingFace
+    python run_trajectory_analysis.py \
+        --reports-dir output_pro_v5/reports \
         --trajectory-source SWE-bench-Live/SWE-agent-trajectories \
         --hf-split train \
         --output trajectory_analysis.md
@@ -43,7 +52,7 @@ def _parse_args() -> argparse.Namespace:
         required=True,
         help=(
             "Trajectory source: path to JSONL file, JSON directory, "
-            "or HuggingFace dataset name"
+            "HuggingFace dataset name, or Docent collection UUID"
         ),
     )
     p.add_argument(
@@ -67,6 +76,16 @@ def _parse_args() -> argparse.Namespace:
         "--hf-split",
         default="train",
         help="HuggingFace dataset split (default: train)",
+    )
+    p.add_argument(
+        "--docent-api-key",
+        default="",
+        help="Docent API key (or set DOCENT_API_KEY env var)",
+    )
+    p.add_argument(
+        "--model-filter",
+        default="",
+        help="Filter trajectories by model name (Docent sources)",
     )
     p.add_argument(
         "--config",
@@ -127,6 +146,8 @@ def main() -> None:
         agent_name=args.agent_name,
         hf_split=args.hf_split,
         llm=llm,
+        api_key=args.docent_api_key,
+        model_filter=args.model_filter,
     ))
 
     if not args.output:

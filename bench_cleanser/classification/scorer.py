@@ -49,7 +49,7 @@ async def build_report(
         record=record, llm=llm, cross_ref=cross_ref,
     )
 
-    severity, _ = compute_task_severity(task_labels)
+    severity = compute_task_severity(task_labels)
 
     recommendations = _build_recommendations(excess_patch, excess_test, vague_spec, cross_ref)
 
@@ -76,7 +76,7 @@ def _build_recommendations(
 
     if excess_patch.has_excess:
         recs.append(
-            f"EXCESS_PATCH: {excess_patch.unrelated_count} hunk(s) modify code "
+            f"SCOPE_CREEP: {excess_patch.unrelated_count} hunk(s) modify code "
             f"unrelated to the problem description."
         )
 
@@ -86,7 +86,7 @@ def _build_recommendations(
             parts.append(f"{excess_test.off_topic_assertions} OFF_TOPIC assertions")
         if excess_test.unrelated_count > 0:
             parts.append(f"{excess_test.unrelated_count} UNRELATED tests")
-        recs.append(f"EXCESS_TEST: {'; '.join(parts)} beyond problem scope.")
+        recs.append(f"WIDE_TESTS: {'; '.join(parts)} beyond problem scope.")
 
     if cross_ref and cross_ref.has_circular:
         tests = [cd.test_name for cd in cross_ref.circular_dependencies]

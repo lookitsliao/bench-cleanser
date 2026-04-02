@@ -38,9 +38,9 @@ async def analyze_trajectories(
     llm: Any | None = None,
     contamination_reports: dict[str, ContaminationReport] | None = None,
 ) -> list[TrajectoryAnalysis]:
-    analyses = []
+    import asyncio
 
-    for traj in trajectories:
+    async def _analyze_one(traj: TrajectoryRecord) -> TrajectoryAnalysis:
         gold_patch = gold_patches.get(traj.instance_id, "")
         test_names = f2p_tests.get(traj.instance_id, [])
         problem = problem_statements.get(traj.instance_id, "")
@@ -61,14 +61,16 @@ async def analyze_trajectories(
         else:
             result = classify_heuristic_only(traj, gold_patch, test_names)
 
-        analyses.append(result)
-
         logger.debug(
             "%s/%s: %s (conf=%.2f, sim=%.2f)",
             traj.instance_id, traj.agent_name,
             result.leakage_pattern.value, result.confidence,
             result.gold_patch_similarity,
         )
+        return result
+
+    # Run all trajectory analyses in parallel
+    analyses = await asyncio.gather(*[_analyze_one(t) for t in trajectories])
 
     by_instance: dict[str, list[int]] = defaultdict(list)
     for i, traj in enumerate(trajectories):
@@ -95,12 +97,12 @@ def _build_contamination_context(report: ContaminationReport) -> str:
 
     ep = report.excess_patch
     if ep.has_excess:
-        lines.append(f"EXCESS_PATCH: {ep.unrelated_count} UNRELATED / {ep.total_hunks} hunks")
+        lines.append(f"SCOPE_CREEP: {ep.unrelated_count} UNRELATED / {ep.total_hunks} hunks")
 
     et = report.excess_test
     if et.has_excess:
         lines.append(
-            f"EXCESS_TEST: {et.off_topic_assertions} OFF_TOPIC / "
+            f"WIDE_TESTS: {et.off_topic_assertions} OFF_TOPIC / "
             f"{et.total_assertions} assertions"
         )
 
@@ -228,7 +230,7 @@ def generate_narrative(
     et = report.excess_test
     if ep.has_excess:
         lines.append(
-            f"- **EXCESS_PATCH:** {ep.unrelated_count} of "
+            f"- **SCOPE_CREEP:** {ep.unrelated_count} of "
             f"{ep.total_hunks} hunks are UNRELATED to the stated problem"
         )
     if et.has_excess:
@@ -239,7 +241,7 @@ def generate_narrative(
         if et.unrelated_count > 0:
             parts.append(f"{et.unrelated_count} UNRELATED tests")
         for part in parts:
-            lines.append(f"- **EXCESS_TEST:** {part}")
+            lines.append(f"- **WIDE_TESTS:** {part}")
     if report.vague_spec.score > 0.3:
         lines.append(f"- **VAGUE_SPEC:** Problem statement has significant ambiguity ({report.vague_spec.score:.2f})")
     lines.append("")
@@ -328,6 +330,8 @@ async def run_trajectory_analysis(
     agent_name: str = "",
     hf_split: str = "train",
     llm: Any | None = None,
+    api_key: str = "",
+    model_filter: str = "",
 ) -> str:
     from bench_cleanser.deep_dive import load_reports_from_dir
 
@@ -351,7 +355,7 @@ async def run_trajectory_analysis(
         if record:
             gold_patches[report.instance_id] = record.patch
             f2p_tests[report.instance_id] = record.fail_to_pass
-            problem_statements[report.instance_id] = record.problem_statement
+            problem_statements[report.instance_id] = record.full_problem_context
         contamination_reports[report.instance_id] = report
 
     trajectories = load_trajectories(
@@ -359,6 +363,8 @@ async def run_trajectory_analysis(
         instance_ids=target_ids,
         agent_name=agent_name,
         hf_split=hf_split,
+        api_key=api_key,
+        model_filter=model_filter,
     )
     logger.info("Loaded %d trajectories for %d target instances",
                 len(trajectories), len(target_ids))

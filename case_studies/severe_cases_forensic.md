@@ -326,7 +326,7 @@ Multiple pipeline components contribute to a correct detection:
 
 ### New Taxonomy Mapping
 
-- **Primary**: `EXCESS_PATCH` -- Typo fix and ITRS-to-CIRS location propagation are unrelated to the ITRS-to-AltAz/HADec implementation.
+- **Primary**: `SCOPE_CREEP` -- Typo fix and ITRS-to-CIRS location propagation are unrelated to the ITRS-to-AltAz/HADec implementation.
 - **Secondary**: `EXCESS_TEST` -- `test_cirs_itrs_topo` tests entirely different transform path; refraction assertions go beyond stated scope.
 - **Tertiary**: `VAGUE_SPEC` -- Ambiguous scope boundaries around refraction support and which transforms are in scope.
 
@@ -436,7 +436,7 @@ The **TEST_DESC_MISALIGN** detector correctly identifies 5/6 OOS assertions. The
 ### New Taxonomy Mapping
 
 - **Primary**: `EXCESS_TEST` -- 5/6 assertions test reader behavior not required by the problem statement.
-- **Secondary**: `EXCESS_PATCH` -- Reader-side hunks (hunk 0, hunk 1) exist to support the excess test assertions.
+- **Secondary**: `SCOPE_CREEP` -- Reader-side hunks (hunk 0, hunk 1) exist to support the excess test assertions.
 - **Compound**: `CIRCULAR_DEPENDENCY` -- The excess test assertions justify the excess patch hunks, and vice versa.
 
 ---
@@ -604,7 +604,7 @@ The **OVERPATCH** detector correctly identifies the single hunk as out-of-scope 
 
 ### New Taxonomy Mapping
 
-- **Primary**: `EXCESS_PATCH` -- The regex redesign goes beyond the targeted lookahead fix, changing semantics of per-component sign handling.
+- **Primary**: `SCOPE_CREEP` -- The regex redesign goes beyond the targeted lookahead fix, changing semantics of per-component sign handling.
 - **Note**: The tests remain aligned but exercise the redesigned behavior, meaning they will reject the simpler targeted fix described in the problem statement.
 
 ---
@@ -667,7 +667,7 @@ The **OVERPATCH** detector correctly identifies 6/11 hunks as out-of-scope. The 
 
 ### New Taxonomy Mapping
 
-- **Primary**: `EXCESS_PATCH` -- 6/11 hunks are validator/HTML refactoring unrelated to the email Message-ID fix.
+- **Primary**: `SCOPE_CREEP` -- 6/11 hunks are validator/HTML refactoring unrelated to the email Message-ID fix.
 - **Secondary**: `SCOPE_CREEP` -- The patch opportunistically refactors all IDNA handling across Django to use a common helper, well beyond the stated task.
 
 ---
@@ -809,7 +809,7 @@ The **is_doc_file heuristic** path-matching bug (same as django-11728). The patt
 |-----------|-------|----------------|
 | SNEAKY_TEST_MOD over-fires on aligned modifications | 3 | astropy-7671, astropy-8872, astropy-13236 |
 | is_doc_file heuristic bug (admindocs/ path) | 2 | django-11728, django-12155 |
-| Genuine EXCESS_PATCH | 3 | django-10999, django-11532, astropy-13398 |
+| Genuine SCOPE_CREEP | 3 | django-10999, django-11532, astropy-13398 |
 | Genuine EXCESS_TEST | 4 | astropy-7606, astropy-14182, astropy-14365, astropy-13398 |
 | Severity over-classification (should be MODERATE/BORDERLINE) | 2 | astropy-13453, astropy-14539 |
 
@@ -817,7 +817,7 @@ The **is_doc_file heuristic** path-matching bug (same as django-11728). The patt
 
 | Taxonomy Category | Cases |
 |------------------|-------|
-| EXCESS_PATCH | django-10999, django-11532, astropy-13398, astropy-14182 (secondary) |
+| SCOPE_CREEP | django-10999, django-11532, astropy-13398, astropy-14182 (secondary) |
 | EXCESS_TEST | astropy-7606, astropy-13398, astropy-14182, astropy-14365, astropy-14539 |
 | VAGUE_SPEC | astropy-13398 (tertiary) |
 | CIRCULAR_DEPENDENCY | astropy-14182 |

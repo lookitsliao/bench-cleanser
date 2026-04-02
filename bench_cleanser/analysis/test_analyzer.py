@@ -166,7 +166,7 @@ def _count_assertions(source: str) -> tuple[int, list[str]]:
     return len(assertions), assertions
 
 
-def _truncate(text: str, max_lines: int = 200) -> str:
+def _truncate(text: str, max_lines: int = 500) -> str:
     lines = text.splitlines()
     if len(lines) <= max_lines:
         return text
@@ -192,7 +192,7 @@ def _build_test_intent_prompt(
     )
 
     if problem_statement:
-        parts.append(f"=== PROBLEM STATEMENT ===\n{_truncate(problem_statement, max_lines=30)}")
+        parts.append(f"=== PROBLEM STATEMENT ===\n{_truncate(problem_statement, max_lines=100)}")
 
     parts.append(
         "=== TEST METADATA ===\n"
@@ -325,7 +325,7 @@ async def analyze_tests(
 ) -> ExcessTestDetail:
     """Stage 4B: classify each F2P test against extracted intent."""
     test_verdicts: list[TestVerdictReport] = []
-    problem_statement = parsed.record.problem_statement
+    problem_statement = parsed.record.full_problem_context
 
     for test_hunk in parsed.f2p_test_hunks:
         verdict = await _analyze_test(

