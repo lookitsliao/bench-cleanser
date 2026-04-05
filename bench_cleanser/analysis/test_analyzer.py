@@ -1,16 +1,18 @@
-"""Stage 4B: F2P test intent matching.
+"""Stage 4B: F2P test intent matching (batched).
 
-Each F2P test is classified as ALIGNED, TANGENTIAL, or UNRELATED relative
-to the intent extracted in Stage 2.  Individual assertions get ON_TOPIC or
-OFF_TOPIC verdicts.  Code context from Stage 1.5 and structural analysis
-from Stage 3 enrich the LLM prompt.
+All F2P tests are classified as ALIGNED, TANGENTIAL, or UNRELATED in a
+SINGLE batched LLM call. Individual assertions get ON_TOPIC / OFF_TOPIC
+verdicts. Code context from Stage 1.5 and structural analysis from Stage 3
+enrich the prompt.
+
+Uses structured output with strict JSON schema enforcement.
+Assertion extraction uses AST-only for Python source.
 """
 
 from __future__ import annotations
 
 import ast
 import logging
-import re
 
 from bench_cleanser.llm_client import LLMClient
 from bench_cleanser.models import (
@@ -25,71 +27,114 @@ from bench_cleanser.models import (
     TestVerdict,
     TestVerdictReport,
 )
+from bench_cleanser.schemas import BatchTestVerdictsResponse
 
 logger = logging.getLogger(__name__)
 
-TEST_INTENT_SYSTEM_PROMPT = """\
-You are an expert software engineer performing **intent matching** between a
-problem description and a test function.
+BATCH_TEST_SYSTEM_PROMPT = """\
+You are an expert software engineer performing **intent matching** between a \
+problem description and all F2P (fail-to-pass) test functions for a benchmark task.
 
-You are given:
-1. The **intent** extracted from the problem statement — including core
-   requirement, behavioral contract, acceptance criteria, and out-of-scope.
-2. The full source of an F2P (fail-to-pass) test function.
-3. A list of assertions extracted from the test, numbered for reference.
-4. Whether the test is NEW (added by the patch) or MODIFIED (existed before).
-5. Optionally, structural context (call graph, changed functions).
-6. Optionally, full pre-patch and post-patch test source with code context.
+## YOUR MISSION
 
-**PART 1 — Test-level verdict:**
+You will receive:
+1. The COMPLETE intent extracted from the problem statement (core requirement, \
+behavioral contract, acceptance criteria, out-of-scope)
+2. The full problem statement for additional context
+3. ALL F2P test functions at once with their source code, assertions, \
+modification status, and code context
 
-  **ALIGNED**: The test targets the described problem.  Its primary purpose
-    is to verify behavior from the acceptance criteria.
+Your job is to classify EVERY test in a single pass with:
+- A test-level verdict (ALIGNED / TANGENTIAL / UNRELATED)
+- Per-assertion verdicts (ON_TOPIC / OFF_TOPIC)
+- Modification alignment assessment (for MODIFIED tests)
 
-  **TANGENTIAL**: The test partially targets the problem but includes
-    significant behavior beyond the acceptance criteria.
+## TEST-LEVEL VERDICTS
 
-  **UNRELATED**: The test does not target the described problem at all.
+### ALIGNED
+The test's primary purpose is to verify behavior from the acceptance criteria. \
+The majority of its assertions check behavior described in the problem statement. \
+The test is a legitimate correctness check for the reported bug/feature.
 
-**PART 2 — Per-assertion verdicts:**
-For EACH assertion (by index):
+Indicators of ALIGNED:
+- test name references the buggy function/feature
+- assertions check the specific behavior described in acceptance criteria
+- test setup reproduces the exact scenario from the problem statement
+- for MODIFIED tests: modifications add checks for the newly fixed behavior
 
-  **ON_TOPIC**: Checks behavior described in the acceptance criteria.
+### TANGENTIAL
+The test partially targets the problem but includes SIGNIFICANT behavior \
+verification beyond the acceptance criteria. The test is partially relevant \
+but bloated — it verifies more than was asked for.
 
-  **OFF_TOPIC**: Checks behavior NOT described in the problem statement.
+Indicators of TANGENTIAL:
+- test checks the correct function but also tests many unrelated edge cases
+- more than ~30% of assertions target behavior NOT in acceptance criteria
+- test setup is broader than needed for the described problem
+- test name is generic (e.g., "test_full_pipeline") when the problem is specific
 
-**PART 3 — Modification analysis (for MODIFIED tests only):**
-If the test was MODIFIED from a pre-existing test, assess whether the
-modifications are aligned with the acceptance criteria.  A modification
-that adds assertions on behavior NOT described in the problem — while
-the test looks legitimate because it existed before — is a significant
-contamination signal.  Only flag `is_modification_aligned: false` when
-the modifications themselves are MISALIGNED with the problem statement.
+### UNRELATED
+The test does NOT target the described problem at all. It verifies completely \
+different functionality, different code paths, or different features.
 
-Guidelines:
-- Focus on ACCEPTANCE CRITERIA.
-- An assertion is ON_TOPIC only if it verifies at least one criterion.
-- Be conservative — if behavior is plausible but not described, OFF_TOPIC.
+Indicators of UNRELATED:
+- test exercises functions not mentioned in the problem
+- assertions check behaviors unrelated to any acceptance criterion
+- test file is in a different subsystem from the problem description
+- no call-graph connection to the buggy code
 
-Respond in JSON:
-{
-  "test_verdict": "ALIGNED|TANGENTIAL|UNRELATED",
-  "confidence": <float 0.0-1.0>,
-  "reasoning": "<concise explanation>",
-  "is_modification_aligned": <bool>,
-  "assertion_verdicts": [
-    {"index": 0, "verdict": "ON_TOPIC|OFF_TOPIC", "reason": "<brief>"},
-    ...
-  ]
-}
+## PER-ASSERTION VERDICTS
+
+For EACH assertion in every test, determine:
+
+### ON_TOPIC
+The assertion verifies behavior described in at least one acceptance criterion. \
+A test reader could trace this assertion back to a specific part of the problem.
+
+### OFF_TOPIC
+The assertion checks behavior NOT described in the problem statement. This \
+includes edge cases not mentioned, unrelated features, or implementation \
+details beyond the acceptance criteria.
+
+## MODIFICATION ANALYSIS (CRITICAL FOR CONTAMINATION DETECTION)
+
+For MODIFIED tests (tests that existed before the PR):
+- Compare the pre-patch test source (what it looked like before) with the \
+post-patch source (after the PR's changes)
+- Set is_modification_aligned = true ONLY if the modifications add checks \
+for behavior IN the acceptance criteria
+- Set is_modification_aligned = false if the PR author silently added \
+assertions for behavior NOT in the problem — this is a strong contamination \
+signal (TEST_MUTATION)
+- A modified test that appears legitimate because it existed before, but \
+has new assertions checking undescribed behavior, is particularly suspicious
+
+## ANALYSIS GUIDELINES
+
+1. Read ALL acceptance criteria and out-of-scope before analyzing any test
+2. For each test, read the FULL source code, not just the assertions
+3. Use the structural context (call graph, changed functions) to verify whether \
+the test actually exercises the buggy code path
+4. Use the pre-patch source (when available) to verify what CHANGED in modified tests
+5. Consider tests as a group: multiple tests for the same behavior may be fine, \
+but multiple tests for DIFFERENT behaviors suggests WIDE_TESTS
+6. Be CONSERVATIVE: if behavior is plausible but not described in the problem, \
+mark it OFF_TOPIC
+7. Count assertions carefully: both "assert" statements AND unittest-style \
+assertions (self.assertEqual, etc.) AND context managers (pytest.raises)
+8. For the problem statement provided, use it to disambiguate when the intent \
+extraction is insufficient
+
+Provide one verdict per test, referencing the test by its index.
 """
 
 
-def _count_assertions(source: str) -> tuple[int, list[str]]:
-    """Count assert statements in test source via AST parsing.
+def _count_assertions_ast(source: str) -> list[str]:
+    """Extract assertion statements from test source using Python AST only.
 
-    Falls back to multi-language regex matching when AST parsing fails
-    (i.e., for non-Python languages like Go, JS/TS, Ruby, Rust, Java).
+    No regex patterns. Returns assertion strings.
+    For non-Python source that fails AST parsing, returns an empty list
+    and the LLM will analyze the raw source directly.
     """
     lines = []
     for line in source.splitlines():
@@ -99,42 +144,14 @@ def _count_assertions(source: str) -> tuple[int, list[str]]:
         lines.append(clean)
     cleaned = "\n".join(lines)
 
-    assertions: list[str] = []
     try:
         tree = ast.parse(cleaned)
     except SyntaxError:
-        # Multi-language assertion pattern matching
-        _ASSERTION_PATTERNS = [
-            # Python: assert, self.assert*
-            re.compile(r"^\s*(assert\b.+)"),
-            re.compile(r"^\s*(self\.assert\w+\(.+)"),
-            # Go testify: assert.*, require.*
-            re.compile(r"^\s*(assert\.\w+\(.+)"),
-            re.compile(r"^\s*(require\.\w+\(.+)"),
-            # Go stdlib: t.Error, t.Fatal, t.Log + if-based checks
-            re.compile(r"^\s*(t\.(?:Error|Errorf|Fatal|Fatalf|Fail|FailNow)\(.+)"),
-            # JavaScript/TypeScript: expect(...), chai assert
-            re.compile(r"^\s*(expect\(.+)"),
-            re.compile(r"^\s*(assert\.\w+\(.+)"),
-            # Ruby: assert_*, expect(...).to
-            re.compile(r"^\s*(assert_\w+.+)"),
-            re.compile(r"^\s*(expect\(.+\.to\b.+)"),
-            # Rust: assert!, assert_eq!, assert_ne!
-            re.compile(r"^\s*(assert(?:_eq|_ne)?!\(.+)"),
-            # Java: Assert.*, assertEquals, assertTrue, etc.
-            re.compile(r"^\s*(Assert\.\w+\(.+)"),
-            re.compile(r"^\s*(assert(?:Equals|True|False|NotNull|Null|That|Throws)\(.+)"),
-            # C#: Assert.*
-            re.compile(r"^\s*(Assert\.\w+\(.+)"),
-        ]
-        for line in lines:
-            stripped = line.strip()
-            for pattern in _ASSERTION_PATTERNS:
-                m = pattern.match(stripped)
-                if m:
-                    assertions.append(m.group(1))
-                    break
-        return len(assertions), assertions
+        # Non-Python or malformed — let the LLM handle assertion analysis
+        # directly from the raw source code
+        return []
+
+    assertions: list[str] = []
 
     UNITTEST_ASSERT_METHODS = {
         "assertEqual", "assertRaises", "assertTrue", "assertFalse",
@@ -142,6 +159,10 @@ def _count_assertions(source: str) -> tuple[int, list[str]]:
         "assertAlmostEqual", "assertGreater", "assertLess", "assertRegex",
         "assertNotEqual", "assertIs", "assertIsNot", "assertCountEqual",
         "assertSequenceEqual", "assertListEqual", "assertDictEqual",
+        "assertRaisesRegex", "assertWarns", "assertWarnsRegex",
+        "assertGreaterEqual", "assertLessEqual", "assertNotRegex",
+        "assertIsInstance", "assertNotIsInstance", "assertMultiLineEqual",
+        "assertTupleEqual", "assertSetEqual", "assertNotAlmostEqual",
     }
 
     for node in ast.walk(tree):
@@ -162,159 +183,121 @@ def _count_assertions(source: str) -> tuple[int, list[str]]:
                     assertions.append(ast.unparse(node))
                 except Exception:
                     assertions.append(f"{name}() at line {node.lineno}")
+        elif isinstance(node, ast.With):
+            for item in node.items:
+                if isinstance(item.context_expr, ast.Call):
+                    func = item.context_expr.func
+                    call_name = ""
+                    if isinstance(func, ast.Attribute):
+                        call_name = func.attr
+                    elif isinstance(func, ast.Name):
+                        call_name = func.id
+                    if "raises" in call_name.lower() or "warns" in call_name.lower():
+                        try:
+                            assertions.append(ast.unparse(item.context_expr))
+                        except Exception:
+                            assertions.append(f"{call_name}() at line {node.lineno}")
 
-    return len(assertions), assertions
+    return assertions
 
 
-def _truncate(text: str, max_lines: int = 500) -> str:
-    lines = text.splitlines()
-    if len(lines) <= max_lines:
-        return text
-    return "\n".join(lines[:max_lines]) + f"\n[...truncated, {len(lines) - max_lines} more lines...]"
-
-
-def _build_test_intent_prompt(
+def _build_batch_test_prompt(
     intent: IntentStatement,
-    test_hunk: TestHunk,
-    assertions: list[str],
-    structural_context: str = "",
+    test_hunks: list[TestHunk],
     problem_statement: str = "",
+    structural_diff: StructuralDiff | None = None,
 ) -> str:
+    """Build user prompt with all tests for batch classification."""
     parts: list[str] = []
 
+    # Intent section
     parts.append(
-        "=== INTENT (from problem statement only) ===\n"
-        f"Core requirement: {intent.core_requirement}\n"
-        f"Behavioral contract: {intent.behavioral_contract}\n"
+        "=== INTENT (from problem statement only — no gold patch was seen) ===\n"
+        f"Core requirement: {intent.core_requirement}\n\n"
+        f"Behavioral contract: {intent.behavioral_contract}\n\n"
         "Acceptance criteria:\n"
-        + "\n".join(f"  - {c}" for c in intent.acceptance_criteria) + "\n"
+        + "\n".join(f"  {i+1}. {c}" for i, c in enumerate(intent.acceptance_criteria))
+        + "\n\n"
         f"Out of scope: {intent.out_of_scope}"
     )
 
+    if intent.decomposition:
+        d = intent.decomposition
+        parts.append(
+            "=== PROBLEM DECOMPOSITION ===\n"
+            f"Bug description: {d.bug_description}\n"
+            f"Reporter's suggested fix: {d.suggested_fix or '(none)'}\n"
+            f"Legitimacy: {d.legitimacy}"
+        )
+
     if problem_statement:
-        parts.append(f"=== PROBLEM STATEMENT ===\n{_truncate(problem_statement, max_lines=100)}")
+        parts.append(f"=== PROBLEM STATEMENT (full text) ===\n{problem_statement}")
 
-    parts.append(
-        "=== TEST METADATA ===\n"
-        f"File: {test_hunk.file_path}\n"
-        f"Test name: {test_hunk.test_name}\n"
-        f"Test ID: {test_hunk.full_test_id}\n"
-        f"Modification type: {test_hunk.modification_type.value}"
-    )
+    # All tests
+    for i, test_hunk in enumerate(test_hunks):
+        assertions = _count_assertions_ast(test_hunk.full_source)
+        is_modified = test_hunk.modification_type == TestModificationType.MODIFIED
 
-    ctx = test_hunk.code_context
-    if ctx and ctx.pre_patch_test_source:
-        parts.append(f"=== PRE-PATCH TEST (before this PR) ===\n{_truncate(ctx.pre_patch_test_source)}")
+        test_section = (
+            f"=== TEST {i} ===\n"
+            f"File: {test_hunk.file_path}\n"
+            f"Test name: {test_hunk.test_name}\n"
+            f"Test ID: {test_hunk.full_test_id}\n"
+            f"Modification type: {test_hunk.modification_type.value}\n"
+            f"Is modified (pre-existing): {is_modified}\n"
+        )
 
-    parts.append(f"=== POST-PATCH TEST SOURCE ===\n{_truncate(test_hunk.full_source)}")
+        ctx = test_hunk.code_context
 
-    if assertions:
-        assert_lines = [f"  [{i}] {a}" for i, a in enumerate(assertions)]
-        parts.append("=== ASSERTIONS (number each verdict by index) ===\n" + "\n".join(assert_lines))
+        # Pre-patch source (for modification analysis)
+        if ctx and ctx.pre_patch_test_source:
+            test_section += f"\n--- Pre-patch test source (BEFORE this PR) ---\n{ctx.pre_patch_test_source}\n"
 
-    if ctx:
-        if ctx.tested_functions:
-            tf_parts: list[str] = []
+        # Post-patch source
+        test_section += f"\n--- Post-patch test source (AFTER this PR) ---\n{test_hunk.full_source}\n"
+
+        # Assertions numbered for reference
+        if assertions:
+            test_section += "\n--- Assertions (number each verdict by index) ---\n"
+            for j, a in enumerate(assertions):
+                test_section += f"  [{j}] {a}\n"
+        else:
+            test_section += "\n--- No assertions extracted via AST (analyze from source directly) ---\n"
+
+        # Tested functions (code context)
+        if ctx and ctx.tested_functions:
+            test_section += "\n--- Tested source functions ---\n"
             for tf in ctx.tested_functions:
-                entry = f"Function: {tf.name} (file: {tf.file_path}, patch: {'YES' if tf.is_modified_by_patch else 'NO'})\n"
+                tag = "MODIFIED BY GOLD PATCH" if tf.is_modified_by_patch else "not modified"
+                test_section += f"Function: {tf.name} (file: {tf.file_path}, {tag})\n"
                 if tf.source:
-                    entry += f"Source:\n{_truncate(tf.source)}"
-                tf_parts.append(entry)
-            parts.append("=== TESTED SOURCE CODE ===\n" + "\n\n---\n".join(tf_parts))
+                    test_section += f"Source:\n{tf.source}\n\n"
 
-        if ctx.call_targets:
-            call_lines = []
+        # Call targets
+        if ctx and ctx.call_targets:
+            test_section += "\n--- Call analysis ---\nFunctions called by this test:\n"
             for ct in ctx.call_targets:
                 tag = "IN GOLD PATCH" if ct.is_in_patch else "not in patch"
                 loc = f" in {ct.file_path}" if ct.file_path else ""
-                call_lines.append(f"  - {ct.name}{loc} ({tag})")
-            parts.append("=== CALL ANALYSIS ===\nFunctions called by this test:\n" + "\n".join(call_lines))
+                test_section += f"  - {ct.name}{loc} ({tag})\n"
 
-    if structural_context:
-        parts.append("=== STRUCTURAL CONTEXT ===\n" + structural_context)
+        # Structural context
+        if structural_diff:
+            struct_ctx = ""
+            for edge_test, edge_func in structural_diff.call_edges:
+                if edge_test == test_hunk.test_name:
+                    for cb in structural_diff.changed_blocks:
+                        if cb.block_name == edge_func:
+                            struct_ctx += (
+                                f"Calls -> {cb.block_name} ({cb.block_type}, "
+                                f"{cb.edit_status}) in {cb.file_path}\n"
+                            )
+            if struct_ctx:
+                test_section += f"\n--- Structural context ---\n{struct_ctx}"
+
+        parts.append(test_section)
 
     return "\n\n".join(parts)
-
-
-async def _analyze_test(
-    test_hunk: TestHunk,
-    intent: IntentStatement,
-    llm: LLMClient,
-    structural_diff: StructuralDiff | None = None,
-    problem_statement: str = "",
-) -> TestVerdictReport:
-    is_modified = test_hunk.modification_type == TestModificationType.MODIFIED
-
-    _count, assertion_strs = _count_assertions(test_hunk.full_source)
-
-    structural_context = ""
-    if structural_diff:
-        for edge_test, edge_func in structural_diff.call_edges:
-            if edge_test == test_hunk.test_name:
-                for cb in structural_diff.changed_blocks:
-                    if cb.block_name == edge_func:
-                        structural_context += (
-                            f"Calls -> {cb.block_name} ({cb.block_type}, {cb.edit_status}) "
-                            f"in {cb.file_path}\n"
-                        )
-
-    user_prompt = _build_test_intent_prompt(
-        intent, test_hunk, assertion_strs,
-        structural_context=structural_context,
-        problem_statement=problem_statement,
-    )
-
-    ctx = test_hunk.code_context
-    if ctx:
-        logger.info(
-            "Test %s: %d tested funcs, %d calls, pre=%s, post=%s",
-            test_hunk.test_name, len(ctx.tested_functions), len(ctx.call_targets),
-            "yes" if ctx.pre_patch_test_source else "no",
-            "yes" if ctx.post_patch_test_source else "no",
-        )
-
-    result = await llm.query_json(TEST_INTENT_SYSTEM_PROMPT, user_prompt)
-
-    verdict_str = result.get("test_verdict", "TANGENTIAL")
-    try:
-        test_verdict = TestVerdict(verdict_str)
-    except ValueError:
-        test_verdict = TestVerdict.TANGENTIAL
-
-    assertion_verdicts: list[AssertionVerdictReport] = []
-    raw_verdicts = result.get("assertion_verdicts", [])
-    for i, assertion_str in enumerate(assertion_strs):
-        av = AssertionVerdict.ON_TOPIC
-        reason = ""
-        for rv in raw_verdicts:
-            if rv.get("index") == i:
-                try:
-                    av = AssertionVerdict(rv.get("verdict", "ON_TOPIC"))
-                except ValueError:
-                    av = AssertionVerdict.ON_TOPIC
-                reason = rv.get("reason", "")
-                break
-        assertion_verdicts.append(AssertionVerdictReport(statement=assertion_str, verdict=av, reason=reason))
-
-    modification_aligned = result.get("is_modification_aligned", True)
-
-    return TestVerdictReport(
-        test_id=test_hunk.full_test_id, test_name=test_hunk.test_name,
-        intent_match=test_verdict, confidence=float(result.get("confidence", 0.5)),
-        reasoning=result.get("reasoning", ""), is_modified=is_modified,
-        modification_aligned=modification_aligned, assertion_verdicts=assertion_verdicts,
-    )
-
-
-async def _analyze_unmatched_test(test_id: str, intent: IntentStatement) -> TestVerdictReport:
-    parts = test_id.split("::")
-    test_name = parts[-1].split("[")[0] if parts else test_id
-    return TestVerdictReport(
-        test_id=test_id, test_name=test_name,
-        intent_match=TestVerdict.ALIGNED, confidence=0.3,
-        reasoning="F2P test with no matching hunk — test was not modified, likely exercises gold patch behavior",
-        is_modified=False, modification_aligned=True, assertion_verdicts=[],
-    )
 
 
 async def analyze_tests(
@@ -323,20 +306,101 @@ async def analyze_tests(
     llm: LLMClient,
     structural_diff: StructuralDiff | None = None,
 ) -> ExcessTestDetail:
-    """Stage 4B: classify each F2P test against extracted intent."""
-    test_verdicts: list[TestVerdictReport] = []
+    """Stage 4B: classify all F2P tests against intent in a single batched LLM call."""
+    all_test_hunks = list(parsed.f2p_test_hunks)
     problem_statement = parsed.record.full_problem_context
 
-    for test_hunk in parsed.f2p_test_hunks:
-        verdict = await _analyze_test(
-            test_hunk, intent, llm, structural_diff,
-            problem_statement=problem_statement,
-        )
-        test_verdicts.append(verdict)
-
+    # Handle unmatched F2P tests (tests with no hunk — not modified, likely exercise gold patch)
+    unmatched_verdicts: list[TestVerdictReport] = []
     for test_id in parsed.f2p_tests_with_no_hunk:
-        verdict = await _analyze_unmatched_test(test_id, intent)
-        test_verdicts.append(verdict)
+        parts = test_id.split("::")
+        test_name = parts[-1].split("[")[0] if parts else test_id
+        unmatched_verdicts.append(TestVerdictReport(
+            test_id=test_id, test_name=test_name,
+            intent_match=TestVerdict.ALIGNED, confidence=0.3,
+            reasoning="F2P test with no matching hunk — test was not modified, likely exercises gold patch behavior",
+            is_modified=False, modification_aligned=True, assertion_verdicts=[],
+        ))
+
+    if not all_test_hunks:
+        # Only unmatched tests
+        aligned = sum(1 for v in unmatched_verdicts if v.intent_match == TestVerdict.ALIGNED)
+        return ExcessTestDetail(
+            total_tests=len(unmatched_verdicts),
+            aligned_count=aligned, tangential_count=0, unrelated_count=0,
+            total_assertions=0, on_topic_assertions=0, off_topic_assertions=0,
+            has_modified_tests=False, test_verdicts=unmatched_verdicts,
+        )
+
+    user_prompt = _build_batch_test_prompt(
+        intent, all_test_hunks,
+        problem_statement=problem_statement,
+        structural_diff=structural_diff,
+    )
+
+    result: BatchTestVerdictsResponse = await llm.query_structured(
+        BATCH_TEST_SYSTEM_PROMPT,
+        user_prompt,
+        BatchTestVerdictsResponse,
+    )
+
+    # Map results to TestVerdictReport objects
+    test_verdicts: list[TestVerdictReport] = []
+    result_by_index = {v.test_index: v for v in result.verdicts}
+
+    for i, test_hunk in enumerate(all_test_hunks):
+        is_modified = test_hunk.modification_type == TestModificationType.MODIFIED
+        assertions = _count_assertions_ast(test_hunk.full_source)
+
+        verdict_item = result_by_index.get(i)
+        if verdict_item is None:
+            logger.warning(
+                "Missing verdict for test %d (%s) — defaulting to TANGENTIAL",
+                i, test_hunk.test_name,
+            )
+            test_verdicts.append(TestVerdictReport(
+                test_id=test_hunk.full_test_id, test_name=test_hunk.test_name,
+                intent_match=TestVerdict.TANGENTIAL, confidence=0.3,
+                reasoning="No verdict returned by LLM for this test",
+                is_modified=is_modified, modification_aligned=True,
+            ))
+            continue
+
+        try:
+            test_verdict = TestVerdict(verdict_item.test_verdict)
+        except ValueError:
+            test_verdict = TestVerdict.TANGENTIAL
+
+        # Build per-assertion verdicts
+        assertion_verdicts: list[AssertionVerdictReport] = []
+        raw_by_index = {av.index: av for av in verdict_item.assertion_verdicts}
+
+        for j, assertion_str in enumerate(assertions):
+            av_item = raw_by_index.get(j)
+            if av_item:
+                try:
+                    av = AssertionVerdict(av_item.verdict)
+                except ValueError:
+                    av = AssertionVerdict.ON_TOPIC
+                assertion_verdicts.append(AssertionVerdictReport(
+                    statement=assertion_str, verdict=av, reason=av_item.reason,
+                ))
+            else:
+                assertion_verdicts.append(AssertionVerdictReport(
+                    statement=assertion_str, verdict=AssertionVerdict.ON_TOPIC,
+                    reason="No per-assertion verdict from LLM",
+                ))
+
+        test_verdicts.append(TestVerdictReport(
+            test_id=test_hunk.full_test_id, test_name=test_hunk.test_name,
+            intent_match=test_verdict, confidence=verdict_item.confidence,
+            reasoning=verdict_item.reasoning, is_modified=is_modified,
+            modification_aligned=verdict_item.is_modification_aligned,
+            assertion_verdicts=assertion_verdicts,
+        ))
+
+    # Combine with unmatched verdicts
+    test_verdicts.extend(unmatched_verdicts)
 
     aligned = sum(1 for v in test_verdicts if v.intent_match == TestVerdict.ALIGNED)
     tangential = sum(1 for v in test_verdicts if v.intent_match == TestVerdict.TANGENTIAL)

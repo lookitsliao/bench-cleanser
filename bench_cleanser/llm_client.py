@@ -2,6 +2,9 @@
 
 Uses Azure AD token-based authentication via the cloudgpt module and
 supports gpt-5.4-pro reasoning effort parameter.
+
+All structured LLM calls use ``response_format={"type": "json_schema", ...}``
+with strict Pydantic schemas — no regex JSON extraction, no silent fallbacks.
 """
 
 from __future__ import annotations
@@ -9,34 +12,40 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import re
 import sys
 import os
-from typing import Any
+from typing import Any, TypeVar
 
 import openai
 from openai import (
     APIConnectionError,
     APITimeoutError,
     AuthenticationError,
+    BadRequestError,
     InternalServerError,
     RateLimitError,
 )
+from pydantic import BaseModel, ValidationError
 
 from bench_cleanser.cache import ResponseCache
 from bench_cleanser.models import PipelineConfig
+
+T = TypeVar("T", bound=BaseModel)
 
 logger = logging.getLogger(__name__)
 
 # Errors that should trigger a retry with exponential back-off.
 # InternalServerError (HTTP 500) is included because Azure OpenAI
 # returns transient 500s under load.
+# BadRequestError (HTTP 400) is included because CloudGPT returns transient
+# 400s ("unsupported operation") during model rollouts and capacity shifts.
 # We also catch Azure credential errors (token expiry, az CLI hiccups)
 # which are transient and resolve on retry.
 _RETRYABLE_ERRORS: tuple[type[BaseException], ...] = [
     APIConnectionError,
     APITimeoutError,
     AuthenticationError,
+    BadRequestError,
     InternalServerError,
     RateLimitError,
 ]
@@ -327,6 +336,107 @@ class LLMClient:
             self._cache.put(key, result, model=self._model)
 
         return self._extract_json(result)
+
+    async def query_structured(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        response_model: type[T],
+        *,
+        skip_cache: bool = False,
+    ) -> T:
+        """Send a chat-completion with Pydantic schema enforcement.
+
+        Appends the JSON schema to the system prompt and uses
+        ``response_format={"type": "json_object"}`` for API-level JSON
+        guarantee. The response is then validated against the Pydantic
+        model. No regex extraction, no silent fallbacks.
+
+        Parameters
+        ----------
+        system_prompt:
+            The system message (role, rules, schema description — NO data).
+        user_prompt:
+            The user message (all data, context, evidence).
+        response_model:
+            A Pydantic BaseModel subclass defining the expected output.
+        skip_cache:
+            If ``True``, bypass cache for this request.
+
+        Returns
+        -------
+        An instance of *response_model* parsed from the LLM response.
+
+        Raises
+        ------
+        RuntimeError
+            After retries are exhausted or if schema validation fails
+            on all attempts.
+        """
+        # Append schema to system prompt so the LLM knows the exact structure
+        schema_json = json.dumps(response_model.model_json_schema(), indent=2)
+        augmented_system = (
+            system_prompt.rstrip()
+            + "\n\n## OUTPUT FORMAT\n\n"
+            + "You MUST respond with valid JSON conforming EXACTLY to this schema. "
+            + "Do NOT wrap in markdown fences. Do NOT include extra keys.\n\n"
+            + f"```json\n{schema_json}\n```"
+        )
+
+        key = self._cache_key(augmented_system, user_prompt)
+
+        # Check cache
+        if not skip_cache and self._cache is not None:
+            cached = self._cache.get(key)
+            if cached is not None:
+                logger.debug("Cache hit (structured) for key %s", key[:12])
+                try:
+                    return response_model.model_validate_json(cached)
+                except ValidationError:
+                    logger.info(
+                        "Cached response failed schema validation for %s, re-querying",
+                        response_model.__name__,
+                    )
+
+        max_validation_attempts = 2
+        last_error: Exception | None = None
+
+        for attempt in range(1, max_validation_attempts + 1):
+            result = await self._call_api(
+                augmented_system, user_prompt,
+                response_format={"type": "json_object"},
+            )
+
+            if not result:
+                raise RuntimeError(
+                    f"LLM returned empty response for {response_model.__name__}"
+                )
+
+            # Store in cache (raw response) before validation
+            if self._cache is not None:
+                self._cache.put(key, result, model=self._model)
+
+            try:
+                return response_model.model_validate_json(result)
+            except ValidationError as exc:
+                last_error = exc
+                logger.warning(
+                    "Schema validation failed for %s (attempt %d/%d): %s",
+                    response_model.__name__, attempt, max_validation_attempts, exc,
+                )
+                if attempt < max_validation_attempts:
+                    if self._cache is not None:
+                        self._cache.delete(key)
+
+        raise RuntimeError(
+            f"Schema validation failed for {response_model.__name__} "
+            f"after {max_validation_attempts} attempts: {last_error}"
+        )
+
+        raise RuntimeError(
+            f"Schema validation failed for {response_model.__name__} "
+            f"after {max_validation_attempts} attempts: {last_error}"
+        )
 
     # ------------------------------------------------------------------
     # Synchronous convenience wrappers

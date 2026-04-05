@@ -1,4 +1,8 @@
-"""Pipeline orchestrator: wires Stages 1-6 together."""
+"""Pipeline orchestrator: wires Stages 1-6 together.
+
+Provides rich terminal progress monitoring with per-stage timing,
+severity distribution dashboard, and detailed per-task logging.
+"""
 
 from __future__ import annotations
 
@@ -9,6 +13,7 @@ import json
 import logging
 import os
 import pathlib
+import time
 from typing import Any
 
 import yaml
@@ -197,7 +202,7 @@ async def process_single_task(
     config: PipelineConfig,
     repo_manager: RepoManager | None = None,
 ) -> ContaminationReport:
-    """Run the full pipeline on a single task.
+    """Run the full pipeline on a single task with per-stage timing.
 
     Stages:
       1.  PARSE — extract diffs from gold patch + test patch
@@ -207,13 +212,27 @@ async def process_single_task(
       4.  INTENT MATCHING — classify patches (4A) and tests (4B) in parallel
       5.  CLASSIFICATION — dual taxonomy labels + bucket severity
     """
-    parsed = parse_task(record)
+    stage_times: dict[str, float] = {}
+    iid = record.instance_id
 
+    # Stage 1: PARSE
+    t0 = time.monotonic()
+    parsed = parse_task(record)
+    stage_times["parse"] = time.monotonic() - t0
+
+    # Stage 1.5: CODE VISITATION
+    t0 = time.monotonic()
     if repo_manager is not None:
         enrich_with_code_context(parsed, repo_manager, config)
+    stage_times["code_visit"] = time.monotonic() - t0
 
+    # Stage 2: INTENT
+    t0 = time.monotonic()
     intent = await extract_intent(record, llm)
+    stage_times["intent"] = time.monotonic() - t0
 
+    # Stage 3: STRUCTURAL DIFF
+    t0 = time.monotonic()
     structural_diff = None
     if repo_manager is not None:
         repo_path = repo_manager.get_repo_path(record.repo, record.base_commit)
@@ -221,37 +240,57 @@ async def process_single_task(
             try:
                 structural_diff = compute_structural_diff(parsed, repo_path)
             except Exception as exc:
-                logger.error("Structural diff failed for %s: %s", record.instance_id, exc)
+                logger.error("Structural diff failed for %s: %s", iid, exc)
     if structural_diff is None:
         logger.warning(
             "No structural context for %s — intent matching will run without "
             "call graph or function source. Results may be less precise.",
-            record.instance_id,
+            iid,
         )
+    stage_times["structural"] = time.monotonic() - t0
 
-    _log_code_context(parsed, record.instance_id)
+    _log_code_context(parsed, iid)
 
+    # Stage 4: INTENT MATCHING (4A + 4B in parallel)
+    t0 = time.monotonic()
     patch_task = analyze_patch(parsed, intent, llm, structural_diff)
     test_task = analyze_tests(parsed, intent, llm, structural_diff)
     excess_patch, excess_test = await asyncio.gather(patch_task, test_task)
+    stage_times["intent_match"] = time.monotonic() - t0
 
+    # Cross-reference analysis
+    t0 = time.monotonic()
     cross_ref = analyze_cross_references(
         excess_patch, excess_test, parsed.f2p_test_hunks,
     )
     if cross_ref.has_circular:
         logger.info(
             "[%s] Cross-reference: %d circular dependency(ies) detected",
-            record.instance_id, len(cross_ref.circular_dependencies),
+            iid, len(cross_ref.circular_dependencies),
         )
+    stage_times["cross_ref"] = time.monotonic() - t0
 
     vague_spec = VagueSpecDetail(
         score=intent.ambiguity_score,
-        reasoning=intent.raw_llm_response[:500] if intent.raw_llm_response else "",
+        reasoning=intent.behavioral_contract[:500] if intent.behavioral_contract else "",
     )
 
+    # Stage 5: CLASSIFICATION
+    t0 = time.monotonic()
     report = await build_report(
         intent, excess_patch, excess_test, vague_spec, config,
         record=record, llm=llm, cross_ref=cross_ref,
+    )
+    stage_times["classify"] = time.monotonic() - t0
+
+    total = sum(stage_times.values())
+    logger.info(
+        "[%s] %s (%.1fs) | parse=%.1f intent=%.1f struct=%.1f "
+        "match=%.1f xref=%.1f classify=%.1f",
+        iid, report.severity.value, total,
+        stage_times["parse"], stage_times["intent"],
+        stage_times["structural"], stage_times["intent_match"],
+        stage_times["cross_ref"], stage_times["classify"],
     )
 
     return report
@@ -299,18 +338,27 @@ async def run_pipeline(
     severity_counts = {"CLEAN": 0, "MINOR": 0, "MODERATE": 0, "SEVERE": 0}
 
     try:
-        from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn, TimeElapsedColumn
+        from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn, TimeElapsedColumn, TimeRemainingColumn
+        from rich.live import Live
+        from rich.table import Table
+        from rich.panel import Panel
+        from rich.layout import Layout
+        from rich.console import Console
         use_rich = True
     except ImportError:
         use_rich = False
 
     reports: list[ContaminationReport] = []
+    error_count = 0
+    start_time = time.monotonic()
 
     async def _process(record: TaskRecord, progress_callback: Any = None) -> ContaminationReport:
+        nonlocal error_count
         async with semaphore:
             try:
                 report = await process_single_task(record, llm, config, repo_manager=repo_manager)
             except Exception as exc:
+                error_count += 1
                 logger.error("Failed to process %s: %s", record.instance_id, exc, exc_info=True)
                 dummy_intent = IntentStatement(
                     instance_id=record.instance_id,
@@ -335,21 +383,59 @@ async def run_pipeline(
             return report
 
     if use_rich:
-        from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn, TimeElapsedColumn
+        from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn, TimeElapsedColumn, TimeRemainingColumn
         from rich.console import Console
         console = Console()
         with Progress(
-            SpinnerColumn(), TextColumn("[bold blue]bench-cleanser"),
-            BarColumn(bar_width=40), MofNCompleteColumn(), TaskProgressColumn(),
-            TimeElapsedColumn(), TextColumn("[dim]{task.fields[status]}"),
+            SpinnerColumn(),
+            TextColumn("[bold blue]bench-cleanser"),
+            BarColumn(bar_width=40),
+            MofNCompleteColumn(),
+            TaskProgressColumn(),
+            TimeElapsedColumn(),
+            TextColumn("|"),
+            TimeRemainingColumn(),
+            TextColumn("|"),
+            TextColumn("[dim]{task.fields[status]}"),
             console=console,
         ) as progress:
-            task_id = progress.add_task("Processing", total=len(records), status="Starting...")
+            task_id = progress.add_task(
+                "Processing", total=len(records),
+                status="Starting...",
+            )
             def _update_progress():
-                status_parts = [f"CLEAN:{severity_counts['CLEAN']}", f"MINOR:{severity_counts['MINOR']}", f"MOD:{severity_counts['MODERATE']}", f"SEV:{severity_counts['SEVERE']}"]
+                elapsed = time.monotonic() - start_time
+                completed = sum(severity_counts.values())
+                rate = completed / elapsed if elapsed > 0 else 0
+                status_parts = [
+                    f"[green]CLEAN:{severity_counts['CLEAN']}[/green]",
+                    f"[yellow]MINOR:{severity_counts['MINOR']}[/yellow]",
+                    f"[orange3]MOD:{severity_counts['MODERATE']}[/orange3]",
+                    f"[red]SEV:{severity_counts['SEVERE']}[/red]",
+                ]
+                if error_count:
+                    status_parts.append(f"[red bold]ERR:{error_count}[/red bold]")
+                status_parts.append(f"[dim]{rate:.1f}/min[/dim]")
                 progress.update(task_id, advance=1, status=" ".join(status_parts))
             tasks = [_process(record, _update_progress) for record in records]
             reports = list(await asyncio.gather(*tasks))
+
+        # Print final summary table
+        final_table = Table(title="Pipeline Complete", show_header=True, header_style="bold")
+        final_table.add_column("Metric", style="bold")
+        final_table.add_column("Value", justify="right")
+        total_time = time.monotonic() - start_time
+        final_table.add_row("Total tasks", str(len(reports)))
+        final_table.add_row("Elapsed", f"{total_time:.1f}s")
+        final_table.add_row("Rate", f"{len(reports)/total_time*60:.1f}/min" if total_time > 0 else "N/A")
+        final_table.add_row("[green]CLEAN[/green]", str(severity_counts["CLEAN"]))
+        final_table.add_row("[yellow]MINOR[/yellow]", str(severity_counts["MINOR"]))
+        final_table.add_row("[orange3]MODERATE[/orange3]", str(severity_counts["MODERATE"]))
+        final_table.add_row("[red]SEVERE[/red]", str(severity_counts["SEVERE"]))
+        if error_count:
+            final_table.add_row("[red bold]ERRORS[/red bold]", str(error_count))
+        console.print()
+        console.print(final_table)
     else:
         progress_bar = tqdm(total=len(records), desc="bench-cleanser", unit="task")
         def _update_tqdm():

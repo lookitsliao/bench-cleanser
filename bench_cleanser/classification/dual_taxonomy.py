@@ -10,7 +10,7 @@ Taxonomy alignment with OpenAI's SWE-bench Verified audit (April 2026):
   - "Wide test cases" (18.8% of audited failures)   -> WIDE_TESTS
   - Training contamination (gold patch memorization) -> Axis 2 agent_passed_leak
 
-See: https://openai.com/index/why-we-no-longer-evaluate-swe-bench-verified/
+Uses structured output with strict JSON schema enforcement.
 """
 
 from __future__ import annotations
@@ -32,6 +32,7 @@ from bench_cleanser.models import (
     TaskRecord,
     VagueSpecDetail,
 )
+from bench_cleanser.schemas import TaskClassificationResponse
 
 logger = logging.getLogger(__name__)
 
@@ -319,75 +320,156 @@ def _heuristic_labels(
 
 
 TASK_CLASSIFIER_SYSTEM_PROMPT = """\
-You are a benchmark contamination analyst for SWE-bench.  Your job is to
-classify HOW a benchmark task is contaminated using a structured taxonomy.
+You are a benchmark contamination analyst for SWE-bench, the standard benchmark \
+for evaluating AI coding agents on real-world software engineering tasks. Your job \
+is to classify HOW a benchmark task is contaminated using a structured taxonomy.
 
-You will receive the problem statement, requirements (if any), interface
-specification (if any), hints text, intent extraction, per-hunk patch
-verdicts, and per-assertion test verdicts.
+## BACKGROUND
 
-NOTE: For SWE-bench Pro tasks, the problem statement is narrow but the
-requirements and interface fields contain the full specification.  When
-evaluating contamination, consider ALL three fields together as the complete
-task description.  Do NOT flag behavior as "excess" if it is described in
-the requirements or interface sections.
+SWE-bench tasks consist of:
+1. A problem statement (bug report / feature request from a real GitHub issue)
+2. A gold patch (the actual fix committed by the developer)
+3. F2P tests (fail-to-pass tests that the gold patch makes pass)
+4. P2P tests (pass-to-pass tests that should continue to pass)
 
-Assign ZERO OR MORE contamination labels from this taxonomy:
+"Contamination" here means the task is unfair, misleading, or does not accurately \
+measure agent capability. A contaminated task may cause:
+- FALSE POSITIVES: agents that memorized the benchmark pass without understanding
+- FALSE NEGATIVES: agents with genuine understanding fail due to unfair test design
+- MISLEADING METRICS: the benchmark score doesn't reflect real coding ability
 
-- approach_lock: F2P tests require a specific implementation approach the \
-problem doesn't determine.  A correct-but-different solution would fail.  \
-This includes approach mismatch (gold patch uses a fundamentally different \
-strategy than the problem suggests) and circular test-patch dependencies \
-(tests require out-of-scope patch changes).
+## YOUR INPUT
 
-- wide_tests: F2P tests verify behavior or features not described in the \
-problem.  Tests go beyond the stated acceptance criteria.  Includes tests \
-enforcing features the problem explicitly defers.
+You will receive the COMPLETE pipeline analysis for one task:
+- Problem statement, requirements (SWE-bench Pro), interface spec, hints text
+- Intent extraction (acceptance criteria, ambiguity, decomposition)
+- Per-hunk patch verdicts (REQUIRED / ANCILLARY / UNRELATED)
+- Per-test and per-assertion verdicts (ALIGNED/TANGENTIAL/UNRELATED, ON_TOPIC/OFF_TOPIC)
+- Cross-reference analysis (circular dependencies between tests and out-of-scope hunks)
+- Heuristic pre-classification candidates (to refine or override)
 
-- test_mutation: A pre-existing test was modified to assert on new behavior \
-not in the problem statement.  The test looked legitimate but was silently \
-changed.
+## TAXONOMY: 7 CONTAMINATION LABELS + CLEAN
 
-- scope_creep: Gold patch contains behavioral code changes beyond what the \
-problem asks for.  New features, unrelated refactoring, scope expansion.  \
-Pure ancillary changes (imports, whitespace, docstrings) do NOT count.
+### approach_lock (SEVERE)
+F2P tests require a SPECIFIC implementation approach that the problem statement \
+does not determine. An agent that solves the described problem correctly using \
+a different valid approach WILL FAIL the tests.
 
-- unclear_spec: Problem statement is too ambiguous or actively misleading \
-to determine the correct solution.  Key info missing or description points \
-toward wrong fix.
+SUBTYPES:
+- **Narrow test assertions**: Tests check implementation details (specific class, \
+method name, internal data structure) rather than observable behavior
+- **Approach mismatch**: The gold patch uses a fundamentally different strategy \
+than the problem statement suggests, and the tests are written specifically for \
+the gold patch's approach
+- **Circular test-patch dependency**: Tests require UNRELATED patch hunks to pass \
+— the tests exercise code that the problem doesn't ask for
 
-- hidden_context: Essential solution info exists only in hints text \
-(code review comments, maintainer decisions), not in the problem.  \
-Includes self-referential problems that reference their own patch/tests.
+IMPORTANT DISTINCTIONS:
+- approach_lock is NOT about the tests being too strict in general — it's about \
+the tests rejecting VALID ALTERNATIVE solutions
+- A test that checks "output X equals Y" is fine even if strict, as long as any \
+correct solution would produce the same output
+- approach_lock IS present when tests check HOW the fix works (internal state, \
+specific method calls) rather than WHAT it produces
 
-- weak_coverage: F2P tests or gold patch don't fully cover stated acceptance \
-criteria.  A partial fix can pass.  This is a benchmark quality issue, \
-not a fairness issue.
+### wide_tests (MODERATE-SEVERE)
+F2P tests verify behavior or features that the problem statement does NOT describe. \
+The tests go beyond the stated acceptance criteria by testing additional \
+functionality, edge cases, or code paths not mentioned in the problem.
 
-CLEAN:
-- clean: No contamination detected.
+SUBTYPES:
+- **Extra assertions**: Some assertions in otherwise-aligned tests check undescribed behavior
+- **Extra test functions**: Entire test functions target undescribed features
+- **Deferred feature testing**: The problem explicitly defers a feature ("this can \
+be handled later") but the F2P tests exercise that deferred feature
 
-RULES:
-1. Assign EVERY label that applies (tasks can have multiple labels)
+IMPORTANT DISTINCTIONS:
+- wide_tests is about SCOPE (tests beyond what was asked)
+- approach_lock is about CORRECTNESS (tests reject valid alternatives)
+- A test can be BOTH wide (tests extra stuff) AND approach-locking (requires specific impl)
+- If the Requirements or Interface section describes the behavior, it is NOT wide \
+(SWE-bench Pro has narrow problem statements but detailed requirements)
+
+### test_mutation (MODERATE)
+A pre-existing test was MODIFIED by the PR to assert on new behavior NOT described \
+in the problem statement. The test existed before the PR (making it look legitimate), \
+but the PR author silently changed assertions or expected values.
+
+KEY INDICATORS:
+- TestVerdictReport shows is_modified=True AND modification_aligned=False
+- The pre-patch source shows the original assertions; the post-patch adds new ones
+- The new assertions check behavior NOT in the acceptance criteria
+
+IMPORTANT: Only flag when the MODIFICATIONS themselves are misaligned. If a \
+pre-existing test was modified to check the fixed behavior (described in the \
+problem), that is legitimate and NOT test_mutation.
+
+### scope_creep (MINOR-SEVERE)
+The gold patch contains behavioral code changes beyond what the problem asks for. \
+This includes new features, unrelated bug fixes, broader refactoring, or scope \
+expansion in the patch itself.
+
+KEY INDICATORS:
+- UNRELATED hunk verdicts (behavioral changes, not just imports/whitespace)
+- Hunks modifying functions, classes, or files not mentioned in the problem
+- The patch "while I'm here" includes opportunistic improvements
+
+IMPORTANT: Pure ANCILLARY changes (imports, __init__.py exports, type annotations, \
+whitespace-only changes, docstring updates) do NOT count as scope_creep. Only count \
+changes that introduce NEW BEHAVIOR beyond the problem scope.
+
+### unclear_spec (MINOR)
+The problem statement is too ambiguous or actively misleading to determine the \
+correct solution. Key information is missing, or the description points toward \
+the wrong fix.
+
+KEY INDICATORS:
+- Ambiguity score >= 0.4
+- Multiple valid, incompatible interpretations of the problem
+- Missing reproduction steps for a bug report
+- Problem suggests an approach that differs from the gold patch
+- Vague language ("should work better", "handle edge cases")
+
+### hidden_context (MINOR)
+Essential solution information exists ONLY in the hints text (code review comments, \
+maintainer decisions) and NOT in the problem statement. The problem alone is \
+insufficient; the hints contain the actual specification.
+
+KEY INDICATORS:
+- Problem statement references its own patch/PR ("see the attached patch")
+- Function names, root cause, or design decisions appear only in hints
+- The problem is a one-liner but the hints contain detailed requirements
+- Self-referential problems ("as shown in the fix")
+
+### weak_coverage (MINOR)
+The F2P tests or gold patch don't fully cover the stated acceptance criteria. \
+A partial or incorrect fix could pass. This makes the task EASIER (not harder) \
+— it's a benchmark quality issue, not a fairness issue.
+
+KEY INDICATORS:
+- Acceptance criteria items with no corresponding F2P test
+- Tests that are too loose (check type but not value)
+- Gold patch that leaves some stated requirements unaddressed
+
+### clean
+No contamination detected. The task is fair, well-specified, and the tests \
+accurately measure whether an agent solved the described problem.
+
+## CLASSIFICATION RULES
+
+1. Assign EVERY label that applies (tasks commonly have multiple labels)
 2. If ANY contamination label applies, do NOT assign clean
-3. For each label, provide confidence (0.0-1.0) and specific evidence
-4. Only assign labels with confidence >= 0.4
-5. Cite specific hunks, assertions, or problem statement text as evidence
-6. Be PRECISE: distinguish approach_lock (tests reject valid alternatives) \
-from wide_tests (tests go beyond scope but don't lock approach)
+3. Only assign labels with confidence >= 0.4
+4. For each label: provide confidence 0.0-1.0, specific evidence, and reasoning
+5. CITE SPECIFIC EVIDENCE: reference hunk indices, assertion indices, or quote \
+problem statement text
+6. Be precise: distinguish approach_lock (rejects valid alternatives) from \
+wide_tests (tests beyond scope)
 7. Do NOT flag pure ancillary changes (imports, whitespace) as scope_creep
-
-Respond in valid JSON (no markdown fences):
-{
-    "labels": [
-        {
-            "label": "<taxonomy_label>",
-            "confidence": 0.0-1.0,
-            "evidence": ["specific evidence 1", "specific evidence 2"],
-            "reasoning": "detailed explanation"
-        }
-    ]
-}
+8. For SWE-bench Pro tasks: consider Requirements + Interface as part of the \
+full task specification — behavior described there is NOT excess
+9. Consider the heuristic candidates as initial signals to REFINE or OVERRIDE. \
+They may be correct, partially correct, or wrong.
 """
 
 
@@ -570,26 +652,25 @@ async def classify_task_labels(
     )
 
     try:
-        result = await llm.query_json(
+        result: TaskClassificationResponse = await llm.query_structured(
             system_prompt=TASK_CLASSIFIER_SYSTEM_PROMPT,
             user_prompt=user_prompt,
+            response_model=TaskClassificationResponse,
         )
         labels: list[TaskLabelAssignment] = []
-        for item in result.get("labels", []):
-            label_str = item.get("label", "")
+        for item in result.labels:
             try:
-                label_enum = TaskContaminationLabel(label_str)
+                label_enum = TaskContaminationLabel(item.label)
             except ValueError:
-                logger.warning("Unknown label from LLM: %s", label_str)
+                logger.warning("Unknown label from LLM: %s", item.label)
                 continue
-            confidence = float(item.get("confidence", 0.0))
-            if confidence < 0.4:
+            if item.confidence < 0.4:
                 continue
             labels.append(TaskLabelAssignment(
                 label=label_enum,
-                confidence=confidence,
-                evidence=item.get("evidence", []),
-                reasoning=item.get("reasoning", ""),
+                confidence=item.confidence,
+                evidence=item.evidence,
+                reasoning=item.reasoning,
             ))
 
         # Enforce co-occurrence rules

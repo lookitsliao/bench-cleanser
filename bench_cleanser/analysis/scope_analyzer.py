@@ -4,6 +4,8 @@ The LLM analyzes the problem_statement WITHOUT seeing the gold patch to:
 1. Extract acceptance criteria (intent)
 2. Decompose the problem into bug / suggested fix / legitimacy
 3. Identify specific code entities (files, functions, classes, variables)
+
+Uses structured output with strict JSON schema enforcement.
 """
 
 from __future__ import annotations
@@ -12,92 +14,131 @@ import logging
 
 from bench_cleanser.llm_client import LLMClient
 from bench_cleanser.models import IntentStatement, ProblemDecomposition, TaskRecord
+from bench_cleanser.schemas import IntentExtractionResponse
 
 logger = logging.getLogger(__name__)
 
 INTENT_SYSTEM_PROMPT = """\
-You are an expert software engineer analyzing a bug report / feature request
-from an open-source project.  Your job is to determine EXACTLY what the task
-asks the developer to do — nothing more, nothing less.
+You are an expert software engineer and benchmark contamination analyst performing \
+INTENT EXTRACTION on a bug report or feature request from an open-source project.
 
-You will be given:
-  - The repository name
-  - The instance_id (for reference)
-  - The problem statement (bug report, issue description, or PR description)
-  - Optionally, a Requirements section with detailed implementation requirements
-  - Optionally, an Interface section describing new public interfaces
+## YOUR MISSION
 
-IMPORTANT: You have NOT been shown any code patch.  Do NOT speculate about
-what the fix looks like.  Focus ONLY on what the problem statement,
-requirements, and interface sections say.
+Determine EXACTLY what the task asks the developer to do — nothing more, nothing \
+less. You are the first stage of a multi-stage contamination detection pipeline. \
+Your output is the GROUND TRUTH reference that all downstream analysis (patch \
+classification, test classification, contamination labeling) depends on. \
+Precision here prevents false positives and false negatives downstream.
 
-Think through this carefully:
+## CRITICAL CONSTRAINT
 
-1. **Core requirement**: What is the ONE primary bug or feature being reported?
-   Be precise — do not inflate the scope.
+You have NOT been shown any code patch or test code. Do NOT speculate about \
+what the fix looks like or what implementation approach is correct. Focus ONLY \
+on what the problem statement, requirements, and interface sections describe.
 
-2. **Behavioral contract**: What observable behavior should change after the fix?
-   Describe the BEFORE vs AFTER state concretely.
+## ANALYSIS FRAMEWORK
 
-3. **Acceptance criteria**: List EACH specific, testable behavior that the
-   problem description explicitly asks for.  These must be things a test could
-   verify.  Only include behaviors that are DIRECTLY STATED or CLEARLY IMPLIED
-   by the problem statement.  Do NOT extrapolate.
+Work through these dimensions carefully, spending substantial reasoning on each:
 
-   Good examples:
-   - "modelform_factory should preserve formfield_callback from Meta"
-   - "minversion('1.0.dev1') should return True"
+### 1. Core Requirement
+Identify the ONE primary bug or feature being reported. Be precise:
+- A bug report describes broken behavior that needs correcting
+- A feature request describes new behavior that needs implementing
+- An enhancement extends existing behavior
+- DO NOT inflate the scope — if the reporter mentions one specific case, \
+that is the scope, not "all similar cases"
 
-   Bad examples (over-extrapolation):
-   - "All forms should inherit all attributes from parents"
-   - "All version comparison functions should handle dev tags"
+### 2. Behavioral Contract
+Describe the concrete BEFORE vs AFTER behavioral change:
+- BEFORE: What happens now (the broken/missing behavior)
+- AFTER: What should happen (the correct/new behavior)
+- Be specific about inputs, outputs, error conditions
+- Include observable effects (return values, exceptions, side effects)
 
-4. **Out of scope**: What behaviors, features, or refactors are NOT asked for?
-   Be explicit about what the description does NOT request.
+### 3. Acceptance Criteria — THE MOST CRITICAL OUTPUT
+List EACH specific, testable behavior that the problem description explicitly \
+asks for. These criteria become the reference standard for all downstream \
+intent-matching in the pipeline.
 
-5. **Ambiguity score**: How clear is the specification?
-   - 0.0 = perfectly clear, single valid interpretation
-   - 0.3 = mostly clear, minor edge cases undefined
-   - 0.5 = moderately ambiguous, multiple reasonable interpretations
-   - 0.7 = significantly ambiguous, scope could vary widely
-   - 1.0 = extremely vague, almost anything could be in scope
+RULES FOR ACCEPTANCE CRITERIA:
+- Each criterion must be independently testable (a unit test could verify it)
+- Only include behaviors DIRECTLY STATED or CLEARLY IMPLIED by the problem
+- Distinguish between the core ask and peripheral mentions
+- Use concrete language: "X should return Y when given Z"
+- Do NOT extrapolate to general cases unless the problem explicitly generalizes
+- Do NOT include implementation details (specific classes/methods to modify)
+- DO include edge cases IF the problem statement mentions them
 
-6. **Problem decomposition**: Separate the problem into three parts:
-   - **bug_description**: What is actually broken? The observable defect or
-     missing capability. Stick to the symptom and reproduction steps.
-   - **suggested_fix**: If the reporter suggests HOW to fix it (specific
-     approach, method, class to change), capture that separately.  Many reporters
-     suggest a fix that differs from the actual gold patch — this is valuable
-     signal for APPROACH_LOCK detection.  If no suggestion, use empty string.
-   - **legitimacy**: Is this a genuine bug report, a feature request, a
-     discussion, or something else? Values: "bug", "feature_request",
-     "enhancement", "question", "discussion", "unclear".
+GOOD CRITERIA EXAMPLES:
+- "modelform_factory should preserve formfield_callback from Meta when present"
+- "Duration.__str__ should not produce output with double-negative like '--1 day'"
+- "When ALLOWED_HOSTS is empty and DEBUG=False, the error message should suggest \
+adding the hostname to ALLOWED_HOSTS"
+- "minversion('3.0.dev1') should return True when current version is '3.0.0'"
 
-7. **Code entities**: Extract ALL specific code entities mentioned in the
-   problem statement. Be precise — only include identifiers that appear
-   literally in the text.
-   - **files**: File paths (e.g., "django/forms/models.py", "tests/test_foo.py")
-   - **functions**: Function or method names (e.g., "modelform_factory", "__str__")
-   - **classes**: Class names (e.g., "ModelForm", "Duration")
-   - **variables**: Variable, attribute, or setting names (e.g., "formfield_callback", "USE_TZ")
-   - **modules**: Module or package names (e.g., "django.forms", "astropy.units")
+BAD CRITERIA EXAMPLES (over-extrapolation):
+- "All form factories should handle all Meta attributes" (generalizes beyond ask)
+- "String formatting should handle all edge cases" (vague, not testable)
+- "The fix should be backwards compatible" (not stated in problem)
 
-Respond in JSON with these keys:
-{
-  "core_requirement": "<one-sentence description of the primary bug/feature>",
-  "behavioral_contract": "<concrete BEFORE vs AFTER behavior change>",
-  "acceptance_criteria": ["<specific testable behavior 1>", "<specific testable behavior 2>", ...],
-  "out_of_scope": "<things NOT asked for, even if related>",
-  "ambiguity_score": <float 0.0-1.0>,
-  "bug_description": "<what is actually broken — symptom only>",
-  "suggested_fix": "<reporter's suggested approach, or empty string>",
-  "legitimacy": "<bug|feature_request|enhancement|question|discussion|unclear>",
-  "mentioned_files": ["<file path 1>", ...],
-  "mentioned_functions": ["<function name 1>", ...],
-  "mentioned_classes": ["<class name 1>", ...],
-  "mentioned_variables": ["<variable name 1>", ...],
-  "mentioned_modules": ["<module name 1>", ...]
-}
+### 4. Out of Scope
+Explicitly state what the problem does NOT ask for. This is crucial for \
+downstream detection of scope creep and wide tests:
+- Related features not mentioned
+- Edge cases not discussed
+- Refactoring not requested
+- Performance improvements not asked for
+- If the problem explicitly defers something ("this can be done later"), note it
+
+### 5. Ambiguity Score
+Rate the specification clarity:
+- 0.0 = perfectly clear, single valid interpretation, concrete reproduction steps
+- 0.1-0.2 = very clear, minor stylistic ambiguity only
+- 0.3-0.4 = mostly clear, some edge cases or scope boundaries undefined
+- 0.5-0.6 = moderately ambiguous, multiple reasonable interpretations possible
+- 0.7-0.8 = significantly ambiguous, scope could vary widely
+- 0.9-1.0 = extremely vague, almost anything could be in scope
+
+Factors that increase ambiguity:
+- No reproduction steps for bugs
+- Vague language ("should work better", "handle gracefully")
+- Multiple issues conflated in one report
+- Self-referential ("see the PR", "as shown in the patch")
+- Missing context about the codebase
+
+### 6. Problem Decomposition
+CRITICAL for approach-lock detection:
+- **bug_description**: The observable defect or missing capability. Stick to \
+symptoms and reproduction. Do NOT describe the fix.
+- **suggested_fix**: If the reporter suggests HOW to fix it (specific approach, \
+method, class to change), capture that SEPARATELY. Many reporters suggest \
+a fix that differs from the actual gold patch — this divergence is a key \
+signal for APPROACH_LOCK detection. If no fix is suggested, use empty string "".
+- **legitimacy**: Classify as one of: "bug", "feature_request", "enhancement", \
+"question", "discussion", "unclear"
+
+### 7. Code Entities
+Extract ALL specific code identifiers mentioned LITERALLY in the problem text. \
+Be precise — do not infer entities not explicitly named:
+- files: Full paths (e.g., "django/forms/models.py")
+- functions: Function/method names (e.g., "modelform_factory", "__str__")
+- classes: Class names (e.g., "ModelForm", "Duration")
+- variables: Variable/attribute/setting names (e.g., "formfield_callback")
+- modules: Module/package names (e.g., "django.forms")
+
+## INPUT FORMAT
+
+You will receive:
+- Repository name (for context about the codebase)
+- Instance ID (for reference)
+- Problem statement (the bug report / issue / PR description)
+- Optionally: Requirements section (detailed implementation requirements, \
+especially for SWE-bench Pro tasks)
+- Optionally: Interface section (new public interfaces to implement)
+
+For SWE-bench Pro tasks, the problem_statement is narrow but the Requirements \
+and Interface fields contain the FULL specification. Treat all three as the \
+complete task description.
 """
 
 
@@ -122,49 +163,60 @@ async def extract_intent(
     """Stage 2: extract intent and decompose problem statement.
 
     The LLM is given ONLY the problem_statement (never the gold patch).
+    Uses structured output with strict schema enforcement.
     Returns an IntentStatement with acceptance criteria and a
     ProblemDecomposition with entity tracking.
     """
     user_prompt = _build_user_prompt(record)
 
     max_attempts = 3
-    result: dict = {}
-    for attempt in range(1, max_attempts + 1):
-        result = await llm.query_json(
-            INTENT_SYSTEM_PROMPT, user_prompt,
-            skip_cache=(attempt > 1),
-        )
-        if result and result.get("core_requirement") and result.get("acceptance_criteria"):
-            break
-        logger.warning(
-            "Intent extraction attempt %d/%d for %s returned incomplete",
-            attempt, max_attempts, record.instance_id,
-        )
-        result = {}
+    last_error: Exception | None = None
 
-    if not result or not result.get("core_requirement"):
-        raise RuntimeError(
-            f"Intent extraction failed for {record.instance_id} after {max_attempts} attempts"
-        )
+    for attempt in range(1, max_attempts + 1):
+        try:
+            result: IntentExtractionResponse = await llm.query_structured(
+                INTENT_SYSTEM_PROMPT,
+                user_prompt,
+                IntentExtractionResponse,
+                skip_cache=(attempt > 1),
+            )
+
+            if result.core_requirement and result.acceptance_criteria:
+                break
+            logger.warning(
+                "Intent extraction attempt %d/%d for %s returned empty core fields",
+                attempt, max_attempts, record.instance_id,
+            )
+        except Exception as exc:
+            last_error = exc
+            logger.warning(
+                "Intent extraction attempt %d/%d for %s failed: %s",
+                attempt, max_attempts, record.instance_id, exc,
+            )
+            if attempt == max_attempts:
+                raise RuntimeError(
+                    f"Intent extraction failed for {record.instance_id} "
+                    f"after {max_attempts} attempts: {last_error}"
+                )
 
     decomposition = ProblemDecomposition(
-        bug_description=result.get("bug_description", ""),
-        suggested_fix=result.get("suggested_fix", ""),
-        legitimacy=result.get("legitimacy", "unclear"),
-        mentioned_files=result.get("mentioned_files", []),
-        mentioned_functions=result.get("mentioned_functions", []),
-        mentioned_classes=result.get("mentioned_classes", []),
-        mentioned_variables=result.get("mentioned_variables", []),
-        mentioned_modules=result.get("mentioned_modules", []),
+        bug_description=result.bug_description,
+        suggested_fix=result.suggested_fix,
+        legitimacy=result.legitimacy,
+        mentioned_files=result.mentioned_files,
+        mentioned_functions=result.mentioned_functions,
+        mentioned_classes=result.mentioned_classes,
+        mentioned_variables=result.mentioned_variables,
+        mentioned_modules=result.mentioned_modules,
     )
 
     return IntentStatement(
         instance_id=record.instance_id,
-        core_requirement=result.get("core_requirement", ""),
-        behavioral_contract=result.get("behavioral_contract", ""),
-        acceptance_criteria=result.get("acceptance_criteria", []),
-        out_of_scope=result.get("out_of_scope", ""),
-        ambiguity_score=float(result.get("ambiguity_score", 0.5)),
-        raw_llm_response=str(result),
+        core_requirement=result.core_requirement,
+        behavioral_contract=result.behavioral_contract,
+        acceptance_criteria=result.acceptance_criteria,
+        out_of_scope=result.out_of_scope,
+        ambiguity_score=result.ambiguity_score,
+        raw_llm_response=result.model_dump_json(),
         decomposition=decomposition,
     )
