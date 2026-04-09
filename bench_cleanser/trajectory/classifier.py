@@ -417,9 +417,8 @@ async def classify_with_llm(
 
     try:
         response = await llm.query(
-            system=TRAJECTORY_ANALYSIS_SYSTEM_PROMPT,
-            user=prompt,
-            cache_key=f"trajectory_{trajectory.instance_id}_{trajectory.agent_name}",
+            system_prompt=TRAJECTORY_ANALYSIS_SYSTEM_PROMPT,
+            user_prompt=prompt,
         )
 
         result = _parse_llm_response(response)

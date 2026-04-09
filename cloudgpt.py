@@ -293,7 +293,6 @@ def get_openai_token_provider(
 async def async_get_openai_token_provider(
     **kwargs: Any,
 ) -> AsyncTokenProvider:
-    # TODO: implement async version of get_openai_token_provider
     token_provider = get_openai_token_provider(
         **kwargs,
     )

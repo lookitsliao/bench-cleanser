@@ -631,7 +631,7 @@ class ContaminationReport:
 class PipelineConfig:
     llm_base_url: str = "https://cloudgpt-openai.azure-api.net/"
     llm_api_version: str = "2025-04-01-preview"
-    llm_model: str = "gpt-5.4-pro-20260305"
+    llm_model: str = "gpt-5.4-20260305"
     llm_max_tokens: int = 65536
     llm_reasoning_effort: str = "high"
     max_concurrent_requests: int = 10

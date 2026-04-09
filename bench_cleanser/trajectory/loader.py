@@ -162,7 +162,7 @@ def load_from_docent(
         logger.error("docent-python library required for Docent loading. pip install docent-python")
         return []
 
-    client = Docent(api_key=api_key, server_url=server_url)
+    client = Docent(api_key=api_key, api_url=server_url + "/rest")
 
     if dql_query is None:
         # Build default DQL query
@@ -188,13 +188,31 @@ ORDER BY ar.created_at ASC"""
 
     logger.info("DQL returned %d agent runs", len(df))
 
+    # Filter to target instance_ids first to avoid fetching unnecessary runs
+    if instance_ids:
+        filtered_rows = [(idx, row) for idx, row in df.iterrows()
+                         if row.get("metadata_instance_id", "") in instance_ids]
+    else:
+        filtered_rows = list(df.iterrows())
+
+    total_to_fetch = len(filtered_rows)
+    logger.info("Fetching %d agent run transcripts from Docent", total_to_fetch)
+
+    try:
+        from rich.progress import (
+            BarColumn, MofNCompleteColumn, Progress, SpinnerColumn,
+            TextColumn, TimeElapsedColumn,
+        )
+        from rich.console import Console
+        use_rich = True
+    except ImportError:
+        use_rich = False
+
     records = []
-    for _, row in df.iterrows():
+
+    def _fetch_and_parse(row, progress=None, task_id=None):
         run_id = row.get("agent_run_id", "")
         iid = row.get("metadata_instance_id", "")
-
-        if instance_ids and iid not in instance_ids:
-            continue
 
         resolved_str = str(row.get("metadata_resolved", "false")).lower()
         resolved = resolved_str in ("true", "1", "yes")
@@ -204,12 +222,21 @@ ORDER BY ar.created_at ASC"""
             agent_run = client.get_agent_run(collection_id, run_id)
         except Exception as exc:
             logger.warning("Failed to fetch agent run %s: %s", run_id, exc)
-            continue
+            if progress is not None and task_id is not None:
+                progress.update(task_id, advance=1)
+            return None
 
         # Parse transcript messages into TrajectoryActions
-        messages = getattr(agent_run, "transcript", None) or []
-        if hasattr(messages, "messages"):
-            messages = messages.messages
+        # Docent SDK: agent_run.transcripts is a list of Transcript objects
+        # Each Transcript has .messages (list of UserMessage/AssistantMessage)
+        transcripts = getattr(agent_run, "transcripts", None) or []
+        if transcripts and len(transcripts) > 0:
+            messages = getattr(transcripts[0], "messages", []) or []
+        else:
+            # Fallback to older API patterns
+            messages = getattr(agent_run, "transcript", None) or []
+            if hasattr(messages, "messages"):
+                messages = messages.messages
         if not isinstance(messages, list):
             messages = []
 
@@ -223,7 +250,6 @@ ORDER BY ar.created_at ASC"""
                 role = msg.get("role", "")
                 content = msg.get("content", "")
                 if isinstance(content, list):
-                    # Handle structured content blocks
                     text_parts = []
                     for block in content:
                         if isinstance(block, dict):
@@ -257,7 +283,6 @@ ORDER BY ar.created_at ASC"""
                         role=role,
                     ))
                 elif role == "tool" and content:
-                    # Tool response; attach as observation to last action
                     if actions:
                         actions[-1].observation = str(content)[:50000]
                     else:
@@ -267,18 +292,68 @@ ORDER BY ar.created_at ASC"""
                             role=role,
                         ))
             else:
-                # Handle Docent message objects with attributes
-                raw_messages.append({"type": str(type(msg).__name__), "str": str(msg)[:1000]})
+                # Handle Docent Pydantic message objects (UserMessage, AssistantMessage)
                 msg_role = getattr(msg, "role", "")
-                msg_content = getattr(msg, "content", "")
-                if msg_role == "assistant" and msg_content:
-                    actions.append(TrajectoryAction(
-                        action_type=ActionType.THINK,
-                        content=str(msg_content),
-                        role=msg_role,
-                    ))
+                msg_content = getattr(msg, "content", "") or ""
+                msg_text = getattr(msg, "text", "") or ""
+                tool_calls = getattr(msg, "tool_calls", None) or []
+                tool_call_id = getattr(msg, "tool_call_id", None)
 
-        # Try to extract final patch from the last edit/write action
+                raw_messages.append({
+                    "role": msg_role,
+                    "content": str(msg_content)[:2000] if msg_content else "",
+                    "has_tool_calls": bool(tool_calls),
+                    "tool_call_id": tool_call_id,
+                })
+
+                # Parse tool calls from assistant messages
+                if tool_calls:
+                    for tc in tool_calls:
+                        tc_name = getattr(tc, "function", None)
+                        if tc_name and hasattr(tc_name, "name"):
+                            tool_name = tc_name.name
+                            tool_args = getattr(tc_name, "arguments", "")
+                        elif isinstance(tc, dict):
+                            func = tc.get("function", {})
+                            tool_name = func.get("name", "") if isinstance(func, dict) else str(func)
+                            tool_args = func.get("arguments", "") if isinstance(func, dict) else ""
+                        else:
+                            tool_name = str(getattr(tc, "name", getattr(tc, "type", "unknown")))
+                            tool_args = str(getattr(tc, "input", getattr(tc, "arguments", "")))
+
+                        action_type = _map_tool_to_action_type(tool_name)
+                        actions.append(TrajectoryAction(
+                            action_type=action_type,
+                            content=str(tool_args)[:50000],
+                            tool_name=tool_name,
+                            role=msg_role,
+                        ))
+
+                if msg_role == "assistant" and (msg_content or msg_text):
+                    text = str(msg_content or msg_text)
+                    if text.strip():
+                        actions.append(TrajectoryAction(
+                            action_type=ActionType.THINK,
+                            content=text,
+                            role=msg_role,
+                        ))
+                elif msg_role == "user" and tool_call_id and (msg_content or msg_text):
+                    # Tool response (user message with tool_call_id = observation)
+                    obs = str(msg_content or msg_text)[:50000]
+                    if actions:
+                        actions[-1].observation = obs
+                    else:
+                        actions.append(TrajectoryAction(
+                            action_type=ActionType.OTHER,
+                            content=obs,
+                            role=msg_role,
+                        ))
+                elif msg_role == "user" and (msg_content or msg_text):
+                    # Regular user observation (e.g., tool output)
+                    obs = str(msg_content or msg_text)
+                    if actions and not actions[-1].observation:
+                        actions[-1].observation = obs[:50000]
+
         for action in reversed(actions):
             if action.action_type in (ActionType.EDIT, ActionType.WRITE) and action.content:
                 final_patch = action.content
@@ -290,7 +365,7 @@ ORDER BY ar.created_at ASC"""
         except (ValueError, TypeError):
             turns = len([a for a in actions if a.role == "assistant"])
 
-        records.append(TrajectoryRecord(
+        record = TrajectoryRecord(
             instance_id=iid,
             agent_name=agent_model,
             actions=actions,
@@ -301,7 +376,32 @@ ORDER BY ar.created_at ASC"""
             total_tokens=0,
             turn_count=turns,
             raw_messages=raw_messages,
-        ))
+        )
+
+        if progress is not None and task_id is not None:
+            status = f"loaded:{len(records)+1} actions:{len(actions)} {iid[:40]}"
+            progress.update(task_id, advance=1, status=status)
+
+        return record
+
+    if use_rich:
+        console = Console()
+        with Progress(
+            SpinnerColumn(), TextColumn("[bold magenta]docent-fetch"),
+            BarColumn(bar_width=40), MofNCompleteColumn(),
+            TimeElapsedColumn(), TextColumn("[dim]{task.fields[status]}"),
+            console=console,
+        ) as progress:
+            task_id = progress.add_task("Fetching", total=total_to_fetch, status="Starting...")
+            for _, row in filtered_rows:
+                result = _fetch_and_parse(row, progress, task_id)
+                if result is not None:
+                    records.append(result)
+    else:
+        for _, row in filtered_rows:
+            result = _fetch_and_parse(row)
+            if result is not None:
+                records.append(result)
 
     logger.info("Loaded %d trajectories from Docent collection %s", len(records), collection_id)
     return records

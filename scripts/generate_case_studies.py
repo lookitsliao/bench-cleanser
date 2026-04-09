@@ -17,7 +17,7 @@ import textwrap
 from datasets import load_dataset
 
 
-REPORTS_DIR = "output_pro_v4/reports"
+REPORTS_DIR = "output_pro_v6/reports"
 OUTPUT_DIR = "case_studies/pro_severe"
 NUM_CASES = 25
 

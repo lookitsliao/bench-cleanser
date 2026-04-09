@@ -19,9 +19,9 @@ from pathlib import Path
 from itertools import combinations
 
 # ── Configuration ──────────────────────────────────────────────────────
-REPORTS_DIR = Path("output_v3/reports")
-V2_REPORTS_DIR = Path("output_v2/reports")
-OUTPUT_DIR = Path("output_v3")
+REPORTS_DIR = Path("output_pro_v6/reports")
+V2_REPORTS_DIR = Path("output_pro_v5/reports")
+OUTPUT_DIR = Path("output_pro_v6")
 ANALYSIS_DIR = Path("analysis_v3")
 ANALYSIS_DIR.mkdir(exist_ok=True)
 

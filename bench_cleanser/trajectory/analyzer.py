@@ -40,7 +40,21 @@ async def analyze_trajectories(
 ) -> list[TrajectoryAnalysis]:
     import asyncio
 
-    async def _analyze_one(traj: TrajectoryRecord) -> TrajectoryAnalysis:
+    completed = 0
+    pattern_counts: dict[str, int] = defaultdict(int)
+
+    try:
+        from rich.progress import (
+            BarColumn, MofNCompleteColumn, Progress, SpinnerColumn,
+            TaskProgressColumn, TextColumn, TimeElapsedColumn,
+        )
+        from rich.console import Console
+        use_rich = True
+    except ImportError:
+        use_rich = False
+
+    async def _analyze_one(traj: TrajectoryRecord, progress=None, task_id=None) -> TrajectoryAnalysis:
+        nonlocal completed
         gold_patch = gold_patches.get(traj.instance_id, "")
         test_names = f2p_tests.get(traj.instance_id, [])
         problem = problem_statements.get(traj.instance_id, "")
@@ -61,6 +75,15 @@ async def analyze_trajectories(
         else:
             result = classify_heuristic_only(traj, gold_patch, test_names)
 
+        completed += 1
+        pattern_counts[result.leakage_pattern.value] += 1
+
+        if progress is not None and task_id is not None:
+            status_parts = []
+            for p, c in sorted(pattern_counts.items()):
+                status_parts.append(f"{p}:{c}")
+            progress.update(task_id, advance=1, status=" ".join(status_parts))
+
         logger.debug(
             "%s/%s: %s (conf=%.2f, sim=%.2f)",
             traj.instance_id, traj.agent_name,
@@ -69,8 +92,22 @@ async def analyze_trajectories(
         )
         return result
 
-    # Run all trajectory analyses in parallel
-    analyses = await asyncio.gather(*[_analyze_one(t) for t in trajectories])
+    if use_rich:
+        console = Console()
+        with Progress(
+            SpinnerColumn(), TextColumn("[bold cyan]trajectory-analysis"),
+            BarColumn(bar_width=40), MofNCompleteColumn(), TaskProgressColumn(),
+            TimeElapsedColumn(), TextColumn("[dim]{task.fields[status]}"),
+            console=console,
+        ) as progress:
+            task_id = progress.add_task("Classifying", total=len(trajectories), status="Starting...")
+            analyses = list(await asyncio.gather(
+                *[_analyze_one(t, progress, task_id) for t in trajectories]
+            ))
+    else:
+        analyses = list(await asyncio.gather(
+            *[_analyze_one(t) for t in trajectories]
+        ))
 
     by_instance: dict[str, list[int]] = defaultdict(list)
     for i, traj in enumerate(trajectories):
@@ -349,14 +386,43 @@ async def run_trajectory_analysis(
     problem_statements: dict[str, str] = {}
     contamination_reports: dict[str, ContaminationReport] = {}
 
-    from bench_cleanser.data_loader import load_single_task
+    # Batch-load tasks from SWE-bench datasets ONCE instead of per-report.
+    # load_single_task loads entire datasets per call — catastrophically slow
+    # for 100+ reports. Instead, load each dataset once and index by instance_id.
+    from bench_cleanser.data_loader import load_swebench_pro, load_swebench_verified
+
+    logger.info("Batch-loading SWE-bench datasets for %d target instances", len(target_ids))
+    all_records: dict[str, TaskRecord] = {}
+    for loader_fn, label in [
+        (load_swebench_pro, "SWE-bench Pro"),
+        (load_swebench_verified, "SWE-bench Verified"),
+    ]:
+        try:
+            records_list = loader_fn(max_tasks=10000)
+            for rec in records_list:
+                if rec.instance_id in target_ids:
+                    all_records[rec.instance_id] = rec
+            logger.info("Indexed %s: found %d/%d target tasks so far",
+                        label, len(all_records), len(target_ids))
+            if len(all_records) >= len(target_ids):
+                break
+        except Exception as exc:
+            logger.warning("Failed to load %s: %s", label, exc)
+
+    matched = 0
     for report in reports:
-        record = load_single_task(report.instance_id)
+        record = all_records.get(report.instance_id)
         if record:
             gold_patches[report.instance_id] = record.patch
             f2p_tests[report.instance_id] = record.fail_to_pass
             problem_statements[report.instance_id] = record.full_problem_context
+            matched += 1
+        else:
+            logger.warning("No SWE-bench task found for %s — LLM analysis will be skipped", report.instance_id)
         contamination_reports[report.instance_id] = report
+
+    logger.info("Matched %d/%d reports to SWE-bench tasks (problem_statements populated: %d)",
+                matched, len(reports), len(problem_statements))
 
     trajectories = load_trajectories(
         trajectory_source,
@@ -392,11 +458,8 @@ async def run_trajectory_analysis(
             f"{stats['mean_gold_patch_similarity']:.3f} |\n"
         )
 
-    records_map: dict[str, TaskRecord] = {}
-    for report in reports:
-        record = load_single_task(report.instance_id)
-        if record:
-            records_map[report.instance_id] = record
+    # Reuse already-loaded records instead of calling load_single_task again
+    records_map: dict[str, TaskRecord] = all_records
 
     summary += "\n---\n\n# End-to-End Contamination Narratives\n"
     for report in reports:

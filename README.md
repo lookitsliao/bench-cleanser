@@ -51,16 +51,16 @@ Where OpenAI's audit was a one-time manual review of 138 tasks, bench-cleanser r
 
 ## Key Findings
 
-### SWE-bench Pro (731 tasks) -- Pipeline v5
+### SWE-bench Pro (731 tasks) -- Pipeline v6
 
-v5 incorporates SWE-bench Pro's `requirements` and `interface` fields (evaluation-only context withheld from agents), enabling precise scope analysis.
+v6 incorporates SWE-bench Pro's `requirements` and `interface` fields (evaluation-only context withheld from agents), batch dataset loading for trajectory analysis, and real LLM-primary trajectory classification.
 
 | Severity | Count | Percentage | Description |
 |----------|------:|:----------:|-------------|
-| **SEVERE** | 98 | 13.4% | Approach-locked tests or combined wide tests + scope creep |
-| **MODERATE** | 54 | 7.4% | Test mutation edits or standalone wide tests |
-| **MINOR** | 449 | 61.4% | Scope creep alone or specification ambiguity |
-| **CLEAN** | 130 | 17.8% | No contamination signals detected |
+| **SEVERE** | 107 | 14.6% | Approach-locked tests or combined wide tests + scope creep |
+| **MODERATE** | 72 | 9.8% | Test mutation edits or standalone wide tests |
+| **MINOR** | 387 | 52.9% | Scope creep alone or specification ambiguity |
+| **CLEAN** | 165 | 22.6% | No contamination signals detected |
 
 ### SWE-bench Verified (500 tasks) -- Pipeline v3
 
@@ -440,8 +440,14 @@ code_visitation:
 # SWE-bench Pro (recommended)
 python run_pipeline.py --dataset pro --config config.yaml
 
+# SWE-bench Live
+python run_pipeline.py --dataset live --config config.yaml
+
 # SWE-bench Verified
 python run_pipeline.py --dataset verified
+
+# Both Pro + Verified
+python run_pipeline.py --dataset both
 
 # Single task
 python run_pipeline.py --instance-id django__django-11964
@@ -454,14 +460,14 @@ python run_pipeline.py --dataset pro --resume
 
 ```bash
 # Deep dive case studies (SEVERE by default)
-python run_deep_dive.py --reports-dir output_pro_v5/reports
+python run_deep_dive.py --reports-dir output_pro_v6/reports
 
 # Specific severity or instances
-python run_deep_dive.py --reports-dir output_pro_v5/reports --severity MODERATE
-python run_deep_dive.py --reports-dir output_pro_v5/reports --instance-ids <id1> <id2>
+python run_deep_dive.py --reports-dir output_pro_v6/reports --severity MODERATE
+python run_deep_dive.py --reports-dir output_pro_v6/reports --instance-ids <id1> <id2>
 
 # MARP slide deck
-python run_slides.py --reports-dir output_pro_v5/reports --output slides/findings.md
+python run_slides.py --reports-dir output_pro_v6/reports --output slides/findings.md
 npx @marp-team/marp-cli slides/findings.md --pdf
 ```
 
@@ -470,35 +476,29 @@ npx @marp-team/marp-cli slides/findings.md --pdf
 ```bash
 # Full trajectory analysis with LLM
 python run_trajectory_analysis.py \
-  --reports-dir output_pro_v5/reports \
+  --reports-dir output_pro_v6/reports \
   --trajectory-source trajectory_data/ \
   --config config.yaml
 
 # Load from Docent collection
 python run_trajectory_analysis.py \
-  --reports-dir output_pro_v5/reports \
+  --reports-dir output_pro_v6/reports \
   --trajectory-source 032fb63d-4992-4bfc-911d-3b7dafcb931f \
   --docent-api-key dk_... \
-  --model-filter "Gemini 2.5 Pro Preview" \
+  --model-filter "Claude Opus 4.1 - paper" \
   --output trajectory_analysis.md
 
 # Load from HuggingFace
 python run_trajectory_analysis.py \
-  --reports-dir output_pro_v5/reports \
+  --reports-dir output_pro_v6/reports \
   --trajectory-source SWE-bench-Live/SWE-agent-trajectories \
   --hf-split train
-
-# Heuristic-only (no LLM, faster)
-python run_trajectory_analysis.py \
-  --reports-dir output_pro_v5/reports \
-  --trajectory-source trajectory_data/ \
-  --no-llm
 ```
 
 ### Monitor a running pipeline
 
 ```bash
-python monitor_pipeline.py --output-dir output_pro_v5 --total 731
+python monitor_pipeline.py --output-dir output_pro_v6 --total 731
 ```
 
 ---

@@ -9,13 +9,13 @@ classification decision.
 
 Usage:
     python run_trajectory_analysis.py \
-        --reports-dir output_pro_v5/reports \
+        --reports-dir output_pro_v6/reports \
         --trajectory-source trajectories/ \
         --output trajectory_analysis.md
 
     # Load from Docent collection
     python run_trajectory_analysis.py \
-        --reports-dir output_pro_v5/reports \
+        --reports-dir output_pro_v6/reports \
         --trajectory-source 032fb63d-4992-4bfc-911d-3b7dafcb931f \
         --docent-api-key dk_... \
         --model-filter "Gemini 2.5 Pro Preview" \
@@ -23,7 +23,7 @@ Usage:
 
     # Load from HuggingFace
     python run_trajectory_analysis.py \
-        --reports-dir output_pro_v5/reports \
+        --reports-dir output_pro_v6/reports \
         --trajectory-source SWE-bench-Live/SWE-agent-trajectories \
         --hf-split train \
         --output trajectory_analysis.md
@@ -93,11 +93,6 @@ def _parse_args() -> argparse.Namespace:
         help="Path to config YAML for LLM settings (default: config.yaml)",
     )
     p.add_argument(
-        "--no-llm",
-        action="store_true",
-        help="Disable LLM analysis (heuristic-only fallback)",
-    )
-    p.add_argument(
         "--output",
         default=None,
         help="Output markdown file path (default: stdout)",
@@ -120,20 +115,19 @@ def main() -> None:
         datefmt="%H:%M:%S",
     )
 
-    # Set up LLM client unless --no-llm
+    # Set up LLM client
     llm = None
-    if not args.no_llm:
-        try:
-            from bench_cleanser.pipeline import load_config
-            from bench_cleanser.cache import ResponseCache
-            from bench_cleanser.llm_client import LLMClient
+    try:
+        from bench_cleanser.pipeline import load_config
+        from bench_cleanser.cache import ResponseCache
+        from bench_cleanser.llm_client import LLMClient
 
-            config = load_config(args.config)
-            cache = ResponseCache(config.cache_dir)
-            llm = LLMClient(config, cache=cache)
-            logging.info("LLM-primary trajectory analysis enabled (%s)", config.llm_model)
-        except Exception as exc:
-            logging.warning("Failed to initialize LLM client: %s — using heuristic fallback", exc)
+        config = load_config(args.config)
+        cache = ResponseCache(config.cache_dir)
+        llm = LLMClient(config, cache=cache)
+        logging.info("LLM-primary trajectory analysis enabled (%s)", config.llm_model)
+    except Exception as exc:
+        logging.warning("Failed to initialize LLM client: %s — using heuristic fallback", exc)
 
     from bench_cleanser.trajectory.analyzer import run_trajectory_analysis
 

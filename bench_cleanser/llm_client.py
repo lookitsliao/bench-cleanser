@@ -1,7 +1,7 @@
 """Async-capable LLM client using CloudGPT Azure OpenAI endpoint.
 
 Uses Azure AD token-based authentication via the cloudgpt module and
-supports gpt-5.4-pro reasoning effort parameter.
+supports gpt-5.4 reasoning effort parameter.
 
 All structured LLM calls use ``response_format={"type": "json_schema", ...}``
 with strict Pydantic schemas — no regex JSON extraction, no silent fallbacks.
@@ -12,8 +12,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import sys
 import os
+import re
+import sys
 from typing import Any, TypeVar
 
 import openai
@@ -131,7 +132,7 @@ class LLMClient:
 
     Supports optional disk-based caching via :class:`ResponseCache` and
     automatic retries with exponential back-off on transient failures.
-    Uses gpt-5.4-pro reasoning effort for thorough analysis.
+    Uses gpt-5.4 reasoning effort for thorough analysis.
     """
 
     def __init__(
@@ -427,11 +428,6 @@ class LLMClient:
                 if attempt < max_validation_attempts:
                     if self._cache is not None:
                         self._cache.delete(key)
-
-        raise RuntimeError(
-            f"Schema validation failed for {response_model.__name__} "
-            f"after {max_validation_attempts} attempts: {last_error}"
-        )
 
         raise RuntimeError(
             f"Schema validation failed for {response_model.__name__} "

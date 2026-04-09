@@ -4,7 +4,7 @@ Reads completed reports from the output directory without interfering
 with the running pipeline.  Refreshes every few seconds.
 
 Usage:
-    python monitor_pipeline.py [--output-dir output_pro_v5] [--total 731] [--interval 5]
+    python monitor_pipeline.py [--output-dir output_pro_v6] [--total 731] [--interval 5]
 """
 
 from __future__ import annotations
@@ -233,7 +233,7 @@ def _build_display(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Monitor bench-cleanser pipeline run")
-    parser.add_argument("--output-dir", default="output_pro_v5", help="Reports output directory")
+    parser.add_argument("--output-dir", default="output_pro_v6", help="Reports output directory")
     parser.add_argument("--total", type=int, default=731, help="Expected total tasks")
     parser.add_argument("--interval", type=float, default=5.0, help="Refresh interval in seconds")
     args = parser.parse_args()
