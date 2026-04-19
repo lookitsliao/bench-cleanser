@@ -142,25 +142,31 @@ LABEL_DEFINITIONS: dict[str, dict[str, Any]] = {
 def compute_task_severity(
     labels: list[TaskLabelAssignment],
 ) -> Severity:
-    """Compute task severity from bucket-based rules (no math, no weights).
+    """Compute task severity from label presence (pure set membership).
 
-    Severity is determined entirely by WHICH labels are present:
+    No arithmetic, no thresholds. The label co-occurrence rules encode a
+    core insight from the human audit of 107 SEVERE cases:
 
-    SEVERE:
-      - APPROACH_LOCK is present, OR
-      - Both OVER_TEST and OVER_PATCH are present
+      In an authentic PR, the gold patch and the F2P tests are authored
+      together. If the tests assert on behaviour NOT described in the
+      problem (OVER_TEST), then either:
+        (a) the patch also reaches beyond scope (OVER_TEST + OVER_PATCH),
+            which is unambiguous contamination, OR
+        (b) the patch appears in-scope while the tests silently widen
+            expectations — an equally dangerous form of contamination
+            because the agent has no signal to know the tests demand
+            behaviour outside the problem.
 
-    MODERATE:
-      - OVER_TEST alone (without OVER_PATCH)
+      Both (a) and (b) are SEVERE. OVER_TEST alone is RARE and demands
+      maximum attention; it is NOT a softer form of (a).
 
-    MINOR:
-      - OVER_PATCH alone, OR
-      - UNCLEAR_DESCRIPTION alone, OR
-      - HIDDEN_CONTEXT alone, OR
-      - WEAK_COVERAGE alone
-
-    CLEAN:
-      - No contamination labels
+    Rules:
+      SEVERE  = APPROACH_LOCK  ∈ labels  OR
+                OVER_TEST      ∈ labels
+      MODERATE = OVER_PATCH ∈ labels AND (HIDDEN_CONTEXT ∈ labels OR UNCLEAR_DESCRIPTION ∈ labels)
+      MINOR   = any single one of {OVER_PATCH, UNCLEAR_DESCRIPTION,
+                                   HIDDEN_CONTEXT, WEAK_COVERAGE}
+      CLEAN   = no contamination labels
     """
     if not labels:
         return Severity.CLEAN
@@ -173,18 +179,15 @@ def compute_task_severity(
     if not label_set:
         return Severity.CLEAN
 
-    # SEVERE: approach_lock OR (over_test + over_patch)
-    if TaskContaminationLabel.APPROACH_LOCK in label_set:
-        return Severity.SEVERE
-    if (TaskContaminationLabel.OVER_TEST in label_set
-            and TaskContaminationLabel.OVER_PATCH in label_set):
+    if (TaskContaminationLabel.APPROACH_LOCK in label_set
+            or TaskContaminationLabel.OVER_TEST in label_set):
         return Severity.SEVERE
 
-    # MODERATE: over_test alone
-    if TaskContaminationLabel.OVER_TEST in label_set:
+    if (TaskContaminationLabel.OVER_PATCH in label_set
+            and (TaskContaminationLabel.HIDDEN_CONTEXT in label_set
+                 or TaskContaminationLabel.UNCLEAR_DESCRIPTION in label_set)):
         return Severity.MODERATE
 
-    # MINOR: any remaining contamination label
     return Severity.MINOR
 
 
@@ -298,12 +301,11 @@ def _heuristic_labels(
                 ],
             ))
 
-    # UNCLEAR_DESCRIPTION: high ambiguity score
-    if description_clarity.score >= 0.4:
-        candidates.append(TaskLabelAssignment(
-            label=TaskContaminationLabel.UNCLEAR_DESCRIPTION,
-            evidence=[f"Ambiguity score: {description_clarity.score:.2f}"],
-        ))
+    # UNCLEAR_DESCRIPTION is intentionally NOT triggered by a float threshold
+    # on ambiguity_score.  The classifier LLM decides from the problem text
+    # directly.  The only deterministic path to this label is the
+    # self-referential HIDDEN_CONTEXT check below (which is a different
+    # failure mode anyway).
 
     # HIDDEN_CONTEXT: check for self-referential problem description
     if record and record.problem_statement:
@@ -413,7 +415,7 @@ correct solution would produce the same output
 - approach_lock IS present when tests check HOW the fix works (internal state, \
 specific method calls) rather than WHAT it produces
 
-### over_test (MODERATE-SEVERE)
+### over_test (SEVERE — always)
 F2P tests verify behavior or features that the problem description does NOT describe. \
 The tests go beyond the stated acceptance criteria by testing additional \
 functionality, edge cases, or code paths not mentioned in the problem. This also \
@@ -437,7 +439,28 @@ IMPORTANT DISTINCTIONS:
 - If a pre-existing test was modified to check the fixed behavior described in the \
 problem, that is legitimate and NOT over_test
 
-### over_patch (MINOR-SEVERE)
+## AUDIT INSIGHT — OVER_TEST ALMOST ALWAYS CO-OCCURS WITH OVER_PATCH
+
+Because gold patches and F2P tests are authored together in the same PR, genuine \
+OVER_TEST findings almost always co-occur with OVER_PATCH: the author expanded \
+both code and assertions in lockstep. Two diagnostic consequences:
+
+1. If you see OVER_TEST WITHOUT OVER_PATCH, you must double-check. Usually one of \
+two things is happening:
+   a) A pre-existing test was silently widened (the expansion lives in the test \
+      file only — OVER_TEST legitimately fires, OVER_PATCH legitimately does not).
+   b) OVER_PATCH detection was too conservative and missed behavioural hunks \
+      that support the widened tests. Re-examine hunks labelled ANCILLARY — any \
+      of them carrying NEW BEHAVIOUR should be UNRELATED instead, which flips \
+      the task into OVER_PATCH as well.
+
+2. If you see OVER_PATCH without OVER_TEST, the 1:1:1 principle says the task is \
+usually NOT contaminated — the excess code is unreachable from the F2P tests.
+
+OVER_TEST is the single most important contamination signal. Whenever you assign it, \
+cite the specific assertion indices or new test functions driving the call.
+
+### over_patch (MINOR unless compounded)
 The gold patch contains behavioral code changes beyond what the problem asks for. \
 This includes new features, unrelated bug fixes, broader refactoring, or scope \
 expansion in the patch itself.
@@ -457,11 +480,13 @@ correct solution. Key information is missing, or the description points toward \
 the wrong fix.
 
 KEY INDICATORS:
-- Ambiguity score >= 0.4
 - Multiple valid, incompatible interpretations of the problem
 - Missing reproduction steps for a bug report
 - Problem suggests an approach that differs from the gold patch
 - Vague language ("should work better", "handle edge cases")
+
+NOTE: The upstream intent-extraction ambiguity_score is advisory context only. \
+Make your assignment from the problem text itself, not from that number.
 
 ### hidden_context (MINOR)
 Essential solution information exists ONLY in the hints text (code review comments, \
@@ -504,13 +529,15 @@ They may be correct, partially correct, or wrong.
 
 ## THE 1:1:1 PRINCIPLE (from human audit of 107 SEVERE cases)
 
-- Problem:Test should be approximately 1:1 — tests evaluate what the problem asks
-- Problem:Patch should be 1:>=1 — overpatch alone is a quality issue, NOT contamination
-- Contamination = tests require code changes not derivable from the problem statement
-- over_patch ALONE should NOT be classified as severe — it only becomes severe when \
-F2P tests COUPLE to the excess patch hunks (overpatch-overtest coupling)
-- A 100-hunk gold patch with 99 unrelated hunks is NOT contaminated if the 1 test \
-only exercises the 1 relevant hunk
+- Problem:Test should be approximately 1:1 — tests evaluate exactly what the problem asks
+- Problem:Patch should be 1:>=1 — over_patch alone is a quality issue, NOT contamination
+- Contamination = tests require behaviour not derivable from the problem statement
+- over_patch ALONE downstream severity = MINOR. It only compounds to higher severity \
+when paired with over_test, approach_lock, hidden_context, or unclear_description
+- A 100-hunk gold patch with 99 unrelated hunks is NOT contaminated if the F2P \
+tests only exercise the 1 relevant hunk
+- over_test is ALWAYS severe downstream, because it breaks the 1:1 problem-to-test \
+contract regardless of whether the patch also overreaches
 
 Key insight from audit: 40% of SEVERE classifications were overturned to CLEAN. \
 The most common false positive was flagging tasks with large patches but minimal \

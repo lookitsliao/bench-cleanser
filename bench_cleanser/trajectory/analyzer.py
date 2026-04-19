@@ -467,6 +467,41 @@ async def run_trajectory_analysis(
                 report, records_map[report.instance_id], analyses,
             )
 
+    # Stage 7 — Task-Trajectory Fusion summary.
+    from bench_cleanser.fusion import FusionVerdict, fuse
+    from collections import Counter
+    fusion_counter: Counter[str] = Counter()
+    per_agent_counter: dict[str, Counter[str]] = defaultdict(Counter)
+    invalidated = 0
+    for a in analyses:
+        rep = contamination_reports.get(a.instance_id)
+        if rep is None:
+            continue
+        f = fuse(rep, a)
+        fusion_counter[f.verdict.value] += 1
+        per_agent_counter[a.agent_name][f.verdict.value] += 1
+        if f.invalidates_measurement:
+            invalidated += 1
+
+    if fusion_counter:
+        summary += "\n---\n\n# Stage 7 — Task-Trajectory Fusion\n\n"
+        summary += (
+            f"Total fused (task, agent) pairs: {sum(fusion_counter.values())}. "
+            f"Measurement-invalidating verdicts: **{invalidated}** "
+            f"({invalidated / sum(fusion_counter.values()):.1%}).\n\n"
+        )
+        summary += "## Verdict totals\n\n| Verdict | Count |\n|---|---|\n"
+        for v in FusionVerdict:
+            if fusion_counter[v.value]:
+                summary += f"| {v.value} | {fusion_counter[v.value]} |\n"
+        summary += "\n## Per-agent breakdown\n\n"
+        verdicts_in_use = [v.value for v in FusionVerdict if fusion_counter[v.value]]
+        summary += "| Agent | " + " | ".join(verdicts_in_use) + " |\n"
+        summary += "|" + "|".join(["---"] * (len(verdicts_in_use) + 1)) + "|\n"
+        for agent in sorted(per_agent_counter):
+            row = [agent] + [str(per_agent_counter[agent].get(v, 0)) for v in verdicts_in_use]
+            summary += "| " + " | ".join(row) + " |\n"
+
     if output_path:
         out = pathlib.Path(output_path)
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -475,9 +510,20 @@ async def run_trajectory_analysis(
 
     if output_path:
         json_path = pathlib.Path(output_path).with_suffix(".json")
+
+        # Stage 7 fusion: combine Axis 1 (task severity) with Axis 2 (trajectory label).
+        from bench_cleanser.fusion import fuse
+        fusions: list[dict] = []
+        for a in analyses:
+            rep = contamination_reports.get(a.instance_id)
+            if rep is None:
+                continue
+            fusions.append(fuse(rep, a).to_dict())
+
         json_data = {
             "analyses": [a.to_dict() for a in analyses],
             "leakage_rates": rates,
+            "fusion": fusions,
         }
         json_path.write_text(
             json.dumps(json_data, indent=2, ensure_ascii=False),

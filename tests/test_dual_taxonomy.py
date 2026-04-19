@@ -37,6 +37,14 @@ def test_severe_compound_overtest_overpatch():
     assert compute_task_severity(labels) == Severity.SEVERE
 
 
+def test_severe_over_test_alone():
+    # Over_test without over_patch is rare and demands maximum attention:
+    # either over_patch detection missed something, or the tests silently
+    # widened expectations beyond the problem scope.  Both are SEVERE.
+    labels = [_label("over_test")]
+    assert compute_task_severity(labels) == Severity.SEVERE
+
+
 def test_severe_approach_lock_with_others():
     labels = [_label("approach_lock"), _label("weak_coverage"), _label("over_patch")]
     assert compute_task_severity(labels) == Severity.SEVERE
@@ -45,8 +53,13 @@ def test_severe_approach_lock_with_others():
 # ── MODERATE ──────────────────────────────────────────────────────────
 
 
-def test_moderate_over_test_alone():
-    labels = [_label("over_test")]
+def test_moderate_over_patch_plus_hidden_context():
+    labels = [_label("over_patch"), _label("hidden_context")]
+    assert compute_task_severity(labels) == Severity.MODERATE
+
+
+def test_moderate_over_patch_plus_unclear():
+    labels = [_label("over_patch"), _label("unclear_description")]
     assert compute_task_severity(labels) == Severity.MODERATE
 
 

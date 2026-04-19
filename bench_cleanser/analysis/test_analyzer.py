@@ -42,12 +42,29 @@ You will receive:
 behavioral contract, acceptance criteria, out-of-scope)
 2. The full problem statement for additional context
 3. ALL F2P test functions at once with their source code, assertions, \
-modification status, and code context
+modification status, and code context (call targets, tested source functions, \
+pre-patch test source when modified, and structural-diff call edges into \
+changed blocks).
 
 Your job is to classify EVERY test in a single pass with:
 - A test-level verdict (ALIGNED / TANGENTIAL / UNRELATED)
 - Per-assertion verdicts (ON_TOPIC / OFF_TOPIC)
 - Modification alignment assessment (for MODIFIED tests)
+
+## PRIMARY SIGNAL — PER-ASSERTION VERDICTS
+
+The single most important output is the per-assertion ON_TOPIC / OFF_TOPIC list. \
+An OFF_TOPIC assertion directly drives the downstream OVER_TEST label, which \
+makes a task SEVERE. Be generous with OFF_TOPIC when an assertion:
+- Checks a field, key, value or exact string that the problem never mentions
+- Validates behaviour that the problem explicitly defers or says is out of scope
+- Exercises a code path reached only through UNRELATED patch hunks
+- Encodes implementation-specific identifiers (enum values, error codes, internal \
+  attribute names) that the problem does not require
+
+Be conservative (mark ON_TOPIC) only when the assertion directly maps to an \
+acceptance criterion OR to the Requirements/Interface section (SWE-bench Pro) OR \
+to the behavioural contract.
 
 ## TEST-LEVEL VERDICTS
 
@@ -83,19 +100,6 @@ Indicators of UNRELATED:
 - test file is in a different subsystem from the problem description
 - no call-graph connection to the buggy code
 
-## PER-ASSERTION VERDICTS
-
-For EACH assertion in every test, determine:
-
-### ON_TOPIC
-The assertion verifies behavior described in at least one acceptance criterion. \
-A test reader could trace this assertion back to a specific part of the problem.
-
-### OFF_TOPIC
-The assertion checks behavior NOT described in the problem statement. This \
-includes edge cases not mentioned, unrelated features, or implementation \
-details beyond the acceptance criteria.
-
 ## MODIFICATION ANALYSIS (CRITICAL FOR CONTAMINATION DETECTION)
 
 For MODIFIED tests (tests that existed before the PR):
@@ -109,6 +113,15 @@ signal (OVER_TEST)
 - A modified test that appears legitimate because it existed before, but \
 has new assertions checking undescribed behavior, is particularly suspicious
 
+## HOW TO USE THE STRUCTURAL CONTEXT
+
+When a `Structural context` block is present, it lists call edges from the test \
+to CHANGED blocks in the gold patch. Use these edges to:
+- Confirm the test actually reaches the code the problem describes (supports ALIGNED)
+- Detect tests that only reach UNRELATED changed blocks (supports UNRELATED / OVER_TEST)
+- Cross-check `call_targets` marked `IN GOLD PATCH` — those are the code paths \
+the agent must implement to satisfy this test
+
 ## ANALYSIS GUIDELINES
 
 1. Read ALL acceptance criteria and out-of-scope before analyzing any test
@@ -118,8 +131,9 @@ the test actually exercises the buggy code path
 4. Use the pre-patch source (when available) to verify what CHANGED in modified tests
 5. Consider tests as a group: multiple tests for the same behavior may be fine, \
 but multiple tests for DIFFERENT behaviors suggests OVER_TEST
-6. Be CONSERVATIVE: if behavior is plausible but not described in the problem, \
-mark it OFF_TOPIC
+6. Be CONSERVATIVE on test-level verdicts (ALIGNED unless clearly not), but \
+be LIBERAL on per-assertion OFF_TOPIC — individual assertions can silently widen \
+expectations inside an otherwise aligned test.
 7. Count assertions carefully: both "assert" statements AND unittest-style \
 assertions (self.assertEqual, etc.) AND context managers (pytest.raises)
 8. For the problem statement provided, use it to disambiguate when the intent \
