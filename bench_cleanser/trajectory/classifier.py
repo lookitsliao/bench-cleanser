@@ -14,7 +14,7 @@ Tier 1: Heuristic signal extraction (fast, no LLM)
 
 Tier 2: LLM analysis (primary classifier)
   - Feeds problem statement + trajectory + heuristic signals to LLM
-  - LLM classifies with reasoning and confidence
+  - LLM classifies with reasoning and evidence_strength
 
 Tier 3: Cross-agent comparison
   - If all agents produce identical patches, likely leakage
@@ -176,7 +176,7 @@ def classify_heuristic_only(
             instance_id=trajectory.instance_id,
             agent_name=trajectory.agent_name,
             leakage_pattern=LeakagePattern.GOLD_PATCH_LEAK,
-            confidence=min(similarity, 0.95),
+            evidence_strength="strong",
             evidence=evidence,
             gold_patch_similarity=similarity,
             pip_install_commands=pip_installs,
@@ -192,7 +192,7 @@ def classify_heuristic_only(
             instance_id=trajectory.instance_id,
             agent_name=trajectory.agent_name,
             leakage_pattern=LeakagePattern.PACKAGE_LEAK,
-            confidence=0.7,
+            evidence_strength="moderate",
             evidence=evidence,
             gold_patch_similarity=similarity,
             pip_install_commands=pip_installs,
@@ -205,7 +205,7 @@ def classify_heuristic_only(
             instance_id=trajectory.instance_id,
             agent_name=trajectory.agent_name,
             leakage_pattern=LeakagePattern.TEST_AWARE,
-            confidence=0.6,
+            evidence_strength="moderate",
             evidence=evidence,
             gold_patch_similarity=similarity,
             pip_install_commands=pip_installs,
@@ -221,7 +221,7 @@ def classify_heuristic_only(
             instance_id=trajectory.instance_id,
             agent_name=trajectory.agent_name,
             leakage_pattern=LeakagePattern.PARTIAL_MATCH,
-            confidence=0.5,
+            evidence_strength="moderate",
             evidence=evidence,
             gold_patch_similarity=similarity,
             pip_install_commands=pip_installs,
@@ -232,7 +232,7 @@ def classify_heuristic_only(
         instance_id=trajectory.instance_id,
         agent_name=trajectory.agent_name,
         leakage_pattern=LeakagePattern.GENUINE_SOLUTION,
-        confidence=0.5,
+        evidence_strength="moderate",
         evidence=["No deterministic leakage signals detected"],
         gold_patch_similarity=similarity,
         pip_install_commands=pip_installs,
@@ -382,7 +382,7 @@ Respond in JSON:
 {{
     "pattern": "GENUINE_SOLUTION | GOLD_PATCH_LEAK | PACKAGE_LEAK | TEST_AWARE | PARTIAL_MATCH",
     "trajectory_label": "agent_passed_genuine | agent_passed_leak | agent_passed_package_leak | agent_passed_test_aware | agent_passed_trained_hack | agent_failed_completed_intent | agent_failed_no_intent | agent_unknown",
-    "confidence": 0.0 to 1.0,
+    "evidence_strength": "strong/moderate/weak",
     "reasoning": "Detailed paragraph explaining the classification",
     "causal_chain": "Brief description of what led the agent to its approach",
     "key_evidence": ["list", "of", "key", "evidence", "points"],
@@ -423,7 +423,7 @@ async def classify_with_llm(
 
         result = _parse_llm_response(response)
         pattern = LeakagePattern(result.get("pattern", "UNKNOWN"))
-        confidence = float(result.get("confidence", 0.5))
+        evidence_strength = result.get("evidence_strength", "moderate")
         reasoning = result.get("reasoning", "")
         causal_chain = result.get("causal_chain", "")
         key_evidence = result.get("key_evidence", [])
@@ -448,7 +448,7 @@ async def classify_with_llm(
             instance_id=trajectory.instance_id,
             agent_name=trajectory.agent_name,
             leakage_pattern=pattern,
-            confidence=confidence,
+            evidence_strength=evidence_strength,
             evidence=evidence,
             gold_patch_similarity=heuristic_signals["gold_patch_similarity"],
             pip_install_commands=heuristic_signals["pip_install_commands"],
@@ -497,7 +497,7 @@ def _parse_llm_response(response: str) -> dict[str, Any]:
             pass
 
     logger.warning("Failed to parse LLM response as JSON")
-    return {"pattern": "UNKNOWN", "confidence": 0.3, "reasoning": text[:500]}
+    return {"pattern": "UNKNOWN", "evidence_strength": "weak", "reasoning": text}
 
 
 
@@ -508,7 +508,7 @@ def classify_cross_agent(
     """Tier 3: Cross-agent comparison.
 
     If multiple agents produce nearly identical patches, upgrade
-    confidence in GOLD_PATCH_LEAK classification.
+    evidence_strength in GOLD_PATCH_LEAK classification.
     """
     if len(analyses) < 2:
         return analyses
@@ -540,7 +540,7 @@ def classify_cross_agent(
                     "suggesting gold patch leakage rather than independent derivation"
                 )
                 analysis.leakage_pattern = LeakagePattern.GOLD_PATCH_LEAK
-                analysis.confidence = max(analysis.confidence, 0.8)
+                analysis.evidence_strength = "strong"
 
     return analyses
 

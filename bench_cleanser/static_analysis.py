@@ -65,7 +65,7 @@ def extract_test_calls(test_source: str) -> list[str]:
     try:
         tree = ast.parse(test_source)
     except SyntaxError:
-        return _extract_calls_regex(test_source)
+        return []
 
     calls: list[str] = []
     seen: set[str] = set()
@@ -98,19 +98,6 @@ def _call_name(node: ast.Call) -> str:
     return ""
 
 
-def _extract_calls_regex(source: str) -> list[str]:
-    """Regex fallback for call extraction."""
-    pattern = re.compile(r"\b([a-zA-Z_][a-zA-Z0-9_.]*)\s*\(")
-    seen: set[str] = set()
-    result: list[str] = []
-    for m in pattern.finditer(source):
-        name = m.group(1)
-        if name not in seen and name not in ("if", "for", "while", "with", "def", "class"):
-            seen.add(name)
-            result.append(name)
-    return result
-
-
 # -------------------------------------------------------------------
 # Assertion extraction
 # -------------------------------------------------------------------
@@ -123,7 +110,7 @@ def extract_assertions(test_source: str) -> list[Assertion]:
     try:
         tree = ast.parse(test_source)
     except SyntaxError:
-        return _extract_assertions_regex(test_source)
+        return []
 
     assertions: list[Assertion] = []
     source_lines = test_source.splitlines()
@@ -203,30 +190,6 @@ def _get_source_line(lines: list[str], lineno: int) -> str:
     if 0 < lineno <= len(lines):
         return lines[lineno - 1]
     return ""
-
-
-def _extract_assertions_regex(source: str) -> list[Assertion]:
-    """Regex fallback for assertion extraction."""
-    results: list[Assertion] = []
-    for line in source.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("assert ") or stripped.startswith("assert("):
-            results.append(Assertion(
-                statement=stripped,
-                assertion_type="assert",
-                target_expression=stripped[7:].strip(),
-                expected_value="",
-            ))
-        for method in ("assertEqual", "assertRaises", "assertTrue", "assertFalse", "assertIn"):
-            if f".{method}(" in stripped:
-                results.append(Assertion(
-                    statement=stripped,
-                    assertion_type=method,
-                    target_expression="",
-                    expected_value="",
-                ))
-                break
-    return results
 
 
 # -------------------------------------------------------------------

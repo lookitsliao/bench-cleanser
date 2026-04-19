@@ -43,10 +43,9 @@ SEV_STYLES = {
 LABEL_STYLES = {
     "clean": "green",
     "approach_lock": "red",
-    "wide_tests": "magenta",
-    "scope_creep": "cyan",
-    "test_mutation": "bright_red",
-    "unclear_spec": "yellow",
+    "over_test": "magenta",
+    "over_patch": "cyan",
+    "unclear_description": "yellow",
     "hidden_context": "blue",
     "weak_coverage": "bright_yellow",
 }
@@ -109,8 +108,8 @@ def _build_label_panel(label_counts: Counter) -> Panel:
         return Panel("[dim]No labels yet[/dim]", title="[bold]Label Distribution[/bold]")
     max_c = max(label_counts.values()) if label_counts else 1
     ordered = [
-        "approach_lock", "wide_tests", "test_mutation", "scope_creep",
-        "unclear_spec", "hidden_context", "weak_coverage", "clean",
+        "approach_lock", "over_test", "over_patch",
+        "unclear_description", "hidden_context", "weak_coverage", "clean",
     ]
     lines = Text()
     for lab in ordered:

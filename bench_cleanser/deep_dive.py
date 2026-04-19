@@ -98,19 +98,19 @@ def generate_hints_section(ctx: DeepDiveContext) -> str:
 
 def generate_gold_patch_section(ctx: DeepDiveContext) -> str:
     letter = _case_letter(ctx.case_index)
-    ep = ctx.report.excess_patch
+    ep = ctx.report.patch_analysis
     patch = ctx.record.patch.strip()
 
     lines = [f"### {letter}.4 Gold Patch Analysis\n"]
 
     if ep.hunk_verdicts:
         lines.append("#### Per-Hunk Verdicts\n")
-        lines.append("| Hunk | File | Verdict | Confidence | Reasoning |")
+        lines.append("| Hunk | File | Verdict | Evidence | Reasoning |")
         lines.append("|---|---|---|---|---|")
         for h in ep.hunk_verdicts:
             verdict_fmt = f"**{h.verdict.value}**" if h.verdict.value == "UNRELATED" else h.verdict.value
             reason = h.reasoning[:200].replace("|", "\\|") if h.reasoning else ""
-            lines.append(f"| {h.hunk_index} | `{h.file_path}` | {verdict_fmt} | {h.confidence:.2f} | {reason} |")
+            lines.append(f"| {h.hunk_index} | `{h.file_path}` | {verdict_fmt} | {h.evidence_strength} | {reason} |")
         lines.append("")
 
     lines.append("#### Patch Summary\n")
@@ -118,7 +118,7 @@ def generate_gold_patch_section(ctx: DeepDiveContext) -> str:
     lines.append(f"- **REQUIRED:** {ep.required_count}")
     lines.append(f"- **ANCILLARY:** {ep.ancillary_count}")
     lines.append(f"- **UNRELATED:** {ep.unrelated_count}")
-    lines.append(f"- **Has excess:** {'Yes' if ep.has_excess else 'No'}")
+    lines.append(f"- **Has excess:** {'Yes' if ep.unrelated_count > 0 else 'No'}")
     lines.append("")
 
     lines.append("<details>")
@@ -133,7 +133,7 @@ def generate_gold_patch_section(ctx: DeepDiveContext) -> str:
 
 def generate_test_analysis_section(ctx: DeepDiveContext) -> str:
     letter = _case_letter(ctx.case_index)
-    et = ctx.report.excess_test
+    et = ctx.report.test_analysis
 
     lines = [f"### {letter}.5 Test Patch Analysis\n"]
 
@@ -171,7 +171,7 @@ def generate_test_analysis_section(ctx: DeepDiveContext) -> str:
     lines.append(f"- **ON_TOPIC:** {et.on_topic_assertions}")
     lines.append(f"- **OFF_TOPIC:** {et.off_topic_assertions}")
     lines.append(f"- **Has modified tests:** {'Yes' if et.has_modified_tests else 'No'}")
-    lines.append(f"- **Has excess:** {'Yes' if et.has_excess else 'No'}")
+    lines.append(f"- **Has excess:** {'Yes' if et.off_topic_assertions > 0 or et.unrelated_count > 0 else 'No'}")
     lines.append("")
 
     test_patch = ctx.record.test_patch.strip()
@@ -207,19 +207,19 @@ def generate_pipeline_verdict_section(ctx: DeepDiveContext) -> str:
     lines.append("#### Signal Summary\n")
     lines.append("| Signal | Value |")
     lines.append("|---|---|")
-    lines.append(f"| SCOPE_CREEP | {'Yes' if rpt.excess_patch.has_excess else 'No'} ({rpt.excess_patch.unrelated_count} UNRELATED / {rpt.excess_patch.total_hunks} hunks) |")
-    lines.append(f"| WIDE_TESTS | {'Yes' if rpt.excess_test.has_excess else 'No'} ({rpt.excess_test.off_topic_assertions} OFF_TOPIC / {rpt.excess_test.total_assertions} assertions) |")
-    lines.append(f"| VAGUE_SPEC | {rpt.vague_spec.score:.2f} |")
+    lines.append(f"| OVER_PATCH | {'Yes' if rpt.patch_analysis.unrelated_count > 0 else 'No'} ({rpt.patch_analysis.unrelated_count} UNRELATED / {rpt.patch_analysis.total_hunks} hunks) |")
+    lines.append(f"| OVER_TEST | {'Yes' if rpt.test_analysis.off_topic_assertions > 0 or rpt.test_analysis.unrelated_count > 0 else 'No'} ({rpt.test_analysis.off_topic_assertions} OFF_TOPIC / {rpt.test_analysis.total_assertions} assertions) |")
+    lines.append(f"| UNCLEAR_DESCRIPTION | {rpt.description_clarity.score:.2f} |")
     lines.append("")
 
     if rpt.task_labels:
         lines.append("#### Task Labels\n")
-        lines.append("| Label | Confidence | Evidence |")
-        lines.append("|---|---|---|")
+        lines.append("| Label | Evidence |")
+        lines.append("|---|---|")
         for tl in rpt.task_labels:
             evidence = "; ".join(tl.evidence[:3]) if tl.evidence else ""
             evidence_clean = evidence[:200].replace("|", "\\|")
-            lines.append(f"| **{tl.label.value}** | {tl.confidence:.2f} | {evidence_clean} |")
+            lines.append(f"| **{tl.label.value}** | {evidence_clean} |")
         lines.append("")
 
     if rpt.recommendations:
@@ -242,7 +242,7 @@ def generate_independent_analysis_section(
 
     if rpt.task_labels:
         for tl in rpt.task_labels:
-            lines.append(f"- **{tl.label.value}** (confidence: {tl.confidence:.2f}): {tl.reasoning}")
+            lines.append(f"- **{tl.label.value}**: {tl.reasoning}")
         lines.append("")
 
     lines.append(f"### {letter}.8 Independent Analysis\n")
@@ -260,8 +260,8 @@ def generate_independent_analysis_section(
 
 def _auto_analyze(ctx: DeepDiveContext) -> str:
     rpt = ctx.report
-    et = rpt.excess_test
-    ep = rpt.excess_patch
+    et = rpt.test_analysis
+    ep = rpt.patch_analysis
 
     findings = []
 

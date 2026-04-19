@@ -100,7 +100,7 @@ class TrajectoryAnalysis:
     instance_id: str
     agent_name: str
     leakage_pattern: LeakagePattern
-    confidence: float                           # 0-1
+    evidence_strength: str = "moderate"
     evidence: list[str] = field(default_factory=list)
     gold_patch_similarity: float = 0.0          # 0-1, difflib ratio
     pip_install_commands: list[str] = field(default_factory=list)
@@ -131,7 +131,7 @@ class TrajectoryAnalysis:
             "agent_name": self.agent_name,
             "leakage_pattern": self.leakage_pattern.value,
             "trajectory_label": self.agent_trajectory_label.value,
-            "confidence": round(self.confidence, 4),
+            "evidence_strength": self.evidence_strength,
             "evidence": self.evidence,
             "gold_patch_similarity": round(self.gold_patch_similarity, 4),
             "pip_install_commands": self.pip_install_commands,

@@ -18,7 +18,7 @@ from bench_cleanser.llm_client import LLMClient
 from bench_cleanser.models import (
     AssertionVerdict,
     AssertionVerdictReport,
-    ExcessTestDetail,
+    TestAnalysis,
     IntentStatement,
     ParsedTask,
     StructuralDiff,
@@ -105,7 +105,7 @@ post-patch source (after the PR's changes)
 for behavior IN the acceptance criteria
 - Set is_modification_aligned = false if the PR author silently added \
 assertions for behavior NOT in the problem — this is a strong contamination \
-signal (TEST_MUTATION)
+signal (OVER_TEST)
 - A modified test that appears legitimate because it existed before, but \
 has new assertions checking undescribed behavior, is particularly suspicious
 
@@ -117,7 +117,7 @@ has new assertions checking undescribed behavior, is particularly suspicious
 the test actually exercises the buggy code path
 4. Use the pre-patch source (when available) to verify what CHANGED in modified tests
 5. Consider tests as a group: multiple tests for the same behavior may be fine, \
-but multiple tests for DIFFERENT behaviors suggests WIDE_TESTS
+but multiple tests for DIFFERENT behaviors suggests OVER_TEST
 6. Be CONSERVATIVE: if behavior is plausible but not described in the problem, \
 mark it OFF_TOPIC
 7. Count assertions carefully: both "assert" statements AND unittest-style \
@@ -305,7 +305,7 @@ async def analyze_tests(
     intent: IntentStatement,
     llm: LLMClient,
     structural_diff: StructuralDiff | None = None,
-) -> ExcessTestDetail:
+) -> TestAnalysis:
     """Stage 4B: classify all F2P tests against intent in a single batched LLM call."""
     all_test_hunks = list(parsed.f2p_test_hunks)
     problem_statement = parsed.record.full_problem_context
@@ -317,7 +317,7 @@ async def analyze_tests(
         test_name = parts[-1].split("[")[0] if parts else test_id
         unmatched_verdicts.append(TestVerdictReport(
             test_id=test_id, test_name=test_name,
-            intent_match=TestVerdict.ALIGNED, confidence=0.3,
+            intent_match=TestVerdict.ALIGNED, evidence_strength="weak",
             reasoning="F2P test with no matching hunk — test was not modified, likely exercises gold patch behavior",
             is_modified=False, modification_aligned=True, assertion_verdicts=[],
         ))
@@ -325,7 +325,7 @@ async def analyze_tests(
     if not all_test_hunks:
         # Only unmatched tests
         aligned = sum(1 for v in unmatched_verdicts if v.intent_match == TestVerdict.ALIGNED)
-        return ExcessTestDetail(
+        return TestAnalysis(
             total_tests=len(unmatched_verdicts),
             aligned_count=aligned, tangential_count=0, unrelated_count=0,
             total_assertions=0, on_topic_assertions=0, off_topic_assertions=0,
@@ -360,7 +360,7 @@ async def analyze_tests(
             )
             test_verdicts.append(TestVerdictReport(
                 test_id=test_hunk.full_test_id, test_name=test_hunk.test_name,
-                intent_match=TestVerdict.TANGENTIAL, confidence=0.3,
+                intent_match=TestVerdict.TANGENTIAL, evidence_strength="weak",
                 reasoning="No verdict returned by LLM for this test",
                 is_modified=is_modified, modification_aligned=True,
             ))
@@ -393,7 +393,7 @@ async def analyze_tests(
 
         test_verdicts.append(TestVerdictReport(
             test_id=test_hunk.full_test_id, test_name=test_hunk.test_name,
-            intent_match=test_verdict, confidence=verdict_item.confidence,
+            intent_match=test_verdict, evidence_strength=verdict_item.evidence_strength,
             reasoning=verdict_item.reasoning, is_modified=is_modified,
             modification_aligned=verdict_item.is_modification_aligned,
             assertion_verdicts=assertion_verdicts,
@@ -411,7 +411,7 @@ async def analyze_tests(
     off_topic = sum(v.off_topic_count for v in test_verdicts)
     has_modified = any(v.is_modified for v in test_verdicts)
 
-    return ExcessTestDetail(
+    return TestAnalysis(
         total_tests=len(test_verdicts),
         aligned_count=aligned,
         tangential_count=tangential,

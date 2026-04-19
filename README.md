@@ -501,6 +501,31 @@ python run_trajectory_analysis.py \
 python monitor_pipeline.py --output-dir output_pro_v6 --total 731
 ```
 
+### Unified audit CLI
+
+```bash
+# Fetch data
+python audit.py fetch swebench              # Cache SWE-bench Pro dataset
+python audit.py fetch trajectories           # Fetch trajectory summary from Docent
+
+# LLM trajectory audit
+python audit.py analyze all --blind          # Blind analysis (no pipeline context)
+python audit.py analyze 4 --force            # Re-analyze case 4
+
+# Human audit workflow
+python audit.py status                       # Progress dashboard
+python audit.py show 4                       # Detailed case view
+python audit.py record 4 CONFIRMED_SEVERE "test_coupling evidence"
+
+# Export and reports
+python audit.py export tracker               # Regenerate tracker CSV
+python audit.py export triage                # Generate reviewer triage CSV
+python audit.py report case-studies --num 25 # Generate case study markdown
+python audit.py report forensic              # Run forensic analysis
+```
+
+Requires `DOCENT_API_KEY` environment variable for trajectory fetching.
+
 ---
 
 ## Output Format
@@ -595,9 +620,16 @@ bench-cleanser/
 ├── tests/                             # Unit tests
 ├── case_studies/                      # Smoking gun analyses + 25 Pro SEVERE cases
 ├── slides/                            # MARP presentation decks
+├── audit.py                           # Unified audit CLI (fetch/analyze/status/show/record/export/report)
 ├── output_v3/                         # SWE-bench Verified run (500 reports)
-├── output_pro_v5/                     # SWE-bench Pro v5 run (731 reports)
-└── scripts/                           # Analysis utilities
+├── output_pro_v6/                     # SWE-bench Pro v6 run (731 reports)
+└── audits/severe/                     # SEVERE case audit workspace
+    ├── audit_tracker_v2.csv           # 101-case tracker with verdicts
+    ├── swebench_pro_cache.json        # Cached SWE-bench Pro dataset
+    ├── trajectory_cache/              # Per-case agent trajectories
+    ├── trajectory_summary_v2.json     # Resolution rates for all 731 tasks
+    ├── llm_analysis/                  # Per-case LLM audit results
+    └── notes_v2/                      # Per-case audit notes
 ```
 
 ---

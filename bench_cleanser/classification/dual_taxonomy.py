@@ -3,11 +3,11 @@
 Axis 1 assigns zero or more TaskContaminationLabel to each task.
 Axis 2 assigns a single AgentTrajectoryLabel per agent-task pair.
 
-8 binary labels, bucket-based severity, no ratio thresholds.
+7 binary labels, bucket-based severity, no ratio thresholds.
 
 Taxonomy alignment with OpenAI's SWE-bench Verified audit (April 2026):
   - "Narrow test cases" (35.5% of audited failures) -> APPROACH_LOCK
-  - "Wide test cases" (18.8% of audited failures)   -> WIDE_TESTS
+  - "Wide test cases" (18.8% of audited failures)   -> OVER_TEST
   - Training contamination (gold patch memorization) -> Axis 2 agent_passed_leak
 
 Uses structured output with strict JSON schema enforcement.
@@ -21,16 +21,15 @@ from typing import Any
 
 from bench_cleanser.analysis.cross_ref import CrossReferenceResult
 from bench_cleanser.models import (
-    AgentLabelAssignment,
-    AgentTrajectoryLabel,
-    ExcessPatchDetail,
-    ExcessTestDetail,
     IntentStatement,
+    PatchAnalysis,
+    PatchVerdict,
     Severity,
     TaskContaminationLabel,
     TaskLabelAssignment,
     TaskRecord,
-    VagueSpecDetail,
+    TestAnalysis,
+    DescriptionClarity,
 )
 from bench_cleanser.schemas import TaskClassificationResponse
 
@@ -55,39 +54,29 @@ LABEL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "than the problem statement suggests?"
         ),
     },
-    "wide_tests": {
-        "display": "Wide Tests",
+    "over_test": {
+        "display": "Over Test",
         "definition": (
             "F2P tests verify behavior or features that the problem "
             "statement does not describe.  The tests go beyond the stated "
             "acceptance criteria — they test additional functionality, "
             "edge cases, or code paths not mentioned.  Includes tests "
-            "enforcing features the problem explicitly defers."
+            "enforcing features the problem explicitly defers, and "
+            "pre-existing tests modified to assert on behavior beyond "
+            "what the problem description asks for."
         ),
         "openai_equivalent": "Wide test cases",
         "prompt": (
             "Do the F2P tests assert on behavior not described in the "
             "problem?  Is there at least one test or assertion that targets "
             "undescribed behavior?  Does the problem contain deferral "
-            "language yet F2P tests exercise the deferred feature?"
+            "language yet F2P tests exercise the deferred feature?  "
+            "Were any pre-existing tests modified to introduce assertions "
+            "beyond what the problem description requires?"
         ),
     },
-    "test_mutation": {
-        "display": "Test Mutation",
-        "definition": (
-            "A pre-existing test was modified to assert on new behavior "
-            "not described in the problem statement.  The test existed "
-            "before the PR, making it look legitimate, but the PR author "
-            "silently changed assertions or expected values."
-        ),
-        "prompt": (
-            "Is there a MODIFIED (pre-existing) test?  If so, do the "
-            "changes add assertions or expected values for behavior NOT "
-            "described in the problem statement?"
-        ),
-    },
-    "scope_creep": {
-        "display": "Scope Creep",
+    "over_patch": {
+        "display": "Over Patch",
         "definition": (
             "The gold patch contains behavioral code changes beyond what "
             "the problem asks for — new features, unrelated refactoring, "
@@ -102,17 +91,17 @@ LABEL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "public API) than the problem describes?"
         ),
     },
-    "unclear_spec": {
-        "display": "Unclear Spec",
+    "unclear_description": {
+        "display": "Unclear Description",
         "definition": (
-            "The problem statement is too ambiguous or actively misleading "
+            "The problem description is too ambiguous or actively misleading "
             "to determine the correct solution.  Either key information is "
             "missing (no repro steps, no affected component, multiple valid "
             "interpretations) or the description points toward the wrong fix."
         ),
         "prompt": (
             "Can a competent developer determine the correct fix from the "
-            "problem statement alone?  Is the problem ambiguous enough that "
+            "problem description alone?  Is the problem ambiguous enough that "
             "multiple incompatible approaches are equally reasonable?  Does "
             "the problem suggest a specific fix strategy that is incorrect "
             "per the gold patch?"
@@ -123,15 +112,13 @@ LABEL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "definition": (
             "Essential information needed to solve the problem exists only "
             "in the hints text (code review comments, maintainer decisions) "
-            "and not in the problem statement.  The problem alone is "
-            "insufficient; the hints contain the actual specification.  "
-            "Includes problems that reference their own patch/tests."
+            "and not in the problem description.  The problem alone is "
+            "insufficient; the hints contain the actual specification."
         ),
         "prompt": (
             "Does the hints text contain solution-critical information "
             "absent from the problem?  Function names, root cause, or "
-            "design decisions not derivable from the problem alone?  Does "
-            "the problem reference 'see the patch' or 'attached PR'?"
+            "design decisions not derivable from the problem alone?"
         ),
     },
     "weak_coverage": {
@@ -161,15 +148,14 @@ def compute_task_severity(
 
     SEVERE:
       - APPROACH_LOCK is present, OR
-      - Both WIDE_TESTS and SCOPE_CREEP are present
+      - Both OVER_TEST and OVER_PATCH are present
 
     MODERATE:
-      - TEST_MUTATION is present, OR
-      - WIDE_TESTS alone (without SCOPE_CREEP)
+      - OVER_TEST alone (without OVER_PATCH)
 
     MINOR:
-      - SCOPE_CREEP alone, OR
-      - UNCLEAR_SPEC alone, OR
+      - OVER_PATCH alone, OR
+      - UNCLEAR_DESCRIPTION alone, OR
       - HIDDEN_CONTEXT alone, OR
       - WEAK_COVERAGE alone
 
@@ -187,17 +173,15 @@ def compute_task_severity(
     if not label_set:
         return Severity.CLEAN
 
-    # SEVERE: approach_lock OR (wide_tests + scope_creep)
+    # SEVERE: approach_lock OR (over_test + over_patch)
     if TaskContaminationLabel.APPROACH_LOCK in label_set:
         return Severity.SEVERE
-    if (TaskContaminationLabel.WIDE_TESTS in label_set
-            and TaskContaminationLabel.SCOPE_CREEP in label_set):
+    if (TaskContaminationLabel.OVER_TEST in label_set
+            and TaskContaminationLabel.OVER_PATCH in label_set):
         return Severity.SEVERE
 
-    # MODERATE: test_mutation OR wide_tests alone
-    if TaskContaminationLabel.TEST_MUTATION in label_set:
-        return Severity.MODERATE
-    if TaskContaminationLabel.WIDE_TESTS in label_set:
+    # MODERATE: over_test alone
+    if TaskContaminationLabel.OVER_TEST in label_set:
         return Severity.MODERATE
 
     # MINOR: any remaining contamination label
@@ -207,9 +191,9 @@ def compute_task_severity(
 
 def _heuristic_labels(
     intent: IntentStatement,
-    excess_patch: ExcessPatchDetail,
-    excess_test: ExcessTestDetail,
-    vague_spec: VagueSpecDetail,
+    patch_analysis: PatchAnalysis,
+    test_analysis: TestAnalysis,
+    description_clarity: DescriptionClarity,
     record: TaskRecord | None = None,
     cross_ref: CrossReferenceResult | None = None,
 ) -> list[TaskLabelAssignment]:
@@ -220,62 +204,108 @@ def _heuristic_labels(
     """
     candidates: list[TaskLabelAssignment] = []
 
-    # WIDE_TESTS: any OFF_TOPIC assertion or UNRELATED test
-    has_off_topic = excess_test.off_topic_assertions > 0
-    has_unrelated_test = excess_test.unrelated_count > 0
+    # OVER_TEST: any OFF_TOPIC assertion, UNRELATED test, or misaligned modified test
+    has_off_topic = test_analysis.off_topic_assertions > 0
+    has_unrelated_test = test_analysis.unrelated_count > 0
+    has_misaligned_modification = False
     if has_off_topic or has_unrelated_test:
         evidence = []
         if has_off_topic:
-            evidence.append(f"{excess_test.off_topic_assertions} OFF_TOPIC assertions found")
+            evidence.append(f"{test_analysis.off_topic_assertions} OFF_TOPIC assertions found")
         if has_unrelated_test:
-            evidence.append(f"{excess_test.unrelated_count} UNRELATED tests found")
-        for tv in excess_test.test_verdicts:
+            evidence.append(f"{test_analysis.unrelated_count} UNRELATED tests found")
+        for tv in test_analysis.test_verdicts:
             if tv.is_modified and tv.off_topic_count > 0:
                 evidence.append(
                     f"Modified test '{tv.test_name}' has {tv.off_topic_count} "
                     f"OFF_TOPIC assertions (pre-existing test with added excess)"
                 )
+            if tv.is_modified and not tv.modification_aligned:
+                has_misaligned_modification = True
+                evidence.append(
+                    f"Modified test '{tv.test_name}' has misaligned changes "
+                    f"(pre-existing test modified beyond problem scope)"
+                )
         candidates.append(TaskLabelAssignment(
-            label=TaskContaminationLabel.WIDE_TESTS,
-            confidence=0.7,
+            label=TaskContaminationLabel.OVER_TEST,
             evidence=evidence,
         ))
-
-    # TEST_MUTATION: any modified test with misaligned changes
-    if excess_test.has_modified_tests:
-        for tv in excess_test.test_verdicts:
+    elif test_analysis.has_modified_tests:
+        # Check for misaligned modifications even without other signals
+        for tv in test_analysis.test_verdicts:
             if tv.is_modified and not tv.modification_aligned:
+                has_misaligned_modification = True
                 candidates.append(TaskLabelAssignment(
-                    label=TaskContaminationLabel.TEST_MUTATION,
-                    confidence=0.8,
+                    label=TaskContaminationLabel.OVER_TEST,
                     evidence=[
                         f"Test '{tv.test_name}' is pre-existing and modified "
-                        f"with misaligned changes",
+                        f"with changes beyond problem scope",
                     ],
                 ))
                 break
 
-    # SCOPE_CREEP: any UNRELATED hunk with behavioral changes
+    # Pre-staged test value coupling (AUDIT Pattern 2)
+    if test_analysis.test_verdicts:
+        for tv in test_analysis.test_verdicts:
+            if tv.off_topic_count > 0 and tv.is_modified:
+                candidates.append(TaskLabelAssignment(
+                    label=TaskContaminationLabel.OVER_TEST,
+                    evidence=[
+                        f"Pre-existing test '{tv.test_name}' modified with {tv.off_topic_count} "
+                        f"OFF_TOPIC assertions — may assert on gold patch implementation values "
+                        f"not derivable from problem statement",
+                    ],
+                ))
+                break
+
+    # OVER_PATCH: any UNRELATED hunk with behavioral changes
     # (pure ancillary does NOT trigger this)
-    if excess_patch.unrelated_count > 0:
+    if patch_analysis.unrelated_count > 0:
         candidates.append(TaskLabelAssignment(
-            label=TaskContaminationLabel.SCOPE_CREEP,
-            confidence=0.7,
+            label=TaskContaminationLabel.OVER_PATCH,
             evidence=[
-                f"{excess_patch.unrelated_count} UNRELATED hunks with "
+                f"{patch_analysis.unrelated_count} UNRELATED hunks with "
                 f"behavioral changes beyond problem scope",
             ],
         ))
 
-    # UNCLEAR_SPEC: high ambiguity score
-    if vague_spec.score >= 0.4:
+    # Task/Patch Mismatch (AUDIT Pattern 1)
+    if patch_analysis.required_count == 0 and patch_analysis.unrelated_count >= 2:
         candidates.append(TaskLabelAssignment(
-            label=TaskContaminationLabel.UNCLEAR_SPEC,
-            confidence=0.6,
-            evidence=[f"Ambiguity score: {vague_spec.score:.2f}"],
+            label=TaskContaminationLabel.APPROACH_LOCK,
+            evidence=[
+                f"Task/Patch Mismatch: 0 REQUIRED hunks, {patch_analysis.unrelated_count} UNRELATED hunks",
+                "Gold patch implements entirely different functionality than problem describes",
+            ],
         ))
 
-    # HIDDEN_CONTEXT: check for self-referential problem statement
+    # Compilation barrier (AUDIT Pattern 3)
+    monolithic_extensions = {".go", ".ts", ".tsx", ".rs"}
+    if patch_analysis.unrelated_count > 0:
+        unrelated_files = [hv.file_path for hv in patch_analysis.hunk_verdicts
+                           if hv.verdict == PatchVerdict.UNRELATED]
+        has_monolithic = any(
+            any(f.endswith(ext) for ext in monolithic_extensions)
+            for f in unrelated_files
+        )
+        if has_monolithic:
+            candidates.append(TaskLabelAssignment(
+                label=TaskContaminationLabel.APPROACH_LOCK,
+                evidence=[
+                    f"Potential compilation barrier: UNRELATED hunks in monolithic project files",
+                    f"Files: {', '.join(unrelated_files[:5])}",
+                    "In Go/TypeScript/Rust, unrelated changes may be required for compilation",
+                ],
+            ))
+
+    # UNCLEAR_DESCRIPTION: high ambiguity score
+    if description_clarity.score >= 0.4:
+        candidates.append(TaskLabelAssignment(
+            label=TaskContaminationLabel.UNCLEAR_DESCRIPTION,
+            evidence=[f"Ambiguity score: {description_clarity.score:.2f}"],
+        ))
+
+    # HIDDEN_CONTEXT: check for self-referential problem description
     if record and record.problem_statement:
         ps_lower = record.problem_statement.lower()
         self_ref_phrases = [
@@ -286,7 +316,6 @@ def _heuristic_labels(
             if phrase in ps_lower:
                 candidates.append(TaskLabelAssignment(
                     label=TaskContaminationLabel.HIDDEN_CONTEXT,
-                    confidence=0.7,
                     evidence=[f'Problem contains "{phrase}"'],
                 ))
                 break
@@ -295,25 +324,37 @@ def _heuristic_labels(
     if intent.decomposition and intent.decomposition.suggested_fix:
         candidates.append(TaskLabelAssignment(
             label=TaskContaminationLabel.APPROACH_LOCK,
-            confidence=0.4,
             evidence=[
                 f"Reporter suggests fix approach: "
-                f"{intent.decomposition.suggested_fix[:200]}",
+                f"{intent.decomposition.suggested_fix}",
             ],
         ))
 
-    # APPROACH_LOCK: circular dependency between tests and out-of-scope hunks
-    if cross_ref and cross_ref.has_circular:
-        for cd in cross_ref.circular_dependencies:
+    # APPROACH_LOCK: overpatch-overtest coupling (tests require out-of-scope hunks)
+    if cross_ref and cross_ref.has_coupling:
+        for cd in cross_ref.couplings:
             candidates.append(TaskLabelAssignment(
                 label=TaskContaminationLabel.APPROACH_LOCK,
-                confidence=cd.confidence,
                 evidence=[
                     cd.reasoning,
                     f"Linked UNRELATED hunks: {cd.linked_hunk_indices}",
                 ],
             ))
             break
+
+    # Pre-staged test detection (AUDIT_PROTOCOL Gap 1)
+    if record:
+        has_test_patch = bool(getattr(record, 'test_patch', '') and record.test_patch.strip())
+        has_before_cmd = "git checkout" in getattr(record, 'before_repo_set_cmd', '')
+        if (has_test_patch or has_before_cmd) and not test_analysis.has_modified_tests:
+            candidates.append(TaskLabelAssignment(
+                label=TaskContaminationLabel.APPROACH_LOCK,
+                evidence=[
+                    "Tests pre-staged via before_repo_set_cmd (git checkout from gold commit)",
+                    "Pipeline is_modified=False but test_patch has content — gap in modification detection",
+                    "Pre-staged tests may assert on exact implementation values from gold commit",
+                ],
+            ))
 
     return candidates
 
@@ -327,7 +368,7 @@ is to classify HOW a benchmark task is contaminated using a structured taxonomy.
 ## BACKGROUND
 
 SWE-bench tasks consist of:
-1. A problem statement (bug report / feature request from a real GitHub issue)
+1. A problem description (bug report / feature request from a real GitHub issue)
 2. A gold patch (the actual fix committed by the developer)
 3. F2P tests (fail-to-pass tests that the gold patch makes pass)
 4. P2P tests (pass-to-pass tests that should continue to pass)
@@ -341,17 +382,17 @@ measure agent capability. A contaminated task may cause:
 ## YOUR INPUT
 
 You will receive the COMPLETE pipeline analysis for one task:
-- Problem statement, requirements (SWE-bench Pro), interface spec, hints text
+- Problem description, requirements (SWE-bench Pro), interface spec, hints text
 - Intent extraction (acceptance criteria, ambiguity, decomposition)
 - Per-hunk patch verdicts (REQUIRED / ANCILLARY / UNRELATED)
 - Per-test and per-assertion verdicts (ALIGNED/TANGENTIAL/UNRELATED, ON_TOPIC/OFF_TOPIC)
-- Cross-reference analysis (circular dependencies between tests and out-of-scope hunks)
+- Cross-reference analysis (overpatch-overtest coupling between tests and out-of-scope hunks)
 - Heuristic pre-classification candidates (to refine or override)
 
-## TAXONOMY: 7 CONTAMINATION LABELS + CLEAN
+## TAXONOMY: 6 CONTAMINATION LABELS + CLEAN
 
 ### approach_lock (SEVERE)
-F2P tests require a SPECIFIC implementation approach that the problem statement \
+F2P tests require a SPECIFIC implementation approach that the problem description \
 does not determine. An agent that solves the described problem correctly using \
 a different valid approach WILL FAIL the tests.
 
@@ -359,9 +400,9 @@ SUBTYPES:
 - **Narrow test assertions**: Tests check implementation details (specific class, \
 method name, internal data structure) rather than observable behavior
 - **Approach mismatch**: The gold patch uses a fundamentally different strategy \
-than the problem statement suggests, and the tests are written specifically for \
+than the problem description suggests, and the tests are written specifically for \
 the gold patch's approach
-- **Circular test-patch dependency**: Tests require UNRELATED patch hunks to pass \
+- **Overpatch-overtest coupling**: Tests require UNRELATED patch hunks to pass \
 — the tests exercise code that the problem doesn't ask for
 
 IMPORTANT DISTINCTIONS:
@@ -372,39 +413,31 @@ correct solution would produce the same output
 - approach_lock IS present when tests check HOW the fix works (internal state, \
 specific method calls) rather than WHAT it produces
 
-### wide_tests (MODERATE-SEVERE)
-F2P tests verify behavior or features that the problem statement does NOT describe. \
+### over_test (MODERATE-SEVERE)
+F2P tests verify behavior or features that the problem description does NOT describe. \
 The tests go beyond the stated acceptance criteria by testing additional \
-functionality, edge cases, or code paths not mentioned in the problem.
+functionality, edge cases, or code paths not mentioned in the problem. This also \
+covers pre-existing tests that were modified to assert on behavior beyond the \
+problem scope — making the task unreasonably harder than the problem requires.
 
 SUBTYPES:
 - **Extra assertions**: Some assertions in otherwise-aligned tests check undescribed behavior
 - **Extra test functions**: Entire test functions target undescribed features
 - **Deferred feature testing**: The problem explicitly defers a feature ("this can \
 be handled later") but the F2P tests exercise that deferred feature
+- **Modified test excess**: A pre-existing test was modified and the modifications \
+introduce assertions beyond the problem scope
 
 IMPORTANT DISTINCTIONS:
-- wide_tests is about SCOPE (tests beyond what was asked)
+- over_test is about SCOPE (tests beyond what was asked)
 - approach_lock is about CORRECTNESS (tests reject valid alternatives)
-- A test can be BOTH wide (tests extra stuff) AND approach-locking (requires specific impl)
-- If the Requirements or Interface section describes the behavior, it is NOT wide \
-(SWE-bench Pro has narrow problem statements but detailed requirements)
+- A test can be BOTH over_test (tests extra stuff) AND approach-locking (requires specific impl)
+- If the Requirements or Interface section describes the behavior, it is NOT over_test \
+(SWE-bench Pro has narrow problem descriptions but detailed requirements)
+- If a pre-existing test was modified to check the fixed behavior described in the \
+problem, that is legitimate and NOT over_test
 
-### test_mutation (MODERATE)
-A pre-existing test was MODIFIED by the PR to assert on new behavior NOT described \
-in the problem statement. The test existed before the PR (making it look legitimate), \
-but the PR author silently changed assertions or expected values.
-
-KEY INDICATORS:
-- TestVerdictReport shows is_modified=True AND modification_aligned=False
-- The pre-patch source shows the original assertions; the post-patch adds new ones
-- The new assertions check behavior NOT in the acceptance criteria
-
-IMPORTANT: Only flag when the MODIFICATIONS themselves are misaligned. If a \
-pre-existing test was modified to check the fixed behavior (described in the \
-problem), that is legitimate and NOT test_mutation.
-
-### scope_creep (MINOR-SEVERE)
+### over_patch (MINOR-SEVERE)
 The gold patch contains behavioral code changes beyond what the problem asks for. \
 This includes new features, unrelated bug fixes, broader refactoring, or scope \
 expansion in the patch itself.
@@ -415,11 +448,11 @@ KEY INDICATORS:
 - The patch "while I'm here" includes opportunistic improvements
 
 IMPORTANT: Pure ANCILLARY changes (imports, __init__.py exports, type annotations, \
-whitespace-only changes, docstring updates) do NOT count as scope_creep. Only count \
+whitespace-only changes, docstring updates) do NOT count as over_patch. Only count \
 changes that introduce NEW BEHAVIOR beyond the problem scope.
 
-### unclear_spec (MINOR)
-The problem statement is too ambiguous or actively misleading to determine the \
+### unclear_description (MINOR)
+The problem description is too ambiguous or actively misleading to determine the \
 correct solution. Key information is missing, or the description points toward \
 the wrong fix.
 
@@ -432,14 +465,13 @@ KEY INDICATORS:
 
 ### hidden_context (MINOR)
 Essential solution information exists ONLY in the hints text (code review comments, \
-maintainer decisions) and NOT in the problem statement. The problem alone is \
+maintainer decisions) and NOT in the problem description. The problem alone is \
 insufficient; the hints contain the actual specification.
 
 KEY INDICATORS:
-- Problem statement references its own patch/PR ("see the attached patch")
 - Function names, root cause, or design decisions appear only in hints
 - The problem is a one-liner but the hints contain detailed requirements
-- Self-referential problems ("as shown in the fix")
+- Problem description references external resources not included in the task
 
 ### weak_coverage (MINOR)
 The F2P tests or gold patch don't fully cover the stated acceptance criteria. \
@@ -459,25 +491,45 @@ accurately measure whether an agent solved the described problem.
 
 1. Assign EVERY label that applies (tasks commonly have multiple labels)
 2. If ANY contamination label applies, do NOT assign clean
-3. Only assign labels with confidence >= 0.4
-4. For each label: provide confidence 0.0-1.0, specific evidence, and reasoning
-5. CITE SPECIFIC EVIDENCE: reference hunk indices, assertion indices, or quote \
-problem statement text
-6. Be precise: distinguish approach_lock (rejects valid alternatives) from \
-wide_tests (tests beyond scope)
-7. Do NOT flag pure ancillary changes (imports, whitespace) as scope_creep
-8. For SWE-bench Pro tasks: consider Requirements + Interface as part of the \
+3. For each label: provide specific evidence and detailed reasoning
+4. CITE SPECIFIC EVIDENCE: reference hunk indices, assertion indices, or quote \
+problem description text
+5. Be precise: distinguish approach_lock (rejects valid alternatives) from \
+over_test (tests beyond scope)
+6. Do NOT flag pure ancillary changes (imports, whitespace) as over_patch
+7. For SWE-bench Pro tasks: consider Requirements + Interface as part of the \
 full task specification — behavior described there is NOT excess
-9. Consider the heuristic candidates as initial signals to REFINE or OVERRIDE. \
+8. Consider the heuristic candidates as initial signals to REFINE or OVERRIDE. \
 They may be correct, partially correct, or wrong.
+
+## THE 1:1:1 PRINCIPLE (from human audit of 107 SEVERE cases)
+
+- Problem:Test should be approximately 1:1 — tests evaluate what the problem asks
+- Problem:Patch should be 1:>=1 — overpatch alone is a quality issue, NOT contamination
+- Contamination = tests require code changes not derivable from the problem statement
+- over_patch ALONE should NOT be classified as severe — it only becomes severe when \
+F2P tests COUPLE to the excess patch hunks (overpatch-overtest coupling)
+- A 100-hunk gold patch with 99 unrelated hunks is NOT contaminated if the 1 test \
+only exercises the 1 relevant hunk
+
+Key insight from audit: 40% of SEVERE classifications were overturned to CLEAN. \
+The most common false positive was flagging tasks with large patches but minimal \
+test coupling. Always verify: do the TESTS require the excess code?
+
+## Known Contamination Pattern: Test Assertion Lock
+Tests assert on exact naming conventions, internal data structures, enum values, \
+or implementation-specific details NOT specified in the problem statement. Example: \
+problem says "add stable test identifiers" but tests require exact strings like \
+"attachment-list:header:spam-banner:phishing-banner". Any agent using a different \
+(equally valid) naming scheme fails.
 """
 
 
 def _build_task_classifier_user_prompt(
     intent: IntentStatement,
-    excess_patch: ExcessPatchDetail,
-    excess_test: ExcessTestDetail,
-    vague_spec: VagueSpecDetail,
+    patch_analysis: PatchAnalysis,
+    test_analysis: TestAnalysis,
+    description_clarity: DescriptionClarity,
     record: TaskRecord | None = None,
     heuristic_candidates: list[TaskLabelAssignment] | None = None,
     cross_ref: CrossReferenceResult | None = None,
@@ -488,88 +540,86 @@ def _build_task_classifier_user_prompt(
     parts.append(f"INSTANCE: {intent.instance_id}")
     parts.append("")
 
-    # Problem statement
+    # Problem statement (full, un-truncated)
     if record and record.problem_statement:
         parts.append("PROBLEM STATEMENT:")
-        parts.append(record.problem_statement[:16000])
+        parts.append(record.problem_statement)
         parts.append("")
 
-    # Requirements (SWE-bench Pro)
+    # Requirements (SWE-bench Pro, full)
     if record and record.requirements:
         parts.append("REQUIREMENTS:")
-        parts.append(record.requirements[:16000])
+        parts.append(record.requirements)
         parts.append("")
 
-    # Interface (SWE-bench Pro)
+    # Interface (SWE-bench Pro, full)
     if record and record.interface:
         parts.append("INTERFACE:")
-        parts.append(record.interface[:8000])
+        parts.append(record.interface)
         parts.append("")
 
-    # Hints
+    # Hints (full)
     if record and record.hints_text:
         parts.append("HINTS TEXT:")
-        parts.append(record.hints_text[:8000])
+        parts.append(record.hints_text)
         parts.append("")
 
     # Intent extraction
     parts.append("INTENT EXTRACTION:")
     parts.append(f"- Core requirement: {intent.core_requirement}")
-    parts.append(f"- Behavioral contract: {intent.behavioral_contract[:2000]}")
+    parts.append(f"- Behavioral contract: {intent.behavioral_contract}")
     parts.append(f"- Acceptance criteria: {json.dumps(intent.acceptance_criteria)}")
-    parts.append(f"- Out of scope: {intent.out_of_scope[:1000]}")
-    parts.append(f"- Ambiguity score: {intent.ambiguity_score}")
+    parts.append(f"- Out of scope: {intent.out_of_scope}")
+    parts.append(f"- Ambiguity score (raw LLM output, 0–1): {intent.ambiguity_score}")
 
     if intent.decomposition:
         d = intent.decomposition
         parts.append("")
         parts.append("PROBLEM DECOMPOSITION:")
-        parts.append(f"- Bug description: {d.bug_description[:2000]}")
+        parts.append(f"- Bug description: {d.bug_description}")
         if d.suggested_fix:
-            parts.append(f"- Reporter's suggested fix: {d.suggested_fix[:2000]}")
+            parts.append(f"- Reporter's suggested fix: {d.suggested_fix}")
             parts.append("  (Compare this to the gold patch — divergence signals APPROACH_LOCK)")
         parts.append(f"- Legitimacy: {d.legitimacy}")
         entities = []
         if d.mentioned_files:
-            entities.append(f"Files: {', '.join(d.mentioned_files[:10])}")
+            entities.append(f"Files: {', '.join(d.mentioned_files)}")
         if d.mentioned_functions:
-            entities.append(f"Functions: {', '.join(d.mentioned_functions[:10])}")
+            entities.append(f"Functions: {', '.join(d.mentioned_functions)}")
         if d.mentioned_classes:
-            entities.append(f"Classes: {', '.join(d.mentioned_classes[:10])}")
+            entities.append(f"Classes: {', '.join(d.mentioned_classes)}")
         if d.mentioned_variables:
-            entities.append(f"Variables: {', '.join(d.mentioned_variables[:10])}")
+            entities.append(f"Variables: {', '.join(d.mentioned_variables)}")
         if d.mentioned_modules:
-            entities.append(f"Modules: {', '.join(d.mentioned_modules[:10])}")
+            entities.append(f"Modules: {', '.join(d.mentioned_modules)}")
         if entities:
             parts.append(f"- Code entities: {'; '.join(entities)}")
     parts.append("")
 
     # Patch analysis
     parts.append("GOLD PATCH ANALYSIS:")
-    parts.append(f"Has excess: {excess_patch.has_excess} | "
-                 f"Hunks: {excess_patch.total_hunks} "
-                 f"(REQUIRED={excess_patch.required_count}, "
-                 f"ANCILLARY={excess_patch.ancillary_count}, "
-                 f"UNRELATED={excess_patch.unrelated_count})")
-    for hv in excess_patch.hunk_verdicts:
+    parts.append(f"Hunks: {patch_analysis.total_hunks} "
+                 f"(REQUIRED={patch_analysis.required_count}, "
+                 f"ANCILLARY={patch_analysis.ancillary_count}, "
+                 f"UNRELATED={patch_analysis.unrelated_count})")
+    for hv in patch_analysis.hunk_verdicts:
         heuristic_tag = " [heuristic]" if hv.is_heuristic else ""
         parts.append(f"  Hunk {hv.hunk_index} [{hv.file_path}]: "
-                     f"{hv.verdict.value} (conf={hv.confidence:.2f}){heuristic_tag} — "
-                     f"{hv.reasoning[:1000]}")
+                     f"{hv.verdict.value} [{hv.evidence_strength}]{heuristic_tag} — "
+                     f"{hv.reasoning}")
     parts.append("")
 
     # Test analysis
     parts.append("F2P TEST ANALYSIS:")
-    parts.append(f"Has excess: {excess_test.has_excess} | "
-                 f"Tests: {excess_test.total_tests} "
-                 f"(ALIGNED={excess_test.aligned_count}, "
-                 f"TANGENTIAL={excess_test.tangential_count}, "
-                 f"UNRELATED={excess_test.unrelated_count})")
-    parts.append(f"Assertions: {excess_test.total_assertions} "
-                 f"(ON_TOPIC={excess_test.on_topic_assertions}, "
-                 f"OFF_TOPIC={excess_test.off_topic_assertions})")
-    parts.append(f"Has modified tests: {excess_test.has_modified_tests}")
-    for tv in excess_test.test_verdicts:
+    parts.append(f"Tests: {test_analysis.total_tests} "
+                 f"(ALIGNED={test_analysis.aligned_count}, "
+                 f"TANGENTIAL={test_analysis.tangential_count}, "
+                 f"UNRELATED={test_analysis.unrelated_count})")
+    parts.append(f"Assertions: {test_analysis.total_assertions} "
+                 f"(ON_TOPIC={test_analysis.on_topic_assertions}, "
+                 f"OFF_TOPIC={test_analysis.off_topic_assertions})")
+    parts.append(f"Has modified tests: {test_analysis.has_modified_tests}")
+    for tv in test_analysis.test_verdicts:
         mod_tag = ""
         if tv.is_modified:
             mod_tag = " [MODIFIED pre-existing test"
@@ -579,26 +629,26 @@ def _build_task_classifier_user_prompt(
                 mod_tag += f", {tv.off_topic_count} OFF_TOPIC assertions"
             mod_tag += "]"
         parts.append(f"  Test '{tv.test_name}': {tv.intent_match.value} "
-                     f"(conf={tv.confidence:.2f}){mod_tag}")
+                     f"[{tv.evidence_strength}]{mod_tag}")
         if tv.reasoning:
-            parts.append(f"    Reasoning: {tv.reasoning[:1000]}")
-        for av in tv.assertion_verdicts[:50]:
-            reason_tag = f" — {av.reason[:100]}" if av.reason else ""
-            parts.append(f"    [{av.verdict.value}] {av.statement[:120]}{reason_tag}")
+            parts.append(f"    Reasoning: {tv.reasoning}")
+        for av in tv.assertion_verdicts:
+            reason_tag = f" — {av.reason}" if av.reason else ""
+            parts.append(f"    [{av.verdict.value}] {av.statement}{reason_tag}")
     parts.append("")
 
-    # Vague spec
-    parts.append(f"VAGUE SPEC: score={vague_spec.score:.4f}")
-    if vague_spec.reasoning:
-        parts.append(f"  Reasoning: {vague_spec.reasoning[:1000]}")
+    # Description clarity
+    parts.append(f"DESCRIPTION CLARITY: score={description_clarity.score:.4f}")
+    if description_clarity.reasoning:
+        parts.append(f"  Reasoning: {description_clarity.reasoning}")
     parts.append("")
 
-    if cross_ref and cross_ref.has_circular:
-        parts.append("CROSS-REFERENCE ANALYSIS:")
-        parts.append(f"Circular dependencies detected: {len(cross_ref.circular_dependencies)}")
-        for cd in cross_ref.circular_dependencies:
+    if cross_ref and cross_ref.has_coupling:
+        parts.append("CROSS-REFERENCE ANALYSIS (OVERPATCH-OVERTEST COUPLING):")
+        parts.append(f"Overpatch-overtest couplings detected: {len(cross_ref.couplings)}")
+        for cd in cross_ref.couplings:
             parts.append(f"  Test '{cd.test_name}' → UNRELATED hunks {cd.linked_hunk_indices} "
-                         f"(conf={cd.confidence:.2f})")
+                         f"[{cd.evidence_strength}]")
             if cd.linked_files:
                 parts.append(f"    Files: {', '.join(cd.linked_files)}")
             parts.append(f"    {cd.reasoning}")
@@ -610,7 +660,7 @@ def _build_task_classifier_user_prompt(
     if heuristic_candidates:
         parts.append("HEURISTIC PRE-CLASSIFICATION (refine or override):")
         for hc in heuristic_candidates:
-            parts.append(f"  {hc.label.value} (conf={hc.confidence:.2f}): "
+            parts.append(f"  {hc.label.value}: "
                          f"{'; '.join(hc.evidence)}")
         parts.append("")
 
@@ -619,9 +669,9 @@ def _build_task_classifier_user_prompt(
 
 async def classify_task_labels(
     intent: IntentStatement,
-    excess_patch: ExcessPatchDetail,
-    excess_test: ExcessTestDetail,
-    vague_spec: VagueSpecDetail,
+    patch_analysis: PatchAnalysis,
+    test_analysis: TestAnalysis,
+    description_clarity: DescriptionClarity,
     record: TaskRecord | None = None,
     llm: Any | None = None,
     cross_ref: CrossReferenceResult | None = None,
@@ -632,22 +682,21 @@ async def classify_task_labels(
     heuristic candidates as guidance.  Otherwise falls back to pure
     heuristic classification.
     """
-    heuristic = _heuristic_labels(intent, excess_patch, excess_test,
-                                  vague_spec, record, cross_ref)
+    heuristic = _heuristic_labels(intent, patch_analysis, test_analysis,
+                                  description_clarity, record, cross_ref)
 
     if llm is None:
         # Pure heuristic fallback
         if not heuristic:
             return [TaskLabelAssignment(
                 label=TaskContaminationLabel.CLEAN,
-                confidence=0.8,
                 evidence=["No heuristic signals detected"],
             )]
         return heuristic
 
     # Build LLM prompt
     user_prompt = _build_task_classifier_user_prompt(
-        intent, excess_patch, excess_test, vague_spec, record, heuristic,
+        intent, patch_analysis, test_analysis, description_clarity, record, heuristic,
         cross_ref=cross_ref,
     )
 
@@ -664,11 +713,8 @@ async def classify_task_labels(
             except ValueError:
                 logger.warning("Unknown label from LLM: %s", item.label)
                 continue
-            if item.confidence < 0.4:
-                continue
             labels.append(TaskLabelAssignment(
                 label=label_enum,
-                confidence=item.confidence,
                 evidence=item.evidence,
                 reasoning=item.reasoning,
             ))
@@ -687,7 +733,6 @@ async def classify_task_labels(
         if not labels:
             labels = [TaskLabelAssignment(
                 label=TaskContaminationLabel.CLEAN,
-                confidence=0.7,
                 evidence=["LLM found no contamination signals"],
             )]
         return labels
@@ -697,165 +742,7 @@ async def classify_task_labels(
         if not heuristic:
             return [TaskLabelAssignment(
                 label=TaskContaminationLabel.CLEAN,
-                confidence=0.5,
                 evidence=["Heuristic fallback — no signals"],
             )]
         return heuristic
-
-
-
-AGENT_CLASSIFIER_SYSTEM_PROMPT = """\
-You are a trajectory analyst for SWE-bench agent runs.  Classify HOW the
-agent behaved on a task.
-
-Assign exactly ONE primary label:
-
-PASSED LABELS (agent resolved the task):
-- agent_passed_genuine: Legitimate problem-solving with progressive exploration
-- agent_passed_leak: Patch matches gold too closely; jumped to answer
-- agent_passed_package_leak: Installed newer package and copied fix
-- agent_passed_test_aware: Referenced F2P test names/values before discovering them
-- agent_passed_trained_hack: Applied memorized template without genuine reasoning
-
-FAILED LABELS (agent did NOT resolve the task):
-- agent_failed_completed_intent: Patch addresses real problem but fails F2P tests
-- agent_failed_no_intent: Did not solve the problem at all
-
-UNKNOWN:
-- agent_unknown: Insufficient trajectory data
-
-Respond in valid JSON (no markdown fences):
-{
-    "label": "<label>",
-    "confidence": 0.0-1.0,
-    "evidence": ["evidence 1", "evidence 2"],
-    "reasoning": "explanation"
-}
-"""
-
-
-async def classify_agent_label(
-    trajectory_data: dict[str, Any],
-    task_labels: list[TaskLabelAssignment],
-    llm: Any | None = None,
-) -> AgentLabelAssignment:
-    """Classify an agent's trajectory on a task (Axis 2).
-
-    Parameters
-    ----------
-    trajectory_data : dict
-        Must contain at minimum: 'resolved' (bool), 'final_patch' (str),
-        'actions' (list), optionally 'gold_patch_similarity' (float).
-    task_labels : list
-        Axis 1 labels for context (helps distinguish failed-completed-intent).
-    llm : optional
-        LLM client for nuanced classification.
-    """
-    resolved = trajectory_data.get("resolved", False)
-    similarity = trajectory_data.get("gold_patch_similarity", 0.0)
-    actions = trajectory_data.get("actions", [])
-
-    # Quick heuristic checks
-    if not actions or len(actions) < 3:
-        return AgentLabelAssignment(
-            label=AgentTrajectoryLabel.AGENT_UNKNOWN,
-            confidence=0.9,
-            evidence=["Trajectory has fewer than 3 actions"],
-        )
-
-    if resolved and similarity >= 0.95:
-        return AgentLabelAssignment(
-            label=AgentTrajectoryLabel.AGENT_PASSED_LEAK,
-            confidence=0.85,
-            evidence=[f"Gold patch similarity: {similarity:.4f}"],
-        )
-
-    # Check for pip install leakage
-    pip_commands = trajectory_data.get("pip_install_commands", [])
-    if resolved and pip_commands:
-        return AgentLabelAssignment(
-            label=AgentTrajectoryLabel.AGENT_PASSED_PACKAGE_LEAK,
-            confidence=0.7,
-            evidence=[f"pip install commands: {pip_commands[:3]}"],
-        )
-
-    if llm is None:
-        # Heuristic fallback
-        if resolved:
-            return AgentLabelAssignment(
-                label=AgentTrajectoryLabel.AGENT_PASSED_GENUINE,
-                confidence=0.5,
-                evidence=["Heuristic: resolved without leakage signals"],
-            )
-        # Check if agent completed problem intent despite failing
-        has_approach_lock = any(
-            la.label == TaskContaminationLabel.APPROACH_LOCK
-            for la in task_labels
-        )
-        if has_approach_lock and trajectory_data.get("final_patch"):
-            return AgentLabelAssignment(
-                label=AgentTrajectoryLabel.AGENT_FAILED_COMPLETED_INTENT,
-                confidence=0.4,
-                evidence=[
-                    "Task has approach lock and agent produced a patch",
-                ],
-            )
-        return AgentLabelAssignment(
-            label=AgentTrajectoryLabel.AGENT_FAILED_NO_INTENT,
-            confidence=0.5,
-            evidence=["Heuristic: not resolved, no special signals"],
-        )
-
-    # Full LLM classification
-    try:
-        user_parts = [
-            f"RESOLVED: {resolved}",
-            f"GOLD_PATCH_SIMILARITY: {similarity:.4f}",
-            f"NUM_ACTIONS: {len(actions)}",
-            f"TASK_LABELS: {[la.label.value for la in task_labels]}",
-        ]
-        if trajectory_data.get("final_patch"):
-            user_parts.append(f"FINAL_PATCH_EXCERPT:\n{trajectory_data['final_patch'][:20000]}")
-
-        # Include trajectory summary
-        action_summary = []
-        for act in actions[:100]:
-            if isinstance(act, dict):
-                action_summary.append(
-                    f"[{act.get('action_type', '?')}] "
-                    f"{str(act.get('content', ''))[:2000]}"
-                )
-        if action_summary:
-            user_parts.append("TRAJECTORY:\n" + "\n".join(action_summary))
-
-        result = await llm.query_json(
-            system_prompt=AGENT_CLASSIFIER_SYSTEM_PROMPT,
-            user_prompt="\n\n".join(user_parts),
-        )
-        label_str = result.get("label", "agent_unknown")
-        try:
-            label_enum = AgentTrajectoryLabel(label_str)
-        except ValueError:
-            label_enum = AgentTrajectoryLabel.AGENT_UNKNOWN
-
-        return AgentLabelAssignment(
-            label=label_enum,
-            confidence=float(result.get("confidence", 0.5)),
-            evidence=result.get("evidence", []),
-            reasoning=result.get("reasoning", ""),
-        )
-
-    except Exception:
-        logger.exception("Agent LLM classification failed")
-        if resolved:
-            return AgentLabelAssignment(
-                label=AgentTrajectoryLabel.AGENT_PASSED_GENUINE,
-                confidence=0.3,
-                evidence=["LLM fallback"],
-            )
-        return AgentLabelAssignment(
-            label=AgentTrajectoryLabel.AGENT_FAILED_NO_INTENT,
-            confidence=0.3,
-            evidence=["LLM fallback"],
-        )
 

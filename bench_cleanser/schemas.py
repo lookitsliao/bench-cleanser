@@ -113,11 +113,9 @@ class PatchHunkVerdictResponse(BaseModel):
             "UNRELATED: modifies behavior not described and not required."
         ),
     )
-    confidence: float = Field(
+    evidence_strength: Literal["strong", "moderate", "weak"] = Field(
         ...,
-        ge=0.0,
-        le=1.0,
-        description="Confidence in the verdict.",
+        description="How strong is the evidence for this verdict: strong, moderate, or weak.",
     )
     reasoning: str = Field(
         ...,
@@ -131,7 +129,7 @@ class BatchPatchVerdictItem(BaseModel):
     hunk_index: int = Field(..., description="Zero-based index of the hunk in the list provided.")
     file_path: str = Field(..., description="File path of this hunk.")
     verdict: Literal["REQUIRED", "ANCILLARY", "UNRELATED"] = Field(...)
-    confidence: float = Field(..., ge=0.0, le=1.0)
+    evidence_strength: Literal["strong", "moderate", "weak"] = Field(...)
     reasoning: str = Field(
         ...,
         description="Detailed explanation citing specific acceptance criteria.",
@@ -175,7 +173,7 @@ class TestVerdictResponse(BaseModel):
             "UNRELATED: does not target the described problem."
         ),
     )
-    confidence: float = Field(..., ge=0.0, le=1.0)
+    evidence_strength: Literal["strong", "moderate", "weak"] = Field(...)
     reasoning: str = Field(
         ..., description="Concise explanation citing acceptance criteria."
     )
@@ -198,7 +196,7 @@ class BatchTestVerdictItem(BaseModel):
     test_index: int = Field(..., description="Zero-based index of the test in the input list.")
     test_id: str = Field(..., description="Full test identifier.")
     test_verdict: Literal["ALIGNED", "TANGENTIAL", "UNRELATED"] = Field(...)
-    confidence: float = Field(..., ge=0.0, le=1.0)
+    evidence_strength: Literal["strong", "moderate", "weak"] = Field(...)
     reasoning: str = Field(...)
     is_modification_aligned: bool = Field(...)
     assertion_verdicts: list[AssertionVerdictItem] = Field(default_factory=list)
@@ -221,20 +219,13 @@ class TaskLabelItem(BaseModel):
 
     label: Literal[
         "approach_lock",
-        "wide_tests",
-        "test_mutation",
-        "scope_creep",
-        "unclear_spec",
+        "over_test",
+        "over_patch",
+        "unclear_description",
         "hidden_context",
         "weak_coverage",
         "clean",
     ] = Field(..., description="Taxonomy label from the contamination classification.")
-    confidence: float = Field(
-        ...,
-        ge=0.0,
-        le=1.0,
-        description="Confidence in this label assignment.",
-    )
     evidence: list[str] = Field(
         ...,
         description="Specific evidence items supporting this label (cite hunks, assertions, text).",
@@ -257,21 +248,3 @@ class TaskClassificationResponse(BaseModel):
         ),
     )
 
-
-# ── Utility: Schema Generation ──────────────────────────────────────
-
-
-def schema_for_response_format(model_class: type[BaseModel]) -> dict:
-    """Build the ``response_format`` parameter for OpenAI's API.
-
-    Returns the dict to pass as ``response_format`` in the chat completion
-    request, using the ``json_schema`` type with strict mode.
-    """
-    return {
-        "type": "json_schema",
-        "json_schema": {
-            "name": model_class.__name__,
-            "strict": True,
-            "schema": model_class.model_json_schema(),
-        },
-    }

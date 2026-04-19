@@ -36,14 +36,15 @@ from bench_cleanser.llm_client import LLMClient
 from bench_cleanser.models import (
     CodeContext,
     ContaminationReport,
-    ExcessPatchDetail,
-    ExcessTestDetail,
+    DescriptionClarity,
     IntentStatement,
     ParsedTask,
+    PatchAnalysis,
     PipelineConfig,
     Severity,
+    TaskContaminationLabel,
     TaskRecord,
-    VagueSpecDetail,
+    TestAnalysis,
 )
 from bench_cleanser.parsing.patch_parser import get_files_from_patch, parse_patch
 from bench_cleanser.parsing.test_parser import (
@@ -228,7 +229,7 @@ async def process_single_task(
 
     # Stage 2: INTENT
     t0 = time.monotonic()
-    intent = await extract_intent(record, llm)
+    intent = await extract_intent(record, llm, problem_code_context=parsed.problem_code_context)
     stage_times["intent"] = time.monotonic() - t0
 
     # Stage 3: STRUCTURAL DIFF
@@ -255,22 +256,25 @@ async def process_single_task(
     t0 = time.monotonic()
     patch_task = analyze_patch(parsed, intent, llm, structural_diff)
     test_task = analyze_tests(parsed, intent, llm, structural_diff)
-    excess_patch, excess_test = await asyncio.gather(patch_task, test_task)
+    patch_analysis, test_analysis = await asyncio.gather(patch_task, test_task)
     stage_times["intent_match"] = time.monotonic() - t0
 
     # Cross-reference analysis
     t0 = time.monotonic()
     cross_ref = analyze_cross_references(
-        excess_patch, excess_test, parsed.f2p_test_hunks,
+        patch_analysis=patch_analysis,
+        test_analysis=test_analysis,
+        f2p_test_hunks=parsed.f2p_test_hunks,
+        structural_diff=structural_diff,
     )
-    if cross_ref.has_circular:
+    if cross_ref.has_coupling:
         logger.info(
-            "[%s] Cross-reference: %d circular dependency(ies) detected",
-            iid, len(cross_ref.circular_dependencies),
+            "[%s] Cross-reference: %d overpatch-overtest coupling(s) detected",
+            iid, len(cross_ref.couplings),
         )
     stage_times["cross_ref"] = time.monotonic() - t0
 
-    vague_spec = VagueSpecDetail(
+    description_clarity = DescriptionClarity(
         score=intent.ambiguity_score,
         reasoning=intent.behavioral_contract[:500] if intent.behavioral_contract else "",
     )
@@ -278,7 +282,7 @@ async def process_single_task(
     # Stage 5: CLASSIFICATION
     t0 = time.monotonic()
     report = await build_report(
-        intent, excess_patch, excess_test, vague_spec, config,
+        intent, patch_analysis, test_analysis, description_clarity, config,
         record=record, llm=llm, cross_ref=cross_ref,
     )
     stage_times["classify"] = time.monotonic() - t0
@@ -370,9 +374,9 @@ async def run_pipeline(
                     instance_id=record.instance_id,
                     severity=Severity.SEVERE,
                     intent=dummy_intent,
-                    excess_patch=ExcessPatchDetail(total_hunks=0, required_count=0, ancillary_count=0, unrelated_count=0),
-                    excess_test=ExcessTestDetail(total_tests=0, aligned_count=0, tangential_count=0, unrelated_count=0, total_assertions=0, on_topic_assertions=0, off_topic_assertions=0, has_modified_tests=False),
-                    vague_spec=VagueSpecDetail(score=0.0, reasoning=f"PIPELINE_ERROR: {exc}"),
+                    patch_analysis=PatchAnalysis(total_hunks=0, required_count=0, ancillary_count=0, unrelated_count=0),
+                    test_analysis=TestAnalysis(total_tests=0, aligned_count=0, tangential_count=0, unrelated_count=0, total_assertions=0, on_topic_assertions=0, off_topic_assertions=0, has_modified_tests=False),
+                    description_clarity=DescriptionClarity(score=0.0, reasoning=f"PIPELINE_ERROR: {exc}"),
                 )
 
             report_path = reports_dir / f"{record.instance_id}.json"
@@ -469,9 +473,9 @@ def _write_summary(
     fieldnames = [
         "instance_id", "severity",
         "task_labels", "primary_label", "label_count",
-        "patch_hunks_total", "patch_unrelated", "has_excess_patch",
-        "tests_total", "tests_unrelated", "has_excess_test",
-        "has_modified_tests", "vague_spec_score",
+        "patch_hunks_total", "patch_unrelated", "has_unrelated_hunks",
+        "tests_total", "tests_unrelated", "has_off_topic_assertions",
+        "has_modified_tests", "clarity_score",
         "legitimacy", "suggested_fix",
         "mentioned_entities",
         "recommendations",
@@ -481,13 +485,18 @@ def _write_summary(
     writer = csv.DictWriter(output, fieldnames=fieldnames)
     writer.writeheader()
 
+    LABEL_PRIORITY = [
+        TaskContaminationLabel.APPROACH_LOCK,
+        TaskContaminationLabel.OVER_TEST,
+        TaskContaminationLabel.OVER_PATCH,
+        TaskContaminationLabel.UNCLEAR_DESCRIPTION,
+        TaskContaminationLabel.HIDDEN_CONTEXT,
+        TaskContaminationLabel.WEAK_COVERAGE,
+        TaskContaminationLabel.CLEAN,
+    ]
+
     for r in reports:
-        primary = ""
-        best_conf = -1.0
-        for tl in r.task_labels:
-            if tl.confidence > best_conf:
-                best_conf = tl.confidence
-                primary = tl.label.value
+        primary = min(r.task_labels, key=lambda tl: LABEL_PRIORITY.index(tl.label)).label.value if r.task_labels else ""
 
         decomp = r.intent.decomposition
         entities = []
@@ -502,14 +511,14 @@ def _write_summary(
             "task_labels": ";".join(tl.label.value for tl in r.task_labels),
             "primary_label": primary,
             "label_count": len(r.task_labels),
-            "patch_hunks_total": r.excess_patch.total_hunks,
-            "patch_unrelated": r.excess_patch.unrelated_count,
-            "has_excess_patch": r.excess_patch.has_excess,
-            "tests_total": r.excess_test.total_tests,
-            "tests_unrelated": r.excess_test.unrelated_count,
-            "has_excess_test": r.excess_test.has_excess,
-            "has_modified_tests": r.excess_test.has_modified_tests,
-            "vague_spec_score": f"{r.vague_spec.score:.4f}",
+            "patch_hunks_total": r.patch_analysis.total_hunks,
+            "patch_unrelated": r.patch_analysis.unrelated_count,
+            "has_unrelated_hunks": r.patch_analysis.unrelated_count > 0,
+            "tests_total": r.test_analysis.total_tests,
+            "tests_unrelated": r.test_analysis.unrelated_count,
+            "has_off_topic_assertions": r.test_analysis.off_topic_assertions > 0 or r.test_analysis.unrelated_count > 0,
+            "has_modified_tests": r.test_analysis.has_modified_tests,
+            "clarity_score": f"{r.description_clarity.score:.4f}",
             "legitimacy": decomp.legitimacy if decomp else "",
             "suggested_fix": (decomp.suggested_fix[:200] if decomp and decomp.suggested_fix else ""),
             "mentioned_entities": ";".join(entities[:15]),

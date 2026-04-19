@@ -35,12 +35,9 @@ logger = logging.getLogger(__name__)
 try:
     import astred_core
     from astred_core import (
-        BlockEditStatus,
-        BlockFunction,
+        AstFile,
         CodeGraph,
         CodeGraphEdits,
-        GraphLanguage,
-        XAst,
     )
     ASTRED_AVAILABLE = True
 except (ImportError, RuntimeError):
@@ -98,7 +95,8 @@ def _compute_with_astred(
         return _compute_with_python_ast(parsed_task, repo_path)
 
     # Build pre-patch graph
-    pre_graph = CodeGraph.build_from_paths(abs_paths, GraphLanguage.PYTHON)
+    # astred_core >= 0.x dropped the second language argument; infers from paths.
+    pre_graph = CodeGraph.build_from_paths(abs_paths)
 
     # Apply gold patch to get post-patch files
     post_paths = _apply_patch_to_tempdir(repo_path, parsed_task.record.patch, python_patch_files)
@@ -107,11 +105,32 @@ def _compute_with_astred(
         logger.debug("%s: patch application failed, falling back", instance_id)
         return _compute_with_python_ast(parsed_task, repo_path)
 
-    # Build post-patch graph and compute edits
-    edits = CodeGraphEdits.build(pre_graph, post_paths)
+    # Build post-patch graph edits — astred_core's CodeGraphEdits.build accepts
+    # ONE AstFile at a time, so iterate per post-patch file and merge results.
+    per_file_edits: list = []
+    for post_path in post_paths:
+        try:
+            ast_file = AstFile.load_file(post_path)
+        except Exception:
+            logger.debug("%s: AstFile.load_file failed for %s", instance_id, post_path, exc_info=True)
+            continue
+        if ast_file is None:
+            continue
+        try:
+            file_edits = CodeGraphEdits.build(pre_graph, ast_file)
+        except Exception:
+            logger.debug("%s: CodeGraphEdits.build failed for %s", instance_id, post_path, exc_info=True)
+            continue
+        if file_edits is not None:
+            per_file_edits.append(file_edits)
 
-    # Extract changed blocks from edit script
-    changed_blocks = _extract_changed_blocks_astred(edits, pre_graph, python_patch_files)
+    if not per_file_edits:
+        logger.debug("%s: no astred edits produced, falling back to ast", instance_id)
+        return _compute_with_python_ast(parsed_task, repo_path)
+
+    # Extract changed blocks from pre_graph using edit_status flags populated
+    # by the per-file edit passes above.
+    changed_blocks = _extract_changed_blocks_astred(pre_graph, python_patch_files)
 
     # Extract test blocks
     test_blocks = _extract_test_blocks(parsed_task, repo_path)
@@ -129,11 +148,10 @@ def _compute_with_astred(
 
 
 def _extract_changed_blocks_astred(
-    edits: CodeGraphEdits,
-    pre_graph: CodeGraph,
+    pre_graph: "CodeGraph",
     patch_files: list[str],
 ) -> list[ChangedBlock]:
-    """Extract changed blocks from astred_core CodeGraphEdits."""
+    """Extract changed blocks from astred_core CodeGraph edit_status flags."""
     changed: list[ChangedBlock] = []
 
     for file_path in patch_files:

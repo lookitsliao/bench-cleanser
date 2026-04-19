@@ -1,10 +1,10 @@
 """Unit tests for the scorer and cross-reference modules.
 
 Tests validate:
-- Binary signal detection (has_excess)
+- Binary signal detection (unrelated_count / off_topic_assertions)
 - ContaminationReport serialization roundtrip
 - Assertion count properties
-- Cross-reference circular dependency detection
+- Cross-reference overpatch-overtest coupling detection
 """
 
 import pytest
@@ -19,22 +19,22 @@ from bench_cleanser.models import (
     CallTarget,
     CodeContext,
     ContaminationReport,
-    ExcessPatchDetail,
-    ExcessTestDetail,
+    DescriptionClarity,
     HunkVerdict,
     IntentStatement,
+    PatchAnalysis,
     PatchVerdict,
     PipelineConfig,
     ProblemDecomposition,
     Severity,
     TaskContaminationLabel,
     TaskLabelAssignment,
+    TestAnalysis,
     TestedFunction,
     TestHunk,
     TestModificationType,
     TestVerdict,
     TestVerdictReport,
-    VagueSpecDetail,
 )
 
 
@@ -52,7 +52,9 @@ def _make_intent(instance_id: str, ambiguity: float = 0.1) -> IntentStatement:
 
 def _make_excess_patch(
     hunks: list[tuple[PatchVerdict, float]] | None = None,
-) -> ExcessPatchDetail:
+) -> PatchAnalysis:
+    # Second tuple element retained for backward-compatible call sites;
+    # ignored now that evidence_strength is categorical.
     if hunks is None:
         hunks = [(PatchVerdict.REQUIRED, 0.9)]
     hunk_verdicts = [
@@ -60,15 +62,15 @@ def _make_excess_patch(
             hunk_index=i,
             file_path=f"module{i}.py",
             verdict=v,
-            confidence=c,
+            evidence_strength="strong",
             reasoning="test",
         )
-        for i, (v, c) in enumerate(hunks)
+        for i, (v, _c) in enumerate(hunks)
     ]
     required = sum(1 for v, _ in hunks if v == PatchVerdict.REQUIRED)
     ancillary = sum(1 for v, _ in hunks if v == PatchVerdict.ANCILLARY)
     unrelated = sum(1 for v, _ in hunks if v == PatchVerdict.UNRELATED)
-    return ExcessPatchDetail(
+    return PatchAnalysis(
         total_hunks=len(hunks),
         required_count=required,
         ancillary_count=ancillary,
@@ -79,7 +81,7 @@ def _make_excess_patch(
 
 def _make_excess_test(
     tests: list[tuple[TestVerdict, int, int, bool]] | None = None,
-) -> ExcessTestDetail:
+) -> TestAnalysis:
     if tests is None:
         tests = [(TestVerdict.ALIGNED, 3, 0, False)]
 
@@ -100,7 +102,7 @@ def _make_excess_test(
             test_id=f"test_{i}",
             test_name=f"test_{i}",
             intent_match=verdict,
-            confidence=0.9,
+            evidence_strength="strong",
             reasoning="test",
             is_modified=is_mod,
             assertion_verdicts=assertions,
@@ -116,7 +118,7 @@ def _make_excess_test(
         if is_mod:
             has_modified = True
 
-    return ExcessTestDetail(
+    return TestAnalysis(
         total_tests=len(tests),
         aligned_count=aligned,
         tangential_count=tangential,
@@ -130,37 +132,37 @@ def _make_excess_test(
 
 
 class TestBinarySignals:
-    def test_no_unrelated_hunks_no_excess(self):
+    def test_no_unrelated_hunks(self):
         ep = _make_excess_patch([
             (PatchVerdict.REQUIRED, 0.9),
             (PatchVerdict.ANCILLARY, 0.8),
         ])
-        assert not ep.has_excess
+        assert ep.unrelated_count == 0
 
-    def test_unrelated_hunks_has_excess(self):
+    def test_unrelated_hunks_present(self):
         ep = _make_excess_patch([
             (PatchVerdict.REQUIRED, 0.9),
             (PatchVerdict.UNRELATED, 0.8),
         ])
-        assert ep.has_excess
+        assert ep.unrelated_count > 0
 
-    def test_all_on_topic_no_excess(self):
+    def test_all_on_topic(self):
         et = _make_excess_test([
             (TestVerdict.ALIGNED, 3, 0, False),
         ])
-        assert not et.has_excess
+        assert et.off_topic_assertions == 0 and et.unrelated_count == 0
 
-    def test_off_topic_assertions_has_excess(self):
+    def test_off_topic_assertions_present(self):
         et = _make_excess_test([
             (TestVerdict.ALIGNED, 2, 1, False),
         ])
-        assert et.has_excess
+        assert et.off_topic_assertions > 0
 
-    def test_unrelated_test_has_excess(self):
+    def test_unrelated_test_present(self):
         et = _make_excess_test([
             (TestVerdict.UNRELATED, 0, 0, False),
         ])
-        assert et.has_excess
+        assert et.unrelated_count > 0
 
 
 class TestReportSerialization:
@@ -173,47 +175,54 @@ class TestReportSerialization:
         et = _make_excess_test([
             (TestVerdict.ALIGNED, 2, 1, True),
         ])
-        vs = VagueSpecDetail(score=0.5, reasoning="Moderate ambiguity")
+        vs = DescriptionClarity(score=0.5, reasoning="Moderate ambiguity")
 
         report = ContaminationReport(
             instance_id="serialize-test",
             severity=Severity.MODERATE,
             intent=intent,
-            excess_patch=ep,
-            excess_test=et,
-            vague_spec=vs,
+            patch_analysis=ep,
+            test_analysis=et,
+            description_clarity=vs,
             task_labels=[
                 TaskLabelAssignment(
-                    label=TaskContaminationLabel.WIDE_TESTS,
-                    confidence=0.9,
+                    label=TaskContaminationLabel.OVER_TEST,
                     evidence=["1 OFF_TOPIC assertion"],
                     reasoning="Test assertions go beyond scope",
                 ),
             ],
-            recommendations=["EXCESS_TEST: 1 OFF_TOPIC assertions beyond problem scope."],
+            recommendations=["OVER_TEST: 1 OFF_TOPIC assertions beyond problem scope."],
         )
 
         d = report.to_dict()
         assert d["instance_id"] == "serialize-test"
         assert d["severity"] in ("CLEAN", "MINOR", "MODERATE", "SEVERE")
-        assert "excess_patch" in d
-        assert "excess_test" in d
-        assert "vague_spec" in d
+        assert "patch_analysis" in d
+        assert "test_analysis" in d
+        assert "description_clarity" in d
         assert "task_labels" in d
         assert "recommendations" in d
-        assert isinstance(d["excess_patch"]["hunks"], list)
-        assert isinstance(d["excess_test"]["tests"], list)
-        assert len(d["excess_test"]["tests"][0]["assertions"]) == 3
-        assert d["excess_patch"]["has_excess"] is False
-        assert d["excess_test"]["has_excess"] is True
+        assert isinstance(d["patch_analysis"]["hunks"], list)
+        assert isinstance(d["test_analysis"]["tests"], list)
+        assert len(d["test_analysis"]["tests"][0]["assertions"]) == 3
+        # No confidence floats anywhere in the serialized output
+        def _no_confidence(obj):
+            if isinstance(obj, dict):
+                assert "confidence" not in obj
+                for v in obj.values():
+                    _no_confidence(v)
+            elif isinstance(obj, list):
+                for item in obj:
+                    _no_confidence(item)
+        _no_confidence(d)
 
         restored = ContaminationReport.from_dict(d)
         assert restored.instance_id == report.instance_id
         assert restored.severity == report.severity
         assert len(restored.task_labels) == 1
-        assert restored.task_labels[0].label == TaskContaminationLabel.WIDE_TESTS
-        assert restored.excess_patch.total_hunks == 2
-        assert restored.excess_test.off_topic_assertions == 1
+        assert restored.task_labels[0].label == TaskContaminationLabel.OVER_TEST
+        assert restored.patch_analysis.total_hunks == 2
+        assert restored.test_analysis.off_topic_assertions == 1
 
     def test_decomposition_roundtrip(self):
         decomp = ProblemDecomposition(
@@ -237,15 +246,15 @@ class TestReportSerialization:
         )
         ep = _make_excess_patch()
         et = _make_excess_test()
-        vs = VagueSpecDetail(score=0.2)
+        vs = DescriptionClarity(score=0.2)
 
         report = ContaminationReport(
             instance_id="decomp-test",
             severity=Severity.CLEAN,
             intent=intent,
-            excess_patch=ep,
-            excess_test=et,
-            vague_spec=vs,
+            patch_analysis=ep,
+            test_analysis=et,
+            description_clarity=vs,
         )
 
         d = report.to_dict()
@@ -269,15 +278,15 @@ class TestReportSerialization:
         intent = _make_intent("no-decomp-test")
         ep = _make_excess_patch()
         et = _make_excess_test()
-        vs = VagueSpecDetail(score=0.1)
+        vs = DescriptionClarity(score=0.1)
 
         report = ContaminationReport(
             instance_id="no-decomp-test",
             severity=Severity.CLEAN,
             intent=intent,
-            excess_patch=ep,
-            excess_test=et,
-            vague_spec=vs,
+            patch_analysis=ep,
+            test_analysis=et,
+            description_clarity=vs,
         )
 
         d = report.to_dict()
@@ -306,20 +315,20 @@ class TestAssertionCounts:
 
 
 class TestCrossReference:
-    def test_no_unrelated_hunks_no_circular(self):
+    def test_no_unrelated_hunks_no_coupling(self):
         ep = _make_excess_patch([(PatchVerdict.REQUIRED, 0.9)])
         et = _make_excess_test([(TestVerdict.ALIGNED, 2, 0, False)])
         result = analyze_cross_references(ep, et, [])
-        assert not result.has_circular
-        assert result.max_confidence == 0.0
+        assert not result.has_coupling
+        assert result.couplings == []
 
-    def test_unrelated_hunk_no_matching_test_no_circular(self):
+    def test_unrelated_hunk_no_matching_test_no_coupling(self):
         ep = _make_excess_patch([(PatchVerdict.UNRELATED, 0.8)])
         et = _make_excess_test([(TestVerdict.ALIGNED, 2, 0, False)])
         result = analyze_cross_references(ep, et, [])
-        assert not result.has_circular
+        assert not result.has_coupling
 
-    def test_circular_via_code_context(self):
+    def test_coupling_via_code_context(self):
         ep = _make_excess_patch([
             (PatchVerdict.REQUIRED, 0.9),
             (PatchVerdict.UNRELATED, 0.8),
@@ -366,14 +375,14 @@ class TestCrossReference:
         )
 
         result = analyze_cross_references(ep, et, [th])
-        assert result.has_circular
-        assert len(result.circular_dependencies) == 1
-        cd = result.circular_dependencies[0]
+        assert result.has_coupling
+        assert len(result.couplings) == 1
+        cd = result.couplings[0]
         assert cd.test_name == "test_0"
-        assert cd.confidence >= 0.7
+        assert cd.evidence_strength in ("strong", "moderate")
         assert "call-graph" in cd.reasoning
 
-    def test_no_circular_when_call_targets_in_required_hunks(self):
+    def test_no_coupling_when_call_targets_in_required_hunks(self):
         ep = _make_excess_patch([(PatchVerdict.REQUIRED, 0.9)])
         et = _make_excess_test([(TestVerdict.ALIGNED, 2, 0, False)])
 
@@ -410,4 +419,4 @@ class TestCrossReference:
         )
 
         result = analyze_cross_references(ep, et, [th])
-        assert not result.has_circular
+        assert not result.has_coupling

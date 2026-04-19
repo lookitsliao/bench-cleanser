@@ -122,6 +122,7 @@ def _create_async_client(
         azure_endpoint=config.llm_base_url,
         azure_ad_token_provider=caching_token_provider,
         max_retries=0,  # We handle retries ourselves with proper backoff
+        timeout=None,   # No timeout — let long reasoning_effort=high calls finish
     )
 
     return client, invalidate_token
@@ -177,22 +178,40 @@ class LLMClient:
             "messages": messages,
             "max_completion_tokens": self._max_tokens,
             "extra_body": {"reasoning_effort": self._reasoning_effort},
+            "timeout": None,  # No per-request timeout — reasoning_effort=high takes long
         }
         if response_format is not None:
             kwargs["response_format"] = response_format
 
         last_exc: BaseException | None = None
-        for attempt in range(1, self._retry_attempts + 1):
+        attempt = 0
+        while True:
+            attempt += 1
             try:
                 response = await self._client.chat.completions.create(**kwargs)
                 content = response.choices[0].message.content or ""
                 return content
+            except APIConnectionError as exc:
+                # Pure network connectivity failure — could be ISP dropped,
+                # DNS flake, or Azure edge down. Wait it out indefinitely.
+                last_exc = exc
+                delay = min(5.0 * (2 ** min(attempt - 1, 4)), 60.0)
+                logger.warning(
+                    "LLM connectivity error (attempt %d, will wait forever for network): %s — "
+                    "retrying in %.1fs",
+                    attempt, exc, delay,
+                )
+                await asyncio.sleep(delay)
+                # No retry cap for connectivity errors — loop forever
+                continue
             except _RETRYABLE_ERRORS as exc:
                 last_exc = exc
                 # On 401, invalidate the cached token so the next retry
                 # acquires a fresh one from az CLI.
                 if isinstance(exc, AuthenticationError):
                     self._invalidate_token()
+                if attempt >= self._retry_attempts:
+                    break
                 delay = min(self._retry_delay * (2 ** (attempt - 1)), 60.0)
                 logger.warning(
                     "LLM request failed (attempt %d/%d): %s – retrying in %.1fs",

@@ -14,7 +14,7 @@ import logging
 
 from bench_cleanser.llm_client import LLMClient
 from bench_cleanser.models import (
-    ExcessPatchDetail,
+    PatchAnalysis,
     HunkVerdict,
     IntentStatement,
     ParsedTask,
@@ -166,10 +166,10 @@ async def analyze_patch(
     intent: IntentStatement,
     llm: LLMClient,
     structural_diff: StructuralDiff | None = None,
-) -> ExcessPatchDetail:
+) -> PatchAnalysis:
     """Stage 4A: classify all gold patch hunks against intent in a single batched LLM call."""
     if not parsed.patch_hunks:
-        return ExcessPatchDetail(
+        return PatchAnalysis(
             total_hunks=0, required_count=0,
             ancillary_count=0, unrelated_count=0,
         )
@@ -197,7 +197,7 @@ async def analyze_patch(
             )
             hunk_verdicts.append(HunkVerdict(
                 hunk_index=i, file_path=hunk.file_path,
-                verdict=PatchVerdict.ANCILLARY, confidence=0.3,
+                verdict=PatchVerdict.ANCILLARY, evidence_strength="weak",
                 reasoning="No verdict returned by LLM for this hunk",
             ))
             continue
@@ -209,7 +209,7 @@ async def analyze_patch(
 
         hunk_verdicts.append(HunkVerdict(
             hunk_index=i, file_path=hunk.file_path,
-            verdict=verdict, confidence=verdict_item.confidence,
+            verdict=verdict, evidence_strength=verdict_item.evidence_strength,
             reasoning=verdict_item.reasoning,
         ))
 
@@ -217,7 +217,7 @@ async def analyze_patch(
     ancillary = sum(1 for v in hunk_verdicts if v.verdict == PatchVerdict.ANCILLARY)
     unrelated = sum(1 for v in hunk_verdicts if v.verdict == PatchVerdict.UNRELATED)
 
-    return ExcessPatchDetail(
+    return PatchAnalysis(
         total_hunks=len(hunk_verdicts),
         required_count=required,
         ancillary_count=ancillary,

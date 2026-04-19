@@ -10,9 +10,7 @@ from __future__ import annotations
 import ast
 import logging
 import pathlib
-import re
 import textwrap
-from typing import Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +34,7 @@ def extract_function_source(
     try:
         tree = ast.parse(file_content)
     except SyntaxError:
-        return _extract_function_regex(file_content, func_name, max_lines)
+        return ""
 
     lines = file_content.splitlines(keepends=True)
 
@@ -51,41 +49,8 @@ def extract_function_source(
                     func_lines.append(f"    # ... truncated ({end - start} total lines)\n")
                 return "".join(func_lines)
 
-    # Fall back to regex
-    return _extract_function_regex(file_content, func_name, max_lines)
-
-
-def _extract_function_regex(
-    file_content: str,
-    func_name: str,
-    max_lines: int,
-) -> str:
-    """Regex fallback for extracting a function."""
-    pattern = re.compile(
-        rf"^(\s*)(?:async\s+)?def\s+{re.escape(func_name)}\s*\(",
-        re.MULTILINE,
-    )
-    m = pattern.search(file_content)
-    if not m:
-        return ""
-
-    indent = len(m.group(1))
-    lines = file_content.splitlines(keepends=True)
-    start = file_content[:m.start()].count("\n")
-    result: list[str] = [lines[start]]
-
-    for i in range(start + 1, min(len(lines), start + max_lines)):
-        line = lines[i]
-        stripped = line.rstrip()
-        if stripped == "":
-            result.append(line)
-            continue
-        line_indent = len(line) - len(line.lstrip())
-        if line_indent <= indent and stripped and not stripped.startswith("#"):
-            break
-        result.append(line)
-
-    return "".join(result)
+    # Function not found via AST
+    return ""
 
 
 # -------------------------------------------------------------------
@@ -234,75 +199,158 @@ def extract_fixtures(
 
 
 # -------------------------------------------------------------------
-# Source file reading
+# ProblemCodeContext extraction (Stage 1.5)
 # -------------------------------------------------------------------
 
-def get_source_functions(
+import re as _re
+
+from bench_cleanser.models import ProblemCodeContext
+
+
+def extract_entities_from_text(
+    text: str,
     repo_path: pathlib.Path,
-    file_path: str,
-    function_names: Sequence[str],
-    *,
-    max_lines: int = 200,
-) -> dict[str, str]:
-    """Read specific functions from a source file.
+) -> dict[str, list[str]]:
+    """Heuristically extract code entity references from problem text.
 
-    Returns a dict mapping function name to source code.
+    Returns verified entities (files, functions, classes) that exist in repo.
     """
-    full_path = repo_path / file_path
-    if not full_path.exists():
-        return {}
+    # File paths: word/word.ext patterns
+    file_candidates = set(_re.findall(r"[\w/\\]+\.(?:py|js|ts|go|rs|java|c|cpp|h|rb|php)", text))
+    files = [f for f in file_candidates if (repo_path / f.replace("\\", "/")).exists()]
 
-    try:
-        content = full_path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return {}
+    # Class names: PascalCase words (2+ uppercase transitions)
+    class_candidates = set(_re.findall(r"\b([A-Z][a-z]+(?:[A-Z][a-z]+)+)\b", text))
+    # Also single-word capitalized that look like classes
+    class_candidates |= set(_re.findall(r"\b([A-Z][a-z]{2,}(?:Error|Exception|Factory|Manager|Handler|Form|Model|View|Serializer))\b", text))
 
-    result: dict[str, str] = {}
-    for name in function_names:
-        source = extract_function_source(content, name, max_lines=max_lines)
-        if source:
-            result[name] = source
+    # Function names: snake_case followed by (
+    func_candidates = set(_re.findall(r"\b([a-z_][a-z0-9_]{2,})\s*\(", text))
+    # Also __dunder__ methods
+    func_candidates |= set(_re.findall(r"\b(__[a-z_]+__)\b", text))
 
-    return result
+    # Verify classes and functions exist in mentioned files
+    verified_classes: list[str] = []
+    verified_functions: list[str] = []
+
+    for f in files:
+        full_path = repo_path / f.replace("\\", "/")
+        if not full_path.exists() or not f.endswith(".py"):
+            continue
+        try:
+            content = full_path.read_text(encoding="utf-8", errors="replace")
+            tree = ast.parse(content)
+        except (OSError, SyntaxError):
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef) and node.name in class_candidates:
+                verified_classes.append(node.name)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name in func_candidates:
+                verified_functions.append(node.name)
+
+    return {
+        "files": files,
+        "functions": list(dict.fromkeys(verified_functions)),
+        "classes": list(dict.fromkeys(verified_classes)),
+    }
 
 
-def get_class_with_method(
+def extract_problem_code_context(
     repo_path: pathlib.Path,
-    file_path: str,
-    method_name: str,
+    mentioned_files: list[str],
+    mentioned_functions: list[str],
+    mentioned_classes: list[str],
     *,
-    max_lines: int = 200,
-) -> str:
-    """Read a class method including its class context.
+    max_file_lines: int = 300,
+    max_entity_lines: int = 100,
+) -> ProblemCodeContext:
+    """Build ProblemCodeContext from entities mentioned in problem text.
 
-    Returns the class definition preamble + the method source.
+    Reads pre-patch source files and extracts function/class definitions
+    to ground Stage 2 intent extraction in actual code.
     """
-    full_path = repo_path / file_path
-    if not full_path.exists():
-        return ""
+    file_contents: dict[str, str] = {}
+    entity_sources: dict[str, str] = {}
 
-    try:
-        content = full_path.read_text(encoding="utf-8", errors="replace")
-        tree = ast.parse(content)
-    except (OSError, SyntaxError):
-        return ""
+    for file_path in mentioned_files:
+        full_path = repo_path / file_path.replace("\\", "/")
+        if not full_path.exists():
+            continue
+        try:
+            content = full_path.read_text(encoding="utf-8", errors="replace")
+            lines = content.splitlines()
+            if len(lines) > max_file_lines:
+                content = "\n".join(lines[:max_file_lines]) + f"\n# ... truncated ({len(lines)} total lines)"
+            file_contents[file_path] = content
+        except OSError:
+            continue
 
-    lines = content.splitlines(keepends=True)
+    # Extract function sources
+    for func_name in mentioned_functions:
+        for file_path in mentioned_files:
+            if not file_path.endswith(".py"):
+                continue
+            full_path = repo_path / file_path.replace("\\", "/")
+            if not full_path.exists():
+                continue
+            try:
+                content = full_path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            source = extract_function_source(content, func_name, max_lines=max_entity_lines)
+            if source:
+                entity_sources[func_name] = source
+                break
 
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ClassDef):
-            for item in node.body:
-                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    if item.name == method_name:
-                        # Get class header (first line or two)
-                        class_start = node.lineno - 1
-                        class_header = lines[class_start]
+    # Extract class sources (first max_entity_lines)
+    for class_name in mentioned_classes:
+        for file_path in mentioned_files:
+            if not file_path.endswith(".py"):
+                continue
+            full_path = repo_path / file_path.replace("\\", "/")
+            if not full_path.exists():
+                continue
+            try:
+                content = full_path.read_text(encoding="utf-8", errors="replace")
+                tree = ast.parse(content)
+            except (OSError, SyntaxError):
+                continue
+            lines = content.splitlines(keepends=True)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ClassDef) and node.name == class_name:
+                    start = node.lineno - 1
+                    end = node.end_lineno or (start + 1)
+                    cls_lines = lines[start:min(end, start + max_entity_lines)]
+                    if end - start > max_entity_lines:
+                        cls_lines.append(f"    # ... truncated ({end - start} total lines)\n")
+                    entity_sources[class_name] = "".join(cls_lines)
+                    break
+            if class_name in entity_sources:
+                break
 
-                        # Get method source
-                        method_start = item.lineno - 1
-                        method_end = item.end_lineno or (method_start + 1)
-                        method_lines = lines[method_start:min(method_end, method_start + max_lines)]
+    # Build directory tree for mentioned file directories
+    dirs: set[str] = set()
+    for f in mentioned_files:
+        parts = f.replace("\\", "/").split("/")
+        if len(parts) > 1:
+            dirs.add("/".join(parts[:-1]))
 
-                        return class_header + "    ...\n\n" + "".join(method_lines)
+    tree_lines: list[str] = []
+    for d in sorted(dirs):
+        dir_path = repo_path / d
+        if dir_path.exists() and dir_path.is_dir():
+            tree_lines.append(f"{d}/")
+            try:
+                for child in sorted(dir_path.iterdir()):
+                    if child.name.startswith("."):
+                        continue
+                    suffix = "/" if child.is_dir() else ""
+                    tree_lines.append(f"  {child.name}{suffix}")
+            except OSError:
+                pass
 
-    return ""
+    return ProblemCodeContext(
+        mentioned_file_contents=file_contents,
+        relevant_directory_tree="\n".join(tree_lines),
+        mentioned_entity_sources=entity_sources,
+    )

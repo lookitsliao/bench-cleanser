@@ -33,20 +33,19 @@ class Severity(str, Enum):
 
 
 class TaskContaminationLabel(str, Enum):
-    """Axis 1: task-level contamination labels (8 binary labels).
+    """Axis 1: task-level contamination labels (7 binary labels).
 
-    Labels 1-7 are contamination signals (multi-label, co-occur freely).
+    Labels 1-6 are contamination signals (multi-label, co-occur freely).
     CLEAN is exclusive — cannot co-occur with any other label.
 
     Terminology aligned with OpenAI's SWE-bench Verified audit (2026):
       - APPROACH_LOCK = "Narrow test cases"
-      - WIDE_TESTS    = "Wide test cases"
+      - OVER_TEST     = "Wide test cases"
     """
     APPROACH_LOCK = "approach_lock"
-    WIDE_TESTS = "wide_tests"
-    TEST_MUTATION = "test_mutation"
-    SCOPE_CREEP = "scope_creep"
-    UNCLEAR_SPEC = "unclear_spec"
+    OVER_TEST = "over_test"
+    OVER_PATCH = "over_patch"
+    UNCLEAR_DESCRIPTION = "unclear_description"
     HIDDEN_CONTEXT = "hidden_context"
     WEAK_COVERAGE = "weak_coverage"
     CLEAN = "clean"
@@ -87,6 +86,7 @@ class TaskRecord:
     created_at: str = ""
     requirements: str = ""
     interface: str = ""
+    before_repo_set_cmd: str = ""
 
     @property
     def full_problem_context(self) -> str:
@@ -135,6 +135,7 @@ class TaskRecord:
             created_at=data.get("created_at", ""),
             requirements=data.get("requirements", ""),
             interface=data.get("interface", ""),
+            before_repo_set_cmd=data.get("before_repo_set_cmd", ""),
         )
 
 
@@ -231,6 +232,18 @@ class TestHunk:
 
 
 @dataclass
+class ProblemCodeContext:
+    """Pre-patch source code context for grounding Stage 2 intent extraction.
+
+    Contains source code from BEFORE the patch, so the LLM understands
+    what code the problem references without seeing the fix.
+    """
+    mentioned_file_contents: dict[str, str] = field(default_factory=dict)
+    relevant_directory_tree: str = ""
+    mentioned_entity_sources: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
 class ParsedTask:
     """Fully parsed SWE-bench task, ready for analysis."""
     record: TaskRecord
@@ -240,6 +253,7 @@ class ParsedTask:
     f2p_tests_with_no_hunk: list[str]
     files_in_gold_patch: list[str]
     files_in_test_patch: list[str]
+    problem_code_context: ProblemCodeContext | None = None
 
 
 @dataclass
@@ -323,8 +337,8 @@ class HunkVerdict:
     hunk_index: int
     file_path: str
     verdict: PatchVerdict
-    confidence: float
-    reasoning: str
+    evidence_strength: str = "moderate"
+    reasoning: str = ""
     is_heuristic: bool = False
 
 
@@ -342,9 +356,9 @@ class TestVerdictReport:
     test_id: str
     test_name: str
     intent_match: TestVerdict
-    confidence: float
-    reasoning: str
-    is_modified: bool
+    is_modified: bool = False
+    evidence_strength: str = "moderate"
+    reasoning: str = ""
     modification_aligned: bool = True
     assertion_verdicts: list[AssertionVerdictReport] = field(default_factory=list)
 
@@ -358,22 +372,18 @@ class TestVerdictReport:
 
 
 @dataclass
-class ExcessPatchDetail:
-    """Patch analysis results: per-hunk verdicts and binary signal."""
+class PatchAnalysis:
+    """Patch analysis results: per-hunk verdicts."""
     total_hunks: int
     required_count: int
     ancillary_count: int
     unrelated_count: int
     hunk_verdicts: list[HunkVerdict] = field(default_factory=list)
 
-    @property
-    def has_excess(self) -> bool:
-        return self.unrelated_count > 0
-
 
 @dataclass
-class ExcessTestDetail:
-    """Test analysis results: per-test verdicts and binary signals."""
+class TestAnalysis:
+    """Test analysis results: per-test verdicts."""
     total_tests: int
     aligned_count: int
     tangential_count: int
@@ -384,13 +394,9 @@ class ExcessTestDetail:
     has_modified_tests: bool
     test_verdicts: list[TestVerdictReport] = field(default_factory=list)
 
-    @property
-    def has_excess(self) -> bool:
-        return self.off_topic_assertions > 0 or self.unrelated_count > 0
-
 
 @dataclass
-class VagueSpecDetail:
+class DescriptionClarity:
     """Spec ambiguity analysis result."""
     score: float
     reasoning: str = ""
@@ -400,7 +406,6 @@ class VagueSpecDetail:
 class TaskLabelAssignment:
     """A single Axis 1 label assigned to a task with evidence."""
     label: TaskContaminationLabel
-    confidence: float
     evidence: list[str] = field(default_factory=list)
     reasoning: str = ""
 
@@ -409,7 +414,6 @@ class TaskLabelAssignment:
 class AgentLabelAssignment:
     """A single Axis 2 label assigned to an agent-task pair with evidence."""
     label: AgentTrajectoryLabel
-    confidence: float
     evidence: list[str] = field(default_factory=list)
     reasoning: str = ""
 
@@ -420,9 +424,9 @@ class ContaminationReport:
     instance_id: str
     severity: Severity
     intent: IntentStatement
-    excess_patch: ExcessPatchDetail
-    excess_test: ExcessTestDetail
-    vague_spec: VagueSpecDetail
+    patch_analysis: PatchAnalysis
+    test_analysis: TestAnalysis
+    description_clarity: DescriptionClarity
     task_labels: list[TaskLabelAssignment] = field(default_factory=list)
     agent_labels: dict[str, AgentLabelAssignment] = field(default_factory=dict)
     recommendations: list[str] = field(default_factory=list)
@@ -448,38 +452,38 @@ class ContaminationReport:
                     "mentioned_modules": self.intent.decomposition.mentioned_modules,
                 }} if self.intent.decomposition else {}),
             },
-            "excess_patch": {
-                "total_hunks": self.excess_patch.total_hunks,
-                "required": self.excess_patch.required_count,
-                "ancillary": self.excess_patch.ancillary_count,
-                "unrelated": self.excess_patch.unrelated_count,
-                "has_excess": self.excess_patch.has_excess,
+            "patch_analysis": {
+                "total_hunks": self.patch_analysis.total_hunks,
+                "required_count": self.patch_analysis.required_count,
+                "ancillary_count": self.patch_analysis.ancillary_count,
+                "unrelated_count": self.patch_analysis.unrelated_count,
                 "hunks": [
                     {
                         "hunk_index": h.hunk_index,
-                        "file": h.file_path,
+                        "file_path": h.file_path,
                         "verdict": h.verdict.value,
-                        "confidence": round(h.confidence, 4),
-                        "reason": h.reasoning,
+                        "evidence_strength": h.evidence_strength,
+                        "reasoning": h.reasoning,
                     }
-                    for h in self.excess_patch.hunk_verdicts
+                    for h in self.patch_analysis.hunk_verdicts
                 ],
             },
-            "excess_test": {
-                "total_tests": self.excess_test.total_tests,
-                "aligned": self.excess_test.aligned_count,
-                "tangential": self.excess_test.tangential_count,
-                "unrelated": self.excess_test.unrelated_count,
-                "total_assertions": self.excess_test.total_assertions,
-                "on_topic": self.excess_test.on_topic_assertions,
-                "off_topic": self.excess_test.off_topic_assertions,
-                "has_modified_tests": self.excess_test.has_modified_tests,
-                "has_excess": self.excess_test.has_excess,
+            "test_analysis": {
+                "total_tests": self.test_analysis.total_tests,
+                "aligned_count": self.test_analysis.aligned_count,
+                "tangential_count": self.test_analysis.tangential_count,
+                "unrelated_count": self.test_analysis.unrelated_count,
+                "total_assertions": self.test_analysis.total_assertions,
+                "on_topic_assertions": self.test_analysis.on_topic_assertions,
+                "off_topic_assertions": self.test_analysis.off_topic_assertions,
+                "has_modified_tests": self.test_analysis.has_modified_tests,
                 "tests": [
                     {
                         "test_id": t.test_id,
                         "test_name": t.test_name,
                         "intent_match": t.intent_match.value,
+                        "evidence_strength": t.evidence_strength,
+                        "reasoning": t.reasoning,
                         "is_modified": t.is_modified,
                         "modification_aligned": t.modification_aligned,
                         "assertions": [
@@ -491,17 +495,16 @@ class ContaminationReport:
                             for a in t.assertion_verdicts
                         ],
                     }
-                    for t in self.excess_test.test_verdicts
+                    for t in self.test_analysis.test_verdicts
                 ],
             },
-            "vague_spec": {
-                "score": round(self.vague_spec.score, 4),
-                "reasoning": self.vague_spec.reasoning,
+            "description_clarity": {
+                "score": round(self.description_clarity.score, 4),
+                "reasoning": self.description_clarity.reasoning,
             },
             "task_labels": [
                 {
                     "label": tl.label.value,
-                    "confidence": round(tl.confidence, 4),
                     "evidence": tl.evidence,
                     "reasoning": tl.reasoning,
                 }
@@ -510,7 +513,6 @@ class ContaminationReport:
             "agent_labels": {
                 agent: {
                     "label": al.label.value,
-                    "confidence": round(al.confidence, 4),
                     "evidence": al.evidence,
                     "reasoning": al.reasoning,
                 }
@@ -545,26 +547,26 @@ class ContaminationReport:
             decomposition=decomposition,
         )
 
-        ep_d = data.get("excess_patch", {})
+        ep_d = data.get("patch_analysis", {})
         hunk_verdicts = [
             HunkVerdict(
                 hunk_index=h.get("hunk_index", 0),
-                file_path=h.get("file", ""),
+                file_path=h.get("file_path", ""),
                 verdict=PatchVerdict(h.get("verdict", "REQUIRED")),
-                confidence=h.get("confidence", 0.0),
-                reasoning=h.get("reason", ""),
+                evidence_strength=h.get("evidence_strength", "moderate"),
+                reasoning=h.get("reasoning", ""),
             )
             for h in ep_d.get("hunks", [])
         ]
-        excess_patch = ExcessPatchDetail(
+        patch_analysis = PatchAnalysis(
             total_hunks=ep_d.get("total_hunks", 0),
-            required_count=ep_d.get("required", 0),
-            ancillary_count=ep_d.get("ancillary", 0),
-            unrelated_count=ep_d.get("unrelated", 0),
+            required_count=ep_d.get("required_count", 0),
+            ancillary_count=ep_d.get("ancillary_count", 0),
+            unrelated_count=ep_d.get("unrelated_count", 0),
             hunk_verdicts=hunk_verdicts,
         )
 
-        et_d = data.get("excess_test", {})
+        et_d = data.get("test_analysis", {})
         test_verdicts = []
         for t in et_d.get("tests", []):
             assertion_verdicts = [
@@ -579,28 +581,28 @@ class ContaminationReport:
                 test_id=t.get("test_id", ""),
                 test_name=t.get("test_name", ""),
                 intent_match=TestVerdict(t.get("intent_match", "ALIGNED")),
-                confidence=t.get("confidence", 0.0),
+                evidence_strength=t.get("evidence_strength", "moderate"),
                 reasoning=t.get("reasoning", ""),
                 is_modified=t.get("is_modified", False),
                 modification_aligned=t.get("modification_aligned", True),
                 assertion_verdicts=assertion_verdicts,
             ))
-        excess_test = ExcessTestDetail(
+        test_analysis = TestAnalysis(
             total_tests=et_d.get("total_tests", 0),
-            aligned_count=et_d.get("aligned", 0),
-            tangential_count=et_d.get("tangential", 0),
-            unrelated_count=et_d.get("unrelated", 0),
+            aligned_count=et_d.get("aligned_count", 0),
+            tangential_count=et_d.get("tangential_count", 0),
+            unrelated_count=et_d.get("unrelated_count", 0),
             total_assertions=et_d.get("total_assertions", 0),
-            on_topic_assertions=et_d.get("on_topic", 0),
-            off_topic_assertions=et_d.get("off_topic", 0),
+            on_topic_assertions=et_d.get("on_topic_assertions", 0),
+            off_topic_assertions=et_d.get("off_topic_assertions", 0),
             has_modified_tests=et_d.get("has_modified_tests", False),
             test_verdicts=test_verdicts,
         )
 
-        vs_d = data.get("vague_spec", {})
-        vague_spec = VagueSpecDetail(
-            score=vs_d.get("score", 0.0),
-            reasoning=vs_d.get("reasoning", ""),
+        dc_d = data.get("description_clarity", {})
+        description_clarity = DescriptionClarity(
+            score=dc_d.get("score", 0.0),
+            reasoning=dc_d.get("reasoning", ""),
         )
 
         task_labels = []
@@ -608,7 +610,6 @@ class ContaminationReport:
             try:
                 task_labels.append(TaskLabelAssignment(
                     label=TaskContaminationLabel(tl_d.get("label", "clean")),
-                    confidence=tl_d.get("confidence", 0.0),
                     evidence=tl_d.get("evidence", []),
                     reasoning=tl_d.get("reasoning", ""),
                 ))
@@ -619,9 +620,9 @@ class ContaminationReport:
             instance_id=data["instance_id"],
             severity=Severity(data.get("severity", "CLEAN")),
             intent=intent,
-            excess_patch=excess_patch,
-            excess_test=excess_test,
-            vague_spec=vague_spec,
+            patch_analysis=patch_analysis,
+            test_analysis=test_analysis,
+            description_clarity=description_clarity,
             task_labels=task_labels,
             recommendations=data.get("recommendations", []),
         )

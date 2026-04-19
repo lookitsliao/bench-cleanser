@@ -85,9 +85,9 @@ async def analyze_trajectories(
             progress.update(task_id, advance=1, status=" ".join(status_parts))
 
         logger.debug(
-            "%s/%s: %s (conf=%.2f, sim=%.2f)",
+            "%s/%s: %s (strength=%s, sim=%.2f)",
             traj.instance_id, traj.agent_name,
-            result.leakage_pattern.value, result.confidence,
+            result.leakage_pattern.value, result.evidence_strength,
             result.gold_patch_similarity,
         )
         return result
@@ -132,14 +132,14 @@ def _build_contamination_context(report: ContaminationReport) -> str:
     if labels:
         lines.append(f"Labels: {', '.join(labels)}")
 
-    ep = report.excess_patch
-    if ep.has_excess:
-        lines.append(f"SCOPE_CREEP: {ep.unrelated_count} UNRELATED / {ep.total_hunks} hunks")
+    ep = report.patch_analysis
+    if ep.unrelated_count > 0:
+        lines.append(f"OVER_PATCH: {ep.unrelated_count} UNRELATED / {ep.total_hunks} hunks")
 
-    et = report.excess_test
-    if et.has_excess:
+    et = report.test_analysis
+    if et.off_topic_assertions > 0 or et.unrelated_count > 0:
         lines.append(
-            f"WIDE_TESTS: {et.off_topic_assertions} OFF_TOPIC / "
+            f"OVER_TEST: {et.off_topic_assertions} OFF_TOPIC / "
             f"{et.total_assertions} assertions"
         )
 
@@ -172,7 +172,7 @@ def generate_trajectory_summary(
     for iid, instance_analyses in sorted(by_instance.items()):
         lines.append(f"#### `{iid}`\n")
         lines.append(
-            "| Agent | Pattern | Confidence | "
+            "| Agent | Pattern | Evidence Strength | "
             "Gold Sim | Pip Installs | Test Refs | Behavior Summary |"
         )
         lines.append("|---|---|---|---|---|---|---|")
@@ -183,7 +183,7 @@ def generate_trajectory_summary(
             ref_str = str(len(a.test_references))
             lines.append(
                 f"| {a.agent_name} | **{a.leakage_pattern.value}** | "
-                f"{a.confidence:.2f} | {a.gold_patch_similarity:.2f} | "
+                f"{a.evidence_strength} | {a.gold_patch_similarity:.2f} | "
                 f"{pip_str} | {ref_str} | {behavior} |"
             )
 
@@ -263,14 +263,14 @@ def generate_narrative(
     lines.append("")
 
     lines.append("### Contamination Signals\n")
-    ep = report.excess_patch
-    et = report.excess_test
-    if ep.has_excess:
+    ep = report.patch_analysis
+    et = report.test_analysis
+    if ep.unrelated_count > 0:
         lines.append(
-            f"- **SCOPE_CREEP:** {ep.unrelated_count} of "
+            f"- **OVER_PATCH:** {ep.unrelated_count} of "
             f"{ep.total_hunks} hunks are UNRELATED to the stated problem"
         )
-    if et.has_excess:
+    if et.off_topic_assertions > 0 or et.unrelated_count > 0:
         parts = []
         if et.off_topic_assertions > 0:
             pct = et.off_topic_assertions / max(et.total_assertions, 1) * 100
@@ -278,15 +278,15 @@ def generate_narrative(
         if et.unrelated_count > 0:
             parts.append(f"{et.unrelated_count} UNRELATED tests")
         for part in parts:
-            lines.append(f"- **WIDE_TESTS:** {part}")
-    if report.vague_spec.score > 0.3:
-        lines.append(f"- **VAGUE_SPEC:** Problem statement has significant ambiguity ({report.vague_spec.score:.2f})")
+            lines.append(f"- **OVER_TEST:** {part}")
+    if report.description_clarity.score > 0.3:
+        lines.append(f"- **UNCLEAR_DESCRIPTION:** Problem statement has significant ambiguity ({report.description_clarity.score:.2f})")
     lines.append("")
 
     if report.task_labels:
         lines.append("### Label Analysis\n")
         for tl in report.task_labels:
-            lines.append(f"**{tl.label.value}** (confidence: {tl.confidence:.2f}):")
+            lines.append(f"**{tl.label.value}**:")
             if tl.reasoning:
                 lines.append(f"  {tl.reasoning}")
             if tl.evidence:
@@ -300,8 +300,7 @@ def generate_narrative(
 
         for a in instance_analyses:
             lines.append(f"#### Agent: {a.agent_name}\n")
-            lines.append(f"- **Classification:** {a.leakage_pattern.value} "
-                        f"(confidence: {a.confidence:.2f})")
+            lines.append(f"- **Classification:** {a.leakage_pattern.value}")
             lines.append(f"- **Gold patch similarity:** {a.gold_patch_similarity:.1%}")
             if a.pip_install_commands:
                 lines.append(f"- **Pip installs:** {', '.join(a.pip_install_commands)}")
@@ -344,14 +343,14 @@ def _generate_diagnosis(
             f"leakage patterns on this task."
         )
 
-    if report.excess_test.off_topic_assertions > 0:
+    if report.test_analysis.off_topic_assertions > 0:
         parts.append(
-            f"**Action:** Remove or quarantine {report.excess_test.off_topic_assertions} "
+            f"**Action:** Remove or quarantine {report.test_analysis.off_topic_assertions} "
             f"OFF_TOPIC assertions from the test patch."
         )
-    if report.excess_patch.unrelated_count > 0:
+    if report.patch_analysis.unrelated_count > 0:
         parts.append(
-            f"**Action:** Review {report.excess_patch.unrelated_count} UNRELATED "
+            f"**Action:** Review {report.patch_analysis.unrelated_count} UNRELATED "
             f"patch hunks — the gold patch may need to be scoped down."
         )
 

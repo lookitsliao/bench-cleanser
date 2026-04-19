@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 
 from bench_cleanser.llm_client import LLMClient
-from bench_cleanser.models import IntentStatement, ProblemDecomposition, TaskRecord
+from bench_cleanser.models import IntentStatement, ProblemCodeContext, ProblemDecomposition, TaskRecord
 from bench_cleanser.schemas import IntentExtractionResponse
 
 logger = logging.getLogger(__name__)
@@ -35,6 +35,11 @@ Precision here prevents false positives and false negatives downstream.
 You have NOT been shown any code patch or test code. Do NOT speculate about \
 what the fix looks like or what implementation approach is correct. Focus ONLY \
 on what the problem statement, requirements, and interface sections describe.
+
+You may be provided with PRE-PATCH source code from the codebase. This is the \
+code BEFORE the fix, provided to ground your analysis in actual code structure. \
+Do NOT use this code to infer what the fix should look like — it shows the \
+BROKEN state, not the solution.
 
 ## ANALYSIS FRAMEWORK
 
@@ -142,9 +147,11 @@ complete task description.
 """
 
 
-def _build_user_prompt(record: TaskRecord) -> str:
+def _build_user_prompt(
+    record: TaskRecord,
+    problem_code_context: ProblemCodeContext | None = None,
+) -> str:
     parts = [
-        f"Repository: {record.repo}",
         f"Instance ID: {record.instance_id}",
         "",
         f"Problem Statement:\n{record.problem_statement}",
@@ -153,21 +160,42 @@ def _build_user_prompt(record: TaskRecord) -> str:
         parts.append(f"\nRequirements:\n{record.requirements}")
     if record.interface:
         parts.append(f"\nInterface:\n{record.interface}")
+
+    # Add pre-patch code context if available
+    if problem_code_context:
+        ctx_parts: list[str] = [
+            "\n=== CODEBASE CONTEXT (pre-patch state, NOT the fix) ===",
+            "The following source code is from BEFORE any patch was applied.",
+            "Use it to understand what code the problem references.",
+            "Do NOT use this to infer what the fix should look like.",
+        ]
+        if problem_code_context.relevant_directory_tree:
+            ctx_parts.append(f"\nDirectory structure:\n{problem_code_context.relevant_directory_tree}")
+        for path, content in problem_code_context.mentioned_file_contents.items():
+            ctx_parts.append(f"\n--- {path} ---\n{content}")
+        for name, source in problem_code_context.mentioned_entity_sources.items():
+            ctx_parts.append(f"\n--- {name} ---\n{source}")
+        parts.append("\n".join(ctx_parts))
+
+    # Repo name last — avoid leading with a signal that triggers training data recall
+    parts.append(f"\nRepository: {record.repo}")
     return "\n".join(parts) + "\n"
 
 
 async def extract_intent(
     record: TaskRecord,
     llm: LLMClient,
+    problem_code_context: ProblemCodeContext | None = None,
 ) -> IntentStatement:
     """Stage 2: extract intent and decompose problem statement.
 
     The LLM is given ONLY the problem_statement (never the gold patch).
+    When available, pre-patch source code is included for grounding.
     Uses structured output with strict schema enforcement.
     Returns an IntentStatement with acceptance criteria and a
     ProblemDecomposition with entity tracking.
     """
-    user_prompt = _build_user_prompt(record)
+    user_prompt = _build_user_prompt(record, problem_code_context)
 
     max_attempts = 3
     last_error: Exception | None = None

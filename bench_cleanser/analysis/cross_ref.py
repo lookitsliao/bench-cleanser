@@ -1,8 +1,8 @@
-"""Cross-reference analysis: detect circular dependencies between patch hunks and F2P tests.
+"""Cross-reference analysis: detect overpatch-overtest coupling between patch hunks and F2P tests.
 
 When an F2P test exercises functions from UNRELATED patch hunks, the test
-requires code the problem doesn't ask for.  This circular dependency is a
-strong APPROACH_LOCK signal — the agent can't pass the test without
+requires code the problem doesn't ask for.  This overpatch-overtest coupling
+is a strong APPROACH_LOCK signal — the agent can't pass the test without
 implementing out-of-scope changes.
 
 Uses CodeContext call-graph data when available, falls back to identifier
@@ -16,9 +16,10 @@ import re
 from dataclasses import dataclass, field
 
 from bench_cleanser.models import (
-    ExcessPatchDetail,
-    ExcessTestDetail,
+    PatchAnalysis,
     PatchVerdict,
+    StructuralDiff,
+    TestAnalysis,
     TestHunk,
 )
 
@@ -26,30 +27,24 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class CircularDependency:
-    """A single circular dependency between an F2P test and out-of-scope hunks."""
+class OverpatchOvertestLink:
+    """A single coupling between an F2P test and out-of-scope patch hunks."""
     test_id: str
     test_name: str
     linked_hunk_indices: list[int]
     linked_files: list[str]
-    confidence: float
-    reasoning: str
+    evidence_strength: str = "moderate"
+    reasoning: str = ""
 
 
 @dataclass
 class CrossReferenceResult:
     """Cross-reference analysis output."""
-    circular_dependencies: list[CircularDependency] = field(default_factory=list)
+    couplings: list[OverpatchOvertestLink] = field(default_factory=list)
 
     @property
-    def has_circular(self) -> bool:
-        return len(self.circular_dependencies) > 0
-
-    @property
-    def max_confidence(self) -> float:
-        if not self.circular_dependencies:
-            return 0.0
-        return max(cd.confidence for cd in self.circular_dependencies)
+    def has_coupling(self) -> bool:
+        return len(self.couplings) > 0
 
 
 _COMMON_IDENTIFIERS = frozenset({
@@ -59,6 +54,14 @@ _COMMON_IDENTIFIERS = frozenset({
     "module", "file", "path", "name", "value", "data", "result",
     "args", "kwargs", "index", "count", "item", "key", "scope",
     "hunk", "patch", "source", "line", "text", "string", "code",
+    "config", "tracing", "handler", "manager", "factory", "builder", "provider",
+    "service", "context", "request", "response", "session", "error", "exception",
+    "model", "schema", "field", "cache", "store", "default", "callback", "event",
+    "logger", "client", "server", "worker", "queue", "message", "router", "route",
+    "middleware", "plugin", "extension", "registry", "settings", "options", "params",
+    "utils", "helpers", "common", "base", "abstract", "interface", "protocol",
+    "command", "query", "action", "dispatch", "render", "parse", "format",
+    "validate", "convert", "transform", "serialize", "deserialize", "encode", "decode",
 })
 
 
@@ -77,22 +80,23 @@ def _normalize_path(p: str) -> str:
 
 
 def analyze_cross_references(
-    excess_patch: ExcessPatchDetail,
-    excess_test: ExcessTestDetail,
+    patch_analysis: PatchAnalysis,
+    test_analysis: TestAnalysis,
     f2p_test_hunks: list[TestHunk],
+    structural_diff: StructuralDiff | None = None,
 ) -> CrossReferenceResult:
-    """Detect circular dependencies between UNRELATED patch hunks and F2P tests.
+    """Detect overpatch-overtest coupling between UNRELATED patch hunks and F2P tests.
 
-    A circular dependency exists when an F2P test calls into or exercises
-    functions modified by a patch hunk that is UNRELATED to the problem.
-    The test can't pass without the out-of-scope patch code, meaning the
-    benchmark forces a specific implementation approach.
+    An overpatch-overtest coupling exists when an F2P test calls into or
+    exercises functions modified by a patch hunk that is UNRELATED to the
+    problem. The test can't pass without the out-of-scope patch code,
+    meaning the benchmark forces a specific implementation approach.
     """
     oos_hunk_indices: set[int] = set()
     oos_files: set[str] = set()
     oos_identifiers: dict[int, set[str]] = {}
 
-    for hv in excess_patch.hunk_verdicts:
+    for hv in patch_analysis.hunk_verdicts:
         if hv.verdict == PatchVerdict.UNRELATED:
             oos_hunk_indices.add(hv.hunk_index)
             oos_files.add(_normalize_path(hv.file_path))
@@ -107,9 +111,19 @@ def analyze_cross_references(
         th.full_test_id: th for th in f2p_test_hunks
     }
 
-    circular_deps: list[CircularDependency] = []
+    # Build function-level block mapping from structural_diff
+    oos_block_names: dict[str, set[int]] = {}
+    if structural_diff:
+        for cb in structural_diff.changed_blocks:
+            norm = _normalize_path(cb.file_path)
+            if norm in oos_files:
+                for hv in patch_analysis.hunk_verdicts:
+                    if hv.verdict == PatchVerdict.UNRELATED and _normalize_path(hv.file_path) == norm:
+                        oos_block_names.setdefault(cb.block_name, set()).add(hv.hunk_index)
 
-    for tv in excess_test.test_verdicts:
+    coupling_links: list[OverpatchOvertestLink] = []
+
+    for tv in test_analysis.test_verdicts:
         test_hunk = hunk_by_test.get(tv.test_id)
         ctx = test_hunk.code_context if test_hunk else None
 
@@ -117,12 +131,20 @@ def analyze_cross_references(
         linked_files: set[str] = set()
 
         if ctx is not None:
+            # Function-level matching via structural_diff block names
+            for tf in ctx.tested_functions:
+                if tf.name in oos_block_names:
+                    linked_indices.update(oos_block_names[tf.name])
+                    if tf.file_path:
+                        linked_files.add(_normalize_path(tf.file_path))
+
+            # File-level fallback via call targets
             for ct in ctx.call_targets:
                 if ct.is_in_patch and ct.file_path:
                     norm = _normalize_path(ct.file_path)
                     if norm in oos_files:
                         linked_indices.update(
-                            i for i, hv in enumerate(excess_patch.hunk_verdicts)
+                            i for i, hv in enumerate(patch_analysis.hunk_verdicts)
                             if hv.verdict == PatchVerdict.UNRELATED
                             and _normalize_path(hv.file_path) == norm
                         )
@@ -133,7 +155,7 @@ def analyze_cross_references(
                     norm = _normalize_path(tf.file_path)
                     if norm in oos_files:
                         linked_indices.update(
-                            i for i, hv in enumerate(excess_patch.hunk_verdicts)
+                            i for i, hv in enumerate(patch_analysis.hunk_verdicts)
                             if hv.verdict == PatchVerdict.UNRELATED
                             and _normalize_path(hv.file_path) == norm
                         )
@@ -144,21 +166,23 @@ def analyze_cross_references(
                 test_text += " " + tv.reasoning
             test_ids = _extract_identifiers(test_text)
             for hunk_idx, hunk_ids in oos_identifiers.items():
-                if test_ids & hunk_ids:
+                overlap = test_ids & hunk_ids
+                if len(overlap) >= 3:  # Require 3+ non-common overlapping identifiers
                     linked_indices.add(hunk_idx)
 
         if linked_indices:
-            confidence = min(0.95, 0.7 + 0.1 * len(linked_indices))
             if ctx is not None:
-                confidence = min(0.98, confidence + 0.1)
+                evidence_strength = "strong" if len(linked_indices) >= 3 else "moderate"
+            else:
+                evidence_strength = "weak"
 
             method = "call-graph" if ctx is not None else "identifier overlap"
-            circular_deps.append(CircularDependency(
+            coupling_links.append(OverpatchOvertestLink(
                 test_id=tv.test_id,
                 test_name=tv.test_name,
                 linked_hunk_indices=sorted(linked_indices),
                 linked_files=sorted(linked_files),
-                confidence=confidence,
+                evidence_strength=evidence_strength,
                 reasoning=(
                     f"Test '{tv.test_name}' exercises code from "
                     f"{len(linked_indices)} UNRELATED hunk(s) "
@@ -166,4 +190,4 @@ def analyze_cross_references(
                 ),
             ))
 
-    return CrossReferenceResult(circular_dependencies=circular_deps)
+    return CrossReferenceResult(couplings=coupling_links)
