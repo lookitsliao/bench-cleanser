@@ -7,7 +7,7 @@ extra care — see the checklists below.
 ## Dev install
 
 ```bash
-git clone https://github.com/v-liaozhu/bench-cleanser.git
+git clone https://github.com/lookitsliao/bench-cleanser.git
 cd bench-cleanser
 python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -e ".[dev,structural]"
@@ -128,7 +128,7 @@ set. Before adding one:
 
 ## Reporting bugs
 
-[github.com/v-liaozhu/bench-cleanser/issues](https://github.com/v-liaozhu/bench-cleanser/issues).
+[github.com/lookitsliao/bench-cleanser/issues](https://github.com/lookitsliao/bench-cleanser/issues).
 Minimum repro:
 
 - Python version and OS.

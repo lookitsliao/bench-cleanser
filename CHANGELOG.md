@@ -86,7 +86,7 @@ in [`docs/RELEASE_READINESS.md`](docs/RELEASE_READINESS.md) are met.
   falsifiable hypotheses, selection-bias controls, task–candidate–oracle method,
   paired verification-gap dataset, lifecycle-wide experiments, and a
   literature boundary rechecked through July 2026.
-- A strict 66-entry primary-arXiv literature lock with exact cited versions,
+- A strict 70-entry primary-arXiv literature lock with exact cited versions,
   canonical metadata, retrieval identity, raw Atom-response SHA-256, an offline
   regeneration/check path, duplicate-key rejection, bounded redirect-safe Atom
   fetching, and tests that reject citation/version/metadata drift and preserve
@@ -143,14 +143,22 @@ in [`docs/RELEASE_READINESS.md`](docs/RELEASE_READINESS.md) are met.
   terminal/task selections, execution counts, qualified cost declarations, and
   partial-frame status, and publishes a content-addressed artifact. It does not
   authenticate producers or manufacture scientific truth.
+  A separate experimental single-host scientific-ledger module defines
+  domain-bound signed bootstrap, curator, resource-reservation, and resource-
+  settlement envelopes. It is empty, unjoined, and deliberately supplies no
+  reviewer-vote/adjudication record, frozen production roles, behavior-ledger
+  chronology join, external checkpoint, immutable artifact store, activation
+  claim, or empirical result.
   Activation remains blocked on external execution/custody/review identities,
   the populated action registry and activation context, authenticated
   provisioning, externally immutable artifact storage, and a clean-commit
-  receipt; the durable-dispatch and typed-persistence gates remain blocking.
+  receipt for the current candidate; the receipt for baseline commit `6b26448`
+  does not bind this working tree, and the durable-dispatch and typed-
+  persistence gates remain blocking.
 - Contract-only data and router cards that deny a populated dataset, learned
   policy, calibration, task-validity prediction, or supported performance claim.
-- A partial claim-level literature ledger and fail-closed verifier covering 31
-  page/section mappings from 22 exact PDFs among 66 metadata-locked papers,
+- A partial claim-level literature ledger and fail-closed verifier covering 35
+  page/section mappings from 26 exact PDFs among 70 metadata-locked papers,
   including a direct novelty red-team against Bayesian cost-sensitive
   sequential verification control.
   All mappings remain machine-assisted and `human_confirmed: false`.

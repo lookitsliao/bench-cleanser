@@ -21,13 +21,14 @@ be described as local development evidence.
 | SymPy targeted feasibility bundle | 7,652 | `fe563f4f7b7dda0168dfdd3e9bde7d91f0c6363b36a0c825dc2e6da343f12553` | `experiments/independent_execution_smoke/run_smoke.py` | local temporary bundle only | The checked-in manifest can validate supplied bytes, but the bundle, source-retrieval receipt, and full environment are not durably published. |
 | Paired Linux-container SymPy feasibility bundle | 18,299 | `90729da3d543fb3ac75405bb782d056a90ae6b1bbb9219a7016404f489aaea3c` | `experiments/paired_execution_smoke/verify_evidence.py` | local temporary bundle only | The verifier can authenticate supplied bytes and recompute 15 targeted outcomes. The run reused prepared source trees in a locally constructed, non-official image and has no runner timeout, cross-architecture replication, or population/routing claim. |
 | Container-free Sphinx feasibility bundle | 27,754 | `a6fef4316b9e60759b35eb9ecad27a1a162c80c9265e6746a4eb29041fba3a5b` | `experiments/sphinx_execution_smoke/verify_evidence.py` | local temporary bundle only | The verifier can authenticate supplied bytes and recompute 15 observations. Proxy-sensitive phases deviate from the official harness, public-link checks are mutable, and all candidates share the gold functional change, so the task supplies no candidate discrimination or routing evidence. |
-| Primary-arXiv metadata lock | 42,766 | `d8a7884424a1c8afa08d5321088bc208c43699c7afbdcdc2b16d2e0a49476e2f` | `scripts/lock_literature.py` | checked into this dirty working tree; no signed tag/DOI | Metadata validation for all 65 entries is reproducible offline; upstream refresh requires network access. |
-| Partial claim ledger | 29,139 | `98b2c7a3e3632fb9fe7d847c2de504af3913393549ba38c4c42cd76a5e41009d` | `scripts/verify_claim_ledger.py` | checked into this dirty working tree; exact PDFs have no public artifact locator | Ledger validation covers 22 exact PDFs and 31 page-bound claims. All 22 listed PDF hashes were reverified during reviews through 2026-07-14, but a clone cannot rehash absent PDF bytes and no claim has human confirmation. |
+| Primary-arXiv metadata lock | 45,656 | `36120b5f1a685cf8b1c74d952ad02629da97f3fe53e67558de85ec6c617cf5e2` | `scripts/lock_literature.py` | checked into this dirty working tree; no signed tag/DOI | Metadata validation for all 70 entries is reproducible offline; upstream refresh requires network access. |
+| Partial claim ledger | 33,608 | `28c3f70de03fc56d0b6b8d71d472e7bb683ec6e4dada38e81cf6752f3f6a921d` | `scripts/verify_claim_ledger.py` | checked into this dirty working tree; exact PDFs have no public artifact locator | Ledger validation covers 26 exact PDFs and 35 page-bound claims. All 26 listed PDF hashes were reverified during reviews through 2026-07-14, but a clone cannot rehash absent PDF bytes and no claim has human confirmation. |
 
-The current-tree package/SBOM/license evidence is intentionally absent from
-this table: the last complete supply-chain bundle predates the newest source
-and documentation files. It must be rebuilt once, from the final clean commit,
-then preserved together with the signed release dossier.
+Working-tree package/SBOM/license evidence is intentionally absent from this
+table. Temporary local reports are neither bound to a clean candidate commit
+nor durably available, even when generated from the same source bytes. The
+bundle must be rebuilt from the final clean commit, then preserved together
+with the signed release dossier.
 
 ## Publication gate
 

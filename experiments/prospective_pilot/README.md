@@ -45,6 +45,15 @@ frame; no replacement is allowed.
   receipts, and externally immutable artifact store are absent. Docker,
   semantic-model, opaque-map custodian, and reviewer identities also remain
   blockers; the scheduler is not operationally activated.
+  [`scientific_ledger.py`](scientific_ledger.py) is a separate experimental
+  single-host partial core for domain-bound signed bootstrap, curator, resource-
+  reservation, and resource-settlement envelopes. It has no populated records,
+  frozen production authority roles, reviewer-vote or adjudication surface,
+  behavior-ledger chronology join, external chain checkpoint, or immutable
+  artifact store. Its source is bound as partial scheduler implementation
+  infrastructure, not as an activation-configuration object, and it is not
+  consumed by the structural compiler; none of the corresponding blockers is
+  cleared.
   [`release_bundle.py`](release_bundle.py) is the first fail-closed publication
   bridge. It requires a separately pinned canonical anchor, reopens and audits
   ledger, action-spec, artifact, and completed-output bytes, and derives policy
@@ -52,9 +61,9 @@ frame; no replacement is allowed.
   state, execution counts, and dimension-qualified cost declarations. Its
   output profile is deliberately `STRUCTURAL`: a pinned checksum is external
   integrity anchoring rather than a signature, and the compiler cannot enable
-  logged-policy, paired-sensor, or scientific profiles until typed signed
-  bootstrap, curator, adjudication, resource-settlement, candidate-registry,
-  and calibrated-score inputs exist.
+  logged-policy, paired-sensor, or scientific profiles until populated,
+  authenticated bootstrap, curator, adjudication, resource-settlement,
+  candidate-registry, and calibrated-score inputs are joined and validated.
 - [`validate_protocol.py`](validate_protocol.py) verifies the hash chain and
   claim boundary; `--require-activation-ready` intentionally fails while any
   declared external or implementation identity is absent.

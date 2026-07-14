@@ -35,7 +35,7 @@ CATEGORY_RE = re.compile(r"[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*")
 BIBLIOGRAPHY_MARKER = "## Contemporary references"
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 MAX_TIMEOUT_SECONDS = 120.0
-EXPECTED_CHECKED_IN_ENTRY_COUNT = 66
+EXPECTED_CHECKED_IN_ENTRY_COUNT = 70
 ATOM = "{http://www.w3.org/2005/Atom}"
 ARXIV = "{http://arxiv.org/schemas/atom}"
 
@@ -332,7 +332,7 @@ def fetch_atom_response(
         url,
         headers={
             "Accept": "application/atom+xml",
-            "User-Agent": "bench-cleanser-literature-lock/0.1 (+https://github.com/v-liaozhu/bench-cleanser)",
+            "User-Agent": "bench-cleanser-literature-lock/0.1 (+https://github.com/lookitsliao/bench-cleanser)",
         },
     )
     try:

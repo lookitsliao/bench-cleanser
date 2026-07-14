@@ -11,9 +11,13 @@ from typing import Any
 import pytest
 
 from bench_cleanser.verification._io import strict_json_dumps
+from bench_cleanser.verification.models import EvidenceKind
 from experiments.prospective_pilot.dispatcher import ProspectiveDispatcher
 from experiments.prospective_pilot.ledger import ProspectiveLedger, ReservationRequest
 from experiments.prospective_pilot.release_bundle import (
+    BUNDLE_DIGEST_CONTRACT,
+    STRUCTURAL_BUNDLE_SCHEMA_VERSION,
+    TASK_TRAJECTORY_DIGEST_CONTRACT,
     TRAJECTORY_DIGEST_CONTRACT,
     AuditedLedgerSnapshot,
     BoundReleaseArtifact,
@@ -105,9 +109,7 @@ def _typed_round_fixture(
             specs_by_digest[digest] = spec
             preimages[digest] = spec.canonical_preimage()
             catalog = tuple(
-                replace(item, action_spec_sha256=digest)
-                if item.action_id == action_id
-                else item
+                replace(item, action_spec_sha256=digest) if item.action_id == action_id else item
                 for item in catalog
             )
         if terminal_only:
@@ -146,12 +148,14 @@ def _typed_round_fixture(
             continue
         assert decision.acquisition_id is not None
         spec = specs_by_digest[decision.chosen_offer.action_spec_sha256]
-        reservations.append(ReservationRequest(
-            acquisition_id=decision.acquisition_id,
-            resource_kind=spec.resource_kind,
-            resource_key=spec.resource_key,
-            details=spec.reservation_details(),
-        ))
+        reservations.append(
+            ReservationRequest(
+                acquisition_id=decision.acquisition_id,
+                resource_kind=spec.resource_kind,
+                resource_key=spec.resource_key,
+                details=spec.reservation_details(),
+            )
+        )
     used_digests = {
         offer.action_spec_sha256
         for candidate in round_decision.candidates
@@ -262,11 +266,16 @@ def test_terminal_at_step_zero_and_task_selection_are_in_trajectory_digest(
 
     payload = bundle.to_dict()
     task = next(item for item in payload["tasks"] if item["task_id"] == selection.task_id)
-    candidates = [
-        item for item in payload["candidates"] if item["task_id"] == selection.task_id
-    ]
+    candidates = [item for item in payload["candidates"] if item["task_id"] == selection.task_id]
     assert task["status"] == "abstained"
     assert task["task_selection_sha256"] == selection.decision_sha256
+    assert task["task_trajectory_action_log_propensities"] == list(
+        selection.final_task_action_log_propensities
+    )
+    assert task["task_trajectory_probability"] == selection.final_task_trajectory_probability
+    assert (
+        task["task_trajectory_log_probability"] == selection.final_task_trajectory_log_probability
+    )
     assert len(candidates) == 3
     assert all(item["decision_count"] == 1 for item in candidates)
     assert all(item["acquisition_count"] == 0 for item in candidates)
@@ -284,17 +293,46 @@ def test_terminal_at_step_zero_and_task_selection_are_in_trajectory_digest(
         "trajectory_head_sha256s": [decision["trajectory_head_sha256"]],
         "result_ids": [],
         "incident_ids": [],
+        "nonterminal_provisioning_receipt_sha256s": [],
+        "resolved_execution_provisioning": [],
         "terminal_decision_sha256": decision["decision_sha256"],
         "terminal_action": decision["route_action"],
         "task_selection_sha256": selection.decision_sha256,
         "selected_candidate_id": None,
     }
     assert candidate["candidate_trajectory_sha256"] == _sha256_json(material)
-    assert _sha256_json({**material, "terminal_action": "accept"}) != (
-        candidate["candidate_trajectory_sha256"]
+    assert (
+        _sha256_json({**material, "terminal_action": "accept"})
+        != (candidate["candidate_trajectory_sha256"])
     )
-    assert _sha256_json({**material, "task_selection_sha256": "0" * 64}) != (
-        candidate["candidate_trajectory_sha256"]
+    assert (
+        _sha256_json({**material, "task_selection_sha256": "0" * 64})
+        != (candidate["candidate_trajectory_sha256"])
+    )
+
+    task_material = {
+        "contract": TASK_TRAJECTORY_DIGEST_CONTRACT,
+        "task_id": task["task_id"],
+        "candidate_trajectory_sha256s": task["candidate_trajectory_sha256s"],
+        "task_selection_sha256": selection.decision_sha256,
+        "selected_candidate_id": None,
+        "task_trajectory_action_log_propensities": list(
+            selection.final_task_action_log_propensities
+        ),
+        "task_trajectory_probability": selection.final_task_trajectory_probability,
+        "task_trajectory_log_probability": (selection.final_task_trajectory_log_probability),
+    }
+    assert task["task_trajectory_sha256"] == _sha256_json(task_material)
+    assert (
+        _sha256_json(
+            {
+                **task_material,
+                "task_trajectory_log_probability": (
+                    selection.final_task_trajectory_log_probability + 1.0
+                ),
+            }
+        )
+        != task["task_trajectory_sha256"]
     )
 
     forbidden_overrides = {
@@ -306,10 +344,14 @@ def test_terminal_at_step_zero_and_task_selection_are_in_trajectory_digest(
         "subgroup",
         "truth",
     }
-    assert forbidden_overrides.isdisjoint(
-        inspect.signature(compile_prospective_release).parameters
-    )
+    assert forbidden_overrides.isdisjoint(inspect.signature(compile_prospective_release).parameters)
     assert payload["profile"] == "STRUCTURAL"
+    assert STRUCTURAL_BUNDLE_SCHEMA_VERSION == "verification-gap-study-bundle-0.2.0"
+    assert TRAJECTORY_DIGEST_CONTRACT == "verification-gap-candidate-trajectory-v2"
+    assert TASK_TRAJECTORY_DIGEST_CONTRACT == "verification-gap-task-trajectory-v2"
+    assert BUNDLE_DIGEST_CONTRACT == "verification-gap-structural-study-bundle-v2"
+    assert payload["schema_version"] == STRUCTURAL_BUNDLE_SCHEMA_VERSION
+    assert payload["contract"] == BUNDLE_DIGEST_CONTRACT
     assert payload["scientific_release_ready"] is False
     assert payload["profiles"]["LOGGED_POLICY_EVALUABLE"]["eligible"] is False
 
@@ -349,8 +391,26 @@ def test_partial_frame_is_explicit_and_deterministic(
     assert payload["ledger_audit"]["pending_dispatch_count"] > 0
     assert payload["frame"]["task_status_counts"]["incomplete"] == 1
     assert payload["frame"]["task_status_counts"]["unstarted"] == 21
-    assert "behavior_ledger_does_not_cover_complete_frozen_frame" in (
-        payload["activation_blockers"]
+    started_task = next(
+        item for item in payload["tasks"] if item["task_id"] == fixture.round_decision.task_id
+    )
+    assert started_task["task_trajectory_action_log_propensities"] == list(
+        fixture.round_decision.task_trajectory_action_log_propensities
+    )
+    assert (
+        started_task["task_trajectory_probability"]
+        == fixture.round_decision.task_trajectory_probability
+    )
+    assert (
+        started_task["task_trajectory_log_probability"]
+        == fixture.round_decision.task_trajectory_log_probability
+    )
+    unstarted_task = next(item for item in payload["tasks"] if item["status"] == "unstarted")
+    assert unstarted_task["task_trajectory_action_log_propensities"] == []
+    assert unstarted_task["task_trajectory_probability"] == 1.0
+    assert unstarted_task["task_trajectory_log_probability"] == 0.0
+    assert (
+        "behavior_ledger_does_not_cover_complete_frozen_frame" in (payload["activation_blockers"])
     )
     assert payload["protocol_artifact_audit"]["behavior_available_offer_count"] > 0
     assert payload["protocol_artifact_audit"]["reopened_protocol_result_count"] == 0
@@ -387,18 +447,65 @@ def test_retained_artifact_is_reopened_and_mutation_fails_closed(
     assert payload["protocol_artifact_audit"]["reopened_protocol_result_count"] == 1
 
     candidate = next(
-        item
-        for item in payload["candidates"]
-        if item["candidate_id"] == decision.candidate_id
+        item for item in payload["candidates"] if item["candidate_id"] == decision.candidate_id
     )
-    result = next(
-        item["result"] for item in candidate["decisions"] if item["result"] is not None
-    )
+    result = next(item["result"] for item in candidate["decisions"] if item["result"] is not None)
+    projected_decision = next(item for item in candidate["decisions"] if item["result"] is not None)
+    spec = fixture.specs_by_digest[decision.chosen_offer.action_spec_sha256]
+    provisioning_receipt = {
+        "receipt_sha256": spec.provisioning_receipt.receipt_sha256,
+        "provisioner_id": spec.provisioning_receipt.provisioner_id,
+        "provisioner_version": spec.provisioning_receipt.provisioner_version,
+        "architecture": spec.provisioning_receipt.architecture,
+        "substrate": spec.provisioning_receipt.substrate,
+        "image_digest": spec.provisioning_receipt.image_digest,
+    }
+    assert decision.chosen_offer.evidence_kind == EvidenceKind.FULL_EXECUTION
+    assert projected_decision["provisioning_receipt"] == provisioning_receipt
+    assert result["provisioning_receipt"] == provisioning_receipt
+    assert candidate["execution_acquisition_count"] == 1
+    assert candidate["full_execution_acquisition_count"] == 1
+    assert candidate["execution_substrate_counts"] == {"local-fixture": 1}
+    assert candidate["image_bound_execution_acquisition_count"] == 1
+    assert "full_container_acquisition_count" not in candidate
     assert result["cost_dimension_status"]["wall_seconds"] == "measured"
     assert result["cost_dimension_status"]["storage_bytes"] == "measured"
     assert result["cost_dimension_status"]["cpu_seconds"] == "unreported_zero"
 
-    spec = fixture.specs_by_digest[decision.chosen_offer.action_spec_sha256]
+    trajectory_material = {
+        "contract": TRAJECTORY_DIGEST_CONTRACT,
+        "task_id": candidate["task_id"],
+        "candidate_id": candidate["candidate_id"],
+        "decision_sha256s": [projected_decision["decision_sha256"]],
+        "trajectory_head_sha256s": [projected_decision["trajectory_head_sha256"]],
+        "result_ids": [result["result_id"]],
+        "incident_ids": [],
+        "nonterminal_provisioning_receipt_sha256s": [provisioning_receipt["receipt_sha256"]],
+        "resolved_execution_provisioning": [
+            {"result_id": result["result_id"], **provisioning_receipt}
+        ],
+        "terminal_decision_sha256": None,
+        "terminal_action": None,
+        "task_selection_sha256": None,
+        "selected_candidate_id": None,
+    }
+    assert candidate["candidate_trajectory_sha256"] == _sha256_json(trajectory_material)
+    changed_provisioning = {
+        **provisioning_receipt,
+        "substrate": "different-substrate",
+    }
+    assert (
+        _sha256_json(
+            {
+                **trajectory_material,
+                "resolved_execution_provisioning": [
+                    {"result_id": result["result_id"], **changed_provisioning}
+                ],
+            }
+        )
+        != candidate["candidate_trajectory_sha256"]
+    )
+
     artifact = pathlib.Path(spec.artifact_retention.artifact_directory) / (
         f"{decision.acquisition_id}.json"
     )

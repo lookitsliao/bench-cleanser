@@ -48,15 +48,17 @@ from experiments.prospective_pilot.ledger import (
 from experiments.prospective_pilot.scheduler import (
     SCHEDULER_STUDY_ID,
     SchedulerBindings,
+    TaskRoundDecision,
     TaskSelectionDecision,
     load_study_bindings,
 )
 
 TRUST_ANCHOR_SCHEMA_VERSION = "prospective-ledger-trust-anchor-0.1.0"
-STRUCTURAL_BUNDLE_SCHEMA_VERSION = "verification-gap-study-bundle-0.1.0"
+STRUCTURAL_BUNDLE_SCHEMA_VERSION = "verification-gap-study-bundle-0.2.0"
 TRUST_MODEL = "out_of_band_sha256_v1"
-TRAJECTORY_DIGEST_CONTRACT = "verification-gap-candidate-trajectory-v1"
-BUNDLE_DIGEST_CONTRACT = "verification-gap-structural-study-bundle-v1"
+TRAJECTORY_DIGEST_CONTRACT = "verification-gap-candidate-trajectory-v2"
+TASK_TRAJECTORY_DIGEST_CONTRACT = "verification-gap-task-trajectory-v2"
+BUNDLE_DIGEST_CONTRACT = "verification-gap-structural-study-bundle-v2"
 
 _MAX_LEDGER_EXPORT_BYTES = 512 * 1024 * 1024
 _MAX_TRUST_ANCHOR_BYTES = 256 * 1024
@@ -117,9 +119,7 @@ def _canonical_sha256(value: Any) -> str:
 
 def _digest(value: Any, field_name: str) -> str:
     if not isinstance(value, str) or _DIGEST_RE.fullmatch(value) is None:
-        raise ReleaseBundleError(
-            f"{field_name} must be 64 lowercase hexadecimal characters"
-        )
+        raise ReleaseBundleError(f"{field_name} must be 64 lowercase hexadecimal characters")
     return value
 
 
@@ -152,9 +152,7 @@ def _exact_object(
     if set(result) != fields:
         missing = sorted(fields - set(result))
         extra = sorted(set(result) - fields)
-        raise ReleaseBundleError(
-            f"{field_name} fields differ; missing={missing}, extra={extra}"
-        )
+        raise ReleaseBundleError(f"{field_name} fields differ; missing={missing}, extra={extra}")
     return result
 
 
@@ -224,9 +222,7 @@ def _binding_payload(bindings: SchedulerBindings) -> dict[str, str]:
         "router_policy_config_sha256": bindings.router_policy_config_sha256,
         "router_source_sha256": bindings.router_source_sha256,
         "scheduler_contract_sha256": bindings.scheduler_contract_sha256,
-        "source_feature_freeze_sha256": (
-            bindings.frame.source_feature_freeze_sha256
-        ),
+        "source_feature_freeze_sha256": (bindings.frame.source_feature_freeze_sha256),
         "task_ids_sha256": _canonical_sha256(task_ids),
     }
 
@@ -320,9 +316,7 @@ class LedgerExportTrustAnchor:
             "export_head_sha256": self.export_head_sha256,
             "event_head_sha256": self.event_head_sha256,
             "record_count": self.record_count,
-            "table_counts": {
-                name: count for name, count in self.table_counts
-            },
+            "table_counts": {name: count for name, count in self.table_counts},
             "complete": self.complete,
             "analysis_ready": self.analysis_ready,
             "bindings": self.bindings,
@@ -360,9 +354,7 @@ class LedgerExportTrustAnchor:
         raw_counts = _exact_object(
             data["table_counts"], set(_TABLE_ORDER), "trust_anchor.table_counts"
         )
-        raw_bindings = _exact_object(
-            data["bindings"], set(_BINDING_KEYS), "trust_anchor.bindings"
-        )
+        raw_bindings = _exact_object(data["bindings"], set(_BINDING_KEYS), "trust_anchor.bindings")
         result = cls(
             schema_version=cast(str, data["schema_version"]),
             study_id=cast(str, data["study_id"]),
@@ -372,23 +364,15 @@ class LedgerExportTrustAnchor:
             ledger_export_sha256=cast(str, data["ledger_export_sha256"]),
             export_head_sha256=cast(str, data["export_head_sha256"]),
             event_head_sha256=cast(str, data["event_head_sha256"]),
-            record_count=_nonnegative_integer(
-                data["record_count"], "trust_anchor.record_count"
-            ),
+            record_count=_nonnegative_integer(data["record_count"], "trust_anchor.record_count"),
             table_counts=tuple(
-                (name, _nonnegative_integer(
-                    raw_counts[name], f"trust_anchor.table_counts.{name}"
-                ))
+                (name, _nonnegative_integer(raw_counts[name], f"trust_anchor.table_counts.{name}"))
                 for name in _TABLE_ORDER
             ),
             complete=_boolean(data["complete"], "trust_anchor.complete"),
-            analysis_ready=_boolean(
-                data["analysis_ready"], "trust_anchor.analysis_ready"
-            ),
+            analysis_ready=_boolean(data["analysis_ready"], "trust_anchor.analysis_ready"),
             binding_items=tuple(
-                (name, _digest(
-                    raw_bindings[name], f"trust_anchor.bindings.{name}"
-                ))
+                (name, _digest(raw_bindings[name], f"trust_anchor.bindings.{name}"))
                 for name in _BINDING_KEYS
             ),
         )
@@ -436,9 +420,7 @@ def build_ledger_export_trust_anchor(
     """
 
     fresh = _fresh_bindings(bindings)
-    payload = _read_regular_file(
-        ledger_export_path, maximum_bytes=_MAX_LEDGER_EXPORT_BYTES
-    )
+    payload = _read_regular_file(ledger_export_path, maximum_bytes=_MAX_LEDGER_EXPORT_BYTES)
     try:
         text = payload.decode("utf-8")
     except UnicodeDecodeError as exc:
@@ -468,9 +450,7 @@ def _record_json_by_table(export_text: str) -> tuple[tuple[str, tuple[str, ...]]
         try:
             value = strict_json_loads(raw_line)
         except ValueError as exc:  # pragma: no cover - audited immediately before
-            raise ReleaseBundleError(
-                f"invalid audited export line {line_number}: {exc}"
-            ) from exc
+            raise ReleaseBundleError(f"invalid audited export line {line_number}: {exc}") from exc
         if not isinstance(value, dict):  # pragma: no cover - enforced by ledger audit
             raise ReleaseBundleError("audited export line is not an object")
         table = value.get("table")
@@ -494,9 +474,7 @@ class AuditedLedgerSnapshot:
     trust_anchor: LedgerExportTrustAnchor = field(init=False)
     ledger_export_sha256: str = field(init=False)
     trust_anchor_sha256: str = field(init=False)
-    _record_json: tuple[tuple[str, tuple[str, ...]], ...] = field(
-        init=False, repr=False
-    )
+    _record_json: tuple[tuple[str, tuple[str, ...]], ...] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         expected = _digest(
@@ -506,12 +484,8 @@ class AuditedLedgerSnapshot:
         fresh = _fresh_bindings(self.bindings)
         export_path = pathlib.Path(self.ledger_export_path).absolute()
         anchor_path = pathlib.Path(self.trust_anchor_path).absolute()
-        export_bytes = _read_regular_file(
-            export_path, maximum_bytes=_MAX_LEDGER_EXPORT_BYTES
-        )
-        anchor_bytes = _read_regular_file(
-            anchor_path, maximum_bytes=_MAX_TRUST_ANCHOR_BYTES
-        )
+        export_bytes = _read_regular_file(export_path, maximum_bytes=_MAX_LEDGER_EXPORT_BYTES)
+        anchor_bytes = _read_regular_file(anchor_path, maximum_bytes=_MAX_TRUST_ANCHOR_BYTES)
         anchor_digest = _sha256(anchor_bytes)
         if anchor_digest != expected:
             raise ReleaseBundleError(
@@ -616,9 +590,7 @@ class BoundReleaseArtifact:
         if not isinstance(self.media_type, str) or not self.media_type.strip():
             raise ReleaseBundleError("bound artifact media_type must be non-empty")
         source = pathlib.Path(self.path).absolute()
-        payload = _read_regular_file(
-            source, maximum_bytes=_MAX_BOUND_ARTIFACT_BYTES
-        )
+        payload = _read_regular_file(source, maximum_bytes=_MAX_BOUND_ARTIFACT_BYTES)
         if _sha256(payload) != expected:
             raise ReleaseBundleError(
                 f"bound artifact {self.logical_name!r} differs from its pinned digest"
@@ -723,13 +695,7 @@ def _artifact_path_from_locator(locator: Any) -> pathlib.Path:
     if not isinstance(locator, str) or not locator:
         raise ReleaseBundleError("protocol result artifact locator is missing")
     parsed = urllib.parse.urlparse(locator)
-    if (
-        parsed.scheme != "file"
-        or parsed.netloc
-        or parsed.params
-        or parsed.query
-        or parsed.fragment
-    ):
+    if parsed.scheme != "file" or parsed.netloc or parsed.params or parsed.query or parsed.fragment:
         raise ReleaseBundleError("protocol result artifact locator must be a local file URI")
     path = pathlib.Path(urllib.parse.unquote(parsed.path))
     if not path.is_absolute():
@@ -750,16 +716,14 @@ def _revalidate_protocol_artifacts(
 
     preimages = _action_spec_preimages(snapshot)
     dispatch_by_decision = {
-        cast(str, record["decision_id"]): record
-        for record in snapshot.records("dispatch_intents")
+        cast(str, record["decision_id"]): record for record in snapshot.records("dispatch_intents")
     }
     reservation_by_dispatch = {
         cast(str, record["dispatch_id"]): record
         for record in snapshot.records("resource_reservations")
     }
     result_by_acquisition = {
-        cast(str, record["acquisition_id"]): record
-        for record in snapshot.records("results")
+        cast(str, record["acquisition_id"]): record for record in snapshot.records("results")
     }
     typed_digests: set[str] = set()
     available_offer_count = 0
@@ -776,9 +740,7 @@ def _revalidate_protocol_artifacts(
             spec = _typed_action_spec(
                 preimages,
                 offer.action_spec_sha256,
-                field_name=(
-                    f"decision {decision.decision_id} available offer {offer.action_id}"
-                ),
+                field_name=(f"decision {decision.decision_id} available offer {offer.action_id}"),
             )
             if (
                 spec.action_id != offer.action_id
@@ -853,9 +815,7 @@ def _revalidate_protocol_artifacts(
                 plan=plan,
             )
         except ValueError as exc:
-            raise ReleaseBundleError(
-                f"chosen action spec/dispatch join is invalid: {exc}"
-            ) from exc
+            raise ReleaseBundleError(f"chosen action spec/dispatch join is invalid: {exc}") from exc
 
         result = result_by_acquisition.get(decision.acquisition_id)
         if result is None:
@@ -865,9 +825,7 @@ def _revalidate_protocol_artifacts(
                 "release bundle cannot include a non-protocol synthetic result"
             )
         observation = EvidenceObservation.from_dict(result["observation"])
-        artifact_path = _artifact_path_from_locator(
-            observation.metadata.get("artifact_locator")
-        )
+        artifact_path = _artifact_path_from_locator(observation.metadata.get("artifact_locator"))
         artifact_bytes = _read_regular_file(
             artifact_path,
             maximum_bytes=_MAX_ACQUISITION_ARTIFACT_BYTES,
@@ -881,9 +839,7 @@ def _revalidate_protocol_artifacts(
             maximum_bytes=_MAX_ACQUISITION_ARTIFACT_BYTES,
         )
         if _sha256(output_bytes) != result.get("completed_output_sha256"):
-            raise ReleaseBundleError(
-                "completed output bytes differ from the ledger result"
-            )
+            raise ReleaseBundleError("completed output bytes differ from the ledger result")
         reopened_result_count += 1
 
     return {
@@ -914,7 +870,23 @@ def _sum_costs(costs: Sequence[Mapping[str, Any]]) -> dict[str, int | float]:
     return result
 
 
-def _result_projection(record: Mapping[str, Any]) -> dict[str, Any]:
+def _provisioning_receipt_projection(spec: ExecutableActionSpec) -> dict[str, Any]:
+    receipt = spec.provisioning_receipt
+    return {
+        "receipt_sha256": receipt.receipt_sha256,
+        "provisioner_id": receipt.provisioner_id,
+        "provisioner_version": receipt.provisioner_version,
+        "architecture": receipt.architecture,
+        "substrate": receipt.substrate,
+        "image_digest": receipt.image_digest,
+    }
+
+
+def _result_projection(
+    record: Mapping[str, Any],
+    *,
+    provisioning_receipt: Mapping[str, Any],
+) -> dict[str, Any]:
     observation = EvidenceObservation.from_dict(record["observation"])
     measured_raw = observation.metadata.get("measured_cost_dimensions", ())
     declared_raw = observation.metadata.get("producer_declared_cost_dimensions", ())
@@ -953,6 +925,7 @@ def _result_projection(record: Mapping[str, Any]) -> dict[str, Any]:
         "observation_status": observation.status.value,
         "observation_source": observation.source,
         "observation_source_version": observation.source_version,
+        "provisioning_receipt": dict(provisioning_receipt),
         "cost": cost,
         "cost_dimension_status": cost_status,
     }
@@ -961,10 +934,24 @@ def _result_projection(record: Mapping[str, Any]) -> dict[str, Any]:
 def _decision_projection(
     decision: LoggedPolicyDecision,
     *,
+    action_spec: ExecutableActionSpec | None,
     result: Mapping[str, Any] | None,
     incident: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     offer = decision.chosen_offer
+    if decision.terminal != (action_spec is None):
+        raise ReleaseBundleError("terminal decision and executable action-spec presence disagree")
+    provisioning_receipt = (
+        None if action_spec is None else _provisioning_receipt_projection(action_spec)
+    )
+    projected_result: dict[str, Any] | None = None
+    if result is not None:
+        if provisioning_receipt is None:
+            raise ReleaseBundleError("terminal decision cannot have an acquisition result")
+        projected_result = _result_projection(
+            result,
+            provisioning_receipt=provisioning_receipt,
+        )
     projection: dict[str, Any] = {
         "decision_id": decision.decision_id,
         "decision_sha256": decision.decision_sha256,
@@ -979,10 +966,12 @@ def _decision_projection(
         "chosen_action_id": decision.chosen_action_id,
         "route_action": offer.route_action.value,
         "evidence_kind": None if offer.evidence_kind is None else offer.evidence_kind.value,
+        "action_spec_sha256": offer.action_spec_sha256,
+        "provisioning_receipt": provisioning_receipt,
         "chosen_propensity": decision.chosen_propensity,
         "acquisition_id": decision.acquisition_id,
         "terminal": decision.terminal,
-        "result": None if result is None else _result_projection(result),
+        "result": projected_result,
         "incident": None,
     }
     if incident is not None:
@@ -1003,9 +992,12 @@ def _candidate_status(
     if task_halted:
         return "halted"
     if selection is not None:
-        return "selected" if selection.selected_candidate_id == (
-            decisions[0]["candidate_id"] if decisions else None
-        ) else "complete_not_selected"
+        return (
+            "selected"
+            if selection.selected_candidate_id
+            == (decisions[0]["candidate_id"] if decisions else None)
+            else "complete_not_selected"
+        )
     if not decisions:
         return "unstarted"
     final = decisions[-1]["projection"]
@@ -1025,29 +1017,32 @@ def _compile_policy_projection(snapshot: AuditedLedgerSnapshot) -> dict[str, Any
     result_rows = snapshot.records("results")
     incident_rows = snapshot.records("incidents")
     selection_rows = snapshot.records("selections")
+    action_spec_preimages = _action_spec_preimages(snapshot)
 
-    round_identity = {
-        cast(str, row["round_sha256"]): (
-            cast(str, row["task_id"]),
-            cast(int, row["round_index"]),
-        )
+    round_decisions = {
+        cast(str, row["round_sha256"]): TaskRoundDecision.from_dict(row["round"])
         for row in round_rows
     }
-    result_by_acquisition = {
-        cast(str, row["acquisition_id"]): row for row in result_rows
+    round_identity = {
+        round_sha256: (round_decision.task_id, round_decision.round_index)
+        for round_sha256, round_decision in round_decisions.items()
     }
-    incident_by_acquisition = {
-        cast(str, row["acquisition_id"]): row for row in incident_rows
-    }
+    latest_round_by_task: dict[str, TaskRoundDecision] = {}
+    for round_decision in round_decisions.values():
+        previous = latest_round_by_task.get(round_decision.task_id)
+        if previous is None or round_decision.round_index > previous.round_index:
+            latest_round_by_task[round_decision.task_id] = round_decision
+    result_by_acquisition = {cast(str, row["acquisition_id"]): row for row in result_rows}
+    incident_by_acquisition = {cast(str, row["acquisition_id"]): row for row in incident_rows}
     selection_by_task = {
         cast(str, row["task_id"]): TaskSelectionDecision.from_dict(row["selection"])
         for row in selection_rows
     }
     halted_tasks = {cast(str, row["task_id"]) for row in incident_rows}
 
-    decisions_by_candidate: dict[
-        tuple[str, str], list[tuple[int, LoggedPolicyDecision]]
-    ] = defaultdict(list)
+    decisions_by_candidate: dict[tuple[str, str], list[tuple[int, LoggedPolicyDecision]]] = (
+        defaultdict(list)
+    )
     for row in policy_rows:
         round_sha = cast(str, row["round_sha256"])
         try:
@@ -1057,9 +1052,7 @@ def _compile_policy_projection(snapshot: AuditedLedgerSnapshot) -> dict[str, Any
         decision = LoggedPolicyDecision.from_dict(row["decision"])
         if decision.instance_id != task_id:
             raise ReleaseBundleError("policy instance_id differs from its audited task")
-        decisions_by_candidate[(task_id, decision.candidate_id)].append(
-            (round_index, decision)
-        )
+        decisions_by_candidate[(task_id, decision.candidate_id)].append((round_index, decision))
 
     candidate_rows: list[dict[str, Any]] = []
     candidates_by_task: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -1076,54 +1069,79 @@ def _compile_policy_projection(snapshot: AuditedLedgerSnapshot) -> dict[str, Any
             staged: list[dict[str, Any]] = []
             for decision in typed_decisions:
                 acquisition_id = decision.acquisition_id
+                action_spec = (
+                    None
+                    if decision.terminal
+                    else _typed_action_spec(
+                        action_spec_preimages,
+                        decision.chosen_offer.action_spec_sha256,
+                        field_name=f"decision {decision.decision_id} chosen offer",
+                    )
+                )
                 result = (
                     None if acquisition_id is None else result_by_acquisition.get(acquisition_id)
                 )
                 incident = (
-                    None
-                    if acquisition_id is None
-                    else incident_by_acquisition.get(acquisition_id)
+                    None if acquisition_id is None else incident_by_acquisition.get(acquisition_id)
                 )
-                staged.append({
-                    "candidate_id": candidate_id,
-                    "projection": _decision_projection(
-                        decision,
-                        result=result,
-                        incident=incident,
-                    ),
-                })
+                staged.append(
+                    {
+                        "candidate_id": candidate_id,
+                        "projection": _decision_projection(
+                            decision,
+                            action_spec=action_spec,
+                            result=result,
+                            incident=incident,
+                        ),
+                    }
+                )
             projections = [item["projection"] for item in staged]
             result_projections = [
                 cast(dict[str, Any], item["result"])
                 for item in projections
                 if item["result"] is not None
             ]
+            execution_results = [
+                item
+                for item in result_projections
+                if item["evidence_kind"] in {kind.value for kind in _EXECUTION_KINDS}
+            ]
             costs = [cast(dict[str, Any], item["cost"]) for item in result_projections]
             cost_status = {
-                name: sorted({
-                    cast(dict[str, str], item["cost_dimension_status"])[name]
-                    for item in result_projections
-                })
+                name: sorted(
+                    {
+                        cast(dict[str, str], item["cost_dimension_status"])[name]
+                        for item in result_projections
+                    }
+                )
                 for name in _zero_cost()
             }
             terminal = projections[-1] if projections and projections[-1]["terminal"] else None
             selection_sha = None if selection is None else selection.decision_sha256
-            selected_candidate_id = (
-                None if selection is None else selection.selected_candidate_id
-            )
+            selected_candidate_id = None if selection is None else selection.selected_candidate_id
             trajectory_material = {
                 "contract": TRAJECTORY_DIGEST_CONTRACT,
                 "task_id": task_id,
                 "candidate_id": candidate_id,
                 "decision_sha256s": [item["decision_sha256"] for item in projections],
-                "trajectory_head_sha256s": [
-                    item["trajectory_head_sha256"] for item in projections
-                ],
+                "trajectory_head_sha256s": [item["trajectory_head_sha256"] for item in projections],
                 "result_ids": [item["result_id"] for item in result_projections],
                 "incident_ids": [
                     item["incident"]["incident_id"]
                     for item in projections
                     if item["incident"] is not None
+                ],
+                "nonterminal_provisioning_receipt_sha256s": [
+                    cast(dict[str, Any], item["provisioning_receipt"])["receipt_sha256"]
+                    for item in projections
+                    if item["provisioning_receipt"] is not None
+                ],
+                "resolved_execution_provisioning": [
+                    {
+                        "result_id": item["result_id"],
+                        **cast(dict[str, Any], item["provisioning_receipt"]),
+                    }
+                    for item in execution_results
                 ],
                 "terminal_decision_sha256": (
                     None if terminal is None else terminal["decision_sha256"]
@@ -1144,13 +1162,22 @@ def _compile_policy_projection(snapshot: AuditedLedgerSnapshot) -> dict[str, Any
                 "decision_count": len(projections),
                 "acquisition_count": sum(not item["terminal"] for item in projections),
                 "resolved_acquisition_count": len(result_projections),
-                "execution_acquisition_count": sum(
-                    item["evidence_kind"] in {kind.value for kind in _EXECUTION_KINDS}
-                    for item in result_projections
-                ),
-                "full_container_acquisition_count": sum(
+                "execution_acquisition_count": len(execution_results),
+                "full_execution_acquisition_count": sum(
                     item["evidence_kind"] == EvidenceKind.FULL_EXECUTION.value
-                    for item in result_projections
+                    for item in execution_results
+                ),
+                "execution_substrate_counts": dict(
+                    sorted(
+                        Counter(
+                            cast(dict[str, Any], item["provisioning_receipt"])["substrate"]
+                            for item in execution_results
+                        ).items()
+                    )
+                ),
+                "image_bound_execution_acquisition_count": sum(
+                    cast(dict[str, Any], item["provisioning_receipt"])["image_digest"] is not None
+                    for item in execution_results
                 ),
                 "ledger_observation_cost": _sum_costs(costs),
                 "cost_dimension_status": cost_status,
@@ -1176,7 +1203,26 @@ def _compile_policy_projection(snapshot: AuditedLedgerSnapshot) -> dict[str, Any
     task_rows: list[dict[str, Any]] = []
     for task_id in frame.task_ids:
         selection = selection_by_task.get(task_id)
+        latest_round = latest_round_by_task.get(task_id)
         task_candidates = candidates_by_task[task_id]
+        if latest_round is None:
+            task_log_propensities: tuple[float, ...] = ()
+            task_probability = 1.0
+            task_log_probability = 0.0
+        else:
+            task_log_propensities = latest_round.task_trajectory_action_log_propensities
+            task_probability = latest_round.task_trajectory_probability
+            task_log_probability = latest_round.task_trajectory_log_probability
+        if selection is not None and (
+            latest_round is None
+            or selection.final_round_decision_sha256 != latest_round.decision_sha256
+            or selection.final_task_action_log_propensities != task_log_propensities
+            or selection.final_task_trajectory_probability != task_probability
+            or selection.final_task_trajectory_log_probability != task_log_probability
+        ):
+            raise ReleaseBundleError(
+                "completed task selection differs from its canonical latest-round propensity"
+            )
         if task_id in halted_tasks:
             status = "halted"
         elif selection is None:
@@ -1190,44 +1236,44 @@ def _compile_policy_projection(snapshot: AuditedLedgerSnapshot) -> dict[str, Any
         else:
             status = "selected_candidate"
         task_material = {
-            "contract": "verification-gap-task-trajectory-v1",
+            "contract": TASK_TRAJECTORY_DIGEST_CONTRACT,
             "task_id": task_id,
             "candidate_trajectory_sha256s": [
-                item["candidate_trajectory_sha256"]
-                for item in task_candidates
+                item["candidate_trajectory_sha256"] for item in task_candidates
             ],
-            "task_selection_sha256": (
-                None if selection is None else selection.decision_sha256
-            ),
+            "task_selection_sha256": (None if selection is None else selection.decision_sha256),
             "selected_candidate_id": (
                 None if selection is None else selection.selected_candidate_id
             ),
+            "task_trajectory_action_log_propensities": list(task_log_propensities),
+            "task_trajectory_probability": task_probability,
+            "task_trajectory_log_probability": task_log_probability,
         }
-        task_rows.append({
-            "task_id": task_id,
-            "status": status,
-            "selected_candidate_id": (
-                None if selection is None else selection.selected_candidate_id
-            ),
-            "task_selection_sha256": (
-                None if selection is None else selection.decision_sha256
-            ),
-            "candidate_trajectory_sha256s": [
-                item["candidate_trajectory_sha256"]
-                for item in task_candidates
-            ],
-            "task_trajectory_sha256": _canonical_sha256(task_material),
-        })
+        task_rows.append(
+            {
+                "task_id": task_id,
+                "status": status,
+                "selected_candidate_id": (
+                    None if selection is None else selection.selected_candidate_id
+                ),
+                "task_selection_sha256": (None if selection is None else selection.decision_sha256),
+                "task_trajectory_action_log_propensities": list(task_log_propensities),
+                "task_trajectory_probability": task_probability,
+                "task_trajectory_log_probability": task_log_probability,
+                "candidate_trajectory_sha256s": [
+                    item["candidate_trajectory_sha256"] for item in task_candidates
+                ],
+                "task_trajectory_sha256": _canonical_sha256(task_material),
+            }
+        )
 
     return {
         "tasks": task_rows,
         "candidates": candidate_rows,
-        "task_status_counts": dict(sorted(Counter(
-            item["status"] for item in task_rows
-        ).items())),
-        "candidate_status_counts": dict(sorted(Counter(
-            item["status"] for item in candidate_rows
-        ).items())),
+        "task_status_counts": dict(sorted(Counter(item["status"] for item in task_rows).items())),
+        "candidate_status_counts": dict(
+            sorted(Counter(item["status"] for item in candidate_rows).items())
+        ),
     }
 
 
@@ -1258,24 +1304,18 @@ def _validated_artifacts(
         if not isinstance(artifact, BoundReleaseArtifact):
             raise ReleaseBundleError(f"{name} must be a BoundReleaseArtifact")
         if artifact.logical_name != name:
-            raise ReleaseBundleError(
-                f"{name} artifact must use logical_name={name!r}"
-            )
+            raise ReleaseBundleError(f"{name} artifact must use logical_name={name!r}")
         validated[name] = artifact.revalidate()
     if not isinstance(published_artifacts, (list, tuple)) or any(
         not isinstance(item, BoundReleaseArtifact) for item in published_artifacts
     ):
-        raise ReleaseBundleError(
-            "published_artifacts must contain BoundReleaseArtifact values"
-        )
+        raise ReleaseBundleError("published_artifacts must contain BoundReleaseArtifact values")
     published = tuple(item.revalidate() for item in published_artifacts)
     published_names = [item.logical_name for item in published]
     if published_names != sorted(published_names) or len(published_names) != len(
         set(published_names)
     ):
-        raise ReleaseBundleError(
-            "published_artifacts must have sorted unique logical names"
-        )
+        raise ReleaseBundleError("published_artifacts must have sorted unique logical names")
     overlap = set(validated).intersection(published_names)
     if overlap:
         raise ReleaseBundleError(
@@ -1334,16 +1374,12 @@ def compile_prospective_release(
         "halted_task_count": audit.halted_task_count,
         "protocol_result_count": audit.protocol_result_count,
     }
-    missing_inputs = [
-        name for name in _SCIENTIFIC_INPUT_NAMES if name not in scientific
-    ]
+    missing_inputs = [name for name in _SCIENTIFIC_INPUT_NAMES if name not in scientific]
     blockers = []
     if not audit.analysis_ready:
         blockers.append("behavior_ledger_does_not_cover_complete_frozen_frame")
     blockers.extend(f"missing_{name}" for name in missing_inputs)
-    blockers.append(
-        "typed_independent_truth_and_event_quality_compiler_requires_schema_vnext"
-    )
+    blockers.append("typed_independent_truth_and_event_quality_compiler_requires_schema_vnext")
     payload = {
         "schema_version": STRUCTURAL_BUNDLE_SCHEMA_VERSION,
         "contract": BUNDLE_DIGEST_CONTRACT,
@@ -1357,9 +1393,7 @@ def compile_prospective_release(
             "ledger_export_head_sha256": audit.export_head_sha256,
             "ledger_event_head_sha256": audit.event_head_sha256,
             "repository_bindings": _binding_payload(current.bindings),
-            "scientific_inputs": [
-                scientific[name].binding() for name in sorted(scientific)
-            ],
+            "scientific_inputs": [scientific[name].binding() for name in sorted(scientific)],
             "published_artifacts": [item.binding() for item in published],
         },
         "ledger_audit": audit_payload,
@@ -1407,9 +1441,7 @@ def write_prospective_release_bundle(
         raise ReleaseBundleError("bundle must be a ProspectiveReleaseBundle")
     target = pathlib.Path(output_path)
     if bundle.bundle_sha256 not in target.name:
-        raise ReleaseBundleError(
-            "release bundle filename must contain its complete content digest"
-        )
+        raise ReleaseBundleError("release bundle filename must contain its complete content digest")
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary: pathlib.Path | None = None
     try:

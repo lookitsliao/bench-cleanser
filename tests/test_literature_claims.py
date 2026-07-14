@@ -37,10 +37,10 @@ def test_checked_in_claim_ledger_is_partial_and_lock_bound() -> None:
     report = VALIDATOR.validate_ledger(ledger, lock)
 
     assert report == {
-        "locked_paper_count": 66,
-        "reviewed_pdf_count": 22,
+        "locked_paper_count": 70,
+        "reviewed_pdf_count": 26,
         "verified_pdf_count": 0,
-        "claim_count": 31,
+        "claim_count": 35,
         "coverage_complete": False,
         "human_confirmation_complete": False,
     }
@@ -56,7 +56,7 @@ def test_every_claim_mapping_is_cited_by_the_research_boundary() -> None:
         for entry in ledger["entries"]
         for claim in entry["claims"]
     }
-    assert len(claim_ids) == 31
+    assert len(claim_ids) == 35
     assert all(f"`{claim_id}`" in narrative for claim_id in claim_ids)
 
 

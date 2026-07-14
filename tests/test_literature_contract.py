@@ -115,18 +115,18 @@ def test_research_program_literature_boundary_is_versioned_and_integrated() -> N
     assert len(bibliography_matches) == len(bibliography_ids)
 
 
-def test_checked_in_lock_strictly_matches_all_66_current_citations() -> None:
+def test_checked_in_lock_strictly_matches_all_70_current_citations() -> None:
     lock = LOCKER.load_and_validate_lock(
         ROOT / "docs" / "literature.lock.json",
         ROOT / "docs" / "RESEARCH_PROGRAM.md",
     )
 
     expected_ids = LOCKER.cited_versioned_ids(ROOT / "docs" / "RESEARCH_PROGRAM.md")
-    assert len(expected_ids) == 66
+    assert len(expected_ids) == 70
     assert [entry["versioned_id"] for entry in lock["entries"]] == list(expected_ids)
     assert len(lock["source"]["responses"]) == 1
     response = lock["source"]["responses"][0]
-    assert response["entry_count"] == 66
+    assert response["entry_count"] == 70
     assert LOCKER.SHA256_RE.fullmatch(response["raw_atom_sha256"])
     assert response["request_url"] == LOCKER._request_url(expected_ids)
 
@@ -174,7 +174,7 @@ def test_lock_validator_rejects_noncanonical_metadata(
             tampered,
             expected_ids,
             require_primary_response=True,
-            expected_entry_count=66,
+            expected_entry_count=70,
         )
 
 

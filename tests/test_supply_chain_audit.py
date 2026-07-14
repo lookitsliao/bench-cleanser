@@ -148,10 +148,16 @@ def test_ci_actions_are_commit_pinned_and_release_evidence_is_retained() -> None
         "mypy --strict --explicit-package-bases "
         "experiments/prospective_pilot/validate_protocol.py" in workflow
     )
+    assert (
+        "mypy --strict --explicit-package-bases "
+        "experiments/prospective_pilot/scientific_ledger.py "
+        "tests/test_prospective_scientific_ledger.py" in workflow
+    )
     assert "tests/test_capture_release_evidence.py" in workflow
     assert "tests/test_prospective_review_packets.py" in workflow
     assert "tests/test_prospective_proposal_policy.py" in workflow
     assert "tests/test_prospective_release_bundle.py" in workflow
+    assert "tests/test_prospective_scientific_ledger.py" in workflow
 
 
 def test_license_gate_passes_complete_allowed_inventory(tmp_path: Path) -> None:
@@ -590,6 +596,7 @@ def test_execution_smoke_and_prospective_hashes_are_schema_and_chain_bound(
         Path("experiments/prospective_pilot/scheduler_contract.json"),
         Path("experiments/prospective_pilot/scheduler.py"),
         Path("experiments/prospective_pilot/ledger.py"),
+        Path("experiments/prospective_pilot/scientific_ledger.py"),
         Path("experiments/prospective_pilot/dispatcher.py"),
         Path("experiments/prospective_pilot/target_policies.py"),
         Path("experiments/prospective_pilot/target_policy_manifest.json"),
@@ -616,6 +623,7 @@ def test_execution_smoke_and_prospective_hashes_are_schema_and_chain_bound(
     proposal_path = tmp_path / Path("experiments/prospective_pilot/proposal_policy.py")
     release_bundle_path = tmp_path / Path("experiments/prospective_pilot/release_bundle.py")
     ledger_path = tmp_path / Path("experiments/prospective_pilot/ledger.py")
+    scientific_ledger_path = tmp_path / Path("experiments/prospective_pilot/scientific_ledger.py")
     dispatcher_path = tmp_path / Path("experiments/prospective_pilot/dispatcher.py")
     orchestrator_path = tmp_path / Path("bench_cleanser/verification/orchestrate.py")
     policy_log_path = tmp_path / Path("bench_cleanser/verification/policy_log.py")
@@ -690,6 +698,7 @@ def test_execution_smoke_and_prospective_hashes_are_schema_and_chain_bound(
         "implementation.proposal_policy.config_sha256",
         "implementation.proposal_policy.sha256",
         "implementation.ledger.sha256",
+        "implementation.scientific_ledger.sha256",
         "implementation.dispatcher.sha256",
         "implementation.structural_release_bundle_compiler.sha256",
         "implementation.completed_acquisition_validator.sha256",
@@ -873,7 +882,12 @@ def test_execution_smoke_and_prospective_hashes_are_schema_and_chain_bound(
     assert AUDITOR._declared_prospective_scheduler_contract_hashes(scheduler_contract_path) == {}
 
     scheduler_contract_path.write_bytes(original_scheduler_contract)
-    for dependency_path in (ledger_path, dispatcher_path, orchestrator_path):
+    for dependency_path in (
+        ledger_path,
+        scientific_ledger_path,
+        dispatcher_path,
+        orchestrator_path,
+    ):
         original_dependency = dependency_path.read_bytes()
         dependency_path.write_bytes(original_dependency + b"\n")
         assert (
@@ -882,7 +896,7 @@ def test_execution_smoke_and_prospective_hashes_are_schema_and_chain_bound(
         dependency_path.write_bytes(original_dependency)
 
     assert (
-        len(AUDITOR._declared_prospective_scheduler_contract_hashes(scheduler_contract_path)) == 8
+        len(AUDITOR._declared_prospective_scheduler_contract_hashes(scheduler_contract_path)) == 9
     )
 
 
@@ -898,6 +912,7 @@ def test_prospective_semantic_guards_survive_exact_record_rebinding(
         "experiments/prospective_pilot/dispatcher.py",
         "experiments/prospective_pilot/frame_manifest.json",
         "experiments/prospective_pilot/ledger.py",
+        "experiments/prospective_pilot/scientific_ledger.py",
         "experiments/prospective_pilot/proposal_policy.py",
         "experiments/prospective_pilot/release_bundle.py",
         "experiments/prospective_pilot/scheduler.py",
@@ -913,11 +928,13 @@ def test_prospective_semantic_guards_survive_exact_record_rebinding(
     policy_log_path = tmp_path / "bench_cleanser/verification/policy_log.py"
     proposal_path = tmp_path / "experiments/prospective_pilot/proposal_policy.py"
     release_path = tmp_path / "experiments/prospective_pilot/release_bundle.py"
+    scientific_ledger_path = tmp_path / "experiments/prospective_pilot/scientific_ledger.py"
     original_collection = collection_path.read_bytes()
     original_contract = contract_path.read_bytes()
     original_policy_log = policy_log_path.read_bytes()
     original_proposal = proposal_path.read_bytes()
     original_release = release_path.read_bytes()
+    original_scientific_ledger = scientific_ledger_path.read_bytes()
 
     collection = json.loads(original_collection)
     collection["terminal_admissibility"]["error_unavailable_inconclusive_or_disagreement"] = (
@@ -986,6 +1003,53 @@ def test_prospective_semantic_guards_survive_exact_record_rebinding(
             path=contract_path,
         )
         assert AUDITOR._declared_prospective_scheduler_contract_hashes(contract_path) == {}
+    contract_path.write_bytes(original_contract)
+
+    for field_name, invalid_value in (
+        ("logical_path", "experiments/prospective_pilot/ledger.py"),
+        ("profile", "TRUSTED_SCIENTIFIC_LEDGER"),
+        ("schema_version", "prospective-pilot-scientific-ledger-0.2.0"),
+        ("scope", "multi_host_externally_anchored"),
+    ):
+        contract = json.loads(original_contract)
+        contract["implementation"]["scientific_ledger"][field_name] = invalid_value
+        _write_json(contract_path, contract)
+        with monkeypatch.context() as scoped:
+            _rebind_exact_record(
+                scoped,
+                prefix="_PROSPECTIVE_SCHEDULER_CONTRACT",
+                path=contract_path,
+            )
+            assert AUDITOR._declared_prospective_scheduler_contract_hashes(contract_path) == {}
+    contract_path.write_bytes(original_contract)
+
+    for original_symbol, tampered_symbol in (
+        (
+            b'SCIENTIFIC_LEDGER_SCHEMA_VERSION = "prospective-pilot-scientific-ledger-0.1.0"',
+            b'SCIENTIFIC_LEDGER_SCHEMA_VERSION = "prospective-pilot-scientific-ledger-0.2.0"',
+        ),
+        (b"class ScientificLedger:", b"class UnboundScientificLedger:"),
+        (b"def signed_envelope_bytes(", b"def unsigned_envelope_bytes("),
+    ):
+        tampered_scientific_ledger = original_scientific_ledger.replace(
+            original_symbol,
+            tampered_symbol,
+        )
+        assert tampered_scientific_ledger != original_scientific_ledger
+        scientific_ledger_path.write_bytes(tampered_scientific_ledger)
+        contract = json.loads(original_contract)
+        contract["implementation"]["scientific_ledger"]["sha256"] = hashlib.sha256(
+            tampered_scientific_ledger
+        ).hexdigest()
+        _write_json(contract_path, contract)
+        with monkeypatch.context() as scoped:
+            _rebind_exact_record(
+                scoped,
+                prefix="_PROSPECTIVE_SCHEDULER_CONTRACT",
+                path=contract_path,
+            )
+            assert AUDITOR._declared_prospective_scheduler_contract_hashes(contract_path) == {}
+    scientific_ledger_path.write_bytes(original_scientific_ledger)
     contract_path.write_bytes(original_contract)
 
     tampered_release = original_release.replace(
@@ -1227,8 +1291,8 @@ def test_literature_claim_pdf_hashes_are_exact_record_and_validator_bound(
 
     allowed = AUDITOR._declared_literature_claim_hashes(ledger_path)
 
-    assert len(allowed) == 22
-    assert set(allowed.values()) == {f"entries[{index}].pdf_sha256" for index in range(22)}
+    assert len(allowed) == 26
+    assert set(allowed.values()) == {f"entries[{index}].pdf_sha256" for index in range(26)}
     (identity, line), field = next(iter(allowed.items()))
     finding = {
         "type": "Hex High Entropy String",

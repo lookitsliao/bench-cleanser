@@ -27,9 +27,7 @@ PROTOCOL_PATH = ROOT / "experiments" / "prospective_pilot" / "preregistration.js
 PROSE_PATH = ROOT / "experiments" / "prospective_pilot" / "PREREGISTRATION.md"
 PREHISTORY_PATH = ROOT / "experiments" / "prospective_pilot" / "prehistory.json"
 VALIDATOR_PATH = ROOT / "experiments" / "prospective_pilot" / "validate_protocol.py"
-SPHINX_MANIFEST_PATH = (
-    ROOT / "experiments" / "sphinx_execution_smoke" / "evidence-manifest.json"
-)
+SPHINX_MANIFEST_PATH = ROOT / "experiments" / "sphinx_execution_smoke" / "evidence-manifest.json"
 INDEPENDENT_MANIFEST_PATH = (
     ROOT / "experiments" / "independent_execution_smoke" / "evidence-manifest.json"
 )
@@ -140,9 +138,7 @@ def test_behavior_policy_has_declared_positive_support() -> None:
     assert sampler == {
         "id": CANONICAL_SAMPLER_ID,
         "version": CANONICAL_SAMPLER_VERSION,
-        "implementation": (
-            "bench_cleanser.verification.policy_log.sample_behavior_action"
-        ),
+        "implementation": ("bench_cleanser.verification.policy_log.sample_behavior_action"),
     }
 
     actions = protocol["evidence_actions"]
@@ -238,15 +234,12 @@ def test_chained_prehistory_is_present_bound_and_draft_is_not_activatable() -> N
     sphinx_record = sphinx_event["evidence_record"]
     assert sphinx_record["external_bundle_bytes"] == sphinx_bundle["bytes"]
     assert sphinx_record["external_bundle_sha256"] == sphinx_bundle["sha256"]
-    assert sphinx_record["external_bundle_index"]["sha256"] == sphinx_bundle["index"][
-        "sha256"
-    ]
-    assert sphinx_record["external_bundle_environment"]["sha256"] == sphinx_manifest[
-        "runtime"
-    ]["environment_record"]["sha256"]
-    assert sphinx_record["external_bundle_runner"]["sha256"] == sphinx_bundle["runner"][
-        "sha256"
-    ]
+    assert sphinx_record["external_bundle_index"]["sha256"] == sphinx_bundle["index"]["sha256"]
+    assert (
+        sphinx_record["external_bundle_environment"]["sha256"]
+        == sphinx_manifest["runtime"]["environment_record"]["sha256"]
+    )
+    assert sphinx_record["external_bundle_runner"]["sha256"] == sphinx_bundle["runner"]["sha256"]
     assert result.activation_ready is False
     assert set(result.blockers) == {
         *validator.REQUIRED_ACTIVATION_BLOCKERS,
@@ -266,9 +259,9 @@ def test_prehistory_tampering_and_missing_authority_fail_closed(tmp_path: Path) 
     root = _copy_protocol_tree(tmp_path)
     prehistory_path = root.joinpath(*validator.PREHISTORY_RELATIVE.parts)
     prehistory = json.loads(prehistory_path.read_text(encoding="utf-8"))
-    prehistory["events"][0]["knowledge_boundary"][
-        "hosted_labels_accessible_before_execution"
-    ] = False
+    prehistory["events"][0]["knowledge_boundary"]["hosted_labels_accessible_before_execution"] = (
+        False
+    )
     prehistory_path.write_text(json.dumps(prehistory), encoding="utf-8")
     with pytest.raises(validator.ProtocolError, match="event_sha256"):
         validator.validate_protocol(root)
@@ -299,28 +292,20 @@ def test_activation_configs_are_exact_and_keep_real_unknowns_blocking() -> None:
     resource = json.loads(
         (ROOT / "experiments/prospective_pilot/resource_ceiling.json").read_text()
     )
-    policy = json.loads(
-        (ROOT / "experiments/prospective_pilot/collection_policy.json").read_text()
-    )
+    policy = json.loads((ROOT / "experiments/prospective_pilot/collection_policy.json").read_text())
     scheduler = json.loads(
         (ROOT / "experiments/prospective_pilot/scheduler_contract.json").read_text()
     )
-    frame = json.loads(
-        (ROOT / "experiments/prospective_pilot/frame_manifest.json").read_text()
-    )
+    frame = json.loads((ROOT / "experiments/prospective_pilot/frame_manifest.json").read_text())
     execution = json.loads(
         (ROOT / "experiments/prospective_pilot/execution_freeze.json").read_text()
     )
     adjudication = json.loads(
         (ROOT / "experiments/prospective_pilot/adjudication_plan.json").read_text()
     )
-    analysis = json.loads(
-        (ROOT / "experiments/prospective_pilot/analysis_plan.json").read_text()
-    )
+    analysis = json.loads((ROOT / "experiments/prospective_pilot/analysis_plan.json").read_text())
 
-    assert resource["status"] == (
-        "specified_numeric_ceiling_pending_clean_commit_freeze"
-    )
+    assert resource["status"] == ("specified_numeric_ceiling_pending_clean_commit_freeze")
     assert resource["decision_limits"]["maximum_total_acquisition_events"] == 732
     assert resource["compute_limits"]["maximum_concurrent_workers"] == 4
     assert resource["enforcement"]["outcome_dependent_extension_allowed"] is False
@@ -331,9 +316,7 @@ def test_activation_configs_are_exact_and_keep_real_unknowns_blocking() -> None:
     assert len(catalog) == 9
     assert policy["behavior_policy"]["disclosed_action_count"] == 9
     assert policy["behavior_policy"]["maximum_available_actions"] == 7
-    assert [item["action_id"] for item in catalog] == sorted(
-        item["action_id"] for item in catalog
-    )
+    assert [item["action_id"] for item in catalog] == sorted(item["action_id"] for item in catalog)
     assert [item["action_id"] for item in catalog if item["evidence_kind"] == "full_execution"] == [
         "full_primary",
         "full_repeat",
@@ -354,16 +337,20 @@ def test_activation_configs_are_exact_and_keep_real_unknowns_blocking() -> None:
     scheduler_source = ROOT / "experiments/prospective_pilot/scheduler.py"
     proposal_source = ROOT / "experiments/prospective_pilot/proposal_policy.py"
     ledger_source = ROOT / "experiments/prospective_pilot/ledger.py"
+    scientific_ledger_source = ROOT / "experiments/prospective_pilot/scientific_ledger.py"
     dispatcher_source = ROOT / "experiments/prospective_pilot/dispatcher.py"
     release_bundle_source = ROOT / "experiments/prospective_pilot/release_bundle.py"
     orchestrator_source = ROOT / "bench_cleanser/verification/orchestrate.py"
+    assert scheduler["schema_version"] == "prospective-pilot-scheduler-contract-0.5.0"
     assert scheduler["status"] == (
-        "scheduler_bootstrap_proposal_ledger_and_dispatcher_core_"
+        "scheduler_bootstrap_proposal_ledger_dispatcher_and_partial_"
+        "scientific_ledger_core_"
         "implemented_operationally_blocked"
     )
-    assert scheduler["candidate_chain"][
-        "nonterminal_acquisition_id_preallocated_in_policy_decision"
-    ] is True
+    assert (
+        scheduler["candidate_chain"]["nonterminal_acquisition_id_preallocated_in_policy_decision"]
+        is True
+    )
     assert scheduler["policy_log_crosswalk"]["embedded_record"] == (
         "scheduled_decisions[].logged_policy_decision"
     )
@@ -386,6 +373,13 @@ def test_activation_configs_are_exact_and_keep_real_unknowns_blocking() -> None:
             "scope": "single_host_local_durable_filesystem",
             "sha256": hashlib.sha256(ledger_source.read_bytes()).hexdigest(),
         },
+        "scientific_ledger": {
+            "logical_path": "experiments/prospective_pilot/scientific_ledger.py",
+            "profile": "SIGNED_BOOTSTRAP_CURATOR_RESOURCE_CORE",
+            "schema_version": "prospective-pilot-scientific-ledger-0.1.0",
+            "scope": "single_host_local_sqlite_unanchored",
+            "sha256": hashlib.sha256(scientific_ledger_source.read_bytes()).hexdigest(),
+        },
         "dispatcher": {
             "logical_path": "experiments/prospective_pilot/dispatcher.py",
             "sha256": hashlib.sha256(dispatcher_source.read_bytes()).hexdigest(),
@@ -393,7 +387,7 @@ def test_activation_configs_are_exact_and_keep_real_unknowns_blocking() -> None:
         "structural_release_bundle_compiler": {
             "logical_path": "experiments/prospective_pilot/release_bundle.py",
             "profile": "STRUCTURAL",
-            "schema_version": "verification-gap-study-bundle-0.1.0",
+            "schema_version": "verification-gap-study-bundle-0.2.0",
             "sha256": hashlib.sha256(release_bundle_source.read_bytes()).hexdigest(),
             "trust_model": "out_of_band_sha256_v1",
         },
@@ -403,34 +397,34 @@ def test_activation_configs_are_exact_and_keep_real_unknowns_blocking() -> None:
             "sha256": hashlib.sha256(orchestrator_source.read_bytes()).hexdigest(),
         },
         "status": (
-            "scheduler_bootstrap_proposal_ledger_dispatcher_and_structural_bundle_"
-            "core_available_scientific_activation_inputs_missing"
+            "scheduler_bootstrap_proposal_ledger_dispatcher_structural_bundle_and_"
+            "partial_scientific_ledger_core_available_external_scientific_"
+            "activation_inputs_missing"
         ),
     }
     assert frame["task_count"] == 22
     assert frame["candidate_count"] == 66
     assert len(frame["tasks"]) == 22
-    assert len({
-        candidate
-        for task in frame["tasks"]
-        for candidate in task["candidate_ids"]
-    }) == 66
+    assert len({candidate for task in frame["tasks"] for candidate in task["candidate_ids"]}) == 66
     assert scheduler["operational_requirements"] == {
         "aggregate_resource_and_partial_frame_runtime": {
-            "availability": "unavailable",
+            "availability": "partial",
             "blocking": True,
             "reason": (
-                "validated_resource_ceiling_has_no_runtime_reservation_settlement_"
-                "or_partial_frame_report_path"
+                "signed_resource_reservation_and_settlement_core_can_report_local_"
+                "committed_usage_and_bootstrap_coverage_but_no_populated_records_"
+                "activation_calendar_acquisition_cost_join_or_trusted_partial_"
+                "frame_compiler_exists"
             ),
         },
         "bootstrap_and_terminal_proposal_policy": {
             "availability": "partial",
             "blocking": True,
             "reason": (
-                "typed_bootstrap_prefix_and_fallible_paired_full_terminal_"
-                "proposals_are_source_bound_but_no_signed_durable_bootstrap_"
-                "acquisition_substrate_or_populated_receipts_exist"
+                "typed_bootstrap_prefix_terminal_proposals_and_signed_bootstrap_"
+                "receipt_core_are_source_bound_but_no_populated_receipts_frozen_"
+                "signer_profiles_behavior_genesis_join_or_external_checkpoint_"
+                "exists"
             ),
         },
         "durable_exclusive_counter_and_head_ledger": {
@@ -442,11 +436,12 @@ def test_activation_configs_are_exact_and_keep_real_unknowns_blocking() -> None:
             ),
         },
         "nonpolicy_evidence_and_truth_ledgers": {
-            "availability": "unavailable",
+            "availability": "partial",
             "blocking": True,
             "reason": (
-                "bootstrap_curator_adjudication_substrate_and_resource_events_"
-                "have_no_durable_ledger"
+                "signed_bootstrap_curator_and_resource_record_core_exists_but_no_"
+                "human_adjudication_records_populated_stream_frozen_production_"
+                "roles_external_checkpoint_or_cross_ledger_join_exists"
             ),
         },
         "trusted_study_bundle_compiler": {
@@ -454,8 +449,8 @@ def test_activation_configs_are_exact_and_keep_real_unknowns_blocking() -> None:
             "blocking": True,
             "reason": (
                 "externally_anchored_structural_compiler_derives_policy_terminal_"
-                "selection_and_cost_declarations_but_typed_signed_nonpolicy_"
-                "scientific_inputs_are_missing"
+                "selection_and_cost_declarations_but_does_not_join_the_"
+                "unpopulated_scientific_ledger_or_authenticate_scientific_inputs"
             ),
         },
         "typed_acquisition_persistence": {
@@ -478,7 +473,10 @@ def test_activation_configs_are_exact_and_keep_real_unknowns_blocking() -> None:
         binding["status"] == "unavailable" and binding["blocking"] is True
         for binding in execution["unavailable_bindings"].values()
     )
-    assert all(reviewer["identifier"] is None for reviewer in adjudication["unavailable_bindings"]["reviewers"])
+    assert all(
+        reviewer["identifier"] is None
+        for reviewer in adjudication["unavailable_bindings"]["reviewers"]
+    )
     review_source = ROOT / "experiments/prospective_pilot/review_packets.py"
     assert adjudication["packet_contract"]["packet_manifest_schema_version"] == (
         "prospective-pilot-review-packet-manifest-0.2.0"
@@ -506,21 +504,13 @@ def test_activation_configs_are_exact_and_keep_real_unknowns_blocking() -> None:
         assert analysis["available_bindings"][name]["status"] == "available"
     validation = validator.validate_protocol(ROOT)
     assert validation.activation_ready is False
-    assert "durable exclusive scheduler ledger and write-ahead dispatcher" in (
-        validation.blockers
-    )
-    assert "typed acquisition-result persistence and action-spec preimages" in (
-        validation.blockers
-    )
-    assert "signed deterministic bootstrap receipt acquisition" in (
-        validation.blockers
-    )
+    assert "durable exclusive scheduler ledger and write-ahead dispatcher" in (validation.blockers)
+    assert "typed acquisition-result persistence and action-spec preimages" in (validation.blockers)
+    assert "signed deterministic bootstrap receipt acquisition" in (validation.blockers)
     assert "durable bootstrap curator adjudication substrate and resource ledgers" in (
         validation.blockers
     )
-    assert "trusted ledger-to-corpus terminal-outcome and cost compiler" in (
-        validation.blockers
-    )
+    assert "trusted ledger-to-corpus terminal-outcome and cost compiler" in (validation.blockers)
     assert "aggregate resource reservation settlement and partial-frame reporting" in (
         validation.blockers
     )
@@ -534,9 +524,7 @@ def test_activation_configs_are_exact_and_keep_real_unknowns_blocking() -> None:
     [
         (
             validator.RESOURCE_RELATIVE,
-            lambda value: value["enforcement"].update(
-                outcome_dependent_extension_allowed=True
-            ),
+            lambda value: value["enforcement"].update(outcome_dependent_extension_allowed=True),
             "enforcement",
         ),
         (
@@ -546,9 +534,7 @@ def test_activation_configs_are_exact_and_keep_real_unknowns_blocking() -> None:
         ),
         (
             validator.POLICY_RELATIVE,
-            lambda value: value["rng"]["action_draws"].update(
-                domain="different-domain"
-            ),
+            lambda value: value["rng"]["action_draws"].update(domain="different-domain"),
             "literal binding differs",
         ),
         (
@@ -567,23 +553,19 @@ def test_activation_configs_are_exact_and_keep_real_unknowns_blocking() -> None:
         ),
         (
             validator.SCHEDULER_RELATIVE,
-            lambda value: value["implementation"]["ledger"].update(
-                sha256="a" * 64
-            ),
+            lambda value: value["implementation"]["ledger"].update(sha256="a" * 64),
             "source bindings differ",
         ),
         (
             validator.SCHEDULER_RELATIVE,
-            lambda value: value["implementation"]["dispatcher"].update(
-                sha256="a" * 64
-            ),
+            lambda value: value["implementation"]["dispatcher"].update(sha256="a" * 64),
             "source bindings differ",
         ),
         (
             validator.SCHEDULER_RELATIVE,
-            lambda value: value["implementation"][
-                "structural_release_bundle_compiler"
-            ].update(sha256="a" * 64),
+            lambda value: value["implementation"]["structural_release_bundle_compiler"].update(
+                sha256="a" * 64
+            ),
             "source bindings differ",
         ),
         (
@@ -598,16 +580,14 @@ def test_activation_configs_are_exact_and_keep_real_unknowns_blocking() -> None:
         ),
         (
             validator.FRAME_RELATIVE,
-            lambda value: value["tasks"][0]["candidate_ids"].__setitem__(
-                0, "sha256:" + "f" * 64
-            ),
+            lambda value: value["tasks"][0]["candidate_ids"].__setitem__(0, "sha256:" + "f" * 64),
             "frame-manifest binding differs",
         ),
         (
             validator.EXECUTION_RELATIVE,
-            lambda value: value["unavailable_bindings"][
-                "per_task_image_digest_manifest"
-            ].update(sha256="a" * 64),
+            lambda value: value["unavailable_bindings"]["per_task_image_digest_manifest"].update(
+                sha256="a" * 64
+            ),
             "partial identity",
         ),
         (
@@ -626,9 +606,7 @@ def test_activation_configs_are_exact_and_keep_real_unknowns_blocking() -> None:
         ),
         (
             validator.ADJUDICATION_RELATIVE,
-            lambda value: value["available_bindings"]["packet_generator"].update(
-                sha256="a" * 64
-            ),
+            lambda value: value["available_bindings"]["packet_generator"].update(sha256="a" * 64),
             "available packet_generator binding differs",
         ),
         (
@@ -700,7 +678,9 @@ def test_refreshed_frame_bindings_cannot_legitimize_mapping_substitution(
 
 def _init_clean_protocol_repo(root: Path) -> None:
     subprocess.run(["git", "init", "-q"], cwd=root, check=True)
-    subprocess.run(["git", "config", "user.email", "protocol@example.invalid"], cwd=root, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "protocol@example.invalid"], cwd=root, check=True
+    )
     subprocess.run(["git", "config", "user.name", "Protocol Test"], cwd=root, check=True)
     subprocess.run(["git", "add", "."], cwd=root, check=True)
     subprocess.run(["git", "commit", "-qm", "freeze fixture"], cwd=root, check=True)
@@ -714,17 +694,20 @@ def test_freeze_receipt_cli_binds_clean_commit_tree_and_rejects_overwrite(
     _init_clean_protocol_repo(root)
     receipt_path = tmp_path / "freeze-receipt.json"
 
-    assert validator.main([
-        "--root",
-        str(root),
-        "--write-freeze-receipt",
-        str(receipt_path),
-    ]) == 0
+    assert (
+        validator.main(
+            [
+                "--root",
+                str(root),
+                "--write-freeze-receipt",
+                str(receipt_path),
+            ]
+        )
+        == 0
+    )
     written = json.loads(receipt_path.read_text())
     assert set(written["source"]) == {"commit", "tree"}
-    assert set(item["role"] for item in written["objects"]) == set(
-        validator.FREEZE_OBJECT_PATHS
-    )
+    assert set(item["role"] for item in written["objects"]) == set(validator.FREEZE_OBJECT_PATHS)
     assert all(item["git_blob_oid"] for item in written["objects"])
     output = json.loads(capsys.readouterr().out)
     assert output["activation_ready"] is False
@@ -733,12 +716,17 @@ def test_freeze_receipt_cli_binds_clean_commit_tree_and_rejects_overwrite(
 
     with pytest.raises(validator.ProtocolError, match="overwrite is forbidden"):
         validator.write_freeze_receipt(root, receipt_path)
-    assert validator.main([
-        "--root",
-        str(root),
-        "--check-freeze-receipt",
-        str(receipt_path),
-    ]) == 0
+    assert (
+        validator.main(
+            [
+                "--root",
+                str(root),
+                "--check-freeze-receipt",
+                str(receipt_path),
+            ]
+        )
+        == 0
+    )
     checked = json.loads(capsys.readouterr().out)
     assert checked["checked_freeze_receipt"] is True
     assert checked["activation_ready"] is False

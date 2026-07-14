@@ -372,7 +372,7 @@ are otherwise schema-valid. Canonical titles must be non-empty strings in both
 files.
 
 The checked-in ledger is deliberately partial and machine-assisted. Its valid
-engineering-alpha summary is currently 21 of 65 papers, 28 claims, zero PDF
+engineering-alpha summary is currently 26 of 70 papers, 35 claims, zero PDF
 files re-verified by this dossier, incomplete coverage, and no human
 confirmation. The ledger bytes are release subjects, but the dossier always
 reports `scientific_release_ready: false`; it does not turn metadata validation

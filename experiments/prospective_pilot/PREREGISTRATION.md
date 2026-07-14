@@ -133,8 +133,17 @@ frames remain visible. Observation costs retain per-dimension provenance:
 currently wall time and storage bytes are measured, while semantic token/USD
 values may be producer-declared and CPU zeros are not measurements. This is an
 externally anchored `STRUCTURAL` bundle, not authenticated adjudication or a
-scientific corpus. The signed non-policy ledgers and incompatible oracle/truth
-schema remain activation blockers.
+scientific corpus. A separate experimental single-host scientific-ledger module
+defines domain-bound signed bootstrap, curator, resource-reservation, and
+resource-settlement envelopes. Its source is bound into the scheduler contract
+as partial implementation infrastructure, but it is neither one of the seven
+activation-configuration objects nor an input to the structural compiler. It
+contains no populated stream and deliberately implements no
+reviewer-vote/adjudication record, frozen production authority roles,
+behavior-ledger chronology join, external chain checkpoint, or immutable
+artifact store. Signed non-policy acquisition, adjudication, resource
+settlement, and the incompatible oracle/truth compiler therefore remain
+activation blockers.
 
 ## Independent execution and substrate comparison
 
@@ -255,7 +264,9 @@ the real 22-task action registry and validated activation context are not
 populated, provisioner/clean-start receipts are declarative rather than
 authenticated, and no externally immutable artifact store is bound.
 An external clean-commit/tree receipt is also required. Validation fails closed
-on every one of those facts.
+on every one of those facts. The external receipt for baseline commit
+`6b26448` does not bind the current working-tree candidate; a new receipt may be
+created only after the final candidate is committed and clean.
 
 Until those pieces, a clean committed freeze, and the required release objects
 exist, this document is a development protocol candidate. The separate SymPy

@@ -1,25 +1,31 @@
 # Release readiness
 
 **Target:** 0.1.0 engineering alpha.
-**Verdict:** the current working tree clears the local engineering-alpha code,
-type, coverage, clean-install, and automated supply-chain gates but is **not a
-release candidate**. It is heavily dirty and uncommitted, and its canonical
-evidence capturer correctly refuses to issue a clean-tree environment record.
-It also has no signed annotated tag, observed current-tree Linux CI run, named
-human dependency-license attestation, or durable release/DOI evidence deposit.
-It is not ready for a stable, empirical, or headline research release.
+**Verdict:** the current follow-up tree clears the local engineering-alpha code,
+type, coverage, clean-install, installed-CLI, and automated supply-chain gates,
+but it is **not a release candidate**. It is not yet a clean committed candidate
+and has no current-tree freeze receipt, signed annotated tag, observed Linux CI
+run, named human dependency-license attestation, or durable release/DOI evidence
+deposit. This is not ready for a stable, empirical, or headline research
+release.
 
-**Current local working-tree validation (2026-07-14):** 862 tests passed with
-72.24% statement coverage against the 70% gate; Ruff passed repository-wide;
-mypy passed across 47 package files; all 17 strict CI mypy invocations passed
-across the release, study, feasibility, and prospective-protocol sources and
-selected tests; and `git diff --check` passed. The literature,
-publication-card, protocol/prehistory, independent-execution, release-dossier,
-prospective scheduler/proposal/ledger/StudyBundle, and adversarial supply-chain
-contracts were included. These are local command results on a dirty macOS tree,
-not canonical clean-commit or Linux release receipts.
+**Published-baseline validation (commit `6b26448`, 2026-07-14):** 862 tests
+passed with 72.25% statement coverage against the 70% gate; Ruff passed
+repository-wide; mypy passed across 47 package files; all 17 strict CI mypy
+invocations passed; and `git diff --check` passed. An external freeze receipt
+binds that clean commit, but reports activation false with 14 substantive
+blockers. Those results do not cover the current follow-up tree.
 
-**Most recent working-tree supply-chain validation (2026-07-14):** a fresh
+**Current follow-up validation (2026-07-14):** 891 tests passed with 72.25%
+statement coverage against the 70% gate; repository-wide Ruff passed; package
+mypy passed across 47 files; all 18 strict CI mypy invocations passed; and
+`git diff --check` passed. The literature, release, protocol, scientific-ledger,
+task-joint-propensity, substrate-accounting, and adversarial supply contracts
+are included. The default protocol check remains valid and fail-closed with 15
+blockers, including the missing current-candidate receipt. These are local
+results on a dirty macOS tree, not canonical clean-commit or Linux receipts.
+
+**Current working-tree supply-chain validation (2026-07-14):** a fresh
 wheel built through the sdist plus `[structural]` resolved to 55 installed
 distributions (including the root, `pip`, and `setuptools`) in a new Python 3.11
 environment. PyPI's index endpoint was unavailable, so all 54 public dependency
@@ -27,14 +33,14 @@ wheels were reconstructed from the prior install report and local HTTP cache
 only after exact SHA-256 matching; pip then ran with `--no-index`. The
 CycloneDX 1.6 SBOM and full license-text inventory passed exact coverage checks;
 automated policy reported 55 allow, 0 deny, and 0 review. The 58-member wheel
-and 210-member sdist passed metadata, confinement, proprietary-dependency, and
-offline secret scans with zero actionable findings; 346 exact
+and 212-member sdist passed metadata, confinement, proprietary-dependency, and
+offline secret scans with zero actionable findings; 351 exact
 schema/path/source-bound public provenance hashes remained visible rather than
-being silently baselined. Clean installation, the structural dependency set,
-and `pip check` passed. Canonical environment-lock capture then failed closed
-because the source tree is dirty. This is one macOS resolution and automated
-policy triage, not a clean Git candidate, observed Linux evidence, or completed
-legal review.
+being silently baselined. Clean installation, `pip check`, and all eight
+installed entry points plus the manifest-to-route pipeline passed outside the
+checkout. The Linux-only canonical environment lock was intentionally not
+emitted from this dirty macOS tree. This is automated local evidence, not a
+clean Git candidate, observed Linux evidence, or completed legal review.
 
 Passing unit tests is necessary but not sufficient. Bench Cleanser can influence
 training-data admission, RL rewards, rollout selection, and reported rankings;
@@ -44,7 +50,7 @@ false confidence is therefore a release blocker.
 
 | Gate | Required evidence | Current state |
 |---|---|---|
-| Portable install | wheel and sdist build; clean virtualenv install; every CLI works outside checkout | fresh working-tree build and clean install pass on macOS and are enforced in CI; clean-commit binding, installed-CLI smoke on the final candidate, and an observed Linux run remain open |
+| Portable install | wheel and sdist build; clean virtualenv install; every CLI works outside checkout | fresh working-tree build, clean install, and installed-CLI smoke pass on macOS and are enforced in CI; clean-commit binding and an observed Linux run remain open |
 | Public dependencies | no proprietary code/auth; public dependency resolution; machine-readable SBOM/inventory; fail-closed allow/deny/review policy; human attestation | the fresh default+structural snapshot has 55 allowed distributions, no deny/review result, exact SBOM/inventory coverage, and zero archive findings; commit-scoped CI plus human/legal attestation remain open |
 | Safe untrusted input | repository/commit/patch/source/report paths confined; symlink escapes and hostile identifiers tested | core boundaries covered by focused regressions; fuzz/threat-model review open |
 | Failure integrity | real timeouts; bounded concurrency; stale/error checkpoints rerun; all-failed invocations nonzero | implemented with focused regressions |
@@ -53,7 +59,7 @@ false confidence is therefore a release blocker.
 | Paired-corpus integrity | pre-execution feature separation; distinct decision/event/acquisition identities; candidate/artifact/time bindings; repeated execution; blinded task/candidate/evidence truth; repository/time-disjoint splits | strict corpus `0.5.0` separates task validity from conditional candidate correctness, requires provenance-bearing `EvidenceValidityAdjudication`, and makes determinate paired-ready labels pass blinding, reviewer-count, and agreement gates; no populated research corpus exists |
 | Metric integrity | truth joined from the exact corpus; task/candidate/verifier metrics separated; policy/run/seed/calibration/corpus identities preserved; undefined rates remain undefined; every rate exposes counts | strict evaluation `0.4.0` rejects caller-declared truth, binds corpus/record/acquisition-trajectory digests, reports evidence-adjudication source/protocol/exclusion counts, scores quarantine separately, and computes no unsupported OPE estimate; only retrospective hosted-label proxies and a negative v2 matched development result exist, not a prospective independently executed comparison |
 | Reproducibility | immutable input/config/model/prompt/scaffold/environment identities and costs in outputs | input/config digests and validity manifests exist; complete run provenance is not yet end-to-end |
-| Coverage | critical-path branch coverage measured; adversarial and installed-behavior fixtures included | current local tree is 72.24% overall against a 70% CI floor; coverage remains sharply uneven and is not release-grade research evidence |
+| Coverage | critical-path branch coverage measured; adversarial and installed-behavior fixtures included | current local tree is 72.25% overall against a 70% CI floor; coverage remains sharply uneven and is not release-grade research evidence |
 | Research validity | blinded paired semantic/execution/hardened-oracle/human labels; disjoint calibration/test repositories | not met |
 | Downstream value | controlled SFT, RL, rollout, and evaluation experiments with uncertainty | not met |
 | Public research release | version/tag/changelog/artifacts, cards, manifests, environments, and raw outputs agree | not met |
@@ -107,7 +113,7 @@ evidence. It does **not** imply that the research method is validated.
 | Routing could request evidence without any runnable adapter | `bench-cleanser-acquire` executes one bounded argv-only static, semantic, targeted, full, or hardening command with minimal environment, process-group timeout cleanup, bounded digest-bound artifacts, measured local cost, declared semantic cost, and non-authoritative evidence; the pinned-container builder fixes a conservative digest-only local Docker profile but does not attest it |
 | A scalar chosen-action propensity could be presented as sequential logging | the live policy contract requires the full strictly-positive action-level distribution at each typed pre-action state; corpus `0.5.0` embeds it unchanged with the sampler/code/spec/chain identities and reports descriptive support only, with no causal-validity claim |
 | Live decision/event/acquisition identities could not be joined losslessly | `bridge_logged_policy_observation` preserves all three namespaces plus the exact action catalog, behavior distribution, sampler draw, policy digest, and chain heads; global collisions, temporal contradictions, trajectory reuse, and stable-action redefinition fail closed |
-| Public provenance hashes triggered opaque secret-scan failures | the artifact auditor recognizes only exact typed cohort, hosted/matched/feasibility-study, protocol-prehistory, canonical-dataset, literature-lock, and claim-ledger fields by path, schema, field, value, byte/source contract, line, and scanner identity; the last recorded report preserved all 163 classifications and every other finding still failed |
+| Public provenance hashes triggered opaque secret-scan failures | the artifact auditor recognizes only exact typed cohort, hosted/matched/feasibility-study, protocol-prehistory, canonical-dataset, literature-lock, and claim-ledger fields by path, schema, field, value, byte/source contract, line, and scanner identity; the current report preserved all 351 classifications and every other finding still failed |
 
 ## Open blockers
 
@@ -135,11 +141,21 @@ evidence. It does **not** imply that the research method is validated.
   prospective analysis implements support- and ESS-gated self-normalized
   sequential importance-sampling point diagnostics only; it supplies no causal
   OPE claim, interval, doubly robust estimator, nuisance model, or cross-fitting.
+- A separate experimental single-host scientific ledger defines domain-bound
+  signed-envelope schemas and local storage for bootstrap, curator, resource-
+  reservation, and resource-settlement records. It is empty and unjoined, has
+  no human-adjudication record, frozen production authority roles,
+  behavior-ledger chronology join, external chain checkpoint, or immutable
+  artifact store, and is not a governed activation configuration. Its local row
+  chain cannot by itself prove absence of writer reordering or suffix
+  truncation. It clears no scientific or activation blocker.
 - Prospective protocol `0.3` is internally valid but intentionally reports
   `activation_ready: false`. Its numeric resource ceiling, domain-separated
   seeds, exact-frame scheduler and joint-propensity contract, terminal rule,
   review projection, six truth-free target policies, and cluster-respecting
-  analysis are fixed and source-bound. It still lacks a clean-commit receipt,
+  analysis are fixed and source-bound. A valid external receipt exists for the
+  baseline commit `6b26448`, but it does not bind the current working-tree
+  candidate. The current candidate still lacks its own clean-commit receipt,
   Docker/provisioner and execution-architecture attestations, per-task
   image/dependency/execution manifests, a semantic producer identity, an
   opaque-map custodian and reviewer attestations, populated action registry,
@@ -170,10 +186,10 @@ evidence. It does **not** imply that the research method is validated.
   validated deployment policy.
 - There is no controlled evidence that filtering or weighting improves SFT,
   RL, Best-of-N rollout selection, reward robustness, or leaderboard stability.
-- The contemporary bibliography has a 66-entry machine-readable primary-arXiv
-  metadata lock plus a separate 22-paper/31-claim page-level ledger. All 22
+- The contemporary bibliography has a 70-entry machine-readable primary-arXiv
+  metadata lock plus a separate 26-paper/35-claim page-level ledger. All 26
   exact PDF identities passed byte verification during their respective
-  2026-07-13 reviews, but those bytes
+  reviews through 2026-07-14, but those bytes
   have no durable release locator, 44 papers remain unmapped, and every review
   remains machine-assisted with `human_confirmed: false`.
 - The synthetic eight-candidate/40-acquisition seed study validates the local
@@ -221,16 +237,17 @@ evidence. It does **not** imply that the research method is validated.
   concurrency, and broken environments.
 - The checked-in sample reports predate the current provenance envelope and are
   illustrative only; publication artifacts must be regenerated.
-- The automated SBOM/license policy passed one exact macOS/Python 3.11
-  default+structural snapshot that now predates the newest tree. Even for that
-  snapshot, it does not prove package metadata,
+- The automated SBOM/license policy passed a local macOS/Python 3.11
+  default+structural working-tree snapshot. Local working-tree evidence is
+  deliberately non-canonical until it is rerun from and bound to a clean
+  candidate commit. Even then, it does not prove package metadata,
   bundled/native material, other platforms, or future resolutions are legally
-  cleared. The stale local reports are retained only as a temporary evidence
-  bundle; a release maintainer must regenerate and preserve them with the
-  candidate commit and inspect and attest to that exact inventory/license text;
-  qualified review is required for stable/commercial distribution. An observed
-  Linux CI gate and optional live compatible-endpoint contract test also remain
-  necessary before a public package upload.
+  cleared. Local reports are temporary developer artifacts; a release
+  maintainer must regenerate and preserve them with the candidate commit and
+  inspect and attest to that exact inventory/license text. Qualified review is
+  required for stable/commercial distribution. An observed Linux CI gate and
+  optional live compatible-endpoint contract test also remain necessary before
+  a public package upload.
 
 ## Release policy
 

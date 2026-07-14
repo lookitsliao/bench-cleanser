@@ -7,7 +7,7 @@
 *An engineering-alpha toolkit for studying and logging when static, semantic, targeted, or full-execution evidence should be acquired.*
 
 <p>
-  <a href="https://github.com/v-liaozhu/bench-cleanser/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/v-liaozhu/bench-cleanser/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/lookitsliao/bench-cleanser/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/lookitsliao/bench-cleanser/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://www.python.org/downloads/"><img alt="Python 3.11 | 3.12" src="https://img.shields.io/badge/python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-2ea44f"></a>
   <img alt="Status: engineering alpha" src="https://img.shields.io/badge/status-engineering%20alpha-f59e0b">
@@ -152,6 +152,15 @@ task, candidate, *or verifier* is untrustworthy and must demonstrate that
 difference prospectively. A generic Bayesian router is a baseline, not the
 paper.
 
+Selection-conditioned risk control is also established prior art: [LEC
+v3](https://arxiv.org/abs/2512.01556v3), [SCoRE
+v1](https://arxiv.org/abs/2603.24704v1), [Conformal Selective Acting
+v1](https://arxiv.org/abs/2605.20270v1), and a [joint finite-sample certificate
+v1](https://arxiv.org/abs/2606.08517v1) cover complementary
+risk/coverage/utility guarantees. A publishable result must combine a valid
+gate with *active evidence choice* and *fallible-oracle truth* on SWE data; a
+new confidence threshold is not enough.
+
 The flagship experiment is **equal-budget Best-of-N rollout selection** on fresh,
 repository- and time-disjoint agent patches. Every method receives the same N
 candidates, verification budget, and wall-clock envelope. The frozen policy must
@@ -238,12 +247,21 @@ anchor, reopens the exact ledger/action/artifact bytes, and derives terminal
 decisions, task selections, propensities, execution counts, qualified cost
 declarations, and partial-frame status without caller-supplied outcome fields.
 It cannot turn those integrity checks into authenticity or scientific truth:
-its only eligible profile is `STRUCTURAL`, and signed bootstrap, curator,
-adjudication, resource-settlement, candidate-registry, and calibrated-score
-streams are still absent. Activation nevertheless remains fail-closed: there
+its only eligible profile is `STRUCTURAL`. A separate experimental single-host
+scientific ledger defines canonical signed-envelope schemas and local storage
+for bootstrap, curator, resource-reservation, and resource-settlement records.
+It is empty, is not joined into the structural compiler or behavior ledger, and
+intentionally has no reviewer-vote or human-adjudication surface. Its production
+authority roles are unfrozen and repository-loaded allowlists are deliberately
+empty, so it cannot accept production records. Its local chain also has no
+external checkpoint that would detect writer reordering or suffix truncation.
+Candidate-registry and calibrated-score streams remain absent. Activation
+therefore remains fail-closed: there
 is no populated 22-task executable
 registry, validated activation context, authenticated provisioner/clean-start
-receipt, externally immutable artifact store, clean-commit receipt, attested
+receipt, externally immutable artifact store, or current-candidate freeze
+receipt—the receipt for baseline commit `6b26448` does not cover this working
+tree—nor is there attested
 execution infrastructure, semantic producer identity, or named review custody.
 See the [development protocol](experiments/prospective_pilot/PREREGISTRATION.md)
 and append-only prehistory for the exact boundary.
@@ -376,7 +394,7 @@ Reproducible from the persisted report alone, frozen across LLM upgrades. See [`
 ## Install
 
 ```bash
-git clone https://github.com/v-liaozhu/bench-cleanser.git
+git clone https://github.com/lookitsliao/bench-cleanser.git
 cd bench-cleanser
 pip install -e ".[dev]"
 ```
@@ -646,7 +664,11 @@ requires typed executable preimages for every behavior-available nonterminal
 offer, reopens retained bytes, and includes terminal choices and task selection
 in its derived trajectory identities. It emits an immutable content-addressed
 structural artifact, not a paired corpus or performance report; a separately
-signed anchor and typed independent truth/resource/score inputs remain missing.
+signed anchor, populated authenticated scientific records, a cross-ledger
+chronology/artifact join, and calibrated score inputs remain missing. The
+separate fail-closed scientific ledger supplies only partial bootstrap,
+curator-evidence, and resource receipt schemas; it supplies no adjudicated truth
+and does not make this compiler scientifically eligible.
 This is still a schema and bridge, not a durable policy service or an OPE
 estimator.
 
@@ -848,7 +870,7 @@ docs/
 ├── RESEARCH_PROGRAM.md       hypotheses, literature boundary, paired-data experiments
 ├── DATA_CARD.md              contract and release gates for the future paired corpus
 ├── ROUTER_CARD.md            intended use and failures of conservative-v1
-├── LITERATURE_CLAIMS.md      page-level ledger for 21 primary PDFs / 28 claims
+├── LITERATURE_CLAIMS.md      page-level ledger for 26 primary PDFs / 35 claims
 ├── EVIDENCE_AVAILABILITY.md  local-vs-durable study artifact inventory
 ├── RELEASE_DOSSIER.md        signed, exact-tree public-alpha release ceremony
 ├── RELEASE_READINESS.md      evidence-backed engineering and research gates
@@ -891,7 +913,14 @@ Generated outputs (`output/`, `.cache/`, ad-hoc audit / slides directories) are 
   validity is separately adjudicated in corpus/evaluation `0.5.0`/`0.4.0`.
   Evaluation accepts a task-validity probability, but no current router produces
   one; no learned or calibrated task-validity routing policy exists yet.
-- Trust bindings are exact source/version allowlists, not signatures. Hostile-producer deployments need authenticated ingestion and content-addressed artifact verification.
+- Deployable-router trust bindings are exact source/version allowlists, not
+  signatures. The experimental scientific ledger accepts detached signatures
+  only through a caller-supplied verifier and preserves its receipt, but later
+  audits do not rerun cryptography and no production signer/custody policy is
+  configured. Its local row chain is not an external checkpoint and cannot by
+  itself detect a database writer's valid-record reordering or suffix
+  truncation. Hostile-producer deployments still need authenticated ingestion,
+  an independently retained signed checkpoint, and content-addressed artifacts.
 - Corpus validation checks declared digests, locators, timestamps, pairing, and adjudication structure; it does not fetch artifacts, prove identity claims, establish statistical power, or make the dataset representative.
 - It does not detect every form of reward hacking — only those that surface in patch, test, or trajectory signals.
 - `CLEAN` is **not** "perfect benchmark item." `CLEAN` is "no contamination signal on the seven Axis-1 labels" — a row that is `CLEAN` may still be flaky, ill-typed, or upstream of an issue the tool doesn't measure.
@@ -914,7 +943,7 @@ released artifact. If you use a signed release, cite it as:
             training data, rollouts, and evaluation},
   author = {Liao Zhu},
   year   = {2026},
-  url    = {https://github.com/v-liaozhu/bench-cleanser},
+  url    = {https://github.com/lookitsliao/bench-cleanser},
   version = {0.1.0}
 }
 ```
@@ -925,13 +954,14 @@ Selected directly related work:
 - **Execution substrates and surrogates:** [DockSmith v2](https://arxiv.org/abs/2602.00592v2), [SWE-MiniSandbox v5](https://arxiv.org/abs/2602.11210v5), [SWE-Hub v1](https://arxiv.org/abs/2603.00575v1), [SWE-World v1](https://arxiv.org/abs/2602.03419v1), [SWE-ZERO to SWE-HERO v2](https://arxiv.org/abs/2604.01496v2), and [Dockerless v1](https://arxiv.org/abs/2606.28436v1).
 - **Verifiers, critics, and rollout selection:** [SWE-RM v1](https://arxiv.org/abs/2512.21919v1), [Rubric-Supervised Critic v1](https://arxiv.org/abs/2603.03800v1), [Calibrating Conservatism v1](https://arxiv.org/abs/2605.28807v1), [From Confident Closing to Silent Failure v1](https://arxiv.org/abs/2606.09863v1), [Bayesian Control for Coding Agents v1](https://arxiv.org/abs/2606.24453v1), [The Verification Horizon v2](https://arxiv.org/abs/2606.26300v2), [To Run or Not to Run v1](https://arxiv.org/abs/2606.26978v1), [SWE-Doctor v1](https://arxiv.org/abs/2607.00990v1), [PatchFusion v1](https://arxiv.org/abs/2607.01597v1), [LLM-as-a-Verifier v2](https://arxiv.org/abs/2607.05391v2), [Test-Time Harness Evolution v1](https://arxiv.org/abs/2607.08124v1), [SCATE v1](https://arxiv.org/abs/2607.08983v1), [ReProAgent v1](https://arxiv.org/abs/2607.09123v1), and [Failure as a Process v1](https://arxiv.org/abs/2607.09510v1).
 - **Benchmark and oracle auditing:** [SWE-bench v3](https://arxiv.org/abs/2310.06770v3), [The SWE-Bench Illusion v4](https://arxiv.org/abs/2506.12286v4), [Rethinking the Value of Agent-Generated Tests v2](https://arxiv.org/abs/2602.07900v2), [Automated Benchmark Auditing v2](https://arxiv.org/abs/2605.26079v2), [Auditing Reward Hackability v1](https://arxiv.org/abs/2606.16062v1), [All Smoke, No Alarm v1](https://arxiv.org/abs/2606.18168v1), [OpenAI's Verified critique](https://openai.com/index/why-we-no-longer-evaluate-swe-bench-verified/), [TestEvo-Bench v1](https://arxiv.org/abs/2607.02469v1), [DeepSWE v1](https://arxiv.org/abs/2607.07946v1), [Bugs4Q version validation v1](https://arxiv.org/abs/2607.09007v1), and [code-only flaky-test limits v1](https://arxiv.org/abs/2607.09345v1).
+- **Selective-risk foundations:** [LEC v3](https://arxiv.org/abs/2512.01556v3), [SCoRE v1](https://arxiv.org/abs/2603.24704v1), [Conformal Selective Acting v1](https://arxiv.org/abs/2605.20270v1), and the [joint selective certificate v1](https://arxiv.org/abs/2606.08517v1).
 - **Task specification and actionability:** [What Makes a Good Bug Report for an AI Agent? v1](https://arxiv.org/abs/2607.07593v1), [TrajSpec v1](https://arxiv.org/abs/2607.07882v1), and [Writing Bug Reports for Software Repair Agents v1](https://arxiv.org/abs/2607.09553v1). These motivate a specification-evidence action; they do not make low-actionability tasks invalid.
 
 The [research program](docs/RESEARCH_PROGRAM.md) states what each work reports
-and the boundary this project must cross. The 66-entry
+and the boundary this project must cross. The 70-entry
 [primary-arXiv metadata lock](docs/literature.lock.json) pins citation identity;
-the separate [claim ledger](docs/LITERATURE_CLAIMS.md) maps 31 central claims
-from 22 exact PDFs to pages and sections. Those mappings are machine-assisted,
+the separate [claim ledger](docs/LITERATURE_CLAIMS.md) maps 35 central claims
+from 26 exact PDFs to pages and sections. Those mappings are machine-assisted,
 not human-confirmed, and not independent replication; ordinary metadata-only
 validation does not rehash the external PDF bytes.
 
@@ -942,8 +972,8 @@ validation does not rehash the external PDF bytes.
 - [`docs/TAXONOMY.md`](docs/TAXONOMY.md) — Axis-1 / Axis-2 labels, evidence rules, severity mapping.
 - [`docs/FUSION.md`](docs/FUSION.md) — Stage-7 rule matrix and worked examples.
 - [`docs/RESEARCH_PROGRAM.md`](docs/RESEARCH_PROGRAM.md) — “Route Evidence, Not Models” thesis, novelty boundary, falsifiable experiments, and contemporary literature.
-- [`docs/literature.lock.json`](docs/literature.lock.json) — exact arXiv versions, canonical metadata, retrieval identity, and raw-response digest for all 66 cited papers.
-- [`docs/LITERATURE_CLAIMS.md`](docs/LITERATURE_CLAIMS.md) — partial claim-level ledger: 22/66 exact PDFs, 31 page-bound mappings, no completed human confirmation.
+- [`docs/literature.lock.json`](docs/literature.lock.json) — exact arXiv versions, canonical metadata, retrieval identity, and raw-response digest for all 70 cited papers.
+- [`docs/LITERATURE_CLAIMS.md`](docs/LITERATURE_CLAIMS.md) — partial claim-level ledger: 26/70 exact PDFs, 35 page-bound mappings, no completed human confirmation.
 - [`docs/EVIDENCE_AVAILABILITY.md`](docs/EVIDENCE_AVAILABILITY.md) — digest/size/locator inventory showing which study bytes remain local-only.
 - [`docs/DATA_CARD.md`](docs/DATA_CARD.md) — contract-only verification-gap corpus card; no populated dataset is released.
 - [`docs/ROUTER_CARD.md`](docs/ROUTER_CARD.md) — intended use, negative results, and promotion gates for the uncalibrated baseline.

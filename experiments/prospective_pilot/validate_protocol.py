@@ -48,37 +48,29 @@ from experiments.prospective_pilot.scheduler import (
     TASK_ORDER_DOMAIN,
     TASK_ORDER_SEED_SHA256,
 )
+from experiments.prospective_pilot.scientific_ledger import (
+    SCIENTIFIC_LEDGER_SCHEMA_VERSION,
+)
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-PROTOCOL_RELATIVE = pathlib.PurePosixPath(
-    "experiments/prospective_pilot/preregistration.json"
-)
-PROSE_RELATIVE = pathlib.PurePosixPath(
-    "experiments/prospective_pilot/PREREGISTRATION.md"
-)
-PREHISTORY_RELATIVE = pathlib.PurePosixPath(
-    "experiments/prospective_pilot/prehistory.json"
-)
+PROTOCOL_RELATIVE = pathlib.PurePosixPath("experiments/prospective_pilot/preregistration.json")
+PROSE_RELATIVE = pathlib.PurePosixPath("experiments/prospective_pilot/PREREGISTRATION.md")
+PREHISTORY_RELATIVE = pathlib.PurePosixPath("experiments/prospective_pilot/prehistory.json")
 EVIDENCE_RELATIVE = pathlib.PurePosixPath(
     "experiments/independent_execution_smoke/evidence-manifest.json"
 )
 SPHINX_EVIDENCE_RELATIVE = pathlib.PurePosixPath(
     "experiments/sphinx_execution_smoke/evidence-manifest.json"
 )
-RESOURCE_RELATIVE = pathlib.PurePosixPath(
-    "experiments/prospective_pilot/resource_ceiling.json"
-)
-POLICY_RELATIVE = pathlib.PurePosixPath(
-    "experiments/prospective_pilot/collection_policy.json"
-)
-SCHEDULER_RELATIVE = pathlib.PurePosixPath(
-    "experiments/prospective_pilot/scheduler_contract.json"
-)
+RESOURCE_RELATIVE = pathlib.PurePosixPath("experiments/prospective_pilot/resource_ceiling.json")
+POLICY_RELATIVE = pathlib.PurePosixPath("experiments/prospective_pilot/collection_policy.json")
+SCHEDULER_RELATIVE = pathlib.PurePosixPath("experiments/prospective_pilot/scheduler_contract.json")
 SCHEDULER_IMPLEMENTATION_RELATIVE = pathlib.PurePosixPath(
     "experiments/prospective_pilot/scheduler.py"
 )
-LEDGER_IMPLEMENTATION_RELATIVE = pathlib.PurePosixPath(
-    "experiments/prospective_pilot/ledger.py"
+LEDGER_IMPLEMENTATION_RELATIVE = pathlib.PurePosixPath("experiments/prospective_pilot/ledger.py")
+SCIENTIFIC_LEDGER_IMPLEMENTATION_RELATIVE = pathlib.PurePosixPath(
+    "experiments/prospective_pilot/scientific_ledger.py"
 )
 DISPATCHER_IMPLEMENTATION_RELATIVE = pathlib.PurePosixPath(
     "experiments/prospective_pilot/dispatcher.py"
@@ -92,18 +84,12 @@ RELEASE_BUNDLE_IMPLEMENTATION_RELATIVE = pathlib.PurePosixPath(
 ACQUISITION_ORCHESTRATOR_RELATIVE = pathlib.PurePosixPath(
     "bench_cleanser/verification/orchestrate.py"
 )
-FRAME_RELATIVE = pathlib.PurePosixPath(
-    "experiments/prospective_pilot/frame_manifest.json"
-)
-EXECUTION_RELATIVE = pathlib.PurePosixPath(
-    "experiments/prospective_pilot/execution_freeze.json"
-)
+FRAME_RELATIVE = pathlib.PurePosixPath("experiments/prospective_pilot/frame_manifest.json")
+EXECUTION_RELATIVE = pathlib.PurePosixPath("experiments/prospective_pilot/execution_freeze.json")
 ADJUDICATION_RELATIVE = pathlib.PurePosixPath(
     "experiments/prospective_pilot/adjudication_plan.json"
 )
-ANALYSIS_RELATIVE = pathlib.PurePosixPath(
-    "experiments/prospective_pilot/analysis_plan.json"
-)
+ANALYSIS_RELATIVE = pathlib.PurePosixPath("experiments/prospective_pilot/analysis_plan.json")
 ANALYSIS_IMPLEMENTATION_RELATIVE = pathlib.PurePosixPath(
     "experiments/prospective_pilot/analysis.py"
 )
@@ -113,23 +99,17 @@ TARGET_POLICY_MANIFEST_RELATIVE = pathlib.PurePosixPath(
 TARGET_POLICY_IMPLEMENTATION_RELATIVE = pathlib.PurePosixPath(
     "experiments/prospective_pilot/target_policies.py"
 )
-REVIEW_PACKET_RELATIVE = pathlib.PurePosixPath(
-    "experiments/prospective_pilot/review_packets.py"
-)
-VALIDATOR_RELATIVE = pathlib.PurePosixPath(
-    "experiments/prospective_pilot/validate_protocol.py"
-)
+REVIEW_PACKET_RELATIVE = pathlib.PurePosixPath("experiments/prospective_pilot/review_packets.py")
+VALIDATOR_RELATIVE = pathlib.PurePosixPath("experiments/prospective_pilot/validate_protocol.py")
 ROUTER_RELATIVE = pathlib.PurePosixPath("bench_cleanser/verification/router.py")
-POLICY_LOG_RELATIVE = pathlib.PurePosixPath(
-    "bench_cleanser/verification/policy_log.py"
-)
+POLICY_LOG_RELATIVE = pathlib.PurePosixPath("bench_cleanser/verification/policy_log.py")
 
 PROTOCOL_SCHEMA_VERSION = "prospective-evidence-routing-protocol-0.3.0"
 PREHISTORY_SCHEMA_VERSION = "prospective-pilot-prehistory-0.1.0"
 FREEZE_RECEIPT_SCHEMA_VERSION = "prospective-pilot-freeze-receipt-0.1.0"
 RESOURCE_SCHEMA_VERSION = "prospective-pilot-resource-ceiling-0.1.0"
 POLICY_SCHEMA_VERSION = "prospective-pilot-collection-policy-0.3.0"
-SCHEDULER_SCHEMA_VERSION = "prospective-pilot-scheduler-contract-0.4.0"
+SCHEDULER_SCHEMA_VERSION = "prospective-pilot-scheduler-contract-0.5.0"
 FRAME_SCHEMA_VERSION = "prospective-pilot-frame-manifest-0.1.0"
 EXECUTION_SCHEMA_VERSION = "prospective-pilot-execution-freeze-0.1.0"
 ADJUDICATION_SCHEMA_VERSION = "prospective-pilot-adjudication-plan-0.1.0"
@@ -182,6 +162,7 @@ FREEZE_OBJECT_PATHS = {
     "scheduler_contract": SCHEDULER_RELATIVE,
     "scheduler_source": SCHEDULER_IMPLEMENTATION_RELATIVE,
     "ledger_source": LEDGER_IMPLEMENTATION_RELATIVE,
+    "scientific_ledger_source": SCIENTIFIC_LEDGER_IMPLEMENTATION_RELATIVE,
     "dispatcher_source": DISPATCHER_IMPLEMENTATION_RELATIVE,
     "release_bundle_source": RELEASE_BUNDLE_IMPLEMENTATION_RELATIVE,
     "acquisition_orchestrator_source": ACQUISITION_ORCHESTRATOR_RELATIVE,
@@ -309,8 +290,7 @@ def _validate_scope(value: Any, path: str = "scope") -> None:
         scope["candidate_count"] != 66
         or scope["candidates_per_task"] != 3
         or scope["future_task_clusters"] != 22
-        or scope["candidate_count"]
-        != scope["candidates_per_task"] * scope["future_task_clusters"]
+        or scope["candidate_count"] != scope["candidates_per_task"] * scope["future_task_clusters"]
     ):
         raise ProtocolError(f"{path} does not describe the 22-task/66-candidate frame")
     if scope["excluded_task_clusters"] != PRE_FREEZE_TASK_IDS:
@@ -430,11 +410,13 @@ def _validate_pre_history_chain(prehistory: dict[str, Any]) -> tuple[int, str]:
         computed_event_digest = _canonical_digest(payload)
         if supplied_event_digest != computed_event_digest:
             raise ProtocolError("prehistory event_sha256 does not match event content")
-        computed_chain_head = _canonical_digest({
-            "contract": PREHISTORY_CHAIN_CONTRACT,
-            "prior_chain_head_sha256": prior_head,
-            "event_sha256": computed_event_digest,
-        })
+        computed_chain_head = _canonical_digest(
+            {
+                "contract": PREHISTORY_CHAIN_CONTRACT,
+                "prior_chain_head_sha256": prior_head,
+                "event_sha256": computed_event_digest,
+            }
+        )
         if supplied_chain_head != computed_chain_head:
             raise ProtocolError("prehistory chain_head_sha256 does not match event link")
         prior_head = computed_chain_head
@@ -698,8 +680,7 @@ def _validate_resource_ceiling(resource: dict[str, Any]) -> set[str]:
     if (
         resource["schema_version"] != RESOURCE_SCHEMA_VERSION
         or resource["study_id"] != STUDY_ID
-        or resource["status"]
-        != "specified_numeric_ceiling_pending_clean_commit_freeze"
+        or resource["status"] != "specified_numeric_ceiling_pending_clean_commit_freeze"
     ):
         raise ProtocolError("resource ceiling identity or status differs")
     _validate_scope(resource["scope"], "resource_ceiling.scope")
@@ -812,8 +793,7 @@ def _validate_resource_ceiling(resource: dict[str, Any]) -> set[str]:
         enforcement["budget_increase_requires_new_protocol_version"] is not True
         or enforcement["counters_committed_before_next_action"] is not True
         or enforcement["outcome_dependent_extension_allowed"] is not False
-        or enforcement["on_any_limit"]
-        != "halt_without_replacement_and_preserve_the_partial_frame"
+        or enforcement["on_any_limit"] != "halt_without_replacement_and_preserve_the_partial_frame"
     ):
         raise ProtocolError("resource-ceiling enforcement must fail closed")
     units = _object(enforcement["units"], "resource_ceiling.enforcement.units")
@@ -876,8 +856,7 @@ def _validate_frame_manifest(frame: dict[str, Any]) -> set[str]:
         if (
             len(raw_candidates) != 3
             or any(
-                not isinstance(candidate, str)
-                or _CANDIDATE_RE.fullmatch(candidate) is None
+                not isinstance(candidate, str) or _CANDIDATE_RE.fullmatch(candidate) is None
                 for candidate in raw_candidates
             )
             or raw_candidates != sorted(raw_candidates)
@@ -963,7 +942,15 @@ def _validate_collection_policy(root: pathlib.Path, policy: dict[str, Any]) -> s
         _exact_keys(binding, {"domain", "seed_sha256"}, f"rng.{field}")
         _string(binding["domain"], f"rng.{field}.domain")
         _sha256_value(binding["seed_sha256"], f"rng.{field}.seed_sha256")
-    if len({rng[field]["seed_sha256"] for field in ("action_draws", "candidate_order", "task_order")}) != 3:
+    if (
+        len(
+            {
+                rng[field]["seed_sha256"]
+                for field in ("action_draws", "candidate_order", "task_order")
+            }
+        )
+        != 3
+    ):
         raise ProtocolError("collection RNG seeds must be domain-separated")
     expected_rng = {
         "action_draws": {
@@ -1071,9 +1058,7 @@ def _validate_collection_policy(root: pathlib.Path, policy: dict[str, Any]) -> s
     )
     if availability != {
         "full_primary": "available_once_after_the_per_task_execution_bindings_are_complete",
-        "full_repeat": (
-            "available_once_only_after_full_primary_returns_and_uses_a_fresh_worktree"
-        ),
+        "full_repeat": ("available_once_only_after_full_primary_returns_and_uses_a_fresh_worktree"),
         "hardening_curator": (
             "disclosed_for_route_enum_completeness_but_permanently_unavailable_to_"
             "the_behavior_policy_and_reserved_for_the_post_policy_curator_stream"
@@ -1112,16 +1097,11 @@ def _validate_collection_policy(root: pathlib.Path, policy: dict[str, Any]) -> s
     if (
         preferred["fallback_when_router_action_is_unavailable"]
         != (
-            "semantic_primary_then_targeted_primary_then_full_primary_then_"
-            "full_repeat_then_abstain"
+            "semantic_primary_then_targeted_primary_then_full_primary_then_full_repeat_then_abstain"
         )
-        or preferred["multiple_concrete_offers_for_one_kind"]
-        != "lowest_lexicographic_action_id"
+        or preferred["multiple_concrete_offers_for_one_kind"] != "lowest_lexicographic_action_id"
         or preferred["rule"]
-        != (
-            "use_fallible_terminal_proposal_else_router_match_else_frozen_"
-            "available_fallback"
-        )
+        != ("use_fallible_terminal_proposal_else_router_match_else_frozen_available_fallback")
     ):
         raise ProtocolError("preferred-action fallback or tie rule differs")
     router = _object(preferred["router"], "preferred_action_rule.router")
@@ -1161,11 +1141,9 @@ def _validate_collection_policy(root: pathlib.Path, policy: dict[str, Any]) -> s
         or router["policy_version"] != "conservative-v1"
         or router["status"] != "available_uncommitted"
         or router["sha256"] != _digest(_read_bytes(root, ROUTER_RELATIVE))
-        or router["symbol"]
-        != "bench_cleanser.verification.router.ConservativeRouter"
+        or router["symbol"] != "bench_cleanser.verification.router.ConservativeRouter"
         or router["policy_config"] != expected_policy_config
-        or router["policy_config_sha256"]
-        != _canonical_digest(expected_policy_config)
+        or router["policy_config_sha256"] != _canonical_digest(expected_policy_config)
     ):
         raise ProtocolError("preferred router source binding differs")
     proposal = _object(
@@ -1180,9 +1158,7 @@ def _validate_collection_policy(root: pathlib.Path, policy: dict[str, Any]) -> s
     if proposal != {
         "config_sha256": PROPOSAL_POLICY_CONFIG_SHA256,
         "logical_path": PROPOSAL_POLICY_IMPLEMENTATION_RELATIVE.as_posix(),
-        "sha256": _digest(
-            _read_bytes(root, PROPOSAL_POLICY_IMPLEMENTATION_RELATIVE)
-        ),
+        "sha256": _digest(_read_bytes(root, PROPOSAL_POLICY_IMPLEMENTATION_RELATIVE)),
         "version": PROPOSAL_POLICY_VERSION,
     }:
         raise ProtocolError("proposal-policy source/config binding differs")
@@ -1216,8 +1192,7 @@ def _validate_collection_policy(root: pathlib.Path, policy: dict[str, Any]) -> s
         )
         or terminal["error_unavailable_inconclusive_or_disagreement"]
         != "never_enables_accept_or_reject"
-        or terminal["interpretation"]
-        != "fallible_sensor_proposal_not_candidate_truth"
+        or terminal["interpretation"] != "fallible_sensor_proposal_not_candidate_truth"
         or terminal["terminal_decisions_are_sampled_and_propensity_logged"] is not True
     ):
         raise ProtocolError("terminal admissibility must be exact and propensity logged")
@@ -1286,9 +1261,7 @@ def _validate_collection_policy(root: pathlib.Path, policy: dict[str, Any]) -> s
     )
     if proposal_binding != {
         "logical_path": PROPOSAL_POLICY_IMPLEMENTATION_RELATIVE.as_posix(),
-        "sha256": _digest(
-            _read_bytes(root, PROPOSAL_POLICY_IMPLEMENTATION_RELATIVE)
-        ),
+        "sha256": _digest(_read_bytes(root, PROPOSAL_POLICY_IMPLEMENTATION_RELATIVE)),
         "status": "available_uncommitted",
     }:
         raise ProtocolError("proposal-policy implementation binding differs")
@@ -1301,8 +1274,7 @@ def _validate_collection_policy(root: pathlib.Path, policy: dict[str, Any]) -> s
     if (
         scheduler["blocking"] is not True
         or scheduler["logical_path"] != SCHEDULER_IMPLEMENTATION_RELATIVE.as_posix()
-        or scheduler["sha256"]
-        != _digest(_read_bytes(root, SCHEDULER_IMPLEMENTATION_RELATIVE))
+        or scheduler["sha256"] != _digest(_read_bytes(root, SCHEDULER_IMPLEMENTATION_RELATIVE))
         or scheduler["status"] != "core_available_operationally_blocked"
     ):
         raise ProtocolError("task scheduler source binding differs")
@@ -1337,7 +1309,8 @@ def _validate_scheduler_contract(
         or scheduler["study_id"] != STUDY_ID
         or scheduler["status"]
         != (
-            "scheduler_bootstrap_proposal_ledger_and_dispatcher_core_"
+            "scheduler_bootstrap_proposal_ledger_dispatcher_and_partial_"
+            "scientific_ledger_core_"
             "implemented_operationally_blocked"
         )
     ):
@@ -1366,8 +1339,7 @@ def _validate_scheduler_contract(
             "utf8(candidate_order_domain) || 0x00 || utf8(opaque_candidate_id))"
         ),
         "candidate_rounds": (
-            "one_decision_per_nonterminal_candidate_in_frozen_candidate_order_"
-            "before_the_next_round"
+            "one_decision_per_nonterminal_candidate_in_frozen_candidate_order_before_the_next_round"
         ),
         "parallel_execution": (
             "actions_in_one_committed_round_may_execute_concurrently_but_no_result_"
@@ -1411,8 +1383,7 @@ def _validate_scheduler_contract(
         or chain["maximum_nonterminal_acquisitions"] != 4
         or chain["each_nonterminal_action_id_at_most_once"] is not True
         or chain["fresh_worktree_preimage_required_for_full_repeat"] is not True
-        or chain["nonterminal_acquisition_id_preallocated_in_policy_decision"]
-        is not True
+        or chain["nonterminal_acquisition_id_preallocated_in_policy_decision"] is not True
         or chain["repeat_action_spec_must_differ_from_primary"] is not True
         or chain["typed_successor_must_append_one_route_and_observation"] is not True
         or chain["terminal_actions"] != ["accept", "reject", "abstain"]
@@ -1498,9 +1469,7 @@ def _validate_scheduler_contract(
         "scheduler_contract.joint_propensity",
     )
     if joint != {
-        "action_probability_source": (
-            "the_full_logged_history_conditioned_behavior_distribution"
-        ),
+        "action_probability_source": ("the_full_logged_history_conditioned_behavior_distribution"),
         "candidate_scheduler_probability": 1.0,
         "computation": (
             "retain_every_action_log_probability_in_canonical_task_decision_order_"
@@ -1519,21 +1488,22 @@ def _validate_scheduler_contract(
     failure = _object(scheduler["failure_handling"], "scheduler_contract.failure_handling")
     _exact_keys(
         failure,
-        {"crash_or_digest_mismatch", "infrastructure_failure", "replacement_or_backfill", "resource_ceiling"},
+        {
+            "crash_or_digest_mismatch",
+            "infrastructure_failure",
+            "replacement_or_backfill",
+            "resource_ceiling",
+        },
         "scheduler_contract.failure_handling",
     )
     if failure != {
-        "crash_or_digest_mismatch": (
-            "halt_the_task_cluster_and_preserve_all_committed_history"
-        ),
+        "crash_or_digest_mismatch": ("halt_the_task_cluster_and_preserve_all_committed_history"),
         "infrastructure_failure": (
             "record_the_typed_observation_and_continue_only_if_the_frozen_policy_"
             "offers_a_next_action"
         ),
         "replacement_or_backfill": False,
-        "resource_ceiling": (
-            "halt_without_replacement_and_preserve_the_partial_frame"
-        ),
+        "resource_ceiling": ("halt_without_replacement_and_preserve_the_partial_frame"),
     }:
         raise ProtocolError("scheduler cannot replace or backfill failed tasks")
     operational = _object(
@@ -1542,20 +1512,23 @@ def _validate_scheduler_contract(
     )
     expected_operational = {
         "aggregate_resource_and_partial_frame_runtime": {
-            "availability": "unavailable",
+            "availability": "partial",
             "blocking": True,
             "reason": (
-                "validated_resource_ceiling_has_no_runtime_reservation_settlement_"
-                "or_partial_frame_report_path"
+                "signed_resource_reservation_and_settlement_core_can_report_local_"
+                "committed_usage_and_bootstrap_coverage_but_no_populated_records_"
+                "activation_calendar_acquisition_cost_join_or_trusted_partial_"
+                "frame_compiler_exists"
             ),
         },
         "bootstrap_and_terminal_proposal_policy": {
             "availability": "partial",
             "blocking": True,
             "reason": (
-                "typed_bootstrap_prefix_and_fallible_paired_full_terminal_"
-                "proposals_are_source_bound_but_no_signed_durable_bootstrap_"
-                "acquisition_substrate_or_populated_receipts_exist"
+                "typed_bootstrap_prefix_terminal_proposals_and_signed_bootstrap_"
+                "receipt_core_are_source_bound_but_no_populated_receipts_frozen_"
+                "signer_profiles_behavior_genesis_join_or_external_checkpoint_"
+                "exists"
             ),
         },
         "durable_exclusive_counter_and_head_ledger": {
@@ -1567,11 +1540,12 @@ def _validate_scheduler_contract(
             ),
         },
         "nonpolicy_evidence_and_truth_ledgers": {
-            "availability": "unavailable",
+            "availability": "partial",
             "blocking": True,
             "reason": (
-                "bootstrap_curator_adjudication_substrate_and_resource_events_"
-                "have_no_durable_ledger"
+                "signed_bootstrap_curator_and_resource_record_core_exists_but_no_"
+                "human_adjudication_records_populated_stream_frozen_production_"
+                "roles_external_checkpoint_or_cross_ledger_join_exists"
             ),
         },
         "trusted_study_bundle_compiler": {
@@ -1579,8 +1553,8 @@ def _validate_scheduler_contract(
             "blocking": True,
             "reason": (
                 "externally_anchored_structural_compiler_derives_policy_terminal_"
-                "selection_and_cost_declarations_but_typed_signed_nonpolicy_"
-                "scientific_inputs_are_missing"
+                "selection_and_cost_declarations_but_does_not_join_the_"
+                "unpopulated_scientific_ledger_or_authenticate_scientific_inputs"
             ),
         },
         "typed_acquisition_persistence": {
@@ -1602,6 +1576,7 @@ def _validate_scheduler_contract(
             "scheduler",
             "proposal_policy",
             "ledger",
+            "scientific_ledger",
             "dispatcher",
             "structural_release_bundle_compiler",
             "completed_acquisition_validator",
@@ -1642,6 +1617,15 @@ def _validate_scheduler_contract(
         {"logical_path", "schema_version", "scope", "sha256"},
         "scheduler_contract.implementation.ledger",
     )
+    scientific_ledger_source = _object(
+        implementation["scientific_ledger"],
+        "scheduler_contract.implementation.scientific_ledger",
+    )
+    _exact_keys(
+        scientific_ledger_source,
+        {"logical_path", "profile", "schema_version", "scope", "sha256"},
+        "scheduler_contract.implementation.scientific_ledger",
+    )
     dispatcher_source = _object(
         implementation["dispatcher"],
         "scheduler_contract.implementation.dispatcher",
@@ -1681,9 +1665,7 @@ def _validate_scheduler_contract(
             "config_sha256": PROPOSAL_POLICY_CONFIG_SHA256,
             "logical_path": PROPOSAL_POLICY_IMPLEMENTATION_RELATIVE.as_posix(),
             "schema_version": PROPOSAL_POLICY_SCHEMA_VERSION,
-            "sha256": _digest(
-                _read_bytes(root, PROPOSAL_POLICY_IMPLEMENTATION_RELATIVE)
-            ),
+            "sha256": _digest(_read_bytes(root, PROPOSAL_POLICY_IMPLEMENTATION_RELATIVE)),
             "version": PROPOSAL_POLICY_VERSION,
         }
         or ledger_source
@@ -1693,35 +1675,38 @@ def _validate_scheduler_contract(
             "scope": "single_host_local_durable_filesystem",
             "sha256": _digest(_read_bytes(root, LEDGER_IMPLEMENTATION_RELATIVE)),
         }
+        or scientific_ledger_source
+        != {
+            "logical_path": SCIENTIFIC_LEDGER_IMPLEMENTATION_RELATIVE.as_posix(),
+            "profile": "SIGNED_BOOTSTRAP_CURATOR_RESOURCE_CORE",
+            "schema_version": SCIENTIFIC_LEDGER_SCHEMA_VERSION,
+            "scope": "single_host_local_sqlite_unanchored",
+            "sha256": _digest(_read_bytes(root, SCIENTIFIC_LEDGER_IMPLEMENTATION_RELATIVE)),
+        }
         or dispatcher_source
         != {
             "logical_path": DISPATCHER_IMPLEMENTATION_RELATIVE.as_posix(),
-            "sha256": _digest(
-                _read_bytes(root, DISPATCHER_IMPLEMENTATION_RELATIVE)
-            ),
+            "sha256": _digest(_read_bytes(root, DISPATCHER_IMPLEMENTATION_RELATIVE)),
         }
         or release_bundle_source
         != {
             "logical_path": RELEASE_BUNDLE_IMPLEMENTATION_RELATIVE.as_posix(),
             "profile": "STRUCTURAL",
-            "schema_version": "verification-gap-study-bundle-0.1.0",
-            "sha256": _digest(
-                _read_bytes(root, RELEASE_BUNDLE_IMPLEMENTATION_RELATIVE)
-            ),
+            "schema_version": "verification-gap-study-bundle-0.2.0",
+            "sha256": _digest(_read_bytes(root, RELEASE_BUNDLE_IMPLEMENTATION_RELATIVE)),
             "trust_model": "out_of_band_sha256_v1",
         }
         or completed_validator
         != {
             "entrypoint": PROTOCOL_RESULT_VALIDATION_CONTRACT.rsplit(".", 1)[1],
             "logical_path": ACQUISITION_ORCHESTRATOR_RELATIVE.as_posix(),
-            "sha256": _digest(
-                _read_bytes(root, ACQUISITION_ORCHESTRATOR_RELATIVE)
-            ),
+            "sha256": _digest(_read_bytes(root, ACQUISITION_ORCHESTRATOR_RELATIVE)),
         }
         or implementation["status"]
         != (
-            "scheduler_bootstrap_proposal_ledger_dispatcher_and_structural_bundle_"
-            "core_available_scientific_activation_inputs_missing"
+            "scheduler_bootstrap_proposal_ledger_dispatcher_structural_bundle_and_"
+            "partial_scientific_ledger_core_available_external_scientific_"
+            "activation_inputs_missing"
         )
     ):
         raise ProtocolError("scheduler and durable-ledger source bindings differ")
@@ -1765,7 +1750,9 @@ def _validate_execution_freeze(
         raise ProtocolError("execution freeze identity or status differs")
     _validate_scope(execution["scope"], "execution_freeze.scope")
     dataset = _object(execution["canonical_dataset"], "execution_freeze.canonical_dataset")
-    _exact_keys(dataset, {"parquet_bytes", "parquet_sha256", "provider", "revision"}, "canonical_dataset")
+    _exact_keys(
+        dataset, {"parquet_bytes", "parquet_sha256", "provider", "revision"}, "canonical_dataset"
+    )
     independent_evidence = _read_json(root, EVIDENCE_RELATIVE)
     sources = _object(independent_evidence["sources"], "independent evidence sources")
     canonical_source = _object(
@@ -1794,7 +1781,13 @@ def _validate_execution_freeze(
     platform = _object(execution["platform"], "execution_freeze.platform")
     _exact_keys(
         platform,
-        {"architecture", "container_runtime", "operating_system", "primary_substrate", "secondary_substrate"},
+        {
+            "architecture",
+            "container_runtime",
+            "operating_system",
+            "primary_substrate",
+            "secondary_substrate",
+        },
         "execution platform",
     )
     architecture = _object(platform["architecture"], "execution target architecture")
@@ -1860,7 +1853,12 @@ def _validate_execution_freeze(
     replication = _object(execution["replication"], "execution_freeze.replication")
     _exact_keys(
         replication,
-        {"disagreement_attempt", "fresh_worktree_per_attempt", "required_attempts", "same_image_dependency_test_and_argv_across_attempts"},
+        {
+            "disagreement_attempt",
+            "fresh_worktree_per_attempt",
+            "required_attempts",
+            "same_image_dependency_test_and_argv_across_attempts",
+        },
         "execution replication",
     )
     if replication != {
@@ -1873,13 +1871,19 @@ def _validate_execution_freeze(
     cache = _object(execution["cache_accounting"], "execution_freeze.cache_accounting")
     _exact_keys(
         cache,
-        {"cold_image_build_and_pull_reported_separately", "dependency_cache_state_recorded_per_attempt", "warm_execution_never_includes_unreported_setup"},
+        {
+            "cold_image_build_and_pull_reported_separately",
+            "dependency_cache_state_recorded_per_attempt",
+            "warm_execution_never_includes_unreported_setup",
+        },
         "execution cache accounting",
     )
     if not all(value is True for value in cache.values()):
         raise ProtocolError("execution cache accounting must be complete")
 
-    unavailable = _object(execution["unavailable_bindings"], "execution_freeze.unavailable_bindings")
+    unavailable = _object(
+        execution["unavailable_bindings"], "execution_freeze.unavailable_bindings"
+    )
     _exact_keys(
         unavailable,
         {
@@ -1943,8 +1947,7 @@ def _validate_adjudication_plan(
     if (
         adjudication["schema_version"] != ADJUDICATION_SCHEMA_VERSION
         or adjudication["study_id"] != STUDY_ID
-        or adjudication["status"]
-        != "packet_generator_available_custodian_and_reviewers_blocking"
+        or adjudication["status"] != "packet_generator_available_custodian_and_reviewers_blocking"
     ):
         raise ProtocolError("adjudication plan identity or status differs")
     _validate_scope(adjudication["scope"], "adjudication_plan.scope")
@@ -1988,12 +1991,17 @@ def _validate_adjudication_plan(
     blinding = _object(adjudication["blinding"], "adjudication_plan.blinding")
     _exact_keys(
         blinding,
-        {"blind_reviewers_to_each_other_until_all_initial_labels_are_committed", "breach_action", "candidate_and_model_masking_required", "opaque_map_access", "reviewer_conflict_attestation_required"},
+        {
+            "blind_reviewers_to_each_other_until_all_initial_labels_are_committed",
+            "breach_action",
+            "candidate_and_model_masking_required",
+            "opaque_map_access",
+            "reviewer_conflict_attestation_required",
+        },
         "adjudication blinding",
     )
     if (
-        blinding["blind_reviewers_to_each_other_until_all_initial_labels_are_committed"]
-        is not True
+        blinding["blind_reviewers_to_each_other_until_all_initial_labels_are_committed"] is not True
         or blinding["candidate_and_model_masking_required"] is not True
         or blinding["opaque_map_access"] != "custodian_only"
         or blinding["reviewer_conflict_attestation_required"] is not True
@@ -2002,7 +2010,14 @@ def _validate_adjudication_plan(
     labels = _object(adjudication["label_contract"], "adjudication_plan.label_contract")
     _exact_keys(
         labels,
-        {"candidate_correctness", "candidate_is_conditional_on_task_validity", "evidence_validity", "evidence_validity_is_per_event", "execution_is_adjudication", "task_validity"},
+        {
+            "candidate_correctness",
+            "candidate_is_conditional_on_task_validity",
+            "evidence_validity",
+            "evidence_validity_is_per_event",
+            "execution_is_adjudication",
+            "task_validity",
+        },
         "adjudication label contract",
     )
     if (
@@ -2018,7 +2033,17 @@ def _validate_adjudication_plan(
     aggregation = _object(adjudication["aggregation"], "adjudication_plan.aggregation")
     _exact_keys(
         aggregation,
-        {"agreement", "candidate_when_task_indeterminate", "candidate_when_task_invalid", "determinate_label", "disagreement", "minimum_agreement", "minimum_paired_ready_reviewers", "requested_independent_initial_reviewers", "reviewer_identity_is_never_a_correctness_feature"},
+        {
+            "agreement",
+            "candidate_when_task_indeterminate",
+            "candidate_when_task_invalid",
+            "determinate_label",
+            "disagreement",
+            "minimum_agreement",
+            "minimum_paired_ready_reviewers",
+            "requested_independent_initial_reviewers",
+            "reviewer_identity_is_never_a_correctness_feature",
+        },
         "adjudication aggregation",
     )
     if (
@@ -2062,7 +2087,9 @@ def _validate_adjudication_plan(
             raise ProtocolError(f"adjudication available {name} binding differs")
 
     unavailable = _object(adjudication["unavailable_bindings"], "adjudication unavailable bindings")
-    _exact_keys(unavailable, {"opaque_map_custodian", "reviewers"}, "adjudication unavailable bindings")
+    _exact_keys(
+        unavailable, {"opaque_map_custodian", "reviewers"}, "adjudication unavailable bindings"
+    )
     custodian = _object(unavailable["opaque_map_custodian"], "opaque-map custodian")
     _validate_unavailable_binding(custodian, "opaque-map custodian", expected_keys={"identifier"})
     if custodian["identifier"] is not None:
@@ -2074,7 +2101,13 @@ def _validate_adjudication_plan(
         reviewer = _object(raw, f"adjudication reviewer {index}")
         _exact_keys(
             reviewer,
-            {"conflict_attestation_sha256", "identifier", "independence_attestation_sha256", "slot", "status"},
+            {
+                "conflict_attestation_sha256",
+                "identifier",
+                "independence_attestation_sha256",
+                "slot",
+                "status",
+            },
             f"adjudication reviewer {index}",
         )
         if reviewer != {
@@ -2084,7 +2117,9 @@ def _validate_adjudication_plan(
             "slot": index,
             "status": "unavailable",
         }:
-            raise ProtocolError("reviewer identities/attestations must remain explicitly unavailable")
+            raise ProtocolError(
+                "reviewer identities/attestations must remain explicitly unavailable"
+            )
     return {
         "opaque-map custodian identity",
         "reviewer identities and independence attestations",
@@ -2111,11 +2146,9 @@ def _validate_target_policy_manifest(
         "target_policy_manifest",
     )
     if (
-        manifest["schema_version"]
-        != "prospective-pilot-target-policy-manifest-0.1.0"
+        manifest["schema_version"] != "prospective-pilot-target-policy-manifest-0.1.0"
         or manifest["study_id"] != STUDY_ID
-        or manifest["status"]
-        != "fixed_descriptive_ope_implementation_no_performance_claim"
+        or manifest["status"] != "fixed_descriptive_ope_implementation_no_performance_claim"
         or manifest["claim_boundary"]
         != (
             "fixed likelihood and diagnostic implementation only; no learned "
@@ -2221,8 +2254,7 @@ def _validate_analysis_plan(
     if (
         analysis["schema_version"] != ANALYSIS_SCHEMA_VERSION
         or analysis["study_id"] != STUDY_ID
-        or analysis["status"]
-        != "fixed_descriptive_implementations_available"
+        or analysis["status"] != "fixed_descriptive_implementations_available"
         or analysis["claim_scope"] != "descriptive_development_analysis_only_no_h1_through_h6"
     ):
         raise ProtocolError("analysis plan identity, status, or claim scope differs")
@@ -2249,8 +2281,7 @@ def _validate_analysis_plan(
         or population["excluded_task_clusters"] != PRE_FREEZE_TASK_IDS
         or population["future_task_clusters"] != 22
         or population["repository_count"] != 4
-        or population["repository_stratum_rule"]
-        != "task_id_prefix_before_double_underscore"
+        or population["repository_stratum_rule"] != "task_id_prefix_before_double_underscore"
         or population["replacement_allowed"] is not False
         or population["repository_generalization"] != "forbidden"
     ):
@@ -2331,8 +2362,7 @@ def _validate_analysis_plan(
         ope["minimum_logged_action_probability"] != 0.5 / 7
         or ope["scheduler_probability"] != 1.0
         or ope["primary_weight_handling"] != "no_clipping_no_trimming"
-        or ope["support_unit"]
-        != "complete_task_cluster_history_across_all_three_candidate_chains"
+        or ope["support_unit"] != "complete_task_cluster_history_across_all_three_candidate_chains"
         or ope["estimate_release_rule"]
         != "omit_when_any_support_violation_or_effective_sample_size_below_10"
         or ope["ratio_estimator"]
@@ -2383,8 +2413,7 @@ def _validate_analysis_plan(
         uncertainty["confidence_level"] != 0.95
         or uncertainty["exact_binomial_bound"] != "full_coverage_iid_reference_only"
         or uncertainty["hypothesis_tests"] != "none"
-        or uncertainty["repository_cluster_asymptotics"]
-        != "forbidden_with_four_repositories"
+        or uncertainty["repository_cluster_asymptotics"] != "forbidden_with_four_repositories"
     ):
         raise ProtocolError("analysis uncertainty limitations differ")
     sensitivity = _object(uncertainty["sensitivity"], "analysis uncertainty sensitivity")
@@ -2395,8 +2424,7 @@ def _validate_analysis_plan(
     )
     if (
         sensitivity["bootstrap_replicates"] != 10000
-        or sensitivity["method"]
-        != "resample_tasks_within_each_fixed_repository_stratum"
+        or sensitivity["method"] != "resample_tasks_within_each_fixed_repository_stratum"
     ):
         raise ProtocolError("analysis sensitivity plan differs")
     _sha256_value(sensitivity["bootstrap_seed_sha256"], "analysis bootstrap seed")
@@ -2467,9 +2495,7 @@ def _validate_configuration_bundle(
     blockers.update(_validate_collection_policy(root, configs["collection_policy"]))
     blockers.update(_validate_scheduler_contract(root, configs["scheduler_contract"]))
     blockers.update(_validate_execution_freeze(root, configs["execution_config"]))
-    blockers.update(
-        _validate_adjudication_plan(root, configs["adjudication_config"])
-    )
+    blockers.update(_validate_adjudication_plan(root, configs["adjudication_config"]))
     blockers.update(_validate_analysis_plan(root, configs["analysis_plan"]))
     blockers.update(_validate_frame_manifest(configs["frame_manifest"]))
     if blockers != REQUIRED_ACTIVATION_BLOCKERS:
@@ -2487,7 +2513,9 @@ def _validate_configuration_bundle(
     seen: set[str] = set()
     for index, raw in enumerate(objects):
         item = _object(raw, f"activation configuration object {index}")
-        _exact_keys(item, {"role", "logical_path", "bytes", "sha256"}, "activation configuration object")
+        _exact_keys(
+            item, {"role", "logical_path", "bytes", "sha256"}, "activation configuration object"
+        )
         role = _string(item["role"], f"activation configuration object {index}.role")
         if role in seen or role not in CONFIG_PATHS:
             raise ProtocolError("activation configuration roles must be exact and unique")
@@ -2516,7 +2544,10 @@ def _validate_configuration_bundle(
         raise ProtocolError("resource and scheduler decision ceilings differ")
     ope = _object(analysis["off_policy_evaluation"], "analysis OPE")
     behavior = _object(configs["collection_policy"]["behavior_policy"], "collection behavior")
-    if ope["minimum_logged_action_probability"] != behavior["minimum_history_conditioned_propensity"]:
+    if (
+        ope["minimum_logged_action_probability"]
+        != behavior["minimum_history_conditioned_propensity"]
+    ):
         raise ProtocolError("analysis and collection propensity floors differ")
     return ({role: _digest(payload) for role, payload in payloads.items()}, blockers)
 
@@ -2549,8 +2580,7 @@ def _validate_protocol_claims(
     knowledge = _object(protocol.get("knowledge_boundary"), "protocol.knowledge_boundary")
     if (
         knowledge.get("pre_freeze_feasibility_task_ids") != PRE_FREEZE_TASK_IDS
-        or knowledge.get("pre_freeze_evidence_allowed_in_prospective_or_ope_estimands")
-        is not False
+        or knowledge.get("pre_freeze_evidence_allowed_in_prospective_or_ope_estimands") is not False
     ):
         raise ProtocolError("both feasibility tasks must remain excluded from prospective/OPE")
 
@@ -2598,10 +2628,8 @@ def _validate_protocol_claims(
         power.get("fixed_task_count") != 24
         or power.get("prehistory_excluded_task_count") != 2
         or power.get("remaining_future_task_count") != 22
-        or power.get("zero_error_one_sided_95_upper_bound_at_24")
-        != 0.11734615615494881
-        or power.get("zero_error_one_sided_95_upper_bound_at_22")
-        != 0.12730543165483876
+        or power.get("zero_error_one_sided_95_upper_bound_at_24") != 0.11734615615494881
+        or power.get("zero_error_one_sided_95_upper_bound_at_22") != 0.12730543165483876
         or "zero_error_one_sided_95_upper_bound_at_23" in power
     ):
         raise ProtocolError("stopping/power counts do not preserve the 24/22 frame split")
@@ -2669,10 +2697,7 @@ def _validate_protocol_prehistory_binding(
         raise ProtocolError("protocol prehistory digest binding differs")
     if binding["event_count"] != event_count or binding["chain_head_sha256"] != chain_head:
         raise ProtocolError("protocol prehistory chain summary differs")
-    if (
-        binding["excluded_task_clusters_for_prospective_or_ope_estimands"]
-        != PRE_FREEZE_TASK_IDS
-    ):
+    if binding["excluded_task_clusters_for_prospective_or_ope_estimands"] != PRE_FREEZE_TASK_IDS:
         raise ProtocolError("protocol must exclude both feasibility task clusters")
     if binding["replacement"] is not False or binding["remaining_future_task_count"] != 22:
         raise ProtocolError("protocol prehistory replacement/count differs")
@@ -2741,13 +2766,15 @@ def build_freeze_receipt(root: pathlib.Path = ROOT) -> dict[str, Any]:
     for role in sorted(FREEZE_OBJECT_PATHS):
         relative = FREEZE_OBJECT_PATHS[role]
         payload = _read_bytes(root, relative)
-        objects.append({
-            "role": role,
-            "logical_path": relative.as_posix(),
-            "bytes": len(payload),
-            "sha256": _digest(payload),
-            "git_blob_oid": blob_oids[role],
-        })
+        objects.append(
+            {
+                "role": role,
+                "logical_path": relative.as_posix(),
+                "bytes": len(payload),
+                "sha256": _digest(payload),
+                "git_blob_oid": blob_oids[role],
+            }
+        )
     return {
         "schema_version": FREEZE_RECEIPT_SCHEMA_VERSION,
         "study_id": STUDY_ID,

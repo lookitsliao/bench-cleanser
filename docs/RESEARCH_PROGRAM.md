@@ -144,6 +144,19 @@ not study: task truth separated from candidate truth, a verifier that can itself
 be invalid rather than a deterministic oracle, a paired intervention corpus,
 and a prospectively frozen accepted-set false-accept constraint.
 
+The constraint is not novel by itself either. [LEC
+v3](https://arxiv.org/abs/2512.01556v3), [SCoRE
+v1](https://arxiv.org/abs/2603.24704v1), [Conformal Selective Acting
+v1](https://arxiv.org/abs/2605.20270v1), and the [joint selective certificate
+v1](https://arxiv.org/abs/2606.08517v1) already address
+selection-conditioned risk, general selected-set risk, anytime pathwise risk,
+and joint risk–acceptance–utility certification. The claim must therefore be
+the SWE-specific empirical combination: **which fallible evidence intervention
+to buy next, when both the task and verifier can be wrong, and whether that
+policy improves an equal-budget candidate-selection frontier on a paired
+prospective corpus**. A risk gate without acquisition and an acquisition
+controller without oracle fallibility are both required baselines.
+
 The closest systems differ on the deployability and decision axes that matter:
 
 | Work | Deployable without gold/reference | Per-candidate next-evidence choice | Oracle fallibility modeled | Prospective false-accept budget |
@@ -159,6 +172,7 @@ The closest systems differ on the deployability and decision axes that matter:
 | [Rubric-Supervised Critic v1](https://arxiv.org/abs/2603.03800v1) | Yes | No—fixed critic/reranker | No | No |
 | [LLM-as-a-Verifier v2](https://arxiv.org/abs/2607.05391v2) | Yes | No—scaled semantic verifier | No | No |
 | [Calibrating Conservatism (CCO) v1](https://arxiv.org/abs/2605.28807v1) | Yes | No—risk gate without evidence acquisition | No | Analogous online violation-rate gate under an eventually-safe action family; not the same candidate false-accept estimand |
+| [LEC v3](https://arxiv.org/abs/2512.01556v3), [SCoRE v1](https://arxiv.org/abs/2603.24704v1), [CSA v1](https://arxiv.org/abs/2605.20270v1), and [joint certificate v1](https://arxiv.org/abs/2606.08517v1) | Yes under their declared calibration/online assumptions | No—select, route, or abstain after scoring rather than acquire a new evidence modality | No | Analogous risk guarantees conditional on a valid declared loss/oracle; not direct SWE candidate false-accept control with fallible labels or verifiers |
 | [Test-Time Harness Evolution v1](https://arxiv.org/abs/2607.08124v1) | Yes on the reported unlabeled test traces | No—adapts a harness across test inputs rather than querying evidence for one candidate | Names execution-proxy reliability as a challenge; does not model latent oracle validity | No |
 | Proposed program | Target: yes | Target: sequential multi-action choice | Target: explicit task/candidate/oracle model | Target: frozen prospective bound |
 
@@ -193,6 +207,7 @@ The closest systems differ on the deployability and decision axes that matter:
 | [Auditing Reward Hackability v1](https://arxiv.org/abs/2606.16062v1) | Docker-verified incorrect patches can pass; gold-sanity rejects many generated-test augmentations | Shows why verifier-validity uncertainty and hardening must be first-class routing targets |
 | [The Verification Horizon v2](https://arxiv.org/abs/2606.26300v2) | Frames verifier quality through scalability, faithfulness, and robustness and argues for policy-verifier co-evolution as fixed rewards saturate or become exploitable (`verification-horizon-coevolving-verifier`) | This establishes the dynamic-verifier problem, not candidate-level sequential evidence acquisition, a deployable oracle-validity model, or a prospective false-accept bound |
 | [Calibrating Conservatism for Scalable Oversight v1](https://arxiv.org/abs/2605.28807v1) and [Self-Evolving Agents with Anytime-Valid Certificates v1](https://arxiv.org/abs/2607.00871v1) | Conditional risk control and anytime-valid gates have been demonstrated in SWE-agent settings | Statistical gating itself is not novel, and its bounded-loss/safe-family assumptions must be explicit; this project must acquire among verification modalities and model oracle validity |
+| [LEC v3](https://arxiv.org/abs/2512.01556v3), [SCoRE v1](https://arxiv.org/abs/2603.24704v1), [Conformal Selective Acting v1](https://arxiv.org/abs/2605.20270v1), and [joint selective certificate v1](https://arxiv.org/abs/2606.08517v1) | Provide finite-sample or anytime control of selection-conditioned/general selected risk, and in the joint certificate also acceptance and utility (`lec-selection-conditioned-risk-control`, `score-general-selected-risk-control`, `csa-anytime-pathwise-selective-risk`, `joint-certificate-risk-coverage-utility`) | Accepted-set risk, abstention, coverage, and utility certification are not novel; these methods must be evaluated as gates over the same calibrated scores, while this project must additionally choose evidence interventions and model invalid tasks/oracles |
 | [A Rubric-Supervised Critic from Sparse Real-World Outcomes v1](https://arxiv.org/abs/2603.03800v1) | Distills sparse real-world outcomes into a rubric-supervised critic for candidate assessment and reranking | A fixed critic is a strong rollout-selection baseline; it does not choose the next evidence action or model test validity |
 | [LLM-as-a-Verifier v2](https://arxiv.org/abs/2607.05391v2) | Score granularity, repeated judging, and criteria decomposition improve an execution-free verifier and Best-of-N ranking | Scaling one semantic verifier is a baseline action, not a substitute for deciding whether to acquire static, runtime, or oracle-hardening evidence |
 | [From Confident Closing to Silent Failure v1](https://arxiv.org/abs/2606.09863v1) | Across the paper's tau2-bench setup no tested LLM-judge configuration exceeds 0.65 AUROC, and GPT-4o peaks at 0.537 on AppWorld API-call traces (`false-success-llm-judge-ceiling`) | This is evidence against treating self-report or an LLM judge as terminal truth, but tau2-bench and AppWorld are not SWE patch-verification populations; transfer must be tested rather than assumed |
@@ -223,6 +238,7 @@ or conformal risk control as new algorithms.
 | [Costly-feature RL v2](https://arxiv.org/abs/1711.07364v2) and [EDDI v4](https://arxiv.org/abs/1809.11142v4) | Learn which costly feature to acquire next and when to classify | A compiler, generated test, full harness, or hardened oracle is an intervention with candidate-dependent failure and validity, not a passive feature lookup |
 | [Doubly robust OPE v3](https://arxiv.org/abs/1511.03722v3) and [Double Reinforcement Learning v3](https://arxiv.org/abs/1908.08526v3) | Evaluate sequential policies from logged behavior data under overlap and nuisance-model assumptions | The artifact must log exact action-level propensities and validate them prospectively; citing OPE does not repair missing support or post-outcome logging |
 | [Learn then Test v5](https://arxiv.org/abs/2110.01052v5) and [Conformal Risk Control v4](https://arxiv.org/abs/2208.02814v4) | Calibrate a finite family of predictive rules to control declared risks under exchangeability-style assumptions | The acquisition policy changes what labels are observed, repositories shift, and verifier validity is latent; any SWE false-accept bound must state the calibration population and failure modes |
+| [LEC v3](https://arxiv.org/abs/2512.01556v3), [SCoRE v1](https://arxiv.org/abs/2603.24704v1), [CSA v1](https://arxiv.org/abs/2605.20270v1), and [joint certificate v1](https://arxiv.org/abs/2606.08517v1) | Control risk conditional on selection under finite-sample or online assumptions, with CSA adding anytime pathwise validity and the joint certificate adding acceptance and utility | Their calibrated score/gate can wrap a frozen SWE policy; it does not identify whether static, semantic, targeted, full, or hardened evidence should be acquired or whether the evidence oracle is valid |
 
 Accordingly, the durable contribution is not a generic routing theorem. It is
 the combination of (i) a deployable SWE action/state contract, (ii) a paired
@@ -598,6 +614,9 @@ stream throughout training so policy drift or router-gaming remains observable.
 - PatchFusion static candidate consensus;
 - EGSS-style entropy gating and SWE-Reasoner-style search allocation;
 - conformal/CCO acceptance gate with no adaptive evidence acquisition;
+- LEC, SCoRE, Conformal Selective Acting, and joint
+  risk–acceptance–utility certificate gates under their actual calibration,
+  exchangeability, filtration, bounded-loss, and threshold-family assumptions;
 - consequence × marginal-utility compute allocation;
 - TwinRouter-style cheapest-sufficient routing;
 - inherited full execution versus repeated execution versus hardened execution;
@@ -887,17 +906,23 @@ Methodological foundations:
 - Kallus and Uehara, [Double Reinforcement Learning v3](https://arxiv.org/abs/1908.08526v3), 2019/2020.
 - Angelopoulos et al., [Learn then Test v5](https://arxiv.org/abs/2110.01052v5), 2021/2022.
 - Angelopoulos et al., [Conformal Risk Control v4](https://arxiv.org/abs/2208.02814v4), 2022/2025.
+- Wang et al., [LEC v3](https://arxiv.org/abs/2512.01556v3), 2025/2026.
+- Bai and Jin, [SCoRE v1](https://arxiv.org/abs/2603.24704v1), 2026.
+- Khosravi and Huo, [Conformal Selective Acting v1](https://arxiv.org/abs/2605.20270v1), 2026.
+- Yu and Liu, [joint selective certificate v1](https://arxiv.org/abs/2606.08517v1), 2026.
 
 All 59 SWE/agent arXiv identities, canonical titles, cited version suffixes, and
 arXiv submission/update timestamps in this boundary were rechecked through the
 primary arXiv API on 2026-07-14 (Asia/Shanghai; the lock records exact UTC
-retrieval time). The seven methodological references above were checked through
+retrieval time). The eleven methodological references above were checked through
 the same primary API. These timestamps do not establish peer-reviewed
 publication status.
-The separate [`literature.claims.json`](literature.claims.json) ledger maps 31
-central claims from 22 exact primary PDFs—R2E-Gym, SWE-RM, SWE-World, EGSS,
+The separate [`literature.claims.json`](literature.claims.json) ledger maps 35
+central claims from 26 exact primary PDFs—R2E-Gym, LEC, SWE-RM, SWE-World, EGSS,
 SWE-ZERO→HERO, TwinRouterBench, Not All Errors Are Equal, To Run or Not to Run,
-Dockerless, Bayesian Control for Coding Agents, two controlled bug-report studies, TrajSpec, Bugs4Q version
+Dockerless, Bayesian Control for Coding Agents, SCoRE, Conformal Selective
+Acting, the joint selective certificate, two controlled bug-report studies,
+TrajSpec, Bugs4Q version
 validation, SCATE adaptive test generation, generated-test oracle signals,
 verifier co-evolution, false-success judging, scaffold evolution, ReProAgent,
 code-only flakiness detection, and temporal CLI-agent failure analysis—to pages
@@ -910,7 +935,7 @@ eventual paper and artifact lock must pin every exact version/date again. It
 must also distinguish benchmark-wide rates from rates measured only on one
 agent's passing subset.
 
-[`literature.lock.json`](literature.lock.json) schema `0.1.0` records all 66
+[`literature.lock.json`](literature.lock.json) schema `0.1.0` records all 70
 exact cited versions, canonical titles, authors, primary categories,
 submission/update timestamps, retrieval time, query identity, and the SHA-256
 of the primary arXiv Atom response. It is regenerated with

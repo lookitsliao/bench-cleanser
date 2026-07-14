@@ -94,14 +94,15 @@ scanner offline (`--no-verify`) over confined copies of all regular members.
 The keyword-only plugin is disabled because shipped configuration necessarily
 names credential environment variables without containing their values; the
 built-in non-empty assignment rule still fails literal values. Any remaining
-finding fails. The sole structured exception is for public Git commit and
-SHA-256 artifact bindings in the exact, duplicate-key-free real-agent cohort
-schema. A finding is classified as declared provenance only when its archive
-path suffix, field path, 40/64-character lowercase-hex shape, source line, and
-the scanner's hashed identity all agree; every such classification remains
-visible in the report. Any unknown field or schema mismatch disables the whole
-waiver. This is not a file-wide/plugin-wide entropy suppression or an opaque
-baseline. Other exceptions must remove or rotate the value.
+finding fails. Narrow structured recognizers cover public provenance in the
+real-agent, hosted, matched, canonical-dataset, feasibility, prospective-
+protocol, and literature artifacts. A finding is classified as declared
+provenance only when its archive-path suffix, exact schema and field path,
+40/64-character lowercase-hex shape, source line, and the scanner's hashed
+identity all agree; every classification remains visible in the report. Any
+unknown field or schema mismatch disables that recognizer. This is not a
+file-wide/plugin-wide entropy suppression or an opaque baseline. Other
+exceptions must remove or rotate the value.
 
 No provider key is needed. Dependency downloads are the only network-dependent
 part of CI. LLM, dataset, and secret-verification network calls are not made.

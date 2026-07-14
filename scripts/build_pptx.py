@@ -371,7 +371,7 @@ def slide_status(prs: Presentation) -> None:
         [("CI", FG, True), ("Python 3.11 + 3.12 matrix on Ubuntu", FG, False)],
         [("Benchmark coverage", FG, True), ("SWE-bench Verified · Pro · Live", FG, False)],
         [("Trajectory sources", FG, True), ("Docent · HuggingFace · JSONL · JSON dir", FG, False)],
-        [("Console scripts", FG, True), ("seven entry points, including corpus · manifest · route · evaluate", FG, False)],
+        [("Console scripts", FG, True), ("eight entry points, including corpus · manifest · route · evaluate", FG, False)],
     ]
     _table(slide, MARGIN, Emu(1200000), SLIDE_W - 2 * MARGIN, Emu(3300000), rows, font_size=12)
     tf = _textbox(slide, MARGIN, Emu(4700000), SLIDE_W - 2 * MARGIN, Emu(400000))
@@ -402,7 +402,7 @@ def slide_close(prs: Presentation) -> None:
     _para(tf, "bench-cleanser is the tool you run before either.",
           size=22, bold=True, color=ACCENT, align=PP_ALIGN.CENTER, first=True)
     tf = _textbox(slide, MARGIN, Emu(5400000), SLIDE_W - 2 * MARGIN, Emu(400000))
-    _para(tf, "github.com/v-liaozhu/bench-cleanser   ·   MIT   ·   v0.1.0 engineering alpha",
+    _para(tf, "github.com/lookitsliao/bench-cleanser   ·   MIT   ·   v0.1.0 engineering alpha",
           size=12, color=DIM, align=PP_ALIGN.CENTER, first=True)
 
 
