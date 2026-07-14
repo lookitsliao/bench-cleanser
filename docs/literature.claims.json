@@ -1,0 +1,568 @@
+{
+  "schema_version": "literature-claim-ledger-0.1.0",
+  "status": "partial_machine_assisted_requires_human_confirmation",
+  "reviewed_at": "2026-07-14",
+  "coverage": {
+    "locked_paper_count": 66,
+    "reviewed_pdf_count": 22,
+    "complete": false
+  },
+  "entries": [
+    {
+      "versioned_id": "2504.07164v1",
+      "canonical_title": "R2E-Gym: Procedural Environments and Hybrid Verifiers for Scaling Open-Weights SWE Agents",
+      "pdf_url": "https://arxiv.org/pdf/2504.07164v1",
+      "pdf_sha256": "7b4557f7b60fc2d17250fc87f01da9c102c336a0fd584f358f16b7b0d30d9c2f",
+      "pdf_bytes": 7778370,
+      "artifact_name": "2504.07164v1.pdf",
+      "review": {
+        "method": "machine_assisted_primary_pdf_review",
+        "human_confirmed": false
+      },
+      "claims": [
+        {
+          "claim_id": "r2e-fixed-topn-hybrid",
+          "claim_type": "author_reported_method",
+          "paraphrase": "The reported hybrid first restricts candidates to the top-n execution-free scores and then adds execution-based generated-test evidence.",
+          "pdf_pages": [8, 9],
+          "section": "Section 4, Efficient Inference Time Scaling With Hybrid Verifiers",
+          "project_use": "direct fixed-hybrid baseline and novelty boundary"
+        },
+        {
+          "claim_id": "r2e-generated-test-toxicity",
+          "claim_type": "author_reported_limitation",
+          "paraphrase": "The paper reports that many generated tests neither reproduce the bug nor pass the ground-truth patch.",
+          "pdf_pages": [7, 8],
+          "section": "Section 4.2, Comparing Execution-Based and Execution-Free Verification",
+          "project_use": "motivation for explicit evidence-validity and oracle-hardening actions"
+        }
+      ]
+    },
+    {
+      "versioned_id": "2512.21919v1",
+      "canonical_title": "SWE-RM: Execution-free Feedback For Software Engineering Agents",
+      "pdf_url": "https://arxiv.org/pdf/2512.21919v1",
+      "pdf_sha256": "212467c56eafe39a9311ce66df233c3334e28d8fda09975235b9a676a9e128b1",
+      "pdf_bytes": 978684,
+      "artifact_name": "2512.21919v1.pdf",
+      "review": {
+        "method": "machine_assisted_primary_pdf_review",
+        "human_confirmed": false
+      },
+      "claims": [
+        {
+          "claim_id": "swe-rm-hybrid-rl-reward",
+          "claim_type": "author_reported_result",
+          "paraphrase": "The paper reports its best RL performance and efficiency from a fixed hybrid execution-free and execution-based reward.",
+          "pdf_pages": [9],
+          "section": "Section 5.2.2, Execution-Free Feedback Benefits RL Training",
+          "project_use": "fixed semantic-plus-execution reward baseline; not evidence acquisition"
+        }
+      ]
+    },
+    {
+      "versioned_id": "2602.03419v1",
+      "canonical_title": "SWE-World: Building Software Engineering Agents in Docker-Free Environments",
+      "pdf_url": "https://arxiv.org/pdf/2602.03419v1",
+      "pdf_sha256": "0246091b2f67eeb69ef352d1ca5eae9371a864ecb2ff1ed71b434c67374875aa",
+      "pdf_bytes": 1412870,
+      "artifact_name": "2602.03419v1.pdf",
+      "review": {
+        "method": "machine_assisted_primary_pdf_review",
+        "human_confirmed": false
+      },
+      "claims": [
+        {
+          "claim_id": "swe-world-transition-reward-surrogate",
+          "claim_type": "author_reported_method",
+          "paraphrase": "SWE-World trains transition and reward models from agent-Docker interactions to approximate execution feedback during SFT, RL, and test-time scaling.",
+          "pdf_pages": [1, 4],
+          "section": "Abstract, Introduction, and Figure 1",
+          "project_use": "learned-execution-surrogate baseline"
+        },
+        {
+          "claim_id": "swe-world-curator-context",
+          "claim_type": "author_reported_method",
+          "paraphrase": "The reported transition-model prompts include curator-only gold patch, test patch, and FAIL_TO_PASS/PASS_TO_PASS context.",
+          "pdf_pages": [22, 23, 28],
+          "section": "Appendix prompt templates",
+          "project_use": "upper-bound-only classification when those inputs are unavailable live"
+        }
+      ]
+    },
+    {
+      "versioned_id": "2602.05242v1",
+      "canonical_title": "EGSS: Entropy-guided Stepwise Scaling for Reliable Software Engineering",
+      "pdf_url": "https://arxiv.org/pdf/2602.05242v1",
+      "pdf_sha256": "92b6eccffe85db3b7c361f1a8071a4f856edb9362122d886355b5b0cbf2013fa",
+      "pdf_bytes": 978046,
+      "artifact_name": "2602.05242v1.pdf",
+      "review": {
+        "method": "machine_assisted_primary_pdf_review",
+        "human_confirmed": false
+      },
+      "claims": [
+        {
+          "claim_id": "egss-tool-entropy-allocation",
+          "claim_type": "author_reported_method",
+          "paraphrase": "EGSS uses tool entropy to locate ambiguous trajectory decisions, selectively invokes an auxiliary judge, and augments test evidence.",
+          "pdf_pages": [1, 2, 3],
+          "section": "Abstract, Introduction, and Section 3.1",
+          "project_use": "adaptive agent-compute and entropy-gating baseline, distinct from post-generation evidence routing"
+        }
+      ]
+    },
+    {
+      "versioned_id": "2604.01496v2",
+      "canonical_title": "From SWE-ZERO to SWE-HERO: Execution-free to Execution-based Fine-tuning for Software Engineering Agents",
+      "pdf_url": "https://arxiv.org/pdf/2604.01496v2",
+      "pdf_sha256": "946d69d6feafd6f179af520b11d6d9a6c039213c9a2cbaf659224b90b78c2967",
+      "pdf_bytes": 571144,
+      "artifact_name": "2604.01496v2.pdf",
+      "review": {
+        "method": "machine_assisted_primary_pdf_review",
+        "human_confirmed": false
+      },
+      "claims": [
+        {
+          "claim_id": "swe-hero-two-stage-curriculum",
+          "claim_type": "author_reported_method",
+          "paraphrase": "The training recipe is a global two-stage curriculum using roughly 300k execution-free trajectories followed by about 13k execution-based trajectories.",
+          "pdf_pages": [1, 2, 4],
+          "section": "Abstract, Introduction, and Section 3",
+          "project_use": "global curriculum baseline, not candidate-level evidence routing"
+        }
+      ]
+    },
+    {
+      "versioned_id": "2605.18859v2",
+      "canonical_title": "TwinRouterBench: Fast Static and Live Dynamic Evaluation for Realistic Agentic LLM Routing",
+      "pdf_url": "https://arxiv.org/pdf/2605.18859v2",
+      "pdf_sha256": "3c4b038c04d1ed6b3c144ff2c2272c2713eebd25044eacd32f8522e4c3120ff9",
+      "pdf_bytes": 725490,
+      "artifact_name": "2605.18859v2.pdf",
+      "review": {
+        "method": "machine_assisted_primary_pdf_review",
+        "human_confirmed": false
+      },
+      "claims": [
+        {
+          "claim_id": "twinrouter-cheapest-sufficient-model",
+          "claim_type": "author_reported_method",
+          "paraphrase": "TwinRouterBench evaluates step-level selection of the cheapest sufficient model from the exact router-visible prefix.",
+          "pdf_pages": [1, 2, 3],
+          "section": "Abstract and Introduction",
+          "project_use": "direct model-routing baseline; this project routes evidence instead"
+        },
+        {
+          "claim_id": "twinrouter-execution-verified-tiers",
+          "claim_type": "author_reported_method",
+          "paraphrase": "Its static labels are execution-verified tier estimates under a fixed downgrade-and-cascade protocol, with a dynamic end-to-end track.",
+          "pdf_pages": [1, 2, 4],
+          "section": "Abstract, Introduction, and label construction",
+          "project_use": "comparison for deterministic offline routing supervision"
+        }
+      ]
+    },
+    {
+      "versioned_id": "2606.04402v1",
+      "canonical_title": "Not All Errors Are Equal: Consequence-Aware Reasoning Compute Allocation",
+      "pdf_url": "https://arxiv.org/pdf/2606.04402v1",
+      "pdf_sha256": "8ad223add957baf475fa462e575850a7633ccc0464378771cdadd902d3d8874d",
+      "pdf_bytes": 609814,
+      "artifact_name": "2606.04402v1.pdf",
+      "review": {
+        "method": "machine_assisted_primary_pdf_review",
+        "human_confirmed": false
+      },
+      "claims": [
+        {
+          "claim_id": "consequence-marginal-utility-allocation",
+          "claim_type": "author_reported_method",
+          "paraphrase": "The method separates predicted error consequence from the marginal success gain of upgrading compute and prioritizes their product.",
+          "pdf_pages": [3, 6, 11],
+          "section": "Method overview and Section 8.2",
+          "project_use": "consequence-times-marginal-utility compute-allocation baseline"
+        }
+      ]
+    },
+    {
+      "versioned_id": "2606.09863v1",
+      "canonical_title": "From Confident Closing to Silent Failure: Characterizing False Success in LLM Agents",
+      "pdf_url": "https://arxiv.org/pdf/2606.09863v1",
+      "pdf_sha256": "ab1307fdaaf97841bd09296bca225b736e8e9a712002ac123b1fab663f35ba6a",
+      "pdf_bytes": 498129,
+      "artifact_name": "2606.09863v1.pdf",
+      "review": {
+        "method": "machine_assisted_primary_pdf_review",
+        "human_confirmed": false
+      },
+      "claims": [
+        {
+          "claim_id": "false-success-llm-judge-ceiling",
+          "claim_type": "author_reported_result",
+          "paraphrase": "Across five judge models and five prompt conditions plus a full-task-specification baseline, the paper reports that no configuration exceeds 0.65 AUROC on tau2-bench false-success detection; on AppWorld API-call traces, GPT-4o peaks at 0.537 AUROC under the checklist condition.",
+          "pdf_pages": [8],
+          "section": "Section 4.3, LLM Judges Fail Systematically",
+          "project_use": "stress case against terminal self-report or semantic-judge authority, with no assumed transfer from tau2-bench or AppWorld to SWE patch correctness"
+        }
+      ]
+    },
+    {
+      "versioned_id": "2606.18168v1",
+      "canonical_title": "All Smoke, No Alarm: Oracle Signals in Agent-Authored Test Code",
+      "pdf_url": "https://arxiv.org/pdf/2606.18168v1",
+      "pdf_sha256": "efffd2111e11e6e39eba950e6bf7de104c3aa332c401815aef6df084b8c834a6",
+      "pdf_bytes": 275272,
+      "artifact_name": "2606.18168v1.pdf",
+      "review": {
+        "method": "machine_assisted_primary_pdf_review",
+        "human_confirmed": false
+      },
+      "claims": [
+        {
+          "claim_id": "all-smoke-oracle-signal-prevalence",
+          "claim_type": "author_reported_result",
+          "paraphrase": "Applying an eight-category syntactic classifier to 86,156 cumulative agent-authored test-file patches, the paper reports that 80.2% contain weak or no explicit oracle signals; two authors independently labeled a stratified 384-patch sample, rather than semantically adjudicating the full population.",
+          "pdf_pages": [2],
+          "section": "Sections II-III.A, oracle-signal classification and RQ1 findings",
+          "project_use": "cheap static oracle-signal feature and corpus-warning baseline, not a candidate-correctness or semantic test-validity label"
+        }
+      ]
+    },
+    {
+      "versioned_id": "2606.24453v1",
+      "canonical_title": "Bayesian control for coding agents",
+      "pdf_url": "https://arxiv.org/pdf/2606.24453v1",
+      "pdf_sha256": "2c4db60dbb9bb7cdf81a3c8a4497e9711c4669d51409f5e98b119814d16d9b87",
+      "pdf_bytes": 8672483,
+      "artifact_name": "2606.24453v1.pdf",
+      "review": {
+        "method": "machine_assisted_primary_pdf_review",
+        "human_confirmed": false
+      },
+      "claims": [
+        {
+          "claim_id": "bayesian-control-sequential-orchestration",
+          "claim_type": "author_reported_method",
+          "paraphrase": "The controller maintains a posterior belief over candidate correctness and dynamically chooses whether to gather critic evidence, refine the candidate, invoke an expensive verifier, or stop.",
+          "pdf_pages": [1, 3, 4],
+          "section": "Abstract and Sections 1, 3, and 4",
+          "project_use": "closest direct cost-sensitive sequential evidence-acquisition baseline; Bayesian routing itself is not novel"
+        },
+        {
+          "claim_id": "bayesian-control-deterministic-oracle-boundary",
+          "claim_type": "author_reported_method",
+          "paraphrase": "The paper defines latent correctness by the terminal oracle result, describes that oracle as a deterministic correctness checker, and uses the Podman-based SWE-bench harness as the repository-level oracle; SWE-bench has no separate public-test critic in the study.",
+          "pdf_pages": [3, 5],
+          "section": "Sections 3 and 5.2, Task and Environment and Critics and Oracle Verifier",
+          "project_use": "novelty boundary for separately modeling task truth, candidate truth, and a fallible verifier rather than treating harness success as correctness"
+        },
+        {
+          "claim_id": "bayesian-control-regime-map",
+          "claim_type": "author_reported_result",
+          "paraphrase": "The paper reports that Bayesian controllers are most useful when verification is expensive and critics are informative but imperfect, while a near-oracle public-test gate or unconditional verification can dominate in easier or cheaper regimes.",
+          "pdf_pages": [1, 7, 8],
+          "section": "Abstract, Section 6, and Conclusion",
+          "project_use": "direct regime and negative-result baseline against any universal execution-free or always-execute policy claim"
+        }
+      ]
+    },
+    {
+      "versioned_id": "2606.26300v2",
+      "canonical_title": "The Verification Horizon: No Silver Bullet for Coding Agent Rewards",
+      "pdf_url": "https://arxiv.org/pdf/2606.26300v2",
+      "pdf_sha256": "3529df1fb69b9c4c24fd5f29972b9d60216892bc1982eca11e89c6b31a8d562c",
+      "pdf_bytes": 4697953,
+      "artifact_name": "2606.26300v2.pdf",
+      "review": {
+        "method": "machine_assisted_primary_pdf_review",
+        "human_confirmed": false
+      },
+      "claims": [
+        {
+          "claim_id": "verification-horizon-coevolving-verifier",
+          "claim_type": "author_reported_limitation",
+          "paraphrase": "The paper argues that a policy can outpace a verifier, causing reward hacking or signal saturation, and calls for policy-verifier co-evolution while characterizing verification signals by scalability, faithfulness, and robustness.",
+          "pdf_pages": [2],
+          "section": "Figure 1 and verification-signal framing",
+          "project_use": "closest dynamic-verifier motivation, distinct from per-candidate sequential evidence acquisition and prospective risk control"
+        }
+      ]
+    },
+    {
+      "versioned_id": "2606.26978v1",
+      "canonical_title": "To Run or Not to Run: Analyzing the Cost-Effectiveness of Code Execution in LLM-Based Program Repair",
+      "pdf_url": "https://arxiv.org/pdf/2606.26978v1",
+      "pdf_sha256": "599f27dc28ecfd8cd0e71c619bb544d41567c0a585994864203f09347309492e",
+      "pdf_bytes": 711127,
+      "artifact_name": "2606.26978v1.pdf",
+      "review": {
+        "method": "machine_assisted_primary_pdf_review",
+        "human_confirmed": false
+      },
+      "claims": [
+        {
+          "claim_id": "to-run-fixed-scaffold",
+          "claim_type": "author_reported_method",
+          "paraphrase": "The study holds each agent scaffold fixed and varies execution access across four paradigms.",
+          "pdf_pages": [2, 3],
+          "section": "Introduction and contributions",
+          "project_use": "controlled execution-access baseline"
+        },
+        {
+          "claim_id": "to-run-environment-error-rate",
+          "claim_type": "author_reported_result",
+          "paraphrase": "The paper reports that 15-34% of validation feedback is environment error and that usable execution benefit is concentrated.",
+          "pdf_pages": [12, 19, 20],
+          "section": "Results and conclusion",
+          "project_use": "motivation for explicit environment and evidence-validity outcomes"
+        }
+      ]
+    },
+    {
+      "versioned_id": "2606.28436v1",
+      "canonical_title": "Dockerless: Environment-Free Program Verifier for Coding Agents",
+      "pdf_url": "https://arxiv.org/pdf/2606.28436v1",
+      "pdf_sha256": "d1e8f075ea6f925b49f3a8b01f48fd0192a09aa8a48999e89a38165548f41a2d",
+      "pdf_bytes": 1553196,
+      "artifact_name": "2606.28436v1.pdf",
+      "review": {
+        "method": "machine_assisted_primary_pdf_review",
+        "human_confirmed": false
+      },
+      "claims": [
+        {
+          "claim_id": "dockerless-reference-context",
+          "claim_type": "author_reported_method",
+          "paraphrase": "Dockerless receives the issue, reference patch, and candidate patch, then explores the repository to answer generated verification questions.",
+          "pdf_pages": [2, 3, 8],
+          "section": "Figures 1-2, Introduction, and verifier evaluation",
+          "project_use": "curator-context execution-free upper bound rather than a deployable reference-free action"
+        },
+        {
+          "claim_id": "dockerless-execution-derived-training-labels",
+          "claim_type": "author_reported_method",
+          "paraphrase": "Verifier training pairs are labeled through standard per-repository Docker evaluation with held-out tests.",
+          "pdf_pages": [3, 16],
+          "section": "Problem formulation and Appendix D",
+          "project_use": "evidence that environment-free inference still learns from execution-derived labels"
+        }
+      ]
+    },
+    {
+      "versioned_id": "2607.03691v1",
+      "canonical_title": "Don't Blame the Large Language Model: How Scaffolding Evolution Shapes Coding Agent Quality",
+      "pdf_url": "https://arxiv.org/pdf/2607.03691v1",
+      "pdf_sha256": "55961d634a45784e17dbc80b888540ca3f86740e4c63dd4582a650625c501427",
+      "pdf_bytes": 3201788,
+      "artifact_name": "2607.03691v1.pdf",
+      "review": {
+        "method": "machine_assisted_primary_pdf_review",
+        "human_confirmed": false
+      },
+      "claims": [
+        {
+          "claim_id": "scaffolding-evolution-fixed-model",
+          "claim_type": "author_reported_result",
+          "paraphrase": "Holding the underlying LLM fixed, the study evaluates 35 sequential Qwen Code releases on 50 stratified SWE-bench Verified tasks and reports no statistically significant resolve-rate improvement, while later releases consume significantly more resources and sometimes more than double token use and tool calls.",
+          "pdf_pages": [4],
+          "section": "RQ1, How does agent quality evolve across successive scaffolding releases?",
+          "project_use": "scaffold-version and cost control, bounded to one scaffold/model and a 50-task benchmark subset"
+        }
+      ]
+    },
+    {
+      "versioned_id": "2607.07593v1",
+      "canonical_title": "What Makes a Good Bug Report for an AI Agent?",
+      "pdf_url": "https://arxiv.org/pdf/2607.07593v1",
+      "pdf_sha256": "577a1285a1979cc3d3a00bc6aed1feed71390a5f5b0eba177335719cc917b7ae",
+      "pdf_bytes": 256413,
+      "artifact_name": "2607.07593v1.pdf",
+      "review": {
+        "method": "machine_assisted_primary_pdf_review",
+        "human_confirmed": false
+      },
+      "claims": [
+        {
+          "claim_id": "bug-report-ablation-actionability",
+          "claim_type": "author_reported_result",
+          "paraphrase": "The controlled report-ablation study reports large, model-dependent solve-rate changes when requirements, localization references, report sections, or report structure are removed.",
+          "pdf_pages": [8, 10],
+          "section": "Study 2 controlled ablation and cross-study comparison",
+          "project_use": "separate agent-relative task actionability from task validity and preserve report-quality subgroups"
+        }
+      ]
+    },
+    {
+      "versioned_id": "2607.07882v1",
+      "canonical_title": "Bug Report Specification Refinement with Trajectory Guidance for Automated Program Repair",
+      "pdf_url": "https://arxiv.org/pdf/2607.07882v1",
+      "pdf_sha256": "3d251b2000ce7142b8100445ecb434124dd98ff83e9f8e678464382f465f42e0",
+      "pdf_bytes": 325994,
+      "artifact_name": "2607.07882v1.pdf",
+      "review": {
+        "method": "machine_assisted_primary_pdf_review",
+        "human_confirmed": false
+      },
+      "claims": [
+        {
+          "claim_id": "trajspec-task-spec-refinement",
+          "claim_type": "author_reported_method",
+          "paraphrase": "TrajSpec discards the trajectory's candidate patch as untrusted, extracts repository-supported hierarchical evidence, generates and reviews a refined report, and reports downstream Pass@1 gains across multiple repair agents.",
+          "pdf_pages": [5, 9, 11],
+          "section": "Approach, RQ2-RQ3 results, and threats to validity",
+          "project_use": "adjacent specification-refinement baseline and motivation for a distinct costed specification-evidence action"
+        }
+      ]
+    },
+    {
+      "versioned_id": "2607.08983v1",
+      "canonical_title": "SCATE: Learning to Supervise Coding Agents for Cost-Effective Test Generation",
+      "pdf_url": "https://arxiv.org/pdf/2607.08983v1",
+      "pdf_sha256": "f40fa24751e10766fc5bab3cd4383a2500e9d0b797d79303bb967865e5df2a37",
+      "pdf_bytes": 1111028,
+      "artifact_name": "2607.08983v1.pdf",
+      "review": {
+        "method": "machine_assisted_primary_pdf_review",
+        "human_confirmed": false
+      },
+      "claims": [
+        {
+          "claim_id": "scate-contextual-bandit-test-routing",
+          "claim_type": "author_reported_method",
+          "paraphrase": "SCATE uses static LOC, WMC, and RFC plus runtime coverage and missed-complexity feedback as context for a LinUCB policy choosing DEFAULT, ANALYSIS, or STOP, with a reward that trades coverage and complexity gains against token-dollar cost and assigns STOP zero reward.",
+          "pdf_pages": [2, 3, 4],
+          "section": "Sections II-III, approach and contextual-bandit formulation",
+          "project_use": "closest direct adaptive test-action and cost baseline, distinct from candidate-evidence routing"
+        },
+        {
+          "claim_id": "scate-java-generation-scope",
+          "claim_type": "author_reported_limitation",
+          "paraphrase": "The evaluation is limited to Defects4J Java classes, with training and evaluation classes originating from the same projects; the authors also identify single-benchmark and language scope, stochasticity, and possible pretraining contamination as validity limits.",
+          "pdf_pages": [10],
+          "section": "Threats to validity",
+          "project_use": "scope boundary against generalizing test-generation routing to cross-repository candidate verification"
+        }
+      ]
+    },
+    {
+      "versioned_id": "2607.09007v1",
+      "canonical_title": "Benchmarking Large Language Models on Repairing Qiskit Programs using Bugs4Q",
+      "pdf_url": "https://arxiv.org/pdf/2607.09007v1",
+      "pdf_sha256": "743d098bd255f618cde6d410322b4c7708e3553f389b74f3fcbae47c7bd43adb",
+      "pdf_bytes": 166817,
+      "artifact_name": "2607.09007v1.pdf",
+      "review": {
+        "method": "machine_assisted_primary_pdf_review",
+        "human_confirmed": false
+      },
+      "claims": [
+        {
+          "claim_id": "bugs4q-version-conditioned-validity",
+          "claim_type": "author_reported_result",
+          "paraphrase": "Across six pinned Qiskit releases, the paper reports silent case-version invalidity and that 64.1% of observed repair passes occurred on case-version pairs that failed benchmark validation; it also cautions that passing repairs may reflect weak oracles or test overfitting.",
+          "pdf_pages": [1, 3, 4],
+          "section": "Abstract, Section III, and threats to validity",
+          "project_use": "direct evidence that environment identity, task validity, executability, and candidate correctness require separate labels"
+        }
+      ]
+    },
+    {
+      "versioned_id": "2607.09123v1",
+      "canonical_title": "ReProAgent: Tool-Augmented Multi-Stage Agentic Generation of Bug Reproduction Tests from Issue Reports",
+      "pdf_url": "https://arxiv.org/pdf/2607.09123v1",
+      "pdf_sha256": "c4961228fcaa4b470083802784d71e611e80fa939c96619f4abdb523adce5b57",
+      "pdf_bytes": 1390566,
+      "artifact_name": "2607.09123v1.pdf",
+      "review": {
+        "method": "machine_assisted_primary_pdf_review",
+        "human_confirmed": false
+      },
+      "claims": [
+        {
+          "claim_id": "reproagent-runtime-test-action",
+          "claim_type": "author_reported_method",
+          "paraphrase": "ReProAgent decomposes reproduction-test generation into localization, root-cause analysis, assertion-aware planning, and test generation, then executes and refines candidate tests with feedback in a Docker-based sandbox.",
+          "pdf_pages": [3, 6],
+          "section": "Introduction and Section 3.1",
+          "project_use": "strong targeted-execution and generated-reproduction-test action baseline"
+        },
+        {
+          "claim_id": "reproagent-reproduction-rate-cost",
+          "claim_type": "author_reported_result",
+          "paraphrase": "Using fail-on-buggy and pass-on-patched FP Rate, the paper reports 58.43% and 70.30% reproduction rates on two SWT-bench subsets and an average generation cost of $0.14 per instance with its primary backbone.",
+          "pdf_pages": [13, 20],
+          "section": "Sections 4.5, 5.1, 6.3, and 7",
+          "project_use": "measured-cost baseline whose generated-test oracle still requires independent validity adjudication"
+        }
+      ]
+    },
+    {
+      "versioned_id": "2607.09345v1",
+      "canonical_title": "How Far Are We from Detecting Flaky Tests? On the Limits of Code-Based Detection",
+      "pdf_url": "https://arxiv.org/pdf/2607.09345v1",
+      "pdf_sha256": "2f5a3feff80c7d3efe28cfa0ef15f6d3bd3c2247a6fc85c3f56f6a8d319cd30f",
+      "pdf_bytes": 347492,
+      "artifact_name": "2607.09345v1.pdf",
+      "review": {
+        "method": "machine_assisted_primary_pdf_review",
+        "human_confirmed": false
+      },
+      "claims": [
+        {
+          "claim_id": "flakiness-static-evidence-limit",
+          "claim_type": "author_reported_result",
+          "paraphrase": "The reported code-only detectors lose their apparent advantage under project-disjoint, rerun-confirmed evaluation, and 58% of 86 flaky end-to-end cases could not be causally attributed from test code plus CI logs without further runtime evidence.",
+          "pdf_pages": [1, 8, 13],
+          "section": "Abstract, RQ2-RQ3 results, and conclusion",
+          "project_use": "direct boundary on execution-free sufficiency and motivation for candidate-specific runtime acquisition"
+        }
+      ]
+    },
+    {
+      "versioned_id": "2607.09510v1",
+      "canonical_title": "Failure as a Process: An Anatomy of CLI Coding Agent Trajectories",
+      "pdf_url": "https://arxiv.org/pdf/2607.09510v1",
+      "pdf_sha256": "5d45c4f70d9a8c03eb374a36a59f6e5a662dad7c323b0bf6536e65e95d911f03",
+      "pdf_bytes": 921191,
+      "artifact_name": "2607.09510v1.pdf",
+      "review": {
+        "method": "machine_assisted_primary_pdf_review",
+        "human_confirmed": false
+      },
+      "claims": [
+        {
+          "claim_id": "failure-process-early-intervention",
+          "claim_type": "author_reported_result",
+          "paraphrase": "The study retrospectively labels decisive-error, lock-in, and observability times from complete trajectories, separately evaluates an outcome-blind prefix monitor, and reports a median decisive-error onset at step 7 with a short intervention window before lock-in.",
+          "pdf_pages": [4, 5],
+          "section": "RQ1 methodology and results",
+          "project_use": "rollout-time intervention motivation plus a strict warning not to expose retrospective failure labels to the live policy"
+        }
+      ]
+    },
+    {
+      "versioned_id": "2607.09553v1",
+      "canonical_title": "Writing Bug Reports for Software Repair Agents: What Information Matters Most?",
+      "pdf_url": "https://arxiv.org/pdf/2607.09553v1",
+      "pdf_sha256": "8bebd6d1a0e7339caad2305593f77ce549f2c2605808e1df5f14ce7fdb73384f",
+      "pdf_bytes": 238190,
+      "artifact_name": "2607.09553v1.pdf",
+      "review": {
+        "method": "machine_assisted_primary_pdf_review",
+        "human_confirmed": false
+      },
+      "claims": [
+        {
+          "claim_id": "agent-ready-operational-cues",
+          "claim_type": "author_reported_result",
+          "paraphrase": "The controlled content manipulation reports that removing localization and suggested-fix cues together reduces repair success in the pooled model and in two of three per-model analyses, while effects vary across models and report contexts.",
+          "pdf_pages": [8, 9, 11],
+          "section": "Ablation results, implications, and conclusion",
+          "project_use": "model actionability separately from validity and test specification clarification as an evidence intervention"
+        }
+      ]
+    }
+  ]
+}

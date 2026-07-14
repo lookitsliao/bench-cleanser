@@ -1,0 +1,67 @@
+{
+  "schema_version": "prospective-pilot-target-policy-manifest-0.1.0",
+  "study_id": "matched-24-independent-evidence-development-pilot-v2",
+  "status": "fixed_descriptive_ope_implementation_no_performance_claim",
+  "implementation": {
+    "bytes": 18483,
+    "logical_path": "experiments/prospective_pilot/target_policies.py",
+    "sha256": "b4f898ac771aabd587f212f002d6995025820633adfbe3201b13f45ab8f581db",
+    "status": "available"
+  },
+  "input_contract": {
+    "allowed": [
+      "validated_pre_action_candidate_round_state",
+      "complete_available_action_catalog",
+      "logged_behavior_distribution_and_chosen_action",
+      "opaque_candidate_position_and_fixed_task_chain"
+    ],
+    "prohibited": [
+      "adjudication",
+      "hosted_outcome",
+      "reward",
+      "future_evidence",
+      "model_or_submission_identity"
+    ],
+    "scheduler_validation_required": true
+  },
+  "policies": [
+    {
+      "id": "behavior-mixture-v1",
+      "rule": "the_exact_logged_0.5_preferred_plus_0.5_uniform_behavior_policy",
+      "semantic_required": true
+    },
+    {
+      "id": "always-full-repeat-v1",
+      "rule": "full_execution_then_fresh_worktree_repeat_then_frozen_terminal_rule_for_every_candidate",
+      "semantic_required": false
+    },
+    {
+      "id": "static-targeted-full-v1",
+      "rule": "deterministic_static_then_targeted_then_full_then_repeat_then_frozen_terminal_rule",
+      "semantic_required": false
+    },
+    {
+      "id": "conservative-v1-preferred-v1",
+      "rule": "follow_the_bound_conservative_v1_preferred_action_with_no_exploration",
+      "semantic_required": true
+    },
+    {
+      "id": "semantic-only-v1",
+      "rule": "semantic_once_then_the_frozen_terminal_rule_without_runtime_evidence",
+      "semantic_required": true
+    },
+    {
+      "id": "hash-priority-no-runtime-v1",
+      "rule": "select_the_first_candidate_in_frozen_opaque_candidate_order_without_runtime_evidence",
+      "semantic_required": false
+    }
+  ],
+  "weight_contract": {
+    "joint_unit": "complete_task_cluster_history_across_all_three_candidate_chains",
+    "support_violation": "positive_target_probability_for_an_action_absent_from_logged_behavior_support",
+    "support_violating_weight": null,
+    "zero_target_probability_weight": 0.0,
+    "clipping_or_trimming": false
+  },
+  "claim_boundary": "fixed likelihood and diagnostic implementation only; no learned policy, calibration, causal validity, or positive performance claim"
+}

@@ -76,7 +76,7 @@ def setup_logging(verbose: bool = False) -> Console:
     root.setLevel(logging.DEBUG if verbose else logging.INFO)
 
     # Mute third-party HTTP noise — at INFO every LLM call logs a line.
-    for noisy in ("httpx", "httpcore", "openai", "urllib3", "azure"):
+    for noisy in ("httpx", "httpcore", "openai", "urllib3"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
     _LOGGING_CONFIGURED = True

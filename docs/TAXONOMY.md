@@ -8,20 +8,22 @@ Two independent axes, fused at Stage 7 ([FUSION.md](FUSION.md)).
 | **Axis 2 — Agent trajectory** | How did this agent reach its answer? | Single label per `(task, agent)` | `bench_cleanser.trajectory.classifier` |
 
 The axes serve different questions and must not be conflated. A task
-with `APPROACH_LOCK` is broken regardless of the agent. An agent that
-`pip install`s the fix has cheated regardless of the task. Only Stage 7
-combines them.
+with `APPROACH_LOCK` is broken regardless of the agent. Package installation,
+high patch similarity, a fast fix, or cross-agent convergence is not proof of
+leakage; an agent-side leakage label requires direct access-and-use evidence.
+Only Stage 7 combines the axes.
 
-### OpenAI Verified-audit mapping
+### OpenAI Verified-audit crosswalk (February 2026)
 
 | OpenAI term | bench-cleanser label |
 | --- | --- |
 | "Narrow test cases" | `APPROACH_LOCK` |
 | "Wide test cases" | `OVER_TEST` |
 
-The PR-authorship insight — gold patch and F2P tests are co-authored —
-is encoded in severity: both halves of the measurement come from one
-author, so independent verification is structurally impossible.
+Gold patches and F2P tests commonly share PR provenance, which motivates
+auditing them as a coupled measurement. Shared authorship alone establishes
+neither a benchmark defect nor intent. The severity mapping below is this
+project's conservative review policy.
 
 ---
 
@@ -35,9 +37,10 @@ F2P tests assert on a specific implementation strategy rather than
 observable behaviour. An agent implementing the same behaviour
 differently fails.
 
-- **Evidence:** ≥1 `OFF_TOPIC` assertion on strategy choice (data
-  structure, algorithm, signature) **or** `is_modification_aligned=False`
-  on a modified test that narrows accepted implementations.
+- **Evidence:** direct test/patch coupling showing that F2P acceptance depends
+  on an implementation-specific choice not required by the issue. A weak
+  identifier overlap, suggested fix, compiled-language hunk, or ordinary new
+  test cannot create this label by itself.
 - **Severity:** SEVERE.
 
 ### `OVER_TEST`
@@ -46,8 +49,8 @@ F2P tests assert on behaviour not described in the problem.
 
 - **Evidence:** ≥1 `OFF_TOPIC` assertion, **or** an `UNRELATED` F2P
   test, **or** a modification adding `OFF_TOPIC` content.
-- **Severity:** SEVERE. (Treated as maximum-attention because the patch
-  author also wrote the tests — wide tests are rarely innocent.)
+- **Severity:** SEVERE under this project's conservative policy; the label
+  still requires concrete out-of-scope test evidence.
 
 ### `OVER_PATCH`
 
@@ -102,10 +105,10 @@ Single label per `(task, agent)`.
 | Label | Pattern |
 | --- | --- |
 | `agent_passed_genuine` | Explore → hypothesise → patch → test. Patch diverges from gold but solves the described problem. |
-| `agent_passed_leak` | Final patch ≥90% similar to gold; trajectory shows direct file/function jumps without exploration. |
-| `agent_passed_package_leak` | Agent `pip install`-ed the affected package and copied the fix from site-packages. |
-| `agent_passed_test_aware` | Agent referenced F2P test names or expected values before they were derivable from exploration. |
-| `agent_passed_trained_hack` | Near-canonical fix on first try, no debug steps — memorised template. |
+| `agent_passed_leak` | The trace directly shows prohibited reference-solution access and use in the final patch. Similarity or direct navigation alone is insufficient. |
+| `agent_passed_package_leak` | The trace directly shows affected-package source being inspected and copied into the final patch. Installation alone is insufficient. |
+| `agent_passed_test_aware` | The trace directly exposes hidden F2P names or expected values before allowed exploration could reveal them. |
+| `agent_passed_trained_hack` | Cross-task or provenance evidence supports memorized exploit behaviour. A fast/canonical fix alone is insufficient. |
 
 ### Failed (`resolved=False`)
 
@@ -153,7 +156,7 @@ evidence sources per label:
 
 | Label | Evidence sources |
 | --- | --- |
-| `APPROACH_LOCK` | `OFF_TOPIC` assertion text + reasoning; `is_modification_aligned=False` `TestVerdictReport`. |
+| `APPROACH_LOCK` | Direct, non-weak test↔patch coupling plus reasoning showing a valid alternative implementation would fail. |
 | `OVER_TEST` | `OFF_TOPIC` assertion text; `UNRELATED` test name; modified-test evidence line. |
 | `OVER_PATCH` | `UNRELATED` `HunkVerdict` with reasoning. |
 | `UNCLEAR_DESCRIPTION` | Problem text evidence showing incompatible interpretations or missing specification detail. |
@@ -165,8 +168,9 @@ evidence sources per label:
 ## Out of scope
 
 - **Reward hacking** (gaming the eval harness, not the task).
-- **Agent runtime flakes** (OOM, CI brownouts). Captured by `resolved`
-  and classified as `agent_failed_no_intent` or `agent_unknown`.
+- **Agent runtime flakes** (OOM, CI brownouts). Incomplete or contradictory
+  outcome evidence is conservatively classified as `agent_unknown`; the
+  separate validity-manifest layer records environment failure explicitly.
 - **Hallucinated P2P regressions.** The agent's problem, not the task's.
 
 A `CLEAN` verdict means the bench-cleanser axes turned up nothing —

@@ -136,11 +136,10 @@ def extract_test_functions_from_diff(hunk: PatchHunk) -> list[dict]:
     # We need to walk through the diff body (skip the ``@@`` header line).
     body_lines: list[str] = []
     hunk_header_line: str = ""
-    for line in raw_lines:
+    for idx, line in enumerate(raw_lines):
         if line.startswith("@@"):
             hunk_header_line = line
             # Everything after the first @@ header is body.
-            idx = raw_lines.index(line)
             body_lines = raw_lines[idx + 1:]
             break
 
@@ -166,7 +165,7 @@ def extract_test_functions_from_diff(hunk: PatchHunk) -> list[dict]:
                     "name": ctx_name,
                     "added_lines": [],
                     "removed_lines": [],
-                    "_raw_added": [],
+                    "_raw_post": [],
                 }
 
     for line in body_lines:
@@ -187,19 +186,27 @@ def extract_test_functions_from_diff(hunk: PatchHunk) -> list[dict]:
 
             # Only treat as a boundary if at the base indent level.
             if test_indent == base_indent:
-                # Close the previous segment.
-                if current is not None:
+                # A modified definition is represented by a removed ``def``
+                # immediately followed by an added ``def`` with the same
+                # name.  Keep those lines in one segment; splitting them
+                # creates a bogus removed-only test plus a bogus new test.
+                if current is not None and current["name"] != test_name:
                     segments.append(current)
-                current = {
-                    "name": test_name,
-                    "added_lines": [],
-                    "removed_lines": [],
-                    "_raw_added": [],  # keep for full_source reconstruction
-                }
+                    current = None
+                if current is None:
+                    current = {
+                        "name": test_name,
+                        "added_lines": [],
+                        "removed_lines": [],
+                        # Ordered post-patch lines: diff context plus additions,
+                        # never removals.  This is materially more useful than
+                        # the previous added-lines-only pseudo-source.
+                        "_raw_post": [],
+                    }
 
         # If we encounter a non-test function def at the base indent we close
         # the current segment (e.g. helper functions between tests).
-        elif current is not None and not is_context:
+        elif current is not None:
             if base_indent is not None and _is_function_def(line):
                 clean_stripped = _strip_diff_prefix(line) if (is_added or is_removed) else line
                 if is_context and clean_stripped.startswith(" "):
@@ -213,20 +220,26 @@ def extract_test_functions_from_diff(hunk: PatchHunk) -> list[dict]:
         if current is not None:
             if is_added:
                 current["added_lines"].append(line)
-                current["_raw_added"].append(
-                    _strip_diff_prefix(line) if is_added else stripped
-                )
+                current["_raw_post"].append(_strip_diff_prefix(line))
             elif is_removed:
                 current["removed_lines"].append(line)
+            else:
+                # Unified-diff context has one marker space which is not part
+                # of the source text.
+                post_line = line[1:] if line.startswith(" ") else line
+                current["_raw_post"].append(post_line)
 
     # Don't forget the last segment.
     if current is not None:
         segments.append(current)
 
-    # Build ``full_source`` from the added lines (stripping ``+`` prefix).
+    # Build ``full_source`` from the ordered post-patch hunk context.  For a
+    # new test this is normally the complete function; for a modified test it
+    # is a faithful changed slice and Stage 1.5 can merge it with the complete
+    # pre-patch function.
     results: list[dict] = []
     for seg in segments:
-        full_source = "\n".join(seg.pop("_raw_added", []))
+        full_source = "\n".join(seg.pop("_raw_post", []))
         seg["full_source"] = full_source
         results.append(seg)
 
@@ -311,32 +324,92 @@ def match_f2p_tests_to_hunks(
           typically means the test existed before and was not modified in the
           test patch (or was changed only in the gold patch).
     """
-    # Build a lookup from test function name -> list of TestHunks.
-    name_to_hunks: dict[str, list[TestHunk]] = {}
+    # Build a lookup from test function name to *file identities*.  A test
+    # name alone is not an identity: large repositories routinely define
+    # ``test_repr`` or ``test_default`` in multiple files.
+    name_to_hunks: dict[str, dict[str, list[TestHunk]]] = {}
     for th in test_hunks:
-        name_to_hunks.setdefault(th.test_name, []).append(th)
+        path = _normalize_test_path(th.file_path)
+        name_to_hunks.setdefault(th.test_name, {}).setdefault(path, []).append(th)
 
     matched: list[TestHunk] = []
+    matched_ids: set[int] = set()
     unmatched: list[str] = []
 
     for test_id in f2p_tests:
-        # Extract the test function name -- the part after the last `::`.
-        parts = test_id.split("::")
-        func_name = parts[-1] if parts else test_id
+        test_path, base_name = _f2p_test_identity(test_id)
+        by_path = name_to_hunks.get(base_name, {})
 
-        # Some test IDs include parameterised suffixes like ``[param]``.
-        # Strip those so we match the base function name.
-        base_name = func_name.split("[")[0]
+        selected: list[TestHunk] = []
+        if test_path:
+            exact = by_path.get(test_path, [])
+            if exact:
+                selected = exact
+            else:
+                # Some harnesses report paths relative to a package root
+                # while the patch records repository-relative paths.  A
+                # suffix match is safe only when it identifies one file.
+                suffix_matches = [
+                    hunks
+                    for path, hunks in by_path.items()
+                    if _paths_refer_to_same_file(path, test_path)
+                ]
+                if len(suffix_matches) == 1:
+                    selected = suffix_matches[0]
+        elif len(by_path) == 1:
+            # Dotted unittest IDs do not always carry a reliable filename.
+            # Fall back to the function name only when it is unambiguous.
+            selected = next(iter(by_path.values()))
 
-        hunks_for_name = name_to_hunks.get(base_name)
-        if hunks_for_name:
-            # If there are multiple hunks for the same function name (rare),
-            # add all of them.
-            matched.extend(hunks_for_name)
+        if selected:
+            for hunk in selected:
+                if id(hunk) not in matched_ids:
+                    matched.append(hunk)
+                    matched_ids.add(id(hunk))
         else:
             unmatched.append(test_id)
 
     return matched, unmatched
+
+
+def _normalize_test_path(path: str) -> str:
+    """Normalize a test path without discarding filename information."""
+    normalized = path.strip().replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    if normalized.startswith(("a/", "b/")):
+        normalized = normalized[2:]
+    return normalized.strip("/")
+
+
+def _f2p_test_identity(test_id: str) -> tuple[str, str]:
+    """Return ``(explicit_file_path, base_test_name)`` for an F2P ID.
+
+    The path is empty when the harness format does not identify a file
+    reliably (for example ``test_x (package.module.TestCase)``).  Callers
+    must then require a unique name match.
+    """
+    raw = test_id.strip()
+    if "::" in raw:
+        parts = raw.split("::")
+        path = _normalize_test_path(parts[0])
+        name = parts[-1].split("[", 1)[0]
+        return path, name
+    if " (" in raw:
+        name = raw.split(" (", 1)[0].split(".")[-1]
+        return "", name.split("[", 1)[0]
+    name = raw.rsplit(".", 1)[-1].split("[", 1)[0]
+    return "", name
+
+
+def _paths_refer_to_same_file(left: str, right: str) -> bool:
+    left = _normalize_test_path(left)
+    right = _normalize_test_path(right)
+    return bool(
+        left == right
+        or left.endswith("/" + right)
+        or right.endswith("/" + left)
+    )
 
 
 def _classify_function(
@@ -349,13 +422,11 @@ def _classify_function(
     Multi-language aware: checks for test function definitions and assertion
     patterns across Python, Go, JS/TS, Ruby, Rust, and Java.
     """
-    for line in removed_lines:
-        clean = _strip_diff_prefix(line).strip()
-        name, _ = _match_test_function(clean)
-        if name is not None:
-            return TestModificationType.MODIFIED
-        if clean.startswith("assert") or clean.startswith("self.assert"):
-            return TestModificationType.MODIFIED
+    if removed_lines:
+        # Any removal inside this function proves it pre-existed.  Restricting
+        # this to removed ``def``/``assert`` lines misclassified ordinary body
+        # edits as UNKNOWN or NEW.
+        return TestModificationType.MODIFIED
 
     # If removed_lines are empty for this function, it is a pure addition.
     if not removed_lines:

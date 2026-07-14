@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -9,10 +10,66 @@ from typing import Any
 from bench_cleanser.models import AgentTrajectoryLabel
 
 
+def _text(value: Any) -> str:
+    """Normalize structured tool payloads without Python repr instability."""
+
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False, sort_keys=True)
+    return str(value)
+
+
+def _outcome(value: Any, field_name: str) -> bool:
+    """Normalize common serialized booleans without truthiness mistakes."""
+
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int) and value in (0, 1):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes"}:
+            return True
+        if normalized in {"false", "0", "no"}:
+            return False
+    raise ValueError(f"{field_name} must be a boolean, got {value!r}")
+
+
+def _canonical_outcome(data: dict[str, Any]) -> bool:
+    """Return one observed outcome without turning missing data into failure."""
+
+    supplied: list[tuple[str, bool]] = []
+    for field_name in ("resolved", "passed_tests"):
+        if field_name in data:
+            supplied.append((field_name, _outcome(data[field_name], field_name)))
+    if not supplied:
+        raise ValueError("trajectory outcome is required (resolved or passed_tests)")
+    if len({value for _, value in supplied}) != 1:
+        raise ValueError("resolved and passed_tests contradict each other")
+    return supplied[0][1]
+
+
+def _nonnegative_int(value: Any, field_name: str) -> int:
+    if isinstance(value, bool):
+        raise ValueError(f"{field_name} must be a non-negative integer")
+    if isinstance(value, int):
+        result = value
+    elif isinstance(value, str) and value.strip().isdigit():
+        result = int(value)
+    else:
+        raise ValueError(f"{field_name} must be a non-negative integer")
+    if result < 0:
+        raise ValueError(f"{field_name} must be a non-negative integer")
+    return result
+
+
 class LeakagePattern(str, Enum):
     """Classification of how an agent arrived at its solution."""
     GENUINE_SOLUTION = "GENUINE_SOLUTION"      # Derived from problem statement
-    GOLD_PATCH_LEAK = "GOLD_PATCH_LEAK"        # Patch matches gold patch too closely
+    GOLD_PATCH_LEAK = "GOLD_PATCH_LEAK"        # Direct evidence of prohibited gold access/use
     PACKAGE_LEAK = "PACKAGE_LEAK"              # Solution installed from PyPI/package
     TEST_AWARE = "TEST_AWARE"                  # References F2P test names/values
     PARTIAL_MATCH = "PARTIAL_MATCH"            # Some leakage signals, inconclusive
@@ -41,22 +98,28 @@ class TrajectoryAction:
     observation: str = ""
     role: str = ""
     tool_name: str = ""
+    tool_call_id: str = ""
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> TrajectoryAction:
+        if not isinstance(data, dict):
+            raise ValueError("trajectory action must be an object")
         action_type_str = data.get("action_type", data.get("type", "OTHER"))
         try:
-            action_type = ActionType(action_type_str.upper())
-        except ValueError:
+            action_type = ActionType(_text(action_type_str).upper())
+        except (TypeError, ValueError):
             action_type = ActionType.OTHER
         return cls(
             action_type=action_type,
-            content=data.get("content", data.get("command", "")),
-            file_path=data.get("file_path", data.get("path", "")),
-            timestamp=data.get("timestamp", ""),
-            observation=data.get("observation", data.get("output", "")),
-            role=data.get("role", ""),
-            tool_name=data.get("tool_name", data.get("function", "")),
+            content=_text(data.get("content", data.get("command", ""))),
+            file_path=_text(data.get("file_path", data.get("path", ""))),
+            timestamp=_text(data.get("timestamp", "")),
+            observation=_text(data.get("observation", data.get("output", ""))),
+            role=_text(data.get("role", "")),
+            tool_name=_text(data.get("tool_name", data.get("function", ""))),
+            tool_call_id=_text(
+                data.get("tool_call_id", data.get("tool_use_id", data.get("id", "")))
+            ),
         )
 
 
@@ -76,21 +139,47 @@ class TrajectoryRecord:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> TrajectoryRecord:
+        if not isinstance(data, dict):
+            raise ValueError("trajectory record must be an object")
+        instance_id = _text(data.get("instance_id", "")).strip()
+        if not instance_id:
+            raise ValueError("trajectory instance_id is required")
+        raw_actions = data.get("actions", data.get("trajectory", []))
+        if raw_actions is None:
+            raw_actions = []
+        if not isinstance(raw_actions, list):
+            raise ValueError("trajectory actions must be an array")
         actions = [
-            TrajectoryAction.from_dict(a)
-            for a in data.get("actions", data.get("trajectory", []))
+            a if isinstance(a, TrajectoryAction) else TrajectoryAction.from_dict(a)
+            for a in raw_actions
         ]
+        # Only observed outcomes enter Stage 7. ``passed_tests`` is accepted
+        # as an alias, while missing or contradictory aliases are rejected.
+        resolved = _canonical_outcome(data)
+        raw_messages = data.get("raw_messages", data.get("messages", []))
+        if raw_messages is None:
+            raw_messages = []
+        if not isinstance(raw_messages, list) or any(
+            not isinstance(message, dict) for message in raw_messages
+        ):
+            raise ValueError("raw_messages must be an array of objects")
         return cls(
-            instance_id=data.get("instance_id", ""),
-            agent_name=data.get("agent_name", data.get("model_name_or_path", "")),
+            instance_id=instance_id,
+            agent_name=_text(data.get("agent_name", data.get("model_name_or_path", ""))),
             actions=actions,
-            final_patch=data.get("final_patch", data.get("model_patch", "")),
-            passed_tests=data.get("passed_tests", data.get("resolved", False)),
-            resolved=data.get("resolved", False),
-            model_name=data.get("model_name", data.get("model_name_or_path", "")),
-            total_tokens=data.get("total_tokens", data.get("token_count", 0)),
-            turn_count=data.get("turn_count", data.get("num_turns", 0)),
-            raw_messages=data.get("raw_messages", data.get("messages", [])),
+            final_patch=_text(data.get("final_patch", data.get("model_patch", ""))),
+            passed_tests=resolved,
+            resolved=resolved,
+            model_name=_text(data.get("model_name", data.get("model_name_or_path", ""))),
+            total_tokens=_nonnegative_int(
+                data.get("total_tokens", data.get("token_count", 0)),
+                "total_tokens",
+            ),
+            turn_count=_nonnegative_int(
+                data.get("turn_count", data.get("num_turns", 0)),
+                "turn_count",
+            ),
+            raw_messages=list(raw_messages),
         )
 
 
@@ -117,9 +206,31 @@ class TrajectoryAnalysis:
 
     @property
     def agent_trajectory_label(self) -> AgentTrajectoryLabel:
-        """Return the trajectory label, mapping from LeakagePattern if needed."""
+        """Return an outcome-consistent trajectory label.
+
+        ``passed_*`` labels cannot be inferred for a failed rollout.  Treat a
+        contradictory explicit LLM label as unknown rather than allowing it
+        to flow into a FAIR_PASS/AGENT_CHEATED fusion verdict.
+        """
         if self.trajectory_label is not None:
+            passed_labels = {
+                AgentTrajectoryLabel.AGENT_PASSED_GENUINE,
+                AgentTrajectoryLabel.AGENT_PASSED_LEAK,
+                AgentTrajectoryLabel.AGENT_PASSED_PACKAGE_LEAK,
+                AgentTrajectoryLabel.AGENT_PASSED_TEST_AWARE,
+                AgentTrajectoryLabel.AGENT_PASSED_TRAINED_HACK,
+            }
+            failed_labels = {
+                AgentTrajectoryLabel.AGENT_FAILED_COMPLETED_INTENT,
+                AgentTrajectoryLabel.AGENT_FAILED_NO_INTENT,
+            }
+            if self.trajectory_label in passed_labels and not self.resolved:
+                return AgentTrajectoryLabel.AGENT_UNKNOWN
+            if self.trajectory_label in failed_labels and self.resolved:
+                return AgentTrajectoryLabel.AGENT_UNKNOWN
             return self.trajectory_label
+        if not self.resolved:
+            return AgentTrajectoryLabel.AGENT_UNKNOWN
         _map = {
             LeakagePattern.GENUINE_SOLUTION: AgentTrajectoryLabel.AGENT_PASSED_GENUINE,
             LeakagePattern.GOLD_PATCH_LEAK: AgentTrajectoryLabel.AGENT_PASSED_LEAK,

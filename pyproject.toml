@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "bench-cleanser"
-version = "1.0.0"
-description = "Automated contamination, fairness, and trajectory-leakage analysis for SWE-bench family benchmarks."
+version = "0.1.0"
+description = "Experimental benchmark auditing and risk-adaptive verification for SWE agents."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
@@ -20,7 +20,7 @@ keywords = [
     "ai-safety",
 ]
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
@@ -32,30 +32,32 @@ classifiers = [
 ]
 dependencies = [
     "datasets>=2.14.0",
-    "openai>=1.0.0",
+    "openai>=1.54.0",
     "pydantic>=2.0.0",
     "pyyaml>=6.0",
     "tqdm>=4.65.0",
-    "azure-identity>=1.15.0",
-    "azure-identity-broker>=1.1.0",
-    "msal>=1.26.0",
-    "requests>=2.31.0",
-    "pandas>=2.0.0",
     "rich>=13.0.0",
 ]
 
 [project.optional-dependencies]
-trajectory = ["docent-python>=0.1.0"]
-# Structural-diff path uses astred_core (.NET-backed multilingual AST).
-# Install separately if you want astred precision; pipeline falls back to
-# Python stdlib `ast` when not present.
-structural = ["astred-core"]
+structural = ["tree-sitter-language-pack==0.9.1"]
 dev = [
+    "build>=1",
     "pytest>=7",
     "pytest-asyncio>=0.21",
     "pytest-cov>=4",
     "ruff>=0.4",
     "mypy>=1.10",
+    "twine>=5",
+]
+release = [
+    "build>=1,<2",
+    "cyclonedx-bom==7.3.0",
+    "detect-secrets==1.5.0",
+    "hatchling>=1.18,<2",
+    "packaging>=24,<27",
+    "pip-licenses==5.5.5",
+    "twine>=5,<7",
 ]
 
 [project.urls]
@@ -68,12 +70,21 @@ Changelog = "https://github.com/v-liaozhu/bench-cleanser/blob/master/CHANGELOG.m
 bench-cleanser = "bench_cleanser.cli:main"
 bench-cleanser-trajectory = "bench_cleanser.cli:trajectory_main"
 bench-cleanser-deep-dive = "bench_cleanser.cli:deep_dive_main"
+bench-cleanser-acquire = "bench_cleanser.verification.acquire:main"
+bench-cleanser-corpus = "bench_cleanser.verification.corpus:main"
+bench-cleanser-evaluate = "bench_cleanser.verification.evaluate:main"
+bench-cleanser-manifest = "bench_cleanser.verification.manifest:main"
+bench-cleanser-route = "bench_cleanser.verification.route:main"
+
+[tool.hatch.build]
+exclude = [
+    "/copilot-codex-claude-bootstrap.sh",
+    "/scripts/codex",
+    "/tmp",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["bench_cleanser"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"bench_cleanser/prompts" = "bench_cleanser/prompts"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -112,13 +123,10 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E402", "F401", "F841"]
 "bench_cleanser/__init__.py" = ["F401"]   # re-exports
-"bench_cleanser/_internal/cloudgpt.py" = ["ALL"]   # vendored, intentionally untouched
 "bench_cleanser/code_visitor.py" = ["E402"]   # internal forward-decl import pattern
-"bench_cleanser/analysis/structural_diff.py" = ["F401"]   # try-import probe for astred_core
 
 [tool.mypy]
 python_version = "3.11"
 warn_redundant_casts = true
 warn_unused_ignores = true
 ignore_missing_imports = true
-exclude = ["bench_cleanser/_internal/cloudgpt.py"]

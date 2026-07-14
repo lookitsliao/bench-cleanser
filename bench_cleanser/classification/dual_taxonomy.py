@@ -5,10 +5,14 @@ Axis 2 assigns a single AgentTrajectoryLabel per agent-task pair.
 
 7 binary labels, bucket-based severity, no ratio thresholds.
 
-Taxonomy alignment with OpenAI's SWE-bench Verified audit (April 2026):
-  - "Narrow test cases" (35.5% of audited failures) -> APPROACH_LOCK
-  - "Wide test cases" (18.8% of audited failures)   -> OVER_TEST
+Taxonomy cross-walk to OpenAI's SWE-bench Verified retirement analysis
+(February 2026):
+  - "Narrow test cases" -> APPROACH_LOCK
+  - "Wide test cases"   -> OVER_TEST
   - Training contamination (gold patch memorization) -> Axis 2 agent_passed_leak
+
+The category percentages are intentionally omitted here: they describe a
+particular audited-failure denominator, not the full benchmark.
 
 Uses structured output with strict JSON schema enforcement.
 """
@@ -24,7 +28,6 @@ from bench_cleanser.models import (
     DescriptionClarity,
     IntentStatement,
     PatchAnalysis,
-    PatchVerdict,
     Severity,
     TaskContaminationLabel,
     TaskLabelAssignment,
@@ -55,8 +58,8 @@ LABEL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "Would a correct-but-different solution fail the F2P tests?  "
             "Do the tests assert on implementation details (specific class, "
             "method, or code structure) rather than on observable behavior?  "
-            "Does the gold patch take a fundamentally different approach "
-            "than the problem statement suggests?"
+            "Require direct test-to-patch coupling; a suggested implementation, "
+            "ordinary new test, or different gold-patch approach is insufficient."
         ),
     },
     "over_test": {
@@ -149,8 +152,8 @@ def compute_task_severity(
 ) -> Severity:
     """Compute task severity from label presence (pure set membership).
 
-    No arithmetic, no thresholds. The label co-occurrence rules encode a
-    core insight from the human audit of 107 SEVERE cases:
+    No arithmetic and no score thresholds. The label rules implement this
+    project's conservative review policy:
 
       In an authentic PR, the gold patch and the F2P tests are authored
       together. If the tests assert on behaviour NOT described in the
@@ -162,8 +165,8 @@ def compute_task_severity(
             because the agent has no signal to know the tests demand
             behaviour outside the problem.
 
-      Both (a) and (b) are SEVERE. OVER_TEST alone is RARE and demands
-      maximum attention; it is NOT a softer form of (a).
+      Both (a) and (b) enter the SEVERE review bucket. This is a triage
+      decision, not a claim about prevalence, author intent, or causal origin.
 
     Rules:
       SEVERE  = APPROACH_LOCK  ∈ labels  OR
@@ -257,34 +260,10 @@ def _heuristic_labels(
             ],
         ))
 
-    # Task/Patch Mismatch (AUDIT Pattern 1)
-    if patch_analysis.required_count == 0 and patch_analysis.unrelated_count >= 2:
-        candidates.append(TaskLabelAssignment(
-            label=TaskContaminationLabel.APPROACH_LOCK,
-            evidence=[
-                f"Task/Patch Mismatch: 0 REQUIRED hunks, {patch_analysis.unrelated_count} UNRELATED hunks",
-                "Gold patch implements entirely different functionality than problem describes",
-            ],
-        ))
-
-    # Compilation barrier (AUDIT Pattern 3)
-    monolithic_extensions = {".go", ".ts", ".tsx", ".rs"}
-    if patch_analysis.unrelated_count > 0:
-        unrelated_files = [hv.file_path for hv in patch_analysis.hunk_verdicts
-                           if hv.verdict == PatchVerdict.UNRELATED]
-        has_monolithic = any(
-            any(f.endswith(ext) for ext in monolithic_extensions)
-            for f in unrelated_files
-        )
-        if has_monolithic:
-            candidates.append(TaskLabelAssignment(
-                label=TaskContaminationLabel.APPROACH_LOCK,
-                evidence=[
-                    f"Potential compilation barrier: UNRELATED hunks in monolithic project files",
-                    f"Files: {', '.join(unrelated_files[:5])}",
-                    "In Go/TypeScript/Rust, unrelated changes may be required for compilation",
-                ],
-            ))
+    # A task/patch mismatch and unrelated hunks in compiled-language files are
+    # already represented by OVER_PATCH.  Neither proves that the F2P tests
+    # reject a valid alternative implementation, so they must not be promoted
+    # to the SEVERE APPROACH_LOCK label without direct test coupling below.
 
     # UNCLEAR_DESCRIPTION is intentionally NOT triggered by a float threshold
     # on ambiguity_score.  The classifier LLM decides from the problem text
@@ -307,19 +286,17 @@ def _heuristic_labels(
                 ))
                 break
 
-    # APPROACH_LOCK: reporter suggested a specific fix approach
-    if intent.decomposition and intent.decomposition.suggested_fix:
-        candidates.append(TaskLabelAssignment(
-            label=TaskContaminationLabel.APPROACH_LOCK,
-            evidence=[
-                f"Reporter suggests fix approach: "
-                f"{intent.decomposition.suggested_fix}",
-            ],
-        ))
+    # A reporter-suggested fix is part of the task context, not evidence that
+    # the tests lock agents to that approach.  The LLM sees it in the prompt
+    # and may only assign APPROACH_LOCK when test evidence supports the claim.
 
-    # APPROACH_LOCK: overpatch-overtest coupling (tests require out-of-scope hunks)
+    # APPROACH_LOCK: direct overpatch-overtest coupling (tests require
+    # out-of-scope hunks). Identifier-overlap-only links are intentionally
+    # retained as review evidence but cannot create a severe label.
     if cross_ref and cross_ref.has_coupling:
         for cd in cross_ref.couplings:
+            if cd.evidence_strength == "weak":
+                continue
             candidates.append(TaskLabelAssignment(
                 label=TaskContaminationLabel.APPROACH_LOCK,
                 evidence=[
@@ -329,19 +306,9 @@ def _heuristic_labels(
             ))
             break
 
-    # Pre-staged test detection (AUDIT_PROTOCOL Gap 1)
-    if record:
-        has_test_patch = bool(getattr(record, 'test_patch', '') and record.test_patch.strip())
-        has_before_cmd = "git checkout" in getattr(record, 'before_repo_set_cmd', '')
-        if (has_test_patch or has_before_cmd) and not test_analysis.has_modified_tests:
-            candidates.append(TaskLabelAssignment(
-                label=TaskContaminationLabel.APPROACH_LOCK,
-                evidence=[
-                    "Tests pre-staged via before_repo_set_cmd (git checkout from gold commit)",
-                    "Pipeline is_modified=False but test_patch has content — gap in modification detection",
-                    "Pre-staged tests may assert on exact implementation values from gold commit",
-                ],
-            ))
+    # Likewise, a setup command that checks out tests says nothing by itself
+    # about whether their assertions overconstrain valid solutions.  Preserve
+    # the command in the task prompt, but abstain from a heuristic label.
 
     return candidates
 
@@ -404,7 +371,10 @@ def _build_task_classifier_user_prompt(
         parts.append(f"- Bug description: {d.bug_description}")
         if d.suggested_fix:
             parts.append(f"- Reporter's suggested fix: {d.suggested_fix}")
-            parts.append("  (Compare this to the gold patch — divergence signals APPROACH_LOCK)")
+            parts.append(
+                "  (Treat as task context; divergence alone does not establish "
+                "APPROACH_LOCK without test evidence.)"
+            )
         parts.append(f"- Legitimacy: {d.legitimacy}")
         entities = []
         if d.mentioned_files:
@@ -477,8 +447,20 @@ def _build_task_classifier_user_prompt(
             if cd.linked_files:
                 parts.append(f"    Files: {', '.join(cd.linked_files)}")
             parts.append(f"    {cd.reasoning}")
-        parts.append("  This is a strong APPROACH_LOCK signal: tests require code "
-                     "the problem doesn't ask for.")
+        direct_count = sum(
+            cd.evidence_strength != "weak" for cd in cross_ref.couplings
+        )
+        weak_count = len(cross_ref.couplings) - direct_count
+        if direct_count:
+            parts.append(
+                f"  {direct_count} direct coupling(s) support APPROACH_LOCK: "
+                "tests appear to require code the problem doesn't ask for."
+            )
+        if weak_count:
+            parts.append(
+                f"  {weak_count} identifier-overlap-only coupling(s) are weak "
+                "review evidence; do not assign APPROACH_LOCK from them alone."
+            )
         parts.append("")
 
     # Heuristic candidates (guidance for LLM)
@@ -544,17 +526,11 @@ async def classify_task_labels(
                 reasoning=item.reasoning,
             ))
 
-        # Protect a curated set of high-precision deterministic heuristics
-        # from being silently overruled by the LLM. For pre-staged tests,
-        # 0-REQUIRED task/patch mismatch, and self-referential problem text
-        # the heuristic already cites unambiguous evidence the LLM doesn't
-        # see — so if such a heuristic fired and the LLM dropped it, we
-        # re-append the original evidence. The LLM still drives everything
-        # else.
+        # Preserve only genuinely deterministic context evidence. A setup
+        # command that pre-stages tests and a task/patch mismatch are review
+        # signals, not proof of APPROACH_LOCK, and therefore are not protected
+        # from LLM abstention.
         protected_evidence_markers = (
-            "Pre-staged via before_repo_set_cmd",
-            "Tests pre-staged via before_repo_set_cmd",
-            "Task/Patch Mismatch:",
             "Problem contains \"",
         )
         llm_label_set = {la.label for la in labels}
@@ -599,4 +575,3 @@ async def classify_task_labels(
                 evidence=["Heuristic fallback — no signals"],
             )]
         return heuristic
-

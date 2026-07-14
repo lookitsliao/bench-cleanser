@@ -17,11 +17,11 @@ did, was this row a fair measurement of capability?*
 | `FAIR_PASS` | Genuine trajectory on a clean/minor task. | No |
 | `AGENT_CHEATED` | Trajectory shows leakage (`agent_passed_leak`, `_test_aware`, `_package_leak`, `_trained_hack`). | **Yes** |
 | `CONTAMINATED_PASS` | Genuine trajectory on a SEVERE/MODERATE task. The task is broken; pass cannot be trusted. | **Yes** |
-| `AMBIGUOUS_PASS` | Passed a clean task with `agent_unknown` trajectory. Manual review. | No |
+| `AMBIGUOUS_PASS` | Passed a clean task with `agent_unknown` trajectory. Manual review. | **Yes** |
 | `UNFAIR_FAILURE` | Failed after completing the described intent; task carries `APPROACH_LOCK` or `OVER_TEST`. | **Yes** |
 | `FAIR_FAILURE` | Engaged the problem, failed; task clean. Genuine capability gap. | No |
 | `AGENT_DISENGAGED` | Never produced an intent matching the problem. | No |
-| `INCONCLUSIVE` | Neither axis is decisive. | No |
+| `INCONCLUSIVE` | Neither axis is decisive. | **Yes** |
 
 `invalidates_measurement` is `True` exactly when the pass/fail outcome
 cannot be trusted for any reason. It's the single boolean a consumer
@@ -64,16 +64,16 @@ trajectory.label = agent_passed_genuine
 trajectory.label = agent_unknown
 ∧ trajectory.resolved = True
 ∧ severity = CLEAN
-  → AMBIGUOUS_PASS, invalidates=False
+  → AMBIGUOUS_PASS, invalidates=True
 
 trajectory.label = agent_unknown
 ∧ trajectory.resolved = True
 ∧ severity ≠ CLEAN
-  → INCONCLUSIVE, invalidates=False
+  → INCONCLUSIVE, invalidates=True
 
 trajectory.label = agent_unknown
 ∧ trajectory.resolved = False
-  → INCONCLUSIVE, invalidates=False
+  → INCONCLUSIVE, invalidates=True
 ```
 
 Rule 4 splits on `trajectory.resolved` (the agent's reported pass/fail
@@ -108,7 +108,7 @@ trajectory.label = agent_failed_no_intent
 
 ```
 otherwise
-  → INCONCLUSIVE, invalidates=False
+  → INCONCLUSIVE, invalidates=True
 ```
 
 ---

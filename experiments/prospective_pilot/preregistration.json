@@ -1,0 +1,370 @@
+{
+  "schema_version": "prospective-evidence-routing-protocol-0.3.0",
+  "study_id": "matched-24-independent-evidence-development-pilot-v2",
+  "status": "draft_post_feasibility_execution_not_registered",
+  "claim_scope": {
+    "confirmatory": false,
+    "measurement_design": "prospective measurement collection on an outcome-exposed development cohort; not prospective policy validation",
+    "hypotheses_supported": [],
+    "prospective_only_for": [
+      "future independent execution outcomes acquired after a clean committed freeze, excluding the pre-freeze sympy__sympy-15976 and sphinx-doc__sphinx-8475 task clusters",
+      "new blinded task adjudications",
+      "new blinded candidate adjudications",
+      "new blinded evidence-validity adjudications",
+      "new measured action costs"
+    ],
+    "cannot_support": [
+      "a held-out policy-performance claim",
+      "a low-risk deployment guarantee",
+      "model or scaffold superiority",
+      "training or reinforcement-learning benefit",
+      "a new SWE-bench score",
+      "evidence for hypotheses H1 through H6"
+    ]
+  },
+  "frozen_inputs": {
+    "acquisition_manifest_sha256": "f79578fb9860ef0eb4bf02a62691e98c4002a5de96b8dda9ab2d3616f082b574",
+    "cohort_identity_sha256": "601dfd7774d58876b42240e4f98e897c19a55356eccca67a39f81a4c7299ca32",
+    "selected_task_identities_sha256": "4521fcca1866d783919b9e3899e0c6e679f2a4c790e63420c2747abb6716f4eb",
+    "matched_study_code_sha256": "7afd78959705bdad301239a3fae85a9fb56d0253e9fca63c65ffbe01c3ce83c3",
+    "task_count": 24,
+    "candidates_per_task": 3,
+    "candidate_count": 72,
+    "cohort_rule": "all candidates in the exact source-identical matched-v2 development cohort; no task or candidate replacement"
+  },
+  "knowledge_boundary": {
+    "existing_hosted_outcomes_known_to_developers": true,
+    "outcome_naive": false,
+    "hosted_outcomes_allowed_in_live_policy_state": false,
+    "hosted_outcomes_allowed_in_new_adjudication": false,
+    "candidate_masking": "replace submission/model labels with opaque patch-digest identifiers before policy fitting, execution ordering, and adjudication",
+    "independent_execution_outcomes_known_to_developers": true,
+    "pre_freeze_feasibility_task_ids": [
+      "sympy__sympy-15976",
+      "sphinx-doc__sphinx-8475"
+    ],
+    "pre_freeze_evidence_allowed_in_prospective_or_ope_estimands": false,
+    "protocol_committed_before_pre_freeze_execution": false,
+    "protocol_externally_registered_before_pre_freeze_execution": false,
+    "interpretation": "post-feasibility development protocol; not a retrospective claim converted into a preregistration"
+  },
+  "prehistory": {
+    "required_record": "experiments/prospective_pilot/prehistory.json",
+    "schema_version": "prospective-pilot-prehistory-0.1.0",
+    "bytes": 6328,
+    "sha256": "ec33b39ebdf6e691fb5b8f15ab77dccf1ac117511d42b2f18fff0eb8ac637d63",
+    "event_count": 2,
+    "chain_head_sha256": "27b48fd91b9e5bc6f4b2818ccdefcf965e70a16e4d2b8dfa9f51b4b6324d0a51",
+    "excluded_task_clusters_for_prospective_or_ope_estimands": [
+      "sympy__sympy-15976",
+      "sphinx-doc__sphinx-8475"
+    ],
+    "replacement": false,
+    "remaining_future_task_count": 22,
+    "all_24_tasks_may_be_reported_only_as_a_descriptive_development_frame": true
+  },
+  "activation_configuration": {
+    "schema_version": "prospective-pilot-activation-configuration-0.1.0",
+    "objects": [
+      {
+        "role": "adjudication_config",
+        "logical_path": "experiments/prospective_pilot/adjudication_plan.json",
+        "bytes": 4096,
+        "sha256": "b4cab8515f489505f1a28e2cea071fbe0b9888d41baaffb6c5126e437fde2860"
+      },
+      {
+        "role": "analysis_plan",
+        "logical_path": "experiments/prospective_pilot/analysis_plan.json",
+        "bytes": 5314,
+        "sha256": "6a85c67c94c3a1eb6041d56fef9b34d2b994333c56225361bf25ee3f6c47909d"
+      },
+      {
+        "role": "collection_policy",
+        "logical_path": "experiments/prospective_pilot/collection_policy.json",
+        "bytes": 8168,
+        "sha256": "c5d276ede4611bb62d264767c14ef38909acf4d6b025d3d89868dad0389cbf8a"
+      },
+      {
+        "role": "execution_config",
+        "logical_path": "experiments/prospective_pilot/execution_freeze.json",
+        "bytes": 3043,
+        "sha256": "21e08e590299e95697c23cfd5892c80fd6e2613551ba6eaada508a97c479e073"
+      },
+      {
+        "role": "frame_manifest",
+        "logical_path": "experiments/prospective_pilot/frame_manifest.json",
+        "bytes": 8455,
+        "sha256": "4b2be4f77bc670685697958301dc4032777b8ba531e97231152dc847e6bbb319"
+      },
+      {
+        "role": "resource_ceiling",
+        "logical_path": "experiments/prospective_pilot/resource_ceiling.json",
+        "bytes": 2193,
+        "sha256": "107b931ac1ec9bef652d0e63af1933e1e29da44cddea69f7dc524de641e7248c"
+      },
+      {
+        "role": "scheduler_contract",
+        "logical_path": "experiments/prospective_pilot/scheduler_contract.json",
+        "bytes": 7915,
+        "sha256": "637992c14a60684c5a54e740bf996d051f51606eca151020dea4fbcd8f7cdc8d"
+      }
+    ]
+  },
+  "unit_of_analysis": {
+    "randomization_cluster": "task",
+    "evidence_subject": "candidate patch",
+    "terminal_output": "select exactly one candidate or abstain for each task",
+    "dependence": "candidate and evidence events are nested within task and repository"
+  },
+  "primary_estimand": {
+    "name": "accepted_set_false_accept_risk",
+    "claim_scope": "descriptive development estimand; not a prospective or confirmatory estimate for the 24-task frame",
+    "definition": "unsafe selected candidates divided by all non-abstaining selections",
+    "unsafe": "task invalid or indeterminate, or candidate incorrect or indeterminate conditional on a valid task",
+    "report_with": [
+      "coverage",
+      "mean full-execution acquisitions per task",
+      "mean warm worker wall-seconds per task",
+      "cold image/build cost separately",
+      "complete risk-coverage-cost frontier"
+    ],
+    "pilot_target": 0.1,
+    "target_is_certifiable_at_n_24": false
+  },
+  "secondary_estimands": [
+    {
+      "name": "paired_cost_vs_always_full",
+      "unit": "task",
+      "condition": "matched selected-candidate loss and coverage"
+    },
+    {
+      "name": "containerized_vs_container_free_execution_agreement",
+      "unit": "candidate execution",
+      "scope": "eight tasks selected as the two lowest domain-separated task hashes within each of the four cohort repositories",
+      "interpretation": "execution-substrate factorial, not execution-free verification"
+    },
+    {
+      "name": "hosted_vs_independent_execution_disagreement",
+      "unit": "candidate",
+      "interpretation": "diagnostic only; neither observation is semantic truth"
+    }
+  ],
+  "evidence_actions": {
+    "deterministic_initial": [
+      "static patch and repository features"
+    ],
+    "disclosed_nonpolicy_action_ids": [
+      "hardening_curator",
+      "static_bootstrap"
+    ],
+    "randomized_catalog": [
+      "reference-free semantic judge",
+      "targeted FAIL_TO_PASS execution",
+      "full official harness execution",
+      "fresh-worktree repeated full execution",
+      "accept",
+      "reject",
+      "abstain"
+    ],
+    "semantic_availability_rule": "freeze one model, prompt, schema, endpoint class, and cost policy before the protocol commit; otherwise mark semantic unavailable for every task",
+    "terminal_rule": "accept or reject is eligible only after the frozen admissibility rule is satisfied; abstention is always eligible",
+    "curator_only_after_policy": [
+      "gold sanity",
+      "base/no-op sanity",
+      "negative and mutation sanity",
+      "alternative-correct preservation review",
+      "blinded human adjudication"
+    ]
+  },
+  "behavior_policy": {
+    "sampler": {
+      "id": "inverse-cdf",
+      "version": "v1",
+      "implementation": "bench_cleanser.verification.policy_log.sample_behavior_action"
+    },
+    "mixture": "0.5 * preferred_action + 0.5 * uniform_over_available_actions",
+    "disclosed_action_count": 9,
+    "exploration_mass": 0.5,
+    "maximum_available_actions": 7,
+    "minimum_history_conditioned_propensity": 0.07142857142857142,
+    "write_ahead_required": true,
+    "full_action_catalog_required": true,
+    "positive_support_required": true,
+    "target_policy_restriction": "evaluate only policies supported by the logged action catalog",
+    "truth_stream": "fully execute every candidate later in a curator-only stream excluded from policy history"
+  },
+  "execution_protocol": {
+    "primary_substrate": "digest-pinned official containerized SWE-bench environment",
+    "paired_secondary_substrate": "container-free isolated environment executing the identical repository, commit, patch, test patch, and argv",
+    "container_free_scope": "eight task-level clusters selected before independent outcomes by the frozen hash rule",
+    "required_freezes": [
+      "SWE-bench harness commit",
+      "base and environment commits",
+      "test patch and FAIL_TO_PASS/PASS_TO_PASS identifiers",
+      "environment and evaluation scripts",
+      "dependency lock",
+      "architecture",
+      "image digest",
+      "network policy",
+      "timeout and resource limits",
+      "candidate and replicate order seed"
+    ],
+    "replicates": 2,
+    "disagreement_replicate": 3,
+    "fresh_worktree_per_run": true,
+    "network_during_tests": false,
+    "failure_classes": [
+      "environment construction",
+      "patch application",
+      "test failure",
+      "timeout",
+      "infrastructure error"
+    ]
+  },
+  "adjudication_protocol": {
+    "reviewers": 3,
+    "model_and_submission_blinded": true,
+    "independent_initial_labels": true,
+    "labels": [
+      "task validity",
+      "candidate correctness conditional on task validity",
+      "per-event evidence validity"
+    ],
+    "retain_disagreement": true,
+    "retain_indeterminate": true,
+    "minimum_paired_ready_reviewers": 2,
+    "minimum_paired_ready_agreement": 0.8,
+    "execution_is_adjudication": false
+  },
+  "cost_ledger": {
+    "required_existing_fields": [
+      "wall_seconds",
+      "cpu_seconds",
+      "input_tokens",
+      "output_tokens",
+      "storage_bytes",
+      "usd"
+    ],
+    "required_extended_fields": [
+      "queue_seconds",
+      "peak_rss_bytes",
+      "image_bytes",
+      "cold_build_seconds",
+      "cold_pull_seconds",
+      "cache_state",
+      "human_minutes"
+    ],
+    "fixed_concurrency": true,
+    "report_cold_and_amortized_costs": true
+  },
+  "baselines": [
+    "always full plus repeat",
+    "never execute static only",
+    "semantic only",
+    "random evidence at matched cost",
+    "static to targeted to full fixed cascade",
+    "fixed risky-file and language rule",
+    "smallest patch",
+    "hash random",
+    "post-rollout history",
+    "matched-v2 fixed hybrid",
+    "three opaque fixed candidate-priority orders",
+    "curator oracle upper bound"
+  ],
+  "stopping_and_power": {
+    "fixed_task_count": 24,
+    "prehistory_excluded_task_count": 2,
+    "remaining_future_task_count": 22,
+    "outcome_dependent_stopping": false,
+    "replacement": false,
+    "operational_halts": [
+      "artifact or digest mismatch",
+      "blinding breach",
+      "predeclared hard resource ceiling"
+    ],
+    "zero_error_one_sided_95_upper_bound_at_24": 0.11734615615494881,
+    "zero_error_one_sided_95_upper_bound_at_22": 0.12730543165483876,
+    "zero_error_bound_interpretation": "optimistic full-coverage iid reference only; not cluster-valid inference under adaptive acceptance",
+    "minimum_accepts_for_zero_error_95_upper_bound_below_0_02": 149,
+    "minimum_accepts_for_zero_error_95_upper_bound_below_0_01": 299,
+    "uncertainty": [
+      "exact accepted-set binomial bound",
+      "paired task-level randomization interval",
+      "repository-stratified task bootstrap as sensitivity only"
+    ],
+    "forbidden_claims": [
+      "repository subgroup performance",
+      "language subgroup performance",
+      "cluster-asymptotic certainty from four repositories"
+    ]
+  },
+  "go_no_go": {
+    "purpose": "protocol feasibility, not efficacy",
+    "requirements": {
+      "patch_and_digest_join_fraction": 1.0,
+      "write_ahead_log_fraction": 1.0,
+      "minimum_observed_propensity": 0.07142857142857142,
+      "environment_construction_fraction": 0.9,
+      "cost_field_completion_fraction": 0.95,
+      "adjudication_completion_and_agreement_reported": true
+    },
+    "always_execute_winning_is_valid_negative_result": true
+  },
+  "activation_readiness": {
+    "ready": false,
+    "missing": [
+      "Docker daemon and provisioner attestation",
+      "aggregate resource reservation settlement and partial-frame reporting",
+      "signed deterministic bootstrap receipt acquisition",
+      "durable exclusive scheduler ledger and write-ahead dispatcher",
+      "durable bootstrap curator adjudication substrate and resource ledgers",
+      "execution target architecture",
+      "opaque-map custodian identity",
+      "per-task dependency-lock manifest",
+      "per-task execution-spec manifest",
+      "per-task image-digest manifest",
+      "reviewer identities and independence attestations",
+      "semantic model prompt endpoint calibration and cost identity",
+      "trusted ledger-to-corpus terminal-outcome and cost compiler",
+      "typed acquisition-result persistence and action-spec preimages"
+    ],
+    "external_freeze_receipt_required": true,
+    "activation_command_policy": "validation must fail closed while ready is false, any configured binding is unavailable, or the external clean-commit freeze receipt is absent"
+  },
+  "required_release_objects": [
+    "protocol prose activation configs and their exact digest manifest",
+    "external clean commit tree and Git-blob freeze receipt",
+    "append-only prehistory and deviation record",
+    "candidate and task freeze",
+    "harness, image, dependency, and test-spec freeze",
+    "opaque candidate map held separately",
+    "static feature freeze",
+    "policy, configuration, and code identities",
+    "write-ahead decisions JSONL",
+    "action-spec preimages",
+    "raw immutable execution logs and artifacts",
+    "cost ledger",
+    "oracle-hardening records",
+    "blinded adjudications",
+    "corpus-0.5 JSONL, digest, and report",
+    "evaluation-0.4 outcomes and report",
+    "propensity and overlap diagnostics",
+    "task-level Best-of-N report",
+    "all failures and abstentions",
+    "SBOM and analysis-environment lock",
+    "deviation log"
+  ],
+  "deviation_policy": {
+    "silent_changes_forbidden": true,
+    "append_only_log_required": true,
+    "material_change_requires_new_protocol_version": true,
+    "material_changes": [
+      "cohort or candidate change",
+      "outcome definition change",
+      "action catalog or propensity change",
+      "budget or stopping change",
+      "adjudication change",
+      "primary analysis change"
+    ]
+  }
+}

@@ -1,0 +1,357 @@
+{
+  "schema_version": "sphinx-execution-smoke-0.1.0",
+  "study_id": "sphinx-8475-container-free-post-draft-pre-freeze-feasibility-v2",
+  "classification": {
+    "stage": "post_draft_pre_freeze_feasibility_execution",
+    "claim_scope": "container_free_infrastructure_bring_up_only",
+    "prospective": false,
+    "blinded": false,
+    "official_swe_bench_harness": false,
+    "official_swe_bench_image": false,
+    "task_count": 1,
+    "candidate_count": 3,
+    "repeat_count_per_variant": 3,
+    "observation_count": 15,
+    "phase_execution_count": 30,
+    "supports_routing_claims": false,
+    "supports_hypotheses_h1_h6": false
+  },
+  "protocol_state": {
+    "selection": "manual_feasibility_selection_after_candidate_patches_and_hosted_outcomes_were_available",
+    "registration_freeze": null,
+    "clean_commit_freeze": null,
+    "bench_cleanser_commit": "0f82a1d2739fce5600bb481bac2a2c2c96630462",
+    "bench_cleanser_tree": "concurrently_dirty_and_not_a_claim_identity",
+    "precursor_bring_up": {
+      "scored": false,
+      "included_in_evidence_bundle": false,
+      "events": [
+        "an unscored dependency preflight exposed incompatible docutils 0.23; the final runtime pins docutils 0.16",
+        "an unscored v1 acquisition produced setup errors because the explicit pytest basetemp parent did not exist",
+        "an unscored source-mode preflight showed that fully read-only fixture directories prevent temporary _build creation"
+      ],
+      "consequence": "the v2 runner, runtime, source modes, and acquisition were revised after these failures; the result is feasibility evidence, not a prospective estimate"
+    }
+  },
+  "task": {
+    "instance_id": "sphinx-doc__sphinx-8475",
+    "repository": "sphinx-doc/sphinx",
+    "version": "3.4",
+    "base_commit": "3ea1ec84cc610f7a9f4f6b354e264565254923ff",
+    "base_tree": "3532e3bb4c25e44e2741eb63b5b634207583c743",
+    "environment_setup_commit": "3f560cd67239f75840cc7a439ab54d8509c855f6",
+    "canonical_row": {
+      "serialization": "utf8-json-sort-keys-compact-all-canonical-columns-v1",
+      "bytes": 4777,
+      "sha256": "ef2433e6fe3ae26641615610f6dfa3ae389267771456c67f013f4b4f5268986b"
+    },
+    "oracle_tests": {
+      "test_patch_bytes": 1277,
+      "test_patch_sha256": "805ddf0fe1635f793420f7e16d069d216c3078aa2d0f7d70900c75809b3e0d9a",
+      "test_patch_files": [
+        "tests/test_build_linkcheck.py"
+      ],
+      "fail_to_pass": [
+        "tests/test_build_linkcheck.py::test_TooManyRedirects_on_HEAD"
+      ],
+      "pass_to_pass": [
+        "tests/test_build_linkcheck.py::test_defaults",
+        "tests/test_build_linkcheck.py::test_defaults_json",
+        "tests/test_build_linkcheck.py::test_anchors_ignored",
+        "tests/test_build_linkcheck.py::test_raises_for_invalid_status",
+        "tests/test_build_linkcheck.py::test_auth_header_uses_first_match",
+        "tests/test_build_linkcheck.py::test_auth_header_no_match",
+        "tests/test_build_linkcheck.py::test_linkcheck_request_headers",
+        "tests/test_build_linkcheck.py::test_linkcheck_request_headers_no_slash",
+        "tests/test_build_linkcheck.py::test_linkcheck_request_headers_default",
+        "tests/test_build_linkcheck.py::test_follows_redirects_on_HEAD",
+        "tests/test_build_linkcheck.py::test_follows_redirects_on_GET",
+        "tests/test_build_linkcheck.py::test_invalid_ssl",
+        "tests/test_build_linkcheck.py::test_connect_to_selfsigned_fails",
+        "tests/test_build_linkcheck.py::test_connect_to_selfsigned_with_tls_verify_false",
+        "tests/test_build_linkcheck.py::test_connect_to_selfsigned_with_tls_cacerts",
+        "tests/test_build_linkcheck.py::test_connect_to_selfsigned_with_requests_env_var",
+        "tests/test_build_linkcheck.py::test_connect_to_selfsigned_nonexistent_cert_file"
+      ]
+    },
+    "patches": [
+      {
+        "variant": "gold",
+        "role": "canonical_gold_sanity_control",
+        "bytes": 994,
+        "sha256": "cf0c7fdff6180321a596c744be627230af58acbaa9e2c7aa3b3105a32e73a658",
+        "source_submission_id": null,
+        "source_url": null,
+        "functional_diff_matches_gold": true,
+        "unscored_extra_files": 0
+      },
+      {
+        "variant": "gpt5",
+        "role": "candidate",
+        "bytes": 1072,
+        "sha256": "8a9725217a4d60e5794753427717c89fa9dd4de3b5d3a743bb4e728ae7efa317",
+        "source_submission_id": "20250807_openhands_gpt5",
+        "source_url": "https://swe-bench-submissions.s3.amazonaws.com/verified/20250807_openhands_gpt5/logs/sphinx-doc__sphinx-8475/patch.diff",
+        "functional_diff_matches_gold": true,
+        "unscored_extra_files": 0
+      },
+      {
+        "variant": "kimi_k2",
+        "role": "candidate",
+        "bytes": 25646,
+        "sha256": "9c31db10b7f534e4acbfe4d0bfc4182db78ab6e18f701402b73c49e008854ad8",
+        "source_submission_id": "20250716_openhands_kimi_k2",
+        "source_url": "https://swe-bench-submissions.s3.amazonaws.com/verified/20250716_openhands_kimi_k2/logs/sphinx-doc__sphinx-8475/patch.diff",
+        "functional_diff_matches_gold": true,
+        "unscored_extra_files": 4
+      },
+      {
+        "variant": "claude_4_sonnet",
+        "role": "candidate",
+        "bytes": 19740,
+        "sha256": "f72188ee8d45ca089db5964c52b78740bb9d6315b0c6a65a5682f5a0f953457f",
+        "source_submission_id": "20250524_openhands_claude_4_sonnet",
+        "source_url": "https://swe-bench-submissions.s3.amazonaws.com/verified/20250524_openhands_claude_4_sonnet/logs/sphinx-doc__sphinx-8475/patch.diff",
+        "functional_diff_matches_gold": true,
+        "unscored_extra_files": 3
+      }
+    ]
+  },
+  "sources": {
+    "canonical_dataset": {
+      "dataset_id": "princeton-nlp/SWE-bench_Verified",
+      "split": "test",
+      "revision": "c104f840cc67f8b6eec6f759ebc8b2693d585d4a",
+      "authoritative_url": "https://huggingface.co/datasets/princeton-nlp/SWE-bench_Verified/resolve/c104f840cc67f8b6eec6f759ebc8b2693d585d4a/data/test-00000-of-00001.parquet",
+      "retrieval_url": "https://raw.githubusercontent.com/justin-napolitano/SWE-bench_Verified/f34deb86cca28b6050f181f5514a3eb7d7d70be4/data/test-00000-of-00001.parquet",
+      "retrieval_revision": "f34deb86cca28b6050f181f5514a3eb7d7d70be4",
+      "bytes": 2096679,
+      "sha256": "a45b1fe4e2f0c8390b2b2938ac83e92ed5979000856808f3679c07812e9e6dcd"
+    },
+    "base_source_archive": {
+      "logical_filename": "sphinx-8475-3ea1ec84cc61.tar.gz",
+      "bytes": 5973385,
+      "sha256": "2e88bac2c9e5807f6435e790066b52263dbf3e872d7c3807e49fe1fd3d0dea71",
+      "commit": "3ea1ec84cc610f7a9f4f6b354e264565254923ff",
+      "tree": "3532e3bb4c25e44e2741eb63b5b634207583c743",
+      "acquisition_url": null,
+      "acquisition_url_receipt": "not_recorded"
+    }
+  },
+  "preparation": {
+    "ordered_steps": [
+      "extract exact base source archive into a fresh per-role tree",
+      "apply exact oracle test patch",
+      "apply exact candidate patch, canonical gold patch, or no implementation patch for baseline",
+      "remove write permission from source files while leaving directories writable for fixture copies",
+      "compute a path-independent complete tree digest",
+      "execute explicit scored node IDs with bytecode and pytest cache disabled",
+      "recompute the complete tree digest before and after each phase"
+    ],
+    "candidate_test_patch_overlap": false,
+    "official_reset_semantics_required": false,
+    "source_trees": {
+      "baseline": "3d5ce696b4db6fffbd3c4b0b01f59e17e9645e5981f184742c2d8ca6de7e4909",
+      "gpt5": "20ebd9cdb23bec46e1385add90b6dcb6f3c8578295afa0bbfbc7d82dca3b98ed",
+      "kimi_k2": "ade4ebe3f0459054c0a1a56577241e5a37f0564b2224ea8ebcee8365aff7262f",
+      "claude_4_sonnet": "32fa6988d6be5b699cc7d2a1f14b1576d847a47fea191842ed2e98f8ae9bcb65",
+      "gold": "20ebd9cdb23bec46e1385add90b6dcb6f3c8578295afa0bbfbc7d82dca3b98ed"
+    },
+    "gpt5_and_gold_complete_tree_identity": true
+  },
+  "runtime": {
+    "substrate": {
+      "containerized": false,
+      "os": "macOS",
+      "platform": "macOS-26.5.1-arm64-arm-64bit",
+      "architecture": "arm64"
+    },
+    "python": {
+      "distribution": "python-build-standalone install_only",
+      "version": "3.9.25",
+      "archive_url": "https://github.com/astral-sh/python-build-standalone/releases/download/20251031/cpython-3.9.25%2B20251031-aarch64-apple-darwin-install_only.tar.gz",
+      "archive_bytes": 18471356,
+      "archive_sha256": "87275619c2706affa4d1090d2ca3dad354b6d69f8b85dbfafe38785870751b9a",
+      "binary_bytes": 50152,
+      "binary_sha256": "26d9b2c90785be815d334df56afee46ff69fc6c24b006311d78597ad445ab267"
+    },
+    "key_dependencies": [
+      "docutils==0.16",
+      "Jinja2==2.11.3",
+      "MarkupSafe==2.0.1",
+      "pytest==8.4.2",
+      "requests==2.32.5",
+      "Sphinx==3.4.0.dev20260713 editable source selected by PYTHONPATH"
+    ],
+    "environment_record": {
+      "bytes": 1409,
+      "sha256": "59a3c04eeeb79b220b14d21faedd11eb12f371e5c6d7465dfd4567480ea8a4aa"
+    }
+  },
+  "execution_contract": {
+    "shell": false,
+    "phase_split_reason": "the managed external egress proxy intercepts localhost unless localhost is explicitly excluded; public-link P2P and localhost tests therefore require distinct proxy policies",
+    "external_phase": {
+      "test_count": 3,
+      "node_ids": [
+        "tests/test_build_linkcheck.py::test_defaults",
+        "tests/test_build_linkcheck.py::test_defaults_json",
+        "tests/test_build_linkcheck.py::test_anchors_ignored"
+      ],
+      "network_policy": "managed_external_egress_for_three_canonical_p2p_tests"
+    },
+    "local_phase": {
+      "test_count": 15,
+      "p2p_count": 14,
+      "f2p_count": 1,
+      "network_policy": "localhost_explicitly_excluded_from_managed_proxy"
+    },
+    "pytest_argv_template": [
+      "{python}",
+      "-m",
+      "pytest",
+      "-p",
+      "no:cacheprovider",
+      "--basetemp",
+      "{scratch}",
+      "--junitxml",
+      "{junit}",
+      "-q",
+      "-ra",
+      "{explicit_node_ids}"
+    ],
+    "environment_policy": "minimal_allowlist_with_phase_specific_proxy_keys",
+    "limits": {
+      "cpu_seconds_per_phase": 60,
+      "wall_seconds_per_phase": 60,
+      "open_files": 256,
+      "processes": 256,
+      "file_bytes": 52428800,
+      "memory": "not_enforced"
+    },
+    "schedule": [
+      [1, "baseline"],
+      [1, "gpt5"],
+      [1, "kimi_k2"],
+      [1, "claude_4_sonnet"],
+      [1, "gold"],
+      [2, "gold"],
+      [2, "claude_4_sonnet"],
+      [2, "kimi_k2"],
+      [2, "gpt5"],
+      [2, "baseline"],
+      [3, "kimi_k2"],
+      [3, "baseline"],
+      [3, "claude_4_sonnet"],
+      [3, "gold"],
+      [3, "gpt5"]
+    ]
+  },
+  "evidence_bundle": {
+    "logical_filename": "bench-cleanser-independent-sphinx-8475-v2-evidence.tar.gz",
+    "media_type": "application/gzip",
+    "bytes": 27754,
+    "sha256": "a6fef4316b9e60759b35eb9ecad27a1a162c80c9265e6746a4eb29041fba3a5b",
+    "root_directory": "bench-cleanser-independent-sphinx-8475-v2-evidence",
+    "file_member_count": 138,
+    "directory_member_count": 18,
+    "maximum_file_member_bytes": 21259,
+    "index": {
+      "path": "index.json",
+      "bytes": 12519,
+      "sha256": "4ade708a0ca31acdb4a4240ffbb2da9b928a0ed8895124f4abe745039aca30f9"
+    },
+    "runner": {
+      "path": "runner.py",
+      "bytes": 21259,
+      "sha256": "08eebf973976003166567667f5bddd90c067d452257701179526b86a0b0ef118"
+    },
+    "location_contract": "external_content_addressed_artifact; no mutable local path is canonical"
+  },
+  "results": [
+    {
+      "variant": "baseline",
+      "role": "base_plus_oracle_test_patch_control",
+      "input_patch_sha256": null,
+      "repeats": 3,
+      "p2p_passed_each": 17,
+      "p2p_total_each": 17,
+      "target_status_each": "failed",
+      "local_phase_return_code_each": 1,
+      "supports": "incorrect"
+    },
+    {
+      "variant": "gpt5",
+      "role": "candidate",
+      "input_patch_sha256": "8a9725217a4d60e5794753427717c89fa9dd4de3b5d3a743bb4e728ae7efa317",
+      "repeats": 3,
+      "p2p_passed_each": 17,
+      "p2p_total_each": 17,
+      "target_status_each": "passed",
+      "local_phase_return_code_each": 0,
+      "supports": "correct"
+    },
+    {
+      "variant": "kimi_k2",
+      "role": "candidate",
+      "input_patch_sha256": "9c31db10b7f534e4acbfe4d0bfc4182db78ab6e18f701402b73c49e008854ad8",
+      "repeats": 3,
+      "p2p_passed_each": 17,
+      "p2p_total_each": 17,
+      "target_status_each": "passed",
+      "local_phase_return_code_each": 0,
+      "supports": "correct"
+    },
+    {
+      "variant": "claude_4_sonnet",
+      "role": "candidate",
+      "input_patch_sha256": "f72188ee8d45ca089db5964c52b78740bb9d6315b0c6a65a5682f5a0f953457f",
+      "repeats": 3,
+      "p2p_passed_each": 17,
+      "p2p_total_each": 17,
+      "target_status_each": "passed",
+      "local_phase_return_code_each": 0,
+      "supports": "correct"
+    },
+    {
+      "variant": "gold",
+      "role": "canonical_gold_sanity_control",
+      "input_patch_sha256": "cf0c7fdff6180321a596c744be627230af58acbaa9e2c7aa3b3105a32e73a658",
+      "repeats": 3,
+      "p2p_passed_each": 17,
+      "p2p_total_each": 17,
+      "target_status_each": "passed",
+      "local_phase_return_code_each": 0,
+      "supports": "correct"
+    }
+  ],
+  "aggregate": {
+    "valid_observations": 15,
+    "expected_observations": 15,
+    "p2p_passes": 255,
+    "p2p_checks": 255,
+    "baseline_target_failures": 3,
+    "candidate_target_passes": 9,
+    "gold_target_passes": 3,
+    "candidate_disagreement": false,
+    "model_discrimination_on_this_task": false
+  },
+  "limitations": [
+    "one manually selected task; no population, calibration, cost, or routing estimate",
+    "post-draft/pre-freeze retrospective feasibility execution; no clean-commit or registration freeze",
+    "candidate patches and hosted labels were accessible before selection and execution; not blinded",
+    "the runner and runtime were revised after unscored bring-up failures",
+    "container-free macOS arm64 Python 3.9 substrate; no container or Linux equivalence claim",
+    "not the official SWE-bench harness or official environment image",
+    "the exact 18 scored tests were split into external and localhost phases because the managed proxy otherwise intercepts localhost",
+    "the three public-link P2P tests depend on mutable external network responses",
+    "dependency versions were reconstructed in 2026 and differ from the historical official image",
+    "source files were read-only and complete trees were hashed before and after each phase; directories remained writable for copied-fixture build directories",
+    "memory usage was not kernel-limited",
+    "all three candidates implement the same functional two-line change as gold, so the task supplies no candidate discrimination",
+    "Kimi K2 and Claude add unscored root-level test scripts that were present but not collected by the explicit SWE-bench node list",
+    "the GPT-5 hosted report was unavailable in the matched acquisition, so hosted-label corroboration is incomplete",
+    "gold is only a base-fails/gold-passes sanity control; execution does not establish semantic truth",
+    "no routing evidence and no evidence for hypotheses H1-H6"
+  ]
+}

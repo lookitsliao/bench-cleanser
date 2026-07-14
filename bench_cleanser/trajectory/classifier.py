@@ -164,17 +164,19 @@ def classify_heuristic_only(
     if signals["has_gold_patch_match"]:
         evidence.append(
             f"Final patch is {similarity:.1%} similar to gold patch "
-            f"(threshold: {GOLD_PATCH_SIMILARITY_THRESHOLD:.0%})"
+            f"(review threshold: {GOLD_PATCH_SIMILARITY_THRESHOLD:.0%}); "
+            "similarity alone does not establish access to the gold patch"
         )
         return TrajectoryAnalysis(
             instance_id=trajectory.instance_id,
             agent_name=trajectory.agent_name,
-            leakage_pattern=LeakagePattern.GOLD_PATCH_LEAK,
-            evidence_strength="strong",
+            leakage_pattern=LeakagePattern.PARTIAL_MATCH,
+            evidence_strength="moderate",
             evidence=evidence,
             gold_patch_similarity=similarity,
             pip_install_commands=pip_installs,
             test_references=test_refs,
+            trajectory_label=AgentTrajectoryLabel.AGENT_UNKNOWN,
             resolved=trajectory.resolved,
         )
 
@@ -182,30 +184,37 @@ def classify_heuristic_only(
         evidence.append(
             f"Found {len(pip_installs)} pip install command(s): "
             + "; ".join(pip_installs)
+            + "; installation may be ordinary environment setup and is not proof of leakage"
         )
         return TrajectoryAnalysis(
             instance_id=trajectory.instance_id,
             agent_name=trajectory.agent_name,
-            leakage_pattern=LeakagePattern.PACKAGE_LEAK,
-            evidence_strength="moderate",
+            leakage_pattern=LeakagePattern.PARTIAL_MATCH,
+            evidence_strength="weak",
             evidence=evidence,
             gold_patch_similarity=similarity,
             pip_install_commands=pip_installs,
             test_references=test_refs,
+            trajectory_label=AgentTrajectoryLabel.AGENT_UNKNOWN,
             resolved=trajectory.resolved,
         )
 
     if test_refs:
         evidence.extend(test_refs)
+        evidence.append(
+            "A test name may have been discovered through repository exploration; "
+            "the heuristic has no temporal access evidence"
+        )
         return TrajectoryAnalysis(
             instance_id=trajectory.instance_id,
             agent_name=trajectory.agent_name,
-            leakage_pattern=LeakagePattern.TEST_AWARE,
-            evidence_strength="moderate",
+            leakage_pattern=LeakagePattern.PARTIAL_MATCH,
+            evidence_strength="weak",
             evidence=evidence,
             gold_patch_similarity=similarity,
             pip_install_commands=pip_installs,
             test_references=test_refs,
+            trajectory_label=AgentTrajectoryLabel.AGENT_UNKNOWN,
             resolved=trajectory.resolved,
         )
 
@@ -223,18 +232,23 @@ def classify_heuristic_only(
             gold_patch_similarity=similarity,
             pip_install_commands=pip_installs,
             test_references=test_refs,
+            trajectory_label=AgentTrajectoryLabel.AGENT_UNKNOWN,
             resolved=trajectory.resolved,
         )
 
     return TrajectoryAnalysis(
         instance_id=trajectory.instance_id,
         agent_name=trajectory.agent_name,
-        leakage_pattern=LeakagePattern.GENUINE_SOLUTION,
-        evidence_strength="moderate",
-        evidence=["No deterministic leakage signals detected"],
+        leakage_pattern=LeakagePattern.UNKNOWN,
+        evidence_strength="weak",
+        evidence=[
+            "No deterministic leakage signals detected; heuristics cannot "
+            "establish genuine problem solving"
+        ],
         gold_patch_similarity=similarity,
         pip_install_commands=pip_installs,
         test_references=test_refs,
+        trajectory_label=AgentTrajectoryLabel.AGENT_UNKNOWN,
         resolved=trajectory.resolved,
     )
 
@@ -330,6 +344,9 @@ async def classify_with_llm(
             trajectory_label = AgentTrajectoryLabel(result.trajectory_label)
         except ValueError:
             trajectory_label = None
+        trajectory_label = _normalize_trajectory_label(
+            pattern, trajectory_label, trajectory.resolved
+        )
 
         evidence: list[str] = []
         if result.reasoning:
@@ -361,6 +378,49 @@ async def classify_with_llm(
         return classify_heuristic_only(
             trajectory, gold_patch, f2p_test_names,
         )
+
+
+def _normalize_trajectory_label(
+    pattern: LeakagePattern,
+    proposed: AgentTrajectoryLabel | None,
+    resolved: bool,
+) -> AgentTrajectoryLabel:
+    """Make structured LLM output consistent with outcome and pattern."""
+    # PARTIAL_MATCH and UNKNOWN are explicitly inconclusive patterns. Never
+    # let a proposed passed-* label turn ambiguity into a positive attribution.
+    if pattern in (LeakagePattern.PARTIAL_MATCH, LeakagePattern.UNKNOWN):
+        return AgentTrajectoryLabel.AGENT_UNKNOWN
+
+    passed_labels = {
+        AgentTrajectoryLabel.AGENT_PASSED_GENUINE,
+        AgentTrajectoryLabel.AGENT_PASSED_LEAK,
+        AgentTrajectoryLabel.AGENT_PASSED_PACKAGE_LEAK,
+        AgentTrajectoryLabel.AGENT_PASSED_TEST_AWARE,
+        AgentTrajectoryLabel.AGENT_PASSED_TRAINED_HACK,
+    }
+    failed_labels = {
+        AgentTrajectoryLabel.AGENT_FAILED_COMPLETED_INTENT,
+        AgentTrajectoryLabel.AGENT_FAILED_NO_INTENT,
+    }
+    if not resolved:
+        return proposed if proposed in failed_labels else AgentTrajectoryLabel.AGENT_UNKNOWN
+    if proposed in failed_labels or proposed is None:
+        return AgentTrajectoryLabel.AGENT_UNKNOWN
+
+    pattern_labels = {
+        LeakagePattern.GENUINE_SOLUTION: AgentTrajectoryLabel.AGENT_PASSED_GENUINE,
+        LeakagePattern.GOLD_PATCH_LEAK: AgentTrajectoryLabel.AGENT_PASSED_LEAK,
+        LeakagePattern.PACKAGE_LEAK: AgentTrajectoryLabel.AGENT_PASSED_PACKAGE_LEAK,
+        LeakagePattern.TEST_AWARE: AgentTrajectoryLabel.AGENT_PASSED_TEST_AWARE,
+    }
+    expected = pattern_labels.get(pattern)
+    if expected is not None:
+        # Pattern is the primary classifier output; do not retain a
+        # contradictory ``agent_passed_genuine`` label on a leak pattern.
+        return expected
+    if proposed in passed_labels:
+        return proposed
+    return AgentTrajectoryLabel.AGENT_UNKNOWN
 
 
 
@@ -407,63 +467,84 @@ def classify_cross_agent(
 ) -> list[TrajectoryAnalysis]:
     """Tier 3: Cross-agent comparison.
 
-    Upgrades GENUINE_SOLUTION / PARTIAL_MATCH to GOLD_PATCH_LEAK when
-    multiple agents produced patches that cluster around the gold answer.
+    Records an ambiguity/review signal when multiple agents produce highly
+    similar non-trivial patches. Convergence alone never proves gold access.
 
     Rule (replaces the previous all-pairs short-circuit):
 
       1. Compute pairwise similarity for every (i, j) with i < j.
       2. If the *median* pairwise similarity ≥ CROSS_AGENT_QUORUM_THRESHOLD,
-         the cluster has quorum. Median (not min) means one diverging
-         agent doesn't veto the signal.
-      3. Gate the upgrade on patch entropy: skip if the smallest patch
-         is < LOW_ENTROPY_PATCH_LINES added lines. Low-entropy problems
+         the cluster has quorum. This is evidence of convergence only.
+      3. Gate the review signal on patch entropy: skip if the median patch in
+         the converged cluster is < LOW_ENTROPY_PATCH_LINES added lines. Low-entropy problems
          admit one obvious answer; convergence there is not leakage.
     """
     if len(analyses) < 2:
         return analyses
 
-    patches = [t.final_patch for t in trajectories if t.final_patch]
-    if len(patches) < 2:
+    entries = [
+        (t.instance_id, t.agent_name, t.final_patch)
+        for t in trajectories
+        if t.final_patch
+    ]
+    if len(entries) < 2:
         return analyses
 
-    sims: list[float] = []
-    for i in range(len(patches)):
-        for j in range(i + 1, len(patches)):
-            sims.append(compute_patch_similarity(patches[i], patches[j]))
+    pairwise: list[tuple[int, int, float]] = []
+    for i in range(len(entries)):
+        for j in range(i + 1, len(entries)):
+            pairwise.append((
+                i,
+                j,
+                compute_patch_similarity(entries[i][2], entries[j][2]),
+            ))
 
-    if not sims:
+    if not pairwise:
         return analyses
 
-    sims.sort()
+    sims = sorted(sim for _, _, sim in pairwise)
     mid = len(sims) // 2
     median_sim = sims[mid] if len(sims) % 2 == 1 else (sims[mid - 1] + sims[mid]) / 2
 
     if median_sim < CROSS_AGENT_QUORUM_THRESHOLD:
         return analyses
 
-    min_added = _count_gold_patch_added_lines(patches)
-    if min_added < LOW_ENTROPY_PATCH_LINES:
+    member_indices = {
+        index
+        for i, j, similarity in pairwise
+        if similarity >= CROSS_AGENT_QUORUM_THRESHOLD
+        for index in (i, j)
+    }
+    converged_keys = {
+        (entries[index][0], entries[index][1])
+        for index in member_indices
+    }
+    converged_patches = [entries[index][2] for index in member_indices]
+    median_added = _count_gold_patch_added_lines(converged_patches)
+    if median_added < LOW_ENTROPY_PATCH_LINES:
         logger.debug(
-            "Cross-agent quorum met (median sim %.2f) but skipping upgrade: "
+            "Cross-agent quorum met (median sim %.2f) but skipping review signal: "
             "median patch has only %d added lines (low-entropy convergence)",
-            median_sim, min_added,
+            median_sim, median_added,
         )
         return analyses
 
     for analysis in analyses:
-        if analysis.leakage_pattern in (
+        analysis_key = (analysis.instance_id, analysis.agent_name)
+        if analysis_key in converged_keys and analysis.leakage_pattern in (
             LeakagePattern.GENUINE_SOLUTION,
             LeakagePattern.PARTIAL_MATCH,
         ):
             analysis.evidence.append(
-                f"Cross-agent: {len(patches)} agents converged "
+                f"Cross-agent: {len(converged_keys)} of {len(entries)} agents converged "
                 f"(median pairwise similarity {median_sim:.2f}, "
-                f"median patch {min_added} added lines), "
-                "suggesting gold-patch leakage rather than independent derivation"
+                f"median converged patch {median_added} added lines), "
+                "which may reflect a canonical fix or shared model priors; "
+                "manual review is required before inferring leakage"
             )
-            analysis.leakage_pattern = LeakagePattern.GOLD_PATCH_LEAK
-            analysis.evidence_strength = "strong"
+            analysis.leakage_pattern = LeakagePattern.PARTIAL_MATCH
+            analysis.evidence_strength = "moderate"
+            analysis.trajectory_label = AgentTrajectoryLabel.AGENT_UNKNOWN
 
     return analyses
 
@@ -481,6 +562,9 @@ def _summarize_actions(
         line = f"[Step {i}] {action.action_type.value}: {action.content[:content_limit]}"
         if action.file_path:
             line += f" (file: {action.file_path})"
+        if action.observation:
+            observation_limit = min(len(action.observation), 50000)
+            line += f"\n  OBSERVATION: {action.observation[:observation_limit]}"
         if total + len(line) > max_chars:
             parts.append(f"... ({len(actions) - i} more actions truncated)")
             break

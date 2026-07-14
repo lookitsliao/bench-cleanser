@@ -328,7 +328,7 @@ class StructuralDiff:
     changed_blocks: list[ChangedBlock]
     test_blocks: list[TestBlock]
     call_edges: list[tuple[str, str]]
-    astred_available: bool = True
+    multilingual_ast_available: bool = False
 
 
 @dataclass
@@ -638,17 +638,22 @@ class ContaminationReport:
 
 @dataclass
 class PipelineConfig:
-    llm_base_url: str = "https://cloudgpt-openai.azure-api.net/"
-    llm_api_version: str = "2025-04-01-preview"
-    llm_model: str = "gpt-5.4-20260305"
-    llm_max_tokens: int = 65536
-    llm_reasoning_effort: str = "high"
+    llm_provider: str = "openai-compatible"
+    llm_api_key: str = field(default="", repr=False)
+    llm_api_key_env: str = "OPENAI_API_KEY"
+    llm_base_url: str = "https://api.openai.com/v1"
+    llm_model: str = "gpt-4.1"
+    llm_max_tokens: int = 32768
+    llm_reasoning_effort: str | None = None
+    llm_request_timeout_seconds: float = 180.0
+    llm_retry_timeout_seconds: float = 600.0
     max_concurrent_requests: int = 10
     retry_attempts: int = 7
     retry_delay_seconds: float = 5.0
     concurrency: int = 5
     cache_dir: str = ".cache/llm_responses"
     output_dir: str = "output"
+    code_visitation_enabled: bool = True
     repo_cache_dir: str = ".cache/repos"
     clone_timeout_seconds: int = 120
     max_source_context_lines: int = 200

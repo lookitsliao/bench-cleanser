@@ -110,21 +110,18 @@ def test_fusion_rule4_matrix(resolved: bool, severity: Severity,
     )
 
 
-def test_ambiguous_pass_does_not_invalidate_measurement():
-    """AMBIGUOUS_PASS is a soft verdict — it does not flag the row as broken."""
+def test_ambiguous_pass_invalidates_measurement():
+    """Unknown attribution is quarantined from benchmark measurement."""
     fusion = fuse(_report(Severity.CLEAN), _unknown_traj(resolved=True))
     assert fusion.verdict == FusionVerdict.AMBIGUOUS_PASS
-    assert fusion.invalidates_measurement is False
+    assert fusion.invalidates_measurement is True
 
 
-def test_inconclusive_severe_does_not_invalidate_measurement():
-    """INCONCLUSIVE on a SEVERE-with-UNKNOWN-trajectory still doesn't flip
-    `invalidates_measurement` to True. The fusion engine reserves that flag
-    for verdicts that *know* the row is bad (AGENT_CHEATED, CONTAMINATED_PASS,
-    UNFAIR_FAILURE) — not for verdicts that simply lack evidence."""
+def test_inconclusive_severe_invalidates_measurement():
+    """An inconclusive row cannot support a benchmark measurement."""
     fusion = fuse(
         _report(Severity.SEVERE, [TaskContaminationLabel.OVER_TEST]),
         _unknown_traj(resolved=True),
     )
     assert fusion.verdict == FusionVerdict.INCONCLUSIVE
-    assert fusion.invalidates_measurement is False
+    assert fusion.invalidates_measurement is True

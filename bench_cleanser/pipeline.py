@@ -8,11 +8,14 @@ from __future__ import annotations
 
 import asyncio
 import csv
+import dataclasses
+import hashlib
 import io
 import json
 import logging
 import os
 import pathlib
+import re
 import time
 from typing import Any
 
@@ -51,7 +54,7 @@ from bench_cleanser.parsing.test_parser import (
     match_f2p_tests_to_hunks,
     parse_test_patch,
 )
-from bench_cleanser.repo_manager import RepoManager
+from bench_cleanser.repo_manager import RepoManager, validate_relative_file_path
 from bench_cleanser.static_analysis import (
     build_call_targets,
     extract_assertions,
@@ -60,6 +63,180 @@ from bench_cleanser.static_analysis import (
 )
 
 logger = logging.getLogger(__name__)
+
+_PROVENANCE_VERSION = 1
+_INSTANCE_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,199}")
+_REPORT_REQUIRED_KEYS = {
+    "instance_id",
+    "severity",
+    "intent",
+    "patch_analysis",
+    "test_analysis",
+    "description_clarity",
+    "task_labels",
+    "agent_labels",
+    "recommendations",
+    "_provenance",
+}
+
+
+class PipelineRunReports(list[ContaminationReport]):
+    """List-compatible pipeline result with invocation-level failure counts."""
+
+    def __init__(
+        self,
+        reports: list[ContaminationReport],
+        *,
+        attempted_count: int,
+        resumed_count: int,
+        new_success_count: int,
+        new_failure_count: int,
+    ) -> None:
+        super().__init__(reports)
+        self.attempted_count = attempted_count
+        self.resumed_count = resumed_count
+        self.new_success_count = new_success_count
+        self.new_failure_count = new_failure_count
+
+
+def validate_instance_id(instance_id: str) -> str:
+    """Validate an instance identifier before using it as an output name."""
+    if not isinstance(instance_id, str) or not _INSTANCE_ID_RE.fullmatch(instance_id):
+        raise ValueError(f"Unsafe instance_id for report output: {instance_id!r}")
+    return instance_id
+
+
+def _safe_report_path(reports_dir: pathlib.Path, instance_id: str) -> pathlib.Path:
+    """Return the confined report path for a validated instance identifier."""
+    instance_id = validate_instance_id(instance_id)
+    root = reports_dir.resolve()
+    candidate = (root / f"{instance_id}.json").resolve(strict=False)
+    if candidate.parent != root:
+        raise ValueError(f"Report path escapes output directory: {candidate}")
+    return candidate
+
+
+def _canonical_digest(value: Any) -> str:
+    payload = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _report_provenance(record: TaskRecord, config: PipelineConfig) -> dict[str, Any]:
+    """Build deterministic input/config fingerprints for safe resume."""
+    config_data = dataclasses.asdict(config)
+    # Preserve dynamically-added compatibility fields until all callers use
+    # the latest PipelineConfig dataclass (notably code_visitation_enabled).
+    for key, value in vars(config).items():
+        config_data.setdefault(key, value)
+    # Credentials authorize the same analytical configuration; rotating a key
+    # must not invalidate reports, and secret-derived material does not belong
+    # in persisted provenance even as a one-way digest input.
+    config_data.pop("llm_api_key", None)
+    return {
+        "version": _PROVENANCE_VERSION,
+        "input_sha256": _canonical_digest(dataclasses.asdict(record)),
+        "config_sha256": _canonical_digest(config_data),
+    }
+
+
+def _report_payload(
+    report: ContaminationReport,
+    record: TaskRecord,
+    config: PipelineConfig,
+) -> dict[str, Any]:
+    payload = report.to_dict()
+    payload["_provenance"] = _report_provenance(record, config)
+    return payload
+
+
+def _require_complete_report_shape(data: dict[str, Any]) -> None:
+    missing = _REPORT_REQUIRED_KEYS - data.keys()
+    if missing:
+        raise ValueError(f"report is incomplete; missing {sorted(missing)}")
+    nested_requirements = {
+        "intent": {
+            "core_requirement", "behavioral_contract", "acceptance_criteria",
+            "out_of_scope", "ambiguity_score",
+        },
+        "patch_analysis": {
+            "total_hunks", "required_count", "ancillary_count", "unrelated_count", "hunks",
+        },
+        "test_analysis": {
+            "total_tests", "aligned_count", "tangential_count", "unrelated_count",
+            "total_assertions", "on_topic_assertions", "off_topic_assertions",
+            "has_modified_tests", "tests",
+        },
+        "description_clarity": {"score", "reasoning"},
+    }
+    for section, required in nested_requirements.items():
+        value = data.get(section)
+        if not isinstance(value, dict):
+            raise ValueError(f"report section {section!r} is not an object")
+        section_missing = required - value.keys()
+        if section_missing:
+            raise ValueError(
+                f"report section {section!r} is incomplete; missing {sorted(section_missing)}"
+            )
+    if not isinstance(data["task_labels"], list):
+        raise ValueError("report task_labels is not a list")
+    if not isinstance(data["agent_labels"], dict):
+        raise ValueError("report agent_labels is not an object")
+    if not isinstance(data["recommendations"], list):
+        raise ValueError("report recommendations is not a list")
+
+
+def _load_resumable_report(
+    report_path: pathlib.Path,
+    record: TaskRecord,
+    config: PipelineConfig,
+) -> ContaminationReport | None:
+    """Load a complete, successful, provenance-matched report or return None."""
+    try:
+        data = json.loads(report_path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            raise ValueError("report root is not an object")
+        _require_complete_report_shape(data)
+        if data.get("instance_id") != record.instance_id:
+            raise ValueError("report instance_id does not match input task")
+        if data.get("pipeline_error"):
+            raise ValueError("report records a pipeline error")
+        if data.get("_provenance") != _report_provenance(record, config):
+            raise ValueError("report provenance is stale or does not match this run")
+        report = ContaminationReport.from_dict(data)
+        if report.pipeline_error is not None:
+            raise ValueError("report records a pipeline error")
+        return report
+    except (OSError, TypeError, ValueError, KeyError, json.JSONDecodeError) as exc:
+        logger.warning("Resume rejected report %s: %s", report_path, exc)
+        return None
+
+
+def _validate_patch_paths(patch_text: str, field_name: str) -> None:
+    """Reject absolute or traversing paths in every unified-diff header."""
+    if not patch_text:
+        return
+    for raw_line in patch_text.splitlines():
+        paths: list[str] = []
+        match = re.match(r"^diff --git a/(.+?) b/(.+)$", raw_line)
+        if match:
+            paths.extend(match.groups())
+        elif raw_line.startswith("--- ") or raw_line.startswith("+++ "):
+            path = raw_line[4:].split("\t", 1)[0]
+            if path == "/dev/null":
+                continue
+            if path.startswith("a/") or path.startswith("b/"):
+                path = path[2:]
+            paths.append(path)
+        for path in paths:
+            try:
+                validate_relative_file_path(path)
+            except ValueError as exc:
+                raise ValueError(f"Unsafe path in {field_name}: {path!r}") from exc
 
 
 def _atomic_write_text(path: pathlib.Path, payload: str) -> None:
@@ -87,10 +264,24 @@ def _atomic_write_text(path: pathlib.Path, payload: str) -> None:
         raise
 
 
-def load_config(config_path: str) -> PipelineConfig:
-    """Load pipeline configuration from a YAML file."""
-    with open(config_path, encoding="utf-8") as fh:
-        raw = yaml.safe_load(fh)
+def load_config(config_path: str | os.PathLike[str] | None = None) -> PipelineConfig:
+    """Load configuration from *config_path* or the packaged default.
+
+    Using a package resource for the default keeps the console scripts usable
+    after a wheel is installed from outside the source checkout.
+    """
+    if config_path is None:
+        from importlib.resources import files
+
+        config_text = (
+            files("bench_cleanser")
+            .joinpath("default_config.yaml")
+            .read_text(encoding="utf-8")
+        )
+        raw = yaml.safe_load(config_text) or {}
+    else:
+        with open(config_path, encoding="utf-8") as fh:
+            raw = yaml.safe_load(fh) or {}
 
     def _expand(val: Any) -> Any:
         if isinstance(val, str) and "${" in val:
@@ -102,18 +293,37 @@ def load_config(config_path: str) -> PipelineConfig:
     pipeline = raw.get("pipeline", {})
     code_visit = raw.get("code_visitation", {})
 
+    api_key_env = str(llm.get("api_key_env", "OPENAI_API_KEY"))
+    configured_api_key = _expand(llm.get("api_key", ""))
+    # An unresolved ${VAR} is not a credential and should fail with the
+    # client's actionable missing-key message rather than being sent upstream.
+    if isinstance(configured_api_key, str) and "${" in configured_api_key:
+        configured_api_key = ""
+    api_key = str(configured_api_key or os.environ.get(api_key_env, ""))
+
+    base_url_env = str(llm.get("base_url_env", "OPENAI_BASE_URL"))
+    configured_base_url = _expand(
+        llm.get("base_url", "https://api.openai.com/v1")
+    )
+    base_url = os.environ.get(base_url_env) or configured_base_url
+
     return PipelineConfig(
-        llm_base_url=_expand(llm.get("base_url", "https://cloudgpt-openai.azure-api.net/")),
-        llm_api_version=llm.get("api_version", "2025-04-01-preview"),
-        llm_model=llm.get("model", "gpt-5.4-20260305"),
-        llm_max_tokens=llm.get("max_tokens", 65536),
-        llm_reasoning_effort=llm.get("reasoning_effort", "high"),
+        llm_provider=str(llm.get("provider", "openai-compatible")),
+        llm_api_key=api_key,
+        llm_api_key_env=api_key_env,
+        llm_base_url=str(base_url),
+        llm_model=str(llm.get("model", "gpt-4.1")),
+        llm_max_tokens=int(llm.get("max_tokens", 32768)),
+        llm_reasoning_effort=llm.get("reasoning_effort"),
+        llm_request_timeout_seconds=float(llm.get("request_timeout_seconds", 180.0)),
+        llm_retry_timeout_seconds=float(llm.get("retry_timeout_seconds", 600.0)),
         max_concurrent_requests=llm.get("max_concurrent_requests", 10),
         retry_attempts=llm.get("retry_attempts", 7),
         retry_delay_seconds=llm.get("retry_delay_seconds", 5.0),
         concurrency=pipeline.get("concurrency", 5),
         cache_dir=pipeline.get("cache_dir", ".cache/llm_responses"),
         output_dir=pipeline.get("output_dir", "output"),
+        code_visitation_enabled=bool(code_visit.get("enabled", True)),
         repo_cache_dir=code_visit.get("repo_cache_dir", ".cache/repos"),
         clone_timeout_seconds=code_visit.get("clone_timeout_seconds", 120),
         max_source_context_lines=code_visit.get("max_source_context_lines", 200),
@@ -122,8 +332,19 @@ def load_config(config_path: str) -> PipelineConfig:
 
 def parse_task(record: TaskRecord) -> ParsedTask:
     """Stage 1: parse a raw task record into structured form."""
+    _validate_patch_paths(record.patch, "patch")
+    _validate_patch_paths(record.test_patch, "test_patch")
     patch_hunks = parse_patch(record.patch)
     test_hunks = parse_test_patch(record.test_patch)
+    gold_files = get_files_from_patch(record.patch)
+    test_files = get_files_from_patch(record.test_patch)
+    for file_path in [
+        *(hunk.file_path for hunk in patch_hunks),
+        *(hunk.file_path for hunk in test_hunks),
+        *gold_files,
+        *test_files,
+    ]:
+        validate_relative_file_path(file_path)
     f2p_matched, f2p_unmatched = match_f2p_tests_to_hunks(
         record.fail_to_pass, test_hunks
     )
@@ -133,8 +354,8 @@ def parse_task(record: TaskRecord) -> ParsedTask:
         test_hunks=test_hunks,
         f2p_test_hunks=f2p_matched,
         f2p_tests_with_no_hunk=f2p_unmatched,
-        files_in_gold_patch=get_files_from_patch(record.patch),
-        files_in_test_patch=get_files_from_patch(record.test_patch),
+        files_in_gold_patch=gold_files,
+        files_in_test_patch=test_files,
     )
 
 
@@ -163,6 +384,7 @@ def enrich_with_code_context(
             post_patch_source = get_post_patch_test_source(
                 pre_patch_source, test_hunk.test_name,
                 test_hunk.added_lines, test_hunk.removed_lines,
+                raw_diff=test_hunk.raw_diff,
                 max_lines=max_lines,
             )
 
@@ -256,7 +478,8 @@ async def process_single_task(
 
     # Stage 1.5: CODE VISITATION
     t0 = time.monotonic()
-    if repo_manager is not None:
+    code_visitation_enabled = bool(getattr(config, "code_visitation_enabled", True))
+    if repo_manager is not None and code_visitation_enabled:
         enrich_with_code_context(parsed, repo_manager, config)
     stage_times["code_visit"] = time.monotonic() - t0
 
@@ -268,7 +491,7 @@ async def process_single_task(
     # Stage 3: STRUCTURAL DIFF
     t0 = time.monotonic()
     structural_diff = None
-    if repo_manager is not None:
+    if repo_manager is not None and code_visitation_enabled:
         repo_path = repo_manager.get_repo_path(record.repo, record.base_commit)
         if repo_path is not None:
             try:
@@ -341,38 +564,73 @@ async def run_pipeline(
 ) -> list[ContaminationReport]:
     """Run the pipeline on a batch of tasks with progress display.
 
-    Reports are written to disk as they complete. Use resume=True to skip
-    tasks with existing reports on disk.
+    Reports are written to disk as they complete. With ``resume=True``, only
+    complete, successful reports whose input and configuration fingerprints
+    match this invocation are reused.
     """
+    original_records = list(records)
+    seen_ids: set[str] = set()
+    for record in original_records:
+        instance_id = validate_instance_id(record.instance_id)
+        if instance_id in seen_ids:
+            raise ValueError(f"Duplicate instance_id in pipeline input: {instance_id!r}")
+        seen_ids.add(instance_id)
+
     cache = ResponseCache(config.cache_dir)
     llm = LLMClient(config, cache=cache)
 
-    repo_manager = RepoManager(
-        cache_dir=config.repo_cache_dir,
-        clone_timeout=config.clone_timeout_seconds,
-    )
-    logger.info("Pre-cloning repos for code visitation and structural analysis")
-    clone_results = repo_manager.pre_clone_repos(records)
-    logger.info(
-        "Pre-clone complete: %d/%d repos available",
-            sum(1 for v in clone_results.values() if v),
+    repo_manager: RepoManager | None = None
+    if bool(getattr(config, "code_visitation_enabled", True)):
+        repo_manager = RepoManager(
+            cache_dir=config.repo_cache_dir,
+            clone_timeout=config.clone_timeout_seconds,
+        )
+        logger.info("Pre-cloning repos for code visitation and structural analysis")
+        clone_results = repo_manager.pre_clone_repos(original_records)
+        logger.info(
+            "Pre-clone complete: %d/%d repos available",
+            sum(1 for value in clone_results.values() if value),
             len(clone_results),
         )
+    else:
+        logger.info("Code visitation disabled; skipping repository clones and structural analysis")
 
-    output_dir = pathlib.Path(config.output_dir)
-    reports_dir = output_dir / "reports"
+    output_dir = pathlib.Path(config.output_dir).expanduser()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = output_dir.resolve()
+    reports_dir = (output_dir / "reports").resolve(strict=False)
+    if reports_dir.parent != output_dir:
+        raise ValueError(f"Reports directory escapes output root: {reports_dir}")
     reports_dir.mkdir(parents=True, exist_ok=True)
 
-    skipped_ids: set[str] = set()
+    resumed_reports: dict[str, ContaminationReport] = {}
+    pending_records: list[TaskRecord] = []
     if resume:
-        existing = {p.stem for p in reports_dir.glob("*.json")}
-        skipped_ids = {r.instance_id for r in records if r.instance_id in existing}
-        if skipped_ids:
-            logger.info("Resume: skipping %d/%d tasks with existing reports", len(skipped_ids), len(records))
-        records = [r for r in records if r.instance_id not in skipped_ids]
+        for record in original_records:
+            report_path = _safe_report_path(reports_dir, record.instance_id)
+            resumed = (
+                _load_resumable_report(report_path, record, config)
+                if report_path.is_file()
+                else None
+            )
+            if resumed is None:
+                pending_records.append(record)
+            else:
+                resumed_reports[record.instance_id] = resumed
+        if resumed_reports:
+            logger.info(
+                "Resume: reusing %d/%d provenance-matched reports",
+                len(resumed_reports),
+                len(original_records),
+            )
+    else:
+        pending_records = original_records
+    records = pending_records
 
     semaphore = asyncio.Semaphore(config.concurrency)
     severity_counts = {sev.value: 0 for sev in Severity}
+    for report in resumed_reports.values():
+        severity_counts[report.severity.value] += 1
 
     try:
         from rich.progress import (
@@ -392,7 +650,8 @@ async def run_pipeline(
     except ImportError:
         use_rich = False
 
-    reports: list[ContaminationReport] = []
+    reports: list[ContaminationReport] = list(resumed_reports.values())
+    new_reports: list[ContaminationReport] = []
     error_count = 0
     start_time = time.monotonic()
 
@@ -423,13 +682,17 @@ async def run_pipeline(
                     pipeline_error=f"{type(exc).__name__}: {exc}",
                 )
 
-            report_path = reports_dir / f"{record.instance_id}.json"
+            report_path = _safe_report_path(reports_dir, record.instance_id)
             # Atomic write so an interrupt or concurrent reader can never
             # observe a half-written report. --resume scans for these files
             # by name; truncated JSON would silently poison the next run.
             _atomic_write_text(
                 report_path,
-                json.dumps(report.to_dict(), indent=2, ensure_ascii=False),
+                json.dumps(
+                    _report_payload(report, record, config),
+                    indent=2,
+                    ensure_ascii=False,
+                ),
             )
             # Exclude pipeline-error rows from the live severity dashboard
             # so CLEAN doesn't get inflated by failures.
@@ -473,23 +736,8 @@ async def run_pipeline(
                 status_parts.append(f"[dim]{rate_per_min:.1f}/min[/dim]")
                 progress.update(task_id, advance=1, status=truncate_status(status_parts))
             tasks = [_process(record, _update_progress) for record in records]
-            reports = list(await asyncio.gather(*tasks))
-
-            if skipped_ids:
-                for report_path in reports_dir.glob("*.json"):
-                    if report_path.stem in skipped_ids:
-                        try:
-                            data = json.loads(report_path.read_text(encoding="utf-8"))
-                            resumed = ContaminationReport.from_dict(data)
-                            reports.append(resumed)
-                            if resumed.pipeline_error is None:
-                                severity_counts[resumed.severity.value] += 1
-                        except Exception as exc:
-                            logger.warning(
-                                "Failed to load resumed report %s: %s",
-                                report_path.stem,
-                                exc,
-                            )
+            new_reports = list(await asyncio.gather(*tasks))
+            reports.extend(new_reports)
 
         final_table = Table(title="Pipeline Complete", show_header=True, header_style="bold")
         final_table.add_column("Metric", style="bold")
@@ -519,28 +767,36 @@ async def run_pipeline(
             progress_bar.update(1)
             progress_bar.set_postfix(severity_counts)
         tasks = [_process(record, _update_tqdm) for record in records]
-        reports = list(await asyncio.gather(*tasks))
+        new_reports = list(await asyncio.gather(*tasks))
+        reports.extend(new_reports)
         progress_bar.close()
 
-    if skipped_ids and not use_rich:
-        for report_path in reports_dir.glob("*.json"):
-            if report_path.stem in skipped_ids:
-                try:
-                    data = json.loads(report_path.read_text(encoding="utf-8"))
-                    resumed = ContaminationReport.from_dict(data)
-                    reports.append(resumed)
-                    if resumed.pipeline_error is None:
-                        severity_counts[resumed.severity.value] += 1
-                except Exception as exc:
-                    logger.warning("Failed to load resumed report %s: %s", report_path.stem, exc)
-
-    _write_summary(reports, output_dir)
-    return reports
+    reports_by_id = {report.instance_id: report for report in reports}
+    ordered_reports = [reports_by_id[record.instance_id] for record in original_records]
+    new_failure_count = sum(report.pipeline_error is not None for report in new_reports)
+    new_success_count = len(new_reports) - new_failure_count
+    run_stats = {
+        "attempted_tasks": len(records),
+        "resumed_tasks": len(resumed_reports),
+        "new_successes": new_success_count,
+        "new_failures": new_failure_count,
+    }
+    result = PipelineRunReports(
+        ordered_reports,
+        attempted_count=len(records),
+        resumed_count=len(resumed_reports),
+        new_success_count=new_success_count,
+        new_failure_count=new_failure_count,
+    )
+    _write_summary(result, output_dir, run_stats=run_stats)
+    return result
 
 
 def _write_summary(
     reports: list[ContaminationReport],
     output_dir: pathlib.Path,
+    *,
+    run_stats: dict[str, int] | None = None,
 ) -> None:
     """Write aggregate summary CSV and stats JSON.
 
@@ -549,6 +805,9 @@ def _write_summary(
     and label distributions — they carry no analytic signal and would
     otherwise inflate the published numbers.
     """
+    output_dir = output_dir.expanduser()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = output_dir.resolve()
     csv_path = output_dir / "summary.csv"
     fieldnames = [
         "instance_id", "severity",
@@ -607,7 +866,7 @@ def _write_summary(
             "pipeline_error": r.pipeline_error or "",
         })
 
-    csv_path.write_text(output.getvalue(), encoding="utf-8")
+    _atomic_write_text(csv_path, output.getvalue())
 
     # Pipeline-error rows are excluded from the aggregate distributions but
     # surfaced separately so the operator can see they exist.
@@ -627,11 +886,20 @@ def _write_summary(
         "total_tasks": len(reports),
         "analytic_tasks": len(analytic_reports),
         "pipeline_errors": len(error_reports),
+        "failed_tasks": [
+            {"instance_id": report.instance_id, "error": report.pipeline_error}
+            for report in error_reports
+        ],
         "severity_distribution": severity_counts,
         "label_distribution": label_counts,
     }
+    if run_stats is not None:
+        stats["run"] = run_stats
     stats_path = output_dir / "summary_stats.json"
-    stats_path.write_text(json.dumps(stats, indent=2, ensure_ascii=False), encoding="utf-8")
+    _atomic_write_text(
+        stats_path,
+        json.dumps(stats, indent=2, ensure_ascii=False),
+    )
 
     logger.debug("Summary written to %s", output_dir)
     logger.debug("Severity: %s", severity_counts)

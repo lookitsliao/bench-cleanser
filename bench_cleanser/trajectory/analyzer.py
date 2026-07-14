@@ -48,7 +48,7 @@ async def analyze_trajectories(
 ) -> list[TrajectoryAnalysis]:
     import asyncio
 
-    # Bound LLM fan-out so we don't fire N parallel Azure requests when called
+    # Bound LLM fan-out so we don't fire N parallel API requests when called
     # with hundreds of trajectories. Without this cap rate-limit storms drive
     # _analyze_one into its heuristic-only fallback, silently degrading the
     # LLM-primary analysis the pipeline claims to perform.
@@ -413,7 +413,11 @@ async def run_trajectory_analysis(
     # Batch-load tasks from SWE-bench datasets ONCE instead of per-report.
     # load_single_task loads entire datasets per call — catastrophically slow
     # for 100+ reports. Instead, load each dataset once and index by instance_id.
-    from bench_cleanser.data_loader import load_swebench_pro, load_swebench_verified
+    from bench_cleanser.data_loader import (
+        load_swebench_live,
+        load_swebench_pro,
+        load_swebench_verified,
+    )
 
     logger.info("Batch-loading SWE-bench datasets for %d target instances", len(target_ids))
     all_records: dict[str, TaskRecord] = {}
@@ -425,6 +429,7 @@ async def run_trajectory_analysis(
     for loader_fn, label in [
         (load_swebench_pro, "SWE-bench Pro"),
         (load_swebench_verified, "SWE-bench Verified"),
+        (load_swebench_live, "SWE-bench Live"),
     ]:
         try:
             records_list = loader_fn(max_tasks=_DATASET_HARD_CAP)

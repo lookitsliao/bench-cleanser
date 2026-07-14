@@ -14,8 +14,21 @@ from collections.abc import Sequence
 
 from bench_cleanser.code_visitor import extract_function_source
 from bench_cleanser.models import Assertion, CallTarget, TestedFunction
+from bench_cleanser.repo_manager import resolve_confined_repo_file
 
 logger = logging.getLogger(__name__)
+
+
+def _confined_file_or_none(
+    repo_path: pathlib.Path,
+    file_path: str,
+) -> pathlib.Path | None:
+    """Resolve a source file while treating unsafe paths as unavailable."""
+    try:
+        return resolve_confined_repo_file(repo_path, file_path)
+    except ValueError:
+        logger.debug("Ignoring unsafe static-analysis path: %r", file_path)
+        return None
 
 # unittest assertion methods
 _UNITTEST_ASSERT_METHODS = {
@@ -228,7 +241,8 @@ def _resolve_module_path(module: str, repo_path: pathlib.Path) -> str:
         "/".join(parts) + "/__init__.py",
     ]
     for candidate in candidates:
-        if (repo_path / candidate).exists():
+        full_path = _confined_file_or_none(repo_path, candidate)
+        if full_path is not None and full_path.is_file():
             return candidate
     return ""
 
@@ -272,8 +286,8 @@ def identify_tested_functions(
             if normalized in patch_file_set and base_name not in seen:
                 seen.add(base_name)
                 # Read the function source
-                full_path = repo_path / source_file
-                if full_path.exists():
+                full_path = _confined_file_or_none(repo_path, source_file)
+                if full_path is not None and full_path.is_file():
                     try:
                         content = full_path.read_text(encoding="utf-8", errors="replace")
                         func_source = extract_function_source(
@@ -297,8 +311,8 @@ def identify_tested_functions(
     # by searching patch files directly for matching function defs
     for pf in patch_files:
         if pf.endswith(".py"):
-            full_path = repo_path / pf
-            if not full_path.exists():
+            full_path = _confined_file_or_none(repo_path, pf)
+            if full_path is None or not full_path.is_file():
                 continue
             try:
                 content = full_path.read_text(encoding="utf-8", errors="replace")

@@ -10,8 +10,38 @@ from __future__ import annotations
 import ast
 import logging
 import pathlib
+from typing import Any
+
+from bench_cleanser.repo_manager import (
+    resolve_confined_repo_file,
+    resolve_confined_repo_path,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _confined_file_or_none(
+    repo_path: pathlib.Path,
+    file_path: str,
+) -> pathlib.Path | None:
+    """Return a confined file candidate, or ``None`` for unsafe input."""
+    try:
+        return resolve_confined_repo_file(repo_path, file_path.replace("\\", "/"))
+    except ValueError:
+        logger.debug("Ignoring unsafe repository file path: %r", file_path)
+        return None
+
+
+def _confined_path_or_none(
+    repo_path: pathlib.Path,
+    relative_path: str,
+) -> pathlib.Path | None:
+    """Return a confined repository path, or ``None`` for unsafe input."""
+    try:
+        return resolve_confined_repo_path(repo_path, relative_path.replace("\\", "/"))
+    except ValueError:
+        logger.debug("Ignoring unsafe repository path: %r", relative_path)
+        return None
 
 
 def extract_function_source(
@@ -59,8 +89,8 @@ def get_full_test_source(
 
     Returns ``""`` if the file or function is not found.
     """
-    file_path = repo_path / test_file
-    if not file_path.exists():
+    file_path = _confined_file_or_none(repo_path, test_file)
+    if file_path is None or not file_path.is_file():
         logger.debug("Test file not found: %s", file_path)
         return ""
 
@@ -78,20 +108,132 @@ def get_post_patch_test_source(
     added_lines: list[str],
     removed_lines: list[str],
     *,
+    raw_diff: str = "",
     max_lines: int = 200,
 ) -> str:
     """Reconstruct the post-patch test function.
 
-    If we have the pre-patch content and diff info, apply the changes.
-    Falls back to reconstructing from added_lines if needed.
+    Apply ordered unified-diff change groups to the complete pre-patch
+    function.  The previous implementation returned only ``added_lines`` as
+    soon as a test was modified, dropping the function definition and every
+    unchanged assertion around the edit.
     """
     if not pre_patch_content:
-        return "\n".join(added_lines)
+        return "\n".join(_strip_patch_marker(line) for line in added_lines)
 
-    if added_lines:
-        return "\n".join(added_lines)
+    if raw_diff and (added_lines or removed_lines):
+        reconstructed, applied = _apply_diff_groups_to_function(
+            pre_patch_content, raw_diff
+        )
+        if applied:
+            lines = reconstructed.splitlines()
+            if len(lines) > max_lines:
+                lines = lines[:max_lines]
+                lines.append(f"    # ... truncated ({len(reconstructed.splitlines())} total lines)")
+            return "\n".join(lines)
 
+    # Returning the intact pre-patch source is safer than presenting a
+    # syntactically invalid collection of additions as the whole test.  The
+    # caller still has the raw diff and can abstain when reconstruction was
+    # impossible.
     return pre_patch_content
+
+
+def _strip_patch_marker(line: str) -> str:
+    if line.startswith(("+", "-", " ")):
+        return line[1:]
+    return line
+
+
+def _apply_diff_groups_to_function(
+    pre_patch_content: str,
+    raw_diff: str,
+) -> tuple[str, bool]:
+    """Apply the portions of a unified diff that belong to one function.
+
+    Groups outside the supplied function simply have no matching old lines
+    or context anchors and are ignored.  Ambiguous matches are also ignored:
+    fabricating a post-patch test is worse than retaining known pre-patch
+    source.
+    """
+    body: list[str] = []
+    in_hunk = False
+    for raw in raw_diff.splitlines():
+        if raw.startswith("@@"):
+            in_hunk = True
+            continue
+        if in_hunk and not raw.startswith(("diff --git ", "--- ", "+++ ")):
+            body.append(raw)
+
+    groups: list[dict[str, Any]] = []
+    previous_context: str | None = None
+    current: dict[str, Any] | None = None
+    for raw in body:
+        is_added = raw.startswith("+") and not raw.startswith("+++")
+        is_removed = raw.startswith("-") and not raw.startswith("---")
+        if is_added or is_removed:
+            if current is None:
+                current = {
+                    "before": previous_context,
+                    "after": None,
+                    "old": [],
+                    "new": [],
+                }
+            key = "new" if is_added else "old"
+            values = current[key]
+            assert isinstance(values, list)
+            values.append(raw[1:])
+            continue
+
+        context = raw[1:] if raw.startswith(" ") else raw
+        if current is not None:
+            current["after"] = context
+            groups.append(current)
+            current = None
+        previous_context = context
+    if current is not None:
+        groups.append(current)
+
+    lines = pre_patch_content.splitlines()
+    applied_any = False
+    for group in groups:
+        old: list[str] = group["old"]
+        new: list[str] = group["new"]
+        before = group["before"]
+        after = group["after"]
+
+        if old:
+            candidates = [
+                i for i in range(0, len(lines) - len(old) + 1)
+                if lines[i:i + len(old)] == old
+            ]
+            anchored = [
+                i for i in candidates
+                if (before is None or (i > 0 and lines[i - 1] == before))
+                and (
+                    after is None
+                    or (i + len(old) < len(lines) and lines[i + len(old)] == after)
+                )
+            ]
+            positions = anchored or candidates
+            if len(positions) == 1:
+                pos = positions[0]
+                lines[pos:pos + len(old)] = new
+                applied_any = True
+            continue
+
+        # Pure insertion: require an unambiguous context boundary.
+        insertion_positions: list[int] = []
+        for i in range(len(lines) + 1):
+            before_ok = before is None or (i > 0 and lines[i - 1] == before)
+            after_ok = after is None or (i < len(lines) and lines[i] == after)
+            if before_ok and after_ok:
+                insertion_positions.append(i)
+        if len(insertion_positions) == 1 and new:
+            lines[insertion_positions[0]:insertion_positions[0]] = new
+            applied_any = True
+
+    return "\n".join(lines), applied_any
 
 
 def extract_imports(file_content: str) -> str:
@@ -183,7 +325,14 @@ def extract_entities_from_text(
     """
     # File paths: word/word.ext patterns
     file_candidates = set(_re.findall(r"[\w/\\]+\.(?:py|js|ts|go|rs|java|c|cpp|h|rb|php)", text))
-    files = [f for f in file_candidates if (repo_path / f.replace("\\", "/")).exists()]
+    files = [
+        f
+        for f in file_candidates
+        if (
+            (candidate := _confined_file_or_none(repo_path, f)) is not None
+            and candidate.is_file()
+        )
+    ]
 
     # Class names: PascalCase words (2+ uppercase transitions)
     class_candidates = set(_re.findall(r"\b([A-Z][a-z]+(?:[A-Z][a-z]+)+)\b", text))
@@ -200,8 +349,8 @@ def extract_entities_from_text(
     verified_functions: list[str] = []
 
     for f in files:
-        full_path = repo_path / f.replace("\\", "/")
-        if not full_path.exists() or not f.endswith(".py"):
+        full_path = _confined_file_or_none(repo_path, f)
+        if full_path is None or not full_path.is_file() or not f.endswith(".py"):
             continue
         try:
             content = full_path.read_text(encoding="utf-8", errors="replace")
@@ -239,8 +388,8 @@ def extract_problem_code_context(
     entity_sources: dict[str, str] = {}
 
     for file_path in mentioned_files:
-        full_path = repo_path / file_path.replace("\\", "/")
-        if not full_path.exists():
+        full_path = _confined_file_or_none(repo_path, file_path)
+        if full_path is None or not full_path.is_file():
             continue
         try:
             content = full_path.read_text(encoding="utf-8", errors="replace")
@@ -256,8 +405,8 @@ def extract_problem_code_context(
         for file_path in mentioned_files:
             if not file_path.endswith(".py"):
                 continue
-            full_path = repo_path / file_path.replace("\\", "/")
-            if not full_path.exists():
+            full_path = _confined_file_or_none(repo_path, file_path)
+            if full_path is None or not full_path.is_file():
                 continue
             try:
                 content = full_path.read_text(encoding="utf-8", errors="replace")
@@ -273,8 +422,8 @@ def extract_problem_code_context(
         for file_path in mentioned_files:
             if not file_path.endswith(".py"):
                 continue
-            full_path = repo_path / file_path.replace("\\", "/")
-            if not full_path.exists():
+            full_path = _confined_file_or_none(repo_path, file_path)
+            if full_path is None or not full_path.is_file():
                 continue
             try:
                 content = full_path.read_text(encoding="utf-8", errors="replace")
@@ -303,12 +452,12 @@ def extract_problem_code_context(
 
     tree_lines: list[str] = []
     for d in sorted(dirs):
-        dir_path = repo_path / d
-        if dir_path.exists() and dir_path.is_dir():
+        dir_path = _confined_path_or_none(repo_path, d)
+        if dir_path is not None and dir_path.is_dir():
             tree_lines.append(f"{d}/")
             try:
                 for child in sorted(dir_path.iterdir()):
-                    if child.name.startswith("."):
+                    if child.name.startswith(".") or child.is_symlink():
                         continue
                     suffix = "/" if child.is_dir() else ""
                     tree_lines.append(f"  {child.name}{suffix}")

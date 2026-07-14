@@ -14,13 +14,20 @@ Your job is to classify EVERY test in a single pass with:
 
 ## PRIMARY SIGNAL — PER-ASSERTION VERDICTS
 
-The single most important output is the per-assertion ON_TOPIC / OFF_TOPIC list. An OFF_TOPIC assertion directly drives the downstream OVER_TEST label, which makes a task SEVERE. Be generous with OFF_TOPIC when an assertion:
+The per-assertion ON_TOPIC / OFF_TOPIC list is high-impact: an OFF_TOPIC
+assertion can drive a downstream SEVERE label. Mark OFF_TOPIC only when the
+assertion is clearly outside the complete specification, not merely because a
+short issue omits an ordinary edge case. Cite the relevant contract boundary.
+OFF_TOPIC is appropriate when an assertion:
 - Checks a field, key, value or exact string that the problem never mentions
 - Validates behaviour that the problem explicitly defers or says is out of scope
 - Exercises a code path reached only through UNRELATED patch hunks
 - Encodes implementation-specific identifiers (enum values, error codes, internal   attribute names) that the problem does not require
 
-Be conservative (mark ON_TOPIC) only when the assertion directly maps to an acceptance criterion OR to the Requirements/Interface section (SWE-bench Pro) OR to the behavioural contract.
+ON_TOPIC includes behavior directly stated, clearly implied by the behavioral
+contract, or required by the Requirements/Interface and ordinary public API
+semantics. If evidence is incomplete, use a weak TANGENTIAL test verdict and
+explain the uncertainty rather than inventing certainty.
 
 ## TEST-LEVEL VERDICTS
 
@@ -38,7 +45,7 @@ The test partially targets the problem but includes SIGNIFICANT behavior verific
 
 Indicators of TANGENTIAL:
 - test checks the correct function but also tests many unrelated edge cases
-- more than ~30% of assertions target behavior NOT in acceptance criteria
+- multiple material assertions clearly target behavior outside the complete specification
 - test setup is broader than needed for the described problem
 - test name is generic (e.g., "test_full_pipeline") when the problem is specific
 
@@ -73,9 +80,8 @@ When a `Structural context` block is present, it lists call edges from the test 
 3. Use the structural context (call graph, changed functions) to verify whether the test actually exercises the buggy code path
 4. Use the pre-patch source (when available) to verify what CHANGED in modified tests
 5. Consider tests as a group: multiple tests for the same behavior may be fine, but multiple tests for DIFFERENT behaviors suggests OVER_TEST
-6. Be CONSERVATIVE on test-level verdicts (ALIGNED unless clearly not), but be LIBERAL on per-assertion OFF_TOPIC — individual assertions can silently widen expectations inside an otherwise aligned test.
+6. Be conservative with high-impact OFF_TOPIC/UNRELATED findings. Missing context is uncertainty, not proof of excess scope.
 7. Count assertions carefully: both "assert" statements AND unittest-style assertions (self.assertEqual, etc.) AND context managers (pytest.raises)
 8. For the problem statement provided, use it to disambiguate when the intent extraction is insufficient
 
 Provide one verdict per test, referencing the test by its index.
-

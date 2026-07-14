@@ -1,0 +1,24 @@
+llm:
+  provider: "openai-compatible"
+  api_key_env: "OPENAI_API_KEY"
+  base_url_env: "OPENAI_BASE_URL"
+  base_url: "https://api.openai.com/v1"
+  model: "gpt-4.1"
+  max_tokens: 32768
+  reasoning_effort: null
+  request_timeout_seconds: 180
+  retry_timeout_seconds: 600
+  max_concurrent_requests: 10
+  retry_attempts: 7
+  retry_delay_seconds: 5.0
+
+pipeline:
+  concurrency: 3
+  cache_dir: ".cache/llm_responses"
+  output_dir: "output"
+
+code_visitation:
+  enabled: true
+  repo_cache_dir: ".cache/repos"
+  clone_timeout_seconds: 120
+  max_source_context_lines: 200

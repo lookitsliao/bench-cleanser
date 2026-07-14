@@ -61,7 +61,7 @@ def _heading(slide, text: str, *, size=32, color=ACCENT) -> None:
     _para(tf, text, size=size, bold=True, color=color, first=True)
 
 
-def _footer(slide, text: str = "bench-cleanser · v1.0.0") -> None:
+def _footer(slide, text: str = "bench-cleanser · v0.1.0 engineering alpha") -> None:
     tf = _textbox(slide, MARGIN, SLIDE_H - Emu(380000), SLIDE_W - 2 * MARGIN, Emu(300000))
     _para(tf, text, size=10, color=DIM, align=PP_ALIGN.RIGHT, first=True)
 
@@ -109,13 +109,12 @@ def slide_title(prs: Presentation) -> None:
     tf = _textbox(slide, MARGIN, Emu(2000000), SLIDE_W - 2 * MARGIN, Emu(900000))
     _para(tf, "bench-cleanser", size=60, bold=True, color=FG, align=PP_ALIGN.CENTER, first=True)
     tf = _textbox(slide, MARGIN, Emu(2900000), SLIDE_W - 2 * MARGIN, Emu(600000))
-    _para(tf, "Deterministic contamination, fairness, and trajectory-leakage analysis", size=22, color=ACCENT, align=PP_ALIGN.CENTER, first=True)
-    _para(tf, "for the SWE-bench family.", size=22, color=ACCENT, align=PP_ALIGN.CENTER)
+    _para(tf, "Risk-adaptive verification for SWE-agent data, rollouts, and evaluation", size=22, color=ACCENT, align=PP_ALIGN.CENTER, first=True)
     tf = _textbox(slide, MARGIN, Emu(3700000), SLIDE_W - 2 * MARGIN, Emu(400000))
-    _para(tf, "A research instrument for building, training on, and grading agentic coding LLMs.",
+    _para(tf, "When is semantic evidence enough, when must software execute, and when should we abstain?",
           size=14, color=DIM, align=PP_ALIGN.CENTER, first=True)
     tf = _textbox(slide, MARGIN, Emu(4500000), SLIDE_W - 2 * MARGIN, Emu(400000))
-    _para(tf, "v1.0.0   ·   116 offline tests   ·   ruff + mypy clean   ·   Python 3.11 / 3.12   ·   MIT",
+    _para(tf, "v0.1.0 engineering alpha   ·   offline regression suite   ·   Python 3.11 / 3.12   ·   MIT",
           size=13, color=GOOD, align=PP_ALIGN.CENTER, first=True)
     tf = _textbox(slide, MARGIN, Emu(5400000), SLIDE_W - 2 * MARGIN, Emu(300000))
     _para(tf, "Liao Zhu  ·  2026", size=11, color=DIM, align=PP_ALIGN.CENTER, first=True)
@@ -132,7 +131,7 @@ def slide_why(prs: Presentation) -> None:
     rows = [
         [("", DIM, True), ("Looks like", ACCENT, True), ("Actually is", ACCENT, True)],
         [("Task is broken", DIM, False), ("Model failed", FG, False), ("Tests demand undescribed behaviour", FG, False)],
-        [("Agent cheated", DIM, False), ("Model passed", FG, False), ("Agent pip install-ed the fix", FG, False)],
+        [("Prohibited access", DIM, False), ("Model passed", FG, False), ("Trace shows hidden solution information used", FG, False)],
         [("Honest pass", DIM, False), ("Model passed", FG, False), ("Model passed", FG, False)],
         [("Honest fail", DIM, False), ("Model failed", FG, False), ("Model failed", FG, False)],
     ]
@@ -158,11 +157,11 @@ def slide_two_axis(prs: Presentation) -> None:
     _para(tf, "Axis 2 — Agent trajectory", size=22, bold=True, color=ACCENT, first=True)
     _para(tf, "How did this agent reach its result?", size=14, color=DIM)
     _para(tf, "•  One label per (task, agent)", size=14)
-    _para(tf, "•  Heuristics + LLM, with cross-agent quorum upgrade", size=14)
+    _para(tf, "•  Heuristics + LLM, with a cross-agent review signal", size=14)
     _para(tf, "•  Inputs: action trace, final patch, resolved flag", size=14)
     tf = _textbox(slide, MARGIN, Emu(4400000), SLIDE_W - 2 * MARGIN, Emu(1500000))
     _para(tf, "An APPROACH_LOCK task is broken whether or not any model attempts it.", size=14, first=True)
-    _para(tf, "An agent that pip install-s the fix has cheated whether or not the task is clean.", size=14)
+    _para(tf, "Package installation, similarity, speed, and convergence are review signals—not proof of leakage.", size=14)
     _para(tf, "Stage 7 fuses both axes into a single fairness verdict.", size=14, bold=True, color=ACCENT)
     _footer(slide)
 
@@ -198,10 +197,10 @@ def slide_axis2(prs: Presentation) -> None:
     rows = [
         [("Outcome", ACCENT, True), ("Label", ACCENT, True), ("Pattern", ACCENT, True)],
         [("Passed", DIM, False), ("agent_passed_genuine", FG, True), ("Explore → hypothesise → patch → test.", FG, False)],
-        [("", DIM, False), ("agent_passed_leak", FG, True), ("Final patch ≥ 0.90 similar to gold; direct file jumps.", FG, False)],
-        [("", DIM, False), ("agent_passed_package_leak", FG, True), ("Agent pip install-ed the affected package.", FG, False)],
-        [("", DIM, False), ("agent_passed_test_aware", FG, True), ("Referenced F2P test names before they were derivable.", FG, False)],
-        [("", DIM, False), ("agent_passed_trained_hack", FG, True), ("Canonical fix on first try — memorised template.", FG, False)],
+        [("", DIM, False), ("agent_passed_leak", FG, True), ("Trace directly shows prohibited reference access and use.", FG, False)],
+        [("", DIM, False), ("agent_passed_package_leak", FG, True), ("Trace shows affected-package source inspected and copied.", FG, False)],
+        [("", DIM, False), ("agent_passed_test_aware", FG, True), ("Trace exposes hidden F2P data before allowed exploration.", FG, False)],
+        [("", DIM, False), ("agent_passed_trained_hack", FG, True), ("Cross-task or provenance evidence supports memorized exploitation.", FG, False)],
         [("Failed", DIM, False), ("agent_failed_completed_intent", FG, True), ("Addressed the brief; F2P tests rejected it → UNFAIR_FAILURE driver.", FG, False)],
         [("", DIM, False), ("agent_failed_no_intent", FG, True), ("Never engaged the problem. Skill gap.", FG, False)],
         [("Unknown", DIM, False), ("agent_unknown", FG, True), ("Trajectory truncated or malformed.", FG, False)],
@@ -218,9 +217,9 @@ def slide_fusion(prs: Presentation) -> None:
         [("", ACCENT, True), ("passed_genuine", ACCENT, True), ("passed_leak·*", ACCENT, True),
          ("failed_completed", ACCENT, True), ("failed_no_intent", ACCENT, True), ("unknown", ACCENT, True)],
         [("CLEAN / MINOR", ACCENT, True), ("FAIR_PASS", GOOD, True), ("AGENT_CHEATED", BAD, True),
-         ("FAIR_FAILURE", GOOD, True), ("AGENT_DISENGAGED", NEUTRAL, False), ("AMBIGUOUS_PASS\nINCONCLUSIVE", NEUTRAL, False)],
+         ("FAIR_FAILURE", GOOD, True), ("AGENT_DISENGAGED", NEUTRAL, False), ("AMBIGUOUS_PASS\nINCONCLUSIVE", BAD, True)],
         [("MODERATE / SEVERE", ACCENT, True), ("CONTAMINATED_PASS", BAD, True), ("AGENT_CHEATED", BAD, True),
-         ("UNFAIR_FAILURE", BAD, True), ("AGENT_DISENGAGED", NEUTRAL, False), ("INCONCLUSIVE", NEUTRAL, False)],
+         ("UNFAIR_FAILURE", BAD, True), ("AGENT_DISENGAGED", NEUTRAL, False), ("INCONCLUSIVE", BAD, True)],
     ]
     _table(slide, MARGIN, Emu(1400000), SLIDE_W - 2 * MARGIN, Emu(2200000), rows, font_size=11)
     tf = _textbox(slide, MARGIN, Emu(4000000), SLIDE_W - 2 * MARGIN, Emu(1300000))
@@ -241,7 +240,7 @@ def slide_architecture(prs: Presentation) -> None:
         "Stage 1     parse        diffs from gold patch + test patch              [deterministic]",
         "Stage 1.5   visit        shallow-clone repo · attach test source · AST   [deterministic]",
         "Stage 2     intent       LLM extracts core requirement + scope           [LLM]",
-        "Stage 3     structural   astred-core / stdlib ast diff                   [deterministic]",
+        "Stage 3     structural   Tree-sitter / Python ast-text fallback          [deterministic]",
         "Stage 4A    patch ↔ intent                                                [LLM]",
         "Stage 4B    test  ↔ intent                                                [LLM]",
         "Stage 4C    cross-ref    overpatch–overtest coupling                     [deterministic]",
@@ -272,7 +271,7 @@ def slide_determinism(prs: Presentation) -> None:
          ("response_format={\"type\":\"json_schema\",\"strict\":true} with json_object fallback. "
           "Cache-before-validate so a corrupt payload stays inspectable.", FG, False)],
         [("Resumable runs", FG, True),
-         ("--resume on by default; reports reloaded from disk are authoritative.", FG, False)],
+         ("--resume reuses only complete successful reports with matching provenance.", FG, False)],
         [("Frozen across model upgrades", FG, True),
          ("Severity rules depend only on label set. Swapping the LLM never changes the severity mapping.", FG, False)],
         [("Atomic writes", FG, True),
@@ -302,12 +301,12 @@ def slide_trajectory(prs: Presentation) -> None:
     tf = _textbox(slide, MARGIN, Emu(3600000), SLIDE_W - 2 * MARGIN, Emu(400000))
     _para(tf, "Layered classifier", size=18, bold=True, color=ACCENT, first=True)
     tf = _textbox(slide, MARGIN, Emu(4100000), SLIDE_W - 2 * MARGIN, Emu(2200000))
-    _para(tf, "1.  Heuristics — normalised diff similarity (quote-aware comment strip), "
-              "pip-install detection, F2P-name leakage.", size=13, first=True)
+    _para(tf, "1.  Heuristics — diff similarity, package-install detection, and F2P-name "
+              "references create review evidence only.", size=13, first=True)
     _para(tf, "2.  LLM — strict-output Pydantic; heuristic signals embedded in prompt.", size=13)
-    _para(tf, "3.  Cross-agent quorum — median pairwise similarity ≥ 0.85 AND ≥ 10 added lines "
-              "→ upgrade to GOLD_PATCH_LEAK.", size=13)
-    _para(tf, "      Outlier-tolerant; honest low-entropy convergence protected.", size=12, color=DIM)
+    _para(tf, "3.  Cross-agent review signal — median pairwise similarity ≥ 0.85 AND ≥ 10 "
+              "added lines downgrades unsupported conclusions to agent_unknown.", size=13)
+    _para(tf, "      Convergence alone never proves gold access.", size=12, color=DIM)
     _footer(slide)
 
 
@@ -334,9 +333,9 @@ def slide_robustness(prs: Presentation) -> None:
         ("Heuristic union",
          "Three high-precision deterministic heuristics (pre-staged tests, "
          "0-REQUIRED mismatch, self-referential text) survive even if the LLM omits them."),
-        ("Cross-agent quorum",
-         "Median quorum + low-entropy gate. One-line bug fixes no longer get "
-         "flagged as gold-patch leaks; one diverging agent no longer vetoes the upgrade."),
+        ("Cross-agent review signal",
+         "Median convergence + low-entropy gate. Non-trivial agreement creates "
+         "an unknown/manual-review signal; it never establishes gold-patch access."),
     ]
     card_h = Emu(1500000)
     gap = Emu(150000)
@@ -365,14 +364,14 @@ def slide_status(prs: Presentation) -> None:
     _heading(slide, "Current status")
     rows = [
         [("Surface", ACCENT, True), ("State", ACCENT, True)],
-        [("Source LOC", FG, True), ("~9.9k (33 modules)", FG, False)],
-        [("Tests", FG, True), ("116 offline · no network · no Azure · no git clones", GOOD, False)],
+        [("Maturity", FG, True), ("engineering alpha · no calibrated/downstream claim", ACCENT, False)],
+        [("Tests", FG, True), ("offline regression suite · no external API calls", GOOD, False)],
         [("Lint", FG, True), ("ruff clean", GOOD, True)],
-        [("Types", FG, True), ("mypy clean across all 33 modules", GOOD, True)],
+        [("Types", FG, True), ("mypy clean under repository configuration", GOOD, True)],
         [("CI", FG, True), ("Python 3.11 + 3.12 matrix on Ubuntu", FG, False)],
         [("Benchmark coverage", FG, True), ("SWE-bench Verified · Pro · Live", FG, False)],
         [("Trajectory sources", FG, True), ("Docent · HuggingFace · JSONL · JSON dir", FG, False)],
-        [("Console scripts", FG, True), ("bench-cleanser · bench-cleanser-trajectory · bench-cleanser-deep-dive", FG, False)],
+        [("Console scripts", FG, True), ("seven entry points, including corpus · manifest · route · evaluate", FG, False)],
     ]
     _table(slide, MARGIN, Emu(1200000), SLIDE_W - 2 * MARGIN, Emu(3300000), rows, font_size=12)
     tf = _textbox(slide, MARGIN, Emu(4700000), SLIDE_W - 2 * MARGIN, Emu(400000))
@@ -382,7 +381,7 @@ def slide_status(prs: Presentation) -> None:
           size=12, color=DIM, first=True)
     _para(tf, "•  Axis-1 labels inherit LLM judgement noise; deterministic stages only amplify what upstream labels say.",
           size=12, color=DIM)
-    _para(tf, "•  Cross-reference coupling is file-level, not function-level — known gap.",
+    _para(tf, "•  Verification routing is uncalibrated and does not itself run compilers or containers.",
           size=12, color=DIM)
     _para(tf, "•  Research instrument, not a metric. Makes human review tractable; does not replace it.",
           size=12, color=DIM)
@@ -403,7 +402,7 @@ def slide_close(prs: Presentation) -> None:
     _para(tf, "bench-cleanser is the tool you run before either.",
           size=22, bold=True, color=ACCENT, align=PP_ALIGN.CENTER, first=True)
     tf = _textbox(slide, MARGIN, Emu(5400000), SLIDE_W - 2 * MARGIN, Emu(400000))
-    _para(tf, "github.com/v-liaozhu/bench-cleanser   ·   MIT   ·   v1.0.0",
+    _para(tf, "github.com/v-liaozhu/bench-cleanser   ·   MIT   ·   v0.1.0 engineering alpha",
           size=12, color=DIM, align=PP_ALIGN.CENTER, first=True)
 
 

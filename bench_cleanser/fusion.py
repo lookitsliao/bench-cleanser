@@ -151,7 +151,7 @@ def fuse(
                         "Agent passed a clean task but the trajectory could "
                         "not be characterised. Manual review recommended."
                     ),
-                    invalidates=False, evidence=evidence,
+                    invalidates=True, evidence=evidence,
                 )
             return _make(
                 report, trajectory,
@@ -161,7 +161,7 @@ def fuse(
                     f"and the task carries severity {sev.value}. Cannot decide "
                     "between FAIR_PASS, AGENT_CHEATED, and CONTAMINATED_PASS."
                 ),
-                invalidates=False, evidence=evidence,
+                invalidates=True, evidence=evidence,
             )
         # Did not resolve and trajectory is unknown — no usable signal.
         evidence.append("Agent reported FAIL on this task")
@@ -172,7 +172,7 @@ def fuse(
                 "Agent failed and the trajectory could not be characterised. "
                 "Manual review recommended."
             ),
-            invalidates=False, evidence=evidence,
+            invalidates=True, evidence=evidence,
         )
 
     # Rule 5 — failed but task is unfair.
@@ -225,7 +225,7 @@ def fuse(
         report, trajectory,
         verdict=FusionVerdict.INCONCLUSIVE,
         reasoning="Neither axis provides a decisive signal.",
-        invalidates=False, evidence=evidence,
+        invalidates=True, evidence=evidence,
     )
 
 

@@ -233,6 +233,7 @@ class TaskLabelItem(BaseModel):
     ] = Field(..., description="Taxonomy label from the contamination classification.")
     evidence: list[str] = Field(
         ...,
+        min_length=1,
         description="Specific evidence items supporting this label (cite hunks, assertions, text).",
     )
     reasoning: str = Field(
@@ -320,4 +321,3 @@ class TrajectoryClassificationResponse(BaseModel):
         default="",
         description="One- or two-sentence characterisation of the agent's behaviour.",
     )
-

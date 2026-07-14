@@ -216,24 +216,42 @@ async def analyze_tests(
     all_test_hunks = list(parsed.f2p_test_hunks)
     problem_statement = parsed.record.full_problem_context
 
-    # Handle unmatched F2P tests (tests with no hunk — not modified, likely exercise gold patch)
+    # A filename-aware parser can legitimately leave an F2P ID unmatched.  If
+    # Stage 3 recovered the existing test from the repository, send that real
+    # source through the same LLM classifier instead of inventing an ALIGNED
+    # verdict.  Otherwise record a weak TANGENTIAL/unknown result: absence of
+    # a diff is not evidence of intent alignment.
+    source_backed, unavailable_ids = _source_backed_unmatched_hunks(
+        parsed, structural_diff
+    )
+    all_test_hunks.extend(source_backed)
+
     unmatched_verdicts: list[TestVerdictReport] = []
-    for test_id in parsed.f2p_tests_with_no_hunk:
-        parts = test_id.split("::")
-        test_name = parts[-1].split("[")[0] if parts else test_id
+    for test_id in unavailable_ids:
+        test_name = _test_name_from_f2p_id(test_id)
         unmatched_verdicts.append(TestVerdictReport(
             test_id=test_id, test_name=test_name,
-            intent_match=TestVerdict.ALIGNED, evidence_strength="weak",
-            reasoning="F2P test with no matching hunk — test was not modified, likely exercises gold patch behavior",
+            intent_match=TestVerdict.TANGENTIAL, evidence_strength="weak",
+            reasoning=(
+                "F2P test could not be matched unambiguously to a test-patch "
+                "hunk and no repository source was recovered; alignment is unknown"
+            ),
             is_modified=False, modification_aligned=True, assertion_verdicts=[],
         ))
 
     if not all_test_hunks:
         # Only unmatched tests
         aligned = sum(1 for v in unmatched_verdicts if v.intent_match == TestVerdict.ALIGNED)
+        tangential = sum(
+            1 for v in unmatched_verdicts if v.intent_match == TestVerdict.TANGENTIAL
+        )
+        unrelated = sum(
+            1 for v in unmatched_verdicts if v.intent_match == TestVerdict.UNRELATED
+        )
         return TestAnalysis(
             total_tests=len(unmatched_verdicts),
-            aligned_count=aligned, tangential_count=0, unrelated_count=0,
+            aligned_count=aligned, tangential_count=tangential,
+            unrelated_count=unrelated,
             total_assertions=0, on_topic_assertions=0, off_topic_assertions=0,
             has_modified_tests=False, test_verdicts=unmatched_verdicts,
         )
@@ -287,15 +305,19 @@ async def analyze_tests(
                 try:
                     av = AssertionVerdict(av_item.verdict)
                 except ValueError:
-                    av = AssertionVerdict.ON_TOPIC
+                    logger.warning(
+                        "Invalid assertion verdict for test %s assertion %d; leaving unscored",
+                        test_hunk.test_name, j,
+                    )
+                    continue
                 assertion_verdicts.append(AssertionVerdictReport(
                     statement=assertion_str, verdict=av, reason=av_item.reason,
                 ))
             else:
-                assertion_verdicts.append(AssertionVerdictReport(
-                    statement=assertion_str, verdict=AssertionVerdict.ON_TOPIC,
-                    reason="No per-assertion verdict from LLM",
-                ))
+                logger.warning(
+                    "Missing assertion verdict for test %s assertion %d; leaving unscored",
+                    test_hunk.test_name, j,
+                )
 
         test_verdicts.append(TestVerdictReport(
             test_id=test_hunk.full_test_id, test_name=test_hunk.test_name,
@@ -328,3 +350,44 @@ async def analyze_tests(
         has_modified_tests=has_modified,
         test_verdicts=test_verdicts,
     )
+
+
+def _source_backed_unmatched_hunks(
+    parsed: ParsedTask,
+    structural_diff: StructuralDiff | None,
+) -> tuple[list[TestHunk], list[str]]:
+    """Rehydrate unmatched F2P IDs from Stage 3 repository source."""
+    if structural_diff is None:
+        return [], list(parsed.f2p_tests_with_no_hunk)
+
+    blocks_by_id = {
+        block.test_id: block
+        for block in structural_diff.test_blocks
+        if block.full_source
+    }
+    rehydrated: list[TestHunk] = []
+    unavailable: list[str] = []
+    for test_id in parsed.f2p_tests_with_no_hunk:
+        block = blocks_by_id.get(test_id)
+        if block is None:
+            unavailable.append(test_id)
+            continue
+        rehydrated.append(TestHunk(
+            file_path=block.file_path,
+            test_name=block.test_name,
+            full_test_id=test_id,
+            modification_type=TestModificationType.UNKNOWN,
+            added_lines=[],
+            removed_lines=[],
+            full_source=block.full_source,
+            raw_diff="",
+        ))
+    return rehydrated, unavailable
+
+
+def _test_name_from_f2p_id(test_id: str) -> str:
+    if "::" in test_id:
+        return test_id.rsplit("::", 1)[-1].split("[", 1)[0]
+    if " (" in test_id:
+        return test_id.split(" (", 1)[0].split(".")[-1]
+    return test_id.rsplit(".", 1)[-1].split("[", 1)[0]

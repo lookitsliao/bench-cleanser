@@ -15,6 +15,7 @@ from bench_cleanser.schemas import TrajectoryClassificationResponse
 from bench_cleanser.trajectory.classifier import (
     GOLD_PATCH_SIMILARITY_THRESHOLD,
     HIGH_SIMILARITY_THRESHOLD,
+    _normalize_trajectory_label,
     classify_cross_agent,
     classify_heuristic_only,
     classify_with_llm,
@@ -171,14 +172,15 @@ class TestDetectTestReferences:
 
 
 class TestClassifyHeuristicOnly:
-    def test_gold_patch_match_returns_gold_leak(self):
+    def test_gold_patch_match_requires_review(self):
         traj = _trajectory(final_patch=_GOLD_PATCH)
         analysis = classify_heuristic_only(traj, _GOLD_PATCH, [])
-        assert analysis.leakage_pattern == LeakagePattern.GOLD_PATCH_LEAK
-        assert analysis.evidence_strength == "strong"
+        assert analysis.leakage_pattern == LeakagePattern.PARTIAL_MATCH
+        assert analysis.trajectory_label == AgentTrajectoryLabel.AGENT_UNKNOWN
+        assert analysis.evidence_strength == "moderate"
         assert analysis.gold_patch_similarity >= GOLD_PATCH_SIMILARITY_THRESHOLD
 
-    def test_pip_install_returns_package_leak(self):
+    def test_pip_install_requires_review(self):
         traj = _trajectory(
             actions=[TrajectoryAction(
                 action_type=ActionType.TERMINAL,
@@ -187,9 +189,10 @@ class TestClassifyHeuristicOnly:
             final_patch=_TOTALLY_DIFFERENT_PATCH,
         )
         analysis = classify_heuristic_only(traj, _GOLD_PATCH, [])
-        assert analysis.leakage_pattern == LeakagePattern.PACKAGE_LEAK
+        assert analysis.leakage_pattern == LeakagePattern.PARTIAL_MATCH
+        assert analysis.trajectory_label == AgentTrajectoryLabel.AGENT_UNKNOWN
 
-    def test_test_reference_returns_test_aware(self):
+    def test_test_reference_requires_temporal_evidence(self):
         traj = _trajectory(
             actions=[TrajectoryAction(
                 action_type=ActionType.THINK,
@@ -200,12 +203,14 @@ class TestClassifyHeuristicOnly:
         analysis = classify_heuristic_only(
             traj, _GOLD_PATCH, ["test_my_f2p"],
         )
-        assert analysis.leakage_pattern == LeakagePattern.TEST_AWARE
+        assert analysis.leakage_pattern == LeakagePattern.PARTIAL_MATCH
+        assert analysis.trajectory_label == AgentTrajectoryLabel.AGENT_UNKNOWN
 
-    def test_no_signals_returns_genuine_solution(self):
+    def test_no_signals_abstains_as_unknown(self):
         traj = _trajectory(final_patch=_TOTALLY_DIFFERENT_PATCH)
         analysis = classify_heuristic_only(traj, _GOLD_PATCH, [])
-        assert analysis.leakage_pattern == LeakagePattern.GENUINE_SOLUTION
+        assert analysis.leakage_pattern == LeakagePattern.UNKNOWN
+        assert analysis.trajectory_label == AgentTrajectoryLabel.AGENT_UNKNOWN
 
     def test_resolved_propagates(self):
         traj = _trajectory(final_patch=_TOTALLY_DIFFERENT_PATCH, resolved=True)
@@ -230,19 +235,20 @@ def test_extract_heuristic_signals_shape():
 # ── classify_cross_agent ────────────────────────────────────────────
 
 
-def test_cross_agent_upgrades_genuine_to_leak_when_all_similar():
-    """Cross-agent: if all final patches match, every GENUINE analysis is
-    upgraded to GOLD_PATCH_LEAK with strong evidence."""
+def test_cross_agent_convergence_is_review_evidence():
+    """Convergence may be a canonical fix; it never proves gold access."""
     from bench_cleanser.trajectory.models import TrajectoryAnalysis
 
     analyses = [
         TrajectoryAnalysis(
             instance_id="pkg/repo-1", agent_name="a1",
             leakage_pattern=LeakagePattern.GENUINE_SOLUTION,
+            resolved=True,
         ),
         TrajectoryAnalysis(
             instance_id="pkg/repo-1", agent_name="a2",
             leakage_pattern=LeakagePattern.PARTIAL_MATCH,
+            resolved=True,
         ),
     ]
     trajectories = [
@@ -250,8 +256,12 @@ def test_cross_agent_upgrades_genuine_to_leak_when_all_similar():
         _trajectory(agent_name="a2", final_patch=_GOLD_PATCH),
     ]
     updated = classify_cross_agent(analyses, trajectories)
-    assert all(a.leakage_pattern == LeakagePattern.GOLD_PATCH_LEAK for a in updated)
-    assert all(a.evidence_strength == "strong" for a in updated)
+    assert all(a.leakage_pattern == LeakagePattern.PARTIAL_MATCH for a in updated)
+    assert all(a.evidence_strength == "moderate" for a in updated)
+    assert all(
+        a.trajectory_label == AgentTrajectoryLabel.AGENT_UNKNOWN
+        for a in updated
+    )
 
 
 def test_cross_agent_no_change_when_divergent():
@@ -363,6 +373,19 @@ async def test_classify_with_llm_falls_back_on_error():
         f2p_test_names=[],
         llm=_BrokenLLM(),
     )
-    # heuristic classifier sees gold-patch match
-    assert analysis.leakage_pattern == LeakagePattern.GOLD_PATCH_LEAK
+    # Similarity is a review signal, not proof of gold-patch access.
+    assert analysis.leakage_pattern == LeakagePattern.PARTIAL_MATCH
+    assert analysis.trajectory_label == AgentTrajectoryLabel.AGENT_UNKNOWN
     assert analysis.resolved is True
+
+
+@pytest.mark.parametrize("pattern", [
+    LeakagePattern.PARTIAL_MATCH,
+    LeakagePattern.UNKNOWN,
+])
+def test_inconclusive_pattern_cannot_keep_passed_label(pattern: LeakagePattern):
+    assert _normalize_trajectory_label(
+        pattern,
+        AgentTrajectoryLabel.AGENT_PASSED_GENUINE,
+        resolved=True,
+    ) == AgentTrajectoryLabel.AGENT_UNKNOWN

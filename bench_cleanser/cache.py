@@ -27,8 +27,18 @@ class ResponseCache:
 
     @staticmethod
     def make_key(system_prompt: str, user_prompt: str, model: str) -> str:
-        """Return a SHA-256 hex digest for the given prompt/model tuple."""
-        content = system_prompt + user_prompt + model
+        """Return a length-safe SHA-256 digest for the prompt/model tuple."""
+        content = json.dumps(
+            {
+                "cache_protocol": "v2",
+                "system_prompt": system_prompt,
+                "user_prompt": user_prompt,
+                "model": model,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
         return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
     def _key_path(self, key: str) -> pathlib.Path:

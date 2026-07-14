@@ -1,24 +1,23 @@
 # Sample run
 
-This directory contains a small, hand-picked slice of a real `bench-cleanser`
-pipeline run against SWE-bench Pro. It exists so that someone landing fresh
-on the repo can read a real `ContaminationReport` without having to
-re-execute the pipeline (which costs LLM calls and Azure credentials).
+This directory contains three hand-picked reports from an earlier
+`bench-cleanser` run against SWE-bench Pro plus the aggregate statistics from
+that source run. It lets a new reader inspect report JSON without spending LLM
+tokens or configuring an OpenAI-compatible endpoint.
 
 ```
 sample_run/
-├── reports/                       3 representative ContaminationReport JSONs
-└── summary_stats.json             aggregate severity + label distribution
+├── reports/                       3 extracted ContaminationReport JSONs
+└── summary_stats.json             aggregate distribution from the source run
 ```
 
-The three reports cover different severities so a reader can compare what
-`CLEAN`, `MINOR`, and labelled outputs look like in practice.
+All three extracted reports are `MINOR` weak-coverage examples. They are useful
+for inspecting evidence fields, not for comparing severity classes.
 
-See the **How to interpret a report** section of the top-level
-[README](../../README.md#how-to-interpret-a-report) for a field-by-field walk
-through one of these files.
+See [Outputs](../../README.md#outputs--what-comes-out-of-a-run) in the top-level
+README for the current report shape.
 
-> The full run that produced these (50 SWE-bench Pro tasks, ~22 min wall
-> clock against `gpt-5.4-20260305`) is no longer tracked in source control —
-> it lives on disk in `output_pro_v6/` if you cloned this repo before v1.0.0.
-> The pipeline rebuilds it on demand.
+> These artifacts predate the current provenance envelope and are illustrative
+> only. They do not establish benchmark-wide prevalence, classifier accuracy,
+> or reproducibility. Publication-grade samples must be regenerated with the
+> repaired alpha and accompanied by dataset/model/prompt/environment identity.

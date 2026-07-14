@@ -1,0 +1,81 @@
+policy_version = "1.0"
+policy_name = "bench-cleanser-public-alpha-python"
+legal_review_complete = false
+scope_profiles = ["default", "structural"]
+
+[licenses]
+# These are automated public-alpha distribution triage decisions, not legal
+# conclusions. Every installed distribution must also expose a non-empty
+# license file through pip-licenses. Unrecognized or review-class licenses fail.
+allowed = [
+    "0BSD",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSD-metadata-generic",
+    "CC0-1.0",
+    "ISC",
+    "MIT",
+    "MPL-2.0",
+    "PSF-2.0",
+    "Unlicense",
+    "Zlib",
+]
+denied_patterns = [
+    "(?i)affero|\\bAGPL(?:-|\\b)|server.side.public|\\bSSPL(?:-|\\b)",
+    "(?i)gnu general public license|\\bGPL(?:-|\\b)",
+    "(?i)business.source.license|\\bBSL(?:-|\\b)|commons.clause",
+    "(?i)proprietary|commercial.license|closed.source",
+]
+review_patterns = [
+    "(?i)gnu lesser general public license|\\bLGPL(?:-|\\b)",
+    "(?i)eclipse public license|\\bEPL(?:-|\\b)",
+    "(?i)common development and distribution license|\\bCDDL(?:-|\\b)",
+    "(?i)european union public license|\\bEUPL(?:-|\\b)|cecill|artistic",
+    "(?i)unknown|unlicensed|no license|other|custom",
+]
+unknown_values = ["", "UNKNOWN", "NONE", "N/A"]
+
+[licenses.aliases]
+"0bsd" = "0BSD"
+"apache-2.0" = "Apache-2.0"
+"apache 2.0" = "Apache-2.0"
+"apache license 2.0" = "Apache-2.0"
+"apache software license" = "Apache-2.0"
+"bsd" = "BSD-metadata-generic"
+"bsd license" = "BSD-metadata-generic"
+"bsd-2-clause" = "BSD-2-Clause"
+"bsd 2-clause" = "BSD-2-Clause"
+"bsd-3-clause" = "BSD-3-Clause"
+"bsd 3-clause" = "BSD-3-Clause"
+"cc0-1.0" = "CC0-1.0"
+"isc" = "ISC"
+"isc license" = "ISC"
+"mit" = "MIT"
+"mit license" = "MIT"
+"mozilla public license 2.0 (mpl 2.0)" = "MPL-2.0"
+"mpl-2.0" = "MPL-2.0"
+"psf-2.0" = "PSF-2.0"
+"python software foundation license" = "PSF-2.0"
+"the unlicense (unlicense)" = "Unlicense"
+"unlicense" = "Unlicense"
+"zlib" = "Zlib"
+"zlib license" = "Zlib"
+
+[packages]
+# Canonicalized according to PEP 503. Any appearance in the installed target
+# environment fails even if its reported license is otherwise allowed.
+forbidden = [
+    "astred-core",
+    "azure-core",
+    "azure-identity",
+    "azure-identity-broker",
+    "cloudgpt",
+    "msal",
+    "msal-extensions",
+]
+
+# These public integrations are deliberately outside the alpha's audited
+# dependency closure. The source may contain a lazy adapter import, but the
+# distributions must not enter the default/structural release environment.
+excluded_integrations = ["docent", "docent-python"]

@@ -1,0 +1,198 @@
+{
+  "schema_version": "prospective-pilot-collection-policy-0.3.0",
+  "study_id": "matched-24-independent-evidence-development-pilot-v2",
+  "status": "core_implemented_operationally_blocked",
+  "scope": {
+    "candidate_count": 66,
+    "candidates_per_task": 3,
+    "excluded_task_clusters": [
+      "sympy__sympy-15976",
+      "sphinx-doc__sphinx-8475"
+    ],
+    "future_task_clusters": 22,
+    "replacement_allowed": false
+  },
+  "rng": {
+    "action_draws": {
+      "domain": "bench-cleanser/prospective-pilot-v2/action-draw",
+      "seed_sha256": "f79578fb9860ef0eb4bf02a62691e98c4002a5de96b8dda9ab2d3616f082b574"
+    },
+    "candidate_order": {
+      "domain": "bench-cleanser/prospective-pilot-v2/candidate-order",
+      "seed_sha256": "4521fcca1866d783919b9e3899e0c6e679f2a4c790e63420c2747abb6716f4eb"
+    },
+    "counter_contract": "task_order_index_times_15_plus_round_index_times_3_plus_candidate_position_with_terminal_candidate_slots_reserved_and_never_reused",
+    "generator_contract": "sha256(hex_decode(seed_sha256) || 0x00 || utf8(domain) || 0x00 || uint64_be(counter)); unsigned_big_endian_first_53_bits_divided_by_2_pow_53",
+    "selection_timing": "post_hosted_outcome_exposure_pre_future_measurement_not_outcome_naive",
+    "task_order": {
+      "domain": "bench-cleanser/prospective-pilot-v2/task-order",
+      "seed_sha256": "601dfd7774d58876b42240e4f98e897c19a55356eccca67a39f81a4c7299ca32"
+    }
+  },
+  "behavior_policy": {
+    "action_catalog": [
+      {
+        "action_id": "abstain",
+        "evidence_kind": null,
+        "route_action": "abstain"
+      },
+      {
+        "action_id": "accept",
+        "evidence_kind": null,
+        "route_action": "accept"
+      },
+      {
+        "action_id": "full_primary",
+        "evidence_kind": "full_execution",
+        "route_action": "run_full_execution"
+      },
+      {
+        "action_id": "full_repeat",
+        "evidence_kind": "full_execution",
+        "route_action": "run_full_execution"
+      },
+      {
+        "action_id": "hardening_curator",
+        "evidence_kind": "oracle_hardening",
+        "route_action": "harden_oracle"
+      },
+      {
+        "action_id": "reject",
+        "evidence_kind": null,
+        "route_action": "reject"
+      },
+      {
+        "action_id": "semantic_primary",
+        "evidence_kind": "semantic",
+        "route_action": "run_semantic"
+      },
+      {
+        "action_id": "static_bootstrap",
+        "evidence_kind": "static",
+        "route_action": "run_static"
+      },
+      {
+        "action_id": "targeted_primary",
+        "evidence_kind": "targeted_execution",
+        "route_action": "run_targeted_execution"
+      }
+    ],
+    "availability_reason_allowlist": [
+      "acquisition_ceiling",
+      "action_already_completed",
+      "always_available",
+      "candidate_terminal",
+      "curator_only_not_policy_available",
+      "deterministic_bootstrap_completed",
+      "execution_binding_available",
+      "execution_binding_unavailable",
+      "primary_full_required",
+      "proposal_terminal_available",
+      "proposal_terminal_unavailable",
+      "semantic_binding_available",
+      "semantic_binding_unavailable",
+      "terminal_governed"
+    ],
+    "action_probability": "0.5 * indicator(action_is_preferred) + 0.5 / available_action_count",
+    "availability_rules": {
+      "full_primary": "available_once_after_the_per_task_execution_bindings_are_complete",
+      "full_repeat": "available_once_only_after_full_primary_returns_and_uses_a_fresh_worktree",
+      "hardening_curator": "disclosed_for_route_enum_completeness_but_permanently_unavailable_to_the_behavior_policy_and_reserved_for_the_post_policy_curator_stream",
+      "semantic_primary": "available_once_only_when_the_complete_semantic_producer_identity_is_frozen",
+      "static_bootstrap": "collected_deterministically_before_the_first_randomized_decision_and_therefore_disclosed_but_permanently_unavailable_to_the_behavior_policy",
+      "targeted_primary": "available_once_after_the_per_task_execution_spec_is_frozen",
+      "terminals": "governed_by_terminal_admissibility"
+    },
+    "disclosed_action_count": 9,
+    "exploration_mass": 0.5,
+    "maximum_available_actions": 7,
+    "minimum_history_conditioned_propensity": 0.07142857142857142,
+    "preferred_mass": 0.5,
+    "sampler": {
+      "id": "inverse-cdf",
+      "implementation": "bench_cleanser.verification.policy_log.sample_behavior_action",
+      "version": "v1"
+    },
+    "unavailable_actions_receive_zero_probability": true
+  },
+  "preferred_action_rule": {
+    "fallback_when_router_action_is_unavailable": "semantic_primary_then_targeted_primary_then_full_primary_then_full_repeat_then_abstain",
+    "multiple_concrete_offers_for_one_kind": "lowest_lexicographic_action_id",
+    "router": {
+      "logical_path": "bench_cleanser/verification/router.py",
+      "policy_config": {
+        "allow_semantic_accept_in_evaluation": false,
+        "full_relative_cost": 0.7,
+        "hardening_relative_cost": 1.0,
+        "high_candidate_risk": 0.55,
+        "high_verifier_risk": 0.4,
+        "maximum_false_accept_risk": 0.02,
+        "maximum_full_execution_attempts": 3,
+        "maximum_hardening_attempts": 2,
+        "minimum_authoritative_verifier_validity": 0.95,
+        "minimum_full_execution_replicates": 2,
+        "semantic_relative_cost": 0.05,
+        "static_relative_cost": 0.01,
+        "targeted_relative_cost": 0.2,
+        "trusted_authoritative_bindings": [],
+        "trusted_calibration_bindings": [],
+        "version": "conservative-v1"
+      },
+      "policy_config_sha256": "9d3dc2eca46b515fd791df4d0cc803a9e46d74b8761b68d2868ab1026f12c862",
+      "policy_version": "conservative-v1",
+      "sha256": "47a64e8fb0e387c2199fb939e4eef6615f8b15f8b6578d79a97650327bfe40d4",
+      "status": "available_uncommitted",
+      "symbol": "bench_cleanser.verification.router.ConservativeRouter"
+    },
+    "proposal_policy": {
+      "config_sha256": "52c2909edee084dda7a718833cd4c5fe4a69aaef5e73486415a76730b65a5e11",
+      "logical_path": "experiments/prospective_pilot/proposal_policy.py",
+      "sha256": "8bd7b1f3bf7688e1ebd72022aba6101506607be946920bd8a5cc76255141b923",
+      "version": "verification-gap-proposal-v1"
+    },
+    "rule": "use_fallible_terminal_proposal_else_router_match_else_frozen_available_fallback"
+  },
+  "terminal_admissibility": {
+    "abstain": "always_available",
+    "accept": "available_only_after_full_primary_and_fresh_full_repeat_are_concordant_supports_correct",
+    "error_unavailable_inconclusive_or_disagreement": "never_enables_accept_or_reject",
+    "interpretation": "fallible_sensor_proposal_not_candidate_truth",
+    "reject": "available_only_after_full_primary_and_fresh_full_repeat_are_concordant_supports_incorrect",
+    "terminal_decisions_are_sampled_and_propensity_logged": true
+  },
+  "semantic_producer": {
+    "availability": "unavailable",
+    "base_url_class": null,
+    "blocking": true,
+    "calibration_id": null,
+    "cost_policy_sha256": null,
+    "model": null,
+    "prompt_logical_path": null,
+    "prompt_sha256": null,
+    "provider": null,
+    "reason": "no_model_prompt_endpoint_calibration_or_cost_policy_has_been_selected"
+  },
+  "implementation_bindings": {
+    "frame_manifest": {
+      "logical_path": "experiments/prospective_pilot/frame_manifest.json",
+      "sha256": "4b2be4f77bc670685697958301dc4032777b8ba531e97231152dc847e6bbb319",
+      "status": "frozen_uncommitted"
+    },
+    "policy_log": {
+      "logical_path": "bench_cleanser/verification/policy_log.py",
+      "sha256": "99c82482371f4b19de9d2d1d4561c2f1dd243c6657cb712c4fb7cc75ed0baec3",
+      "status": "available_uncommitted"
+    },
+    "proposal_policy": {
+      "logical_path": "experiments/prospective_pilot/proposal_policy.py",
+      "sha256": "8bd7b1f3bf7688e1ebd72022aba6101506607be946920bd8a5cc76255141b923",
+      "status": "available_uncommitted"
+    },
+    "task_scheduler": {
+      "blocking": true,
+      "logical_path": "experiments/prospective_pilot/scheduler.py",
+      "sha256": "fdcb7edc1f4f0d4f4e84153a90cc094a803d616afa675827bb61afd9144d79e1",
+      "status": "core_available_operationally_blocked"
+    }
+  }
+}

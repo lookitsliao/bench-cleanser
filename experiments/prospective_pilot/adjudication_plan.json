@@ -1,0 +1,126 @@
+{
+  "schema_version": "prospective-pilot-adjudication-plan-0.1.0",
+  "study_id": "matched-24-independent-evidence-development-pilot-v2",
+  "status": "packet_generator_available_custodian_and_reviewers_blocking",
+  "scope": {
+    "candidate_count": 66,
+    "candidates_per_task": 3,
+    "excluded_task_clusters": [
+      "sympy__sympy-15976",
+      "sphinx-doc__sphinx-8475"
+    ],
+    "future_task_clusters": 22,
+    "replacement_allowed": false
+  },
+  "packet_contract": {
+    "directional_evidence_status_omitted": true,
+    "included": [
+      "opaque_task_id",
+      "opaque_candidate_id",
+      "problem_statement",
+      "base_commit",
+      "candidate_patch",
+      "repository_context_required_by_the_review_instructions",
+      "typed_raw_evidence_events_with_cost_removed",
+      "evidence_source_class_with_model_and_submission_names_masked"
+    ],
+    "packet_manifest_schema_version": "prospective-pilot-review-packet-manifest-0.2.0",
+    "packet_schema_version": "prospective-pilot-review-packet-0.1.0",
+    "prohibited": [
+      "submission_name",
+      "model_name",
+      "hosted_outcome",
+      "gold_patch",
+      "official_resolved_label",
+      "router_terminal_decision",
+      "other_reviewer_labels",
+      "candidate_priority_order",
+      "prospective_analysis_outputs"
+    ],
+    "raw_packet_sha256_required": true,
+    "same_task_context_across_its_three_candidate_packets": true
+  },
+  "blinding": {
+    "blind_reviewers_to_each_other_until_all_initial_labels_are_committed": true,
+    "breach_action": "halt_affected_task_cluster_retain_all_records_and_open_a_deviation",
+    "candidate_and_model_masking_required": true,
+    "opaque_map_access": "custodian_only",
+    "reviewer_conflict_attestation_required": true
+  },
+  "label_contract": {
+    "candidate_correctness": [
+      "correct",
+      "incorrect",
+      "indeterminate",
+      "not_applicable"
+    ],
+    "candidate_is_conditional_on_task_validity": true,
+    "evidence_validity": [
+      "valid",
+      "invalid",
+      "indeterminate"
+    ],
+    "evidence_validity_is_per_event": true,
+    "execution_is_adjudication": false,
+    "task_validity": [
+      "valid",
+      "invalid",
+      "indeterminate"
+    ]
+  },
+  "aggregation": {
+    "agreement": "largest_identical_label_count_divided_by_completed_non_recused_initial_reviews",
+    "candidate_when_task_indeterminate": "indeterminate",
+    "candidate_when_task_invalid": "not_applicable",
+    "determinate_label": "unique_label_with_agreement_at_least_0.8_and_at_least_two_completed_non_recused_initial_reviews",
+    "disagreement": "retain_every_initial_label_and_emit_indeterminate_without_tie_breaking",
+    "minimum_agreement": 0.8,
+    "minimum_paired_ready_reviewers": 2,
+    "requested_independent_initial_reviewers": 3,
+    "reviewer_identity_is_never_a_correctness_feature": true
+  },
+  "available_bindings": {
+    "frame_manifest": {
+      "bytes": 8455,
+      "logical_path": "experiments/prospective_pilot/frame_manifest.json",
+      "sha256": "4b2be4f77bc670685697958301dc4032777b8ba531e97231152dc847e6bbb319",
+      "status": "available"
+    },
+    "packet_generator": {
+      "bytes": 53078,
+      "logical_path": "experiments/prospective_pilot/review_packets.py",
+      "sha256": "aeb68176568211dd2b6e932a867d03a8c1bb423a5bc15ef73a2a15cad5e87004",
+      "status": "available"
+    }
+  },
+  "unavailable_bindings": {
+    "opaque_map_custodian": {
+      "blocking": true,
+      "identifier": null,
+      "status": "unavailable"
+    },
+    "reviewers": [
+      {
+        "conflict_attestation_sha256": null,
+        "identifier": null,
+        "independence_attestation_sha256": null,
+        "slot": 1,
+        "status": "unavailable"
+      },
+      {
+        "conflict_attestation_sha256": null,
+        "identifier": null,
+        "independence_attestation_sha256": null,
+        "slot": 2,
+        "status": "unavailable"
+      },
+      {
+        "conflict_attestation_sha256": null,
+        "identifier": null,
+        "independence_attestation_sha256": null,
+        "slot": 3,
+        "status": "unavailable"
+      }
+    ]
+  }
+}

@@ -10,15 +10,19 @@ extra care — see the checklists below.
 git clone https://github.com/v-liaozhu/bench-cleanser.git
 cd bench-cleanser
 python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -e ".[dev,trajectory]"
+pip install -e ".[dev,structural]"
 ```
 
 Optional extras:
 
-- `[structural]` adds `astred-core` for the astred AST backend over the
-  stdlib `ast` fallback.
-- `[trajectory]` adds `docent-python` for Docent-backed trajectory
-  loaders.
+- `[structural]` adds the public `tree-sitter-language-pack` backend. Without
+  it, structural analysis uses a conservative Python-`ast`/text fallback.
+- Docent-backed loading is an external integration. Install a compatible,
+  deployment-constrained `docent-python` separately; it is intentionally not
+  part of the public-alpha dependency/SBOM scope. Local JSON/JSONL/directory
+  and Hugging Face trajectory loading remain supported by the package.
+- `[release]` installs the pinned tools used to reproduce the SBOM, license,
+  archive, and secret gates in `docs/SUPPLY_CHAIN.md`.
 
 ## Tests
 
@@ -29,9 +33,29 @@ ruff check bench_cleanser tests
 mypy bench_cleanser
 ```
 
-The full suite is offline by design — no network, no Azure, no git
-clones. LLM-backed code paths use an in-test fake client in
-`tests/test_trajectory_classifier.py`; fusion has no LLM call.
+The suite makes no external API calls. Network-facing LLM and dataset paths use
+fakes or monkeypatches; tests may use local Git repositories and temporary
+filesystems to exercise confinement and resume behavior. Fusion has no LLM call.
+
+## Updating the literature boundary
+
+Every arXiv citation in `docs/RESEARCH_PROGRAM.md` must use an explicit version
+suffix and appear once in the bibliography as well as in the novelty discussion.
+After changing citations, regenerate the primary-metadata lock:
+
+```bash
+python scripts/lock_literature.py
+python scripts/lock_literature.py --check
+pytest tests/test_literature_contract.py tests/test_literature_lock.py -q
+```
+
+The generator contacts only the primary arXiv Atom API and records its raw
+response digest. `--check` and normal tests are offline; they reject duplicate
+JSON keys, citation/entry drift, malformed canonical URLs and metadata, and
+non-primary checked-in request provenance. The metadata lock verifies identity,
+title, authors, category, and timestamps; it does not validate a paper's claims.
+Preserve and hash the exact primary PDFs used for any claim-level literature
+audit in a publication bundle.
 
 ## Editing prompts
 
@@ -97,9 +121,8 @@ set. Before adding one:
 - **Deterministic where possible.** Severity and fusion have zero LLM
   calls. LLM is used to assign labels; everything downstream of labels
   is pure logic.
-- **Real imports.** No `sys.path` hacks. `_internal` is the package
-  for backend-private modules; everything else lives at its
-  semantically correct path.
+- **Real imports.** No `sys.path` hacks or proprietary provider helpers.
+  Backend-private helpers live beside the feature that owns them.
 - **Comments explain WHY.** WHAT is already in the code. Comments
   capture non-obvious constraints, invariants, or rationale.
 

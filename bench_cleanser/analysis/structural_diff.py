@@ -1,11 +1,13 @@
-"""Stage 3: Structural diff analysis using astred_core.
+"""Stage 3: structural diff analysis with an optional public AST backend.
 
-Parses source files before and after the gold patch to extract:
+Parses source files and patch hunks to extract:
 - Changed blocks (functions/classes) with edit status
 - Test functions with extracted assertions
 - Call graph edges between tests and changed source
 
-Falls back to Python ``ast`` module when astred_core is unavailable.
+The public tree-sitter extra provides multilingual source blocks when present.
+Every unresolved hunk falls back to conservative standard-library/patch
+analysis, so optional-backend failures never fabricate or drop the whole task.
 """
 
 from __future__ import annotations
@@ -14,8 +16,6 @@ import ast
 import logging
 import pathlib
 import re
-import subprocess
-import tempfile
 
 from bench_cleanser.models import (
     AssertionDetail,
@@ -26,260 +26,31 @@ from bench_cleanser.models import (
     StructuralDiff,
     TestBlock,
 )
+from bench_cleanser.repo_manager import resolve_confined_repo_file
 from bench_cleanser.static_analysis import extract_assertions, extract_test_calls
 
 logger = logging.getLogger(__name__)
-
-# Try importing astred_core – it requires pythonnet and .NET runtime
-try:
-    import astred_core
-    from astred_core import (
-        AstFile,
-        CodeGraph,
-        CodeGraphEdits,
-    )
-    ASTRED_AVAILABLE = True
-except (ImportError, RuntimeError):
-    ASTRED_AVAILABLE = False
-    logger.info("astred_core not available; falling back to Python ast")
-
-
-# ── Public API ────────────────────────────────────────────────────────
 
 
 def compute_structural_diff(
     parsed_task: ParsedTask,
     repo_path: pathlib.Path | None,
 ) -> StructuralDiff:
-    """Compute structural diff for a parsed task.
-
-    If *repo_path* is provided and astred_core is available, uses
-    astred_core for full structural analysis.  Otherwise falls back to
-    Python ``ast`` for basic extraction.
-    """
-    instance_id = parsed_task.record.instance_id
-
-    if ASTRED_AVAILABLE and repo_path and repo_path.exists():
-        try:
-            return _compute_with_astred(parsed_task, repo_path)
-        except Exception:
-            logger.warning(
-                "%s: astred_core failed, falling back to ast",
-                instance_id,
-                exc_info=True,
-            )
-
-    return _compute_with_python_ast(parsed_task, repo_path)
+    """Compute a structural diff using repository source and patch hunks."""
+    return _compute_structural(parsed_task, repo_path)
 
 
-# ── astred_core implementation ────────────────────────────────────────
-
-
-def _compute_with_astred(
-    parsed_task: ParsedTask,
-    repo_path: pathlib.Path,
-) -> StructuralDiff:
-    """Full structural analysis using astred_core."""
-    instance_id = parsed_task.record.instance_id
-
-    # Collect source files touched by the gold patch
-    patch_files = list(set(h.file_path for h in parsed_task.patch_hunks))
-    python_patch_files = [f for f in patch_files if f.endswith(".py")]
-
-    # Build CodeGraph from the pre-patch repo
-    abs_paths = [str(repo_path / f) for f in python_patch_files if (repo_path / f).exists()]
-
-    if not abs_paths:
-        logger.debug("%s: no Python patch files found in repo", instance_id)
-        return _compute_with_python_ast(parsed_task, repo_path)
-
-    # Build pre-patch graph
-    # astred_core >= 0.x dropped the second language argument; infers from paths.
-    pre_graph = CodeGraph.build_from_paths(abs_paths)
-
-    # Apply gold patch to get post-patch files
-    post_paths = _apply_patch_to_tempdir(repo_path, parsed_task.record.patch, python_patch_files)
-
-    if not post_paths:
-        logger.debug("%s: patch application failed, falling back", instance_id)
-        return _compute_with_python_ast(parsed_task, repo_path)
-
-    # Build post-patch graph edits — astred_core's CodeGraphEdits.build accepts
-    # ONE AstFile at a time, so iterate per post-patch file and merge results.
-    per_file_edits: list = []
-    for post_path in post_paths:
-        try:
-            ast_file = AstFile.load_file(post_path)
-        except Exception:
-            logger.debug("%s: AstFile.load_file failed for %s", instance_id, post_path, exc_info=True)
-            continue
-        if ast_file is None:
-            continue
-        try:
-            file_edits = CodeGraphEdits.build(pre_graph, ast_file)
-        except Exception:
-            logger.debug("%s: CodeGraphEdits.build failed for %s", instance_id, post_path, exc_info=True)
-            continue
-        if file_edits is not None:
-            per_file_edits.append(file_edits)
-
-    if not per_file_edits:
-        logger.debug("%s: no astred edits produced, falling back to ast", instance_id)
-        return _compute_with_python_ast(parsed_task, repo_path)
-
-    # Extract changed blocks from pre_graph using edit_status flags populated
-    # by the per-file edit passes above.
-    changed_blocks = _extract_changed_blocks_astred(pre_graph, python_patch_files)
-
-    # Extract test blocks
-    test_blocks = _extract_test_blocks(parsed_task, repo_path)
-
-    # Build call edges
-    call_edges = _build_call_edges(test_blocks, changed_blocks)
-
-    return StructuralDiff(
-        instance_id=instance_id,
-        changed_blocks=changed_blocks,
-        test_blocks=test_blocks,
-        call_edges=call_edges,
-        astred_available=True,
-    )
-
-
-def _extract_changed_blocks_astred(
-    pre_graph: CodeGraph,
-    patch_files: list[str],
-) -> list[ChangedBlock]:
-    """Extract changed blocks from astred_core CodeGraph edit_status flags."""
-    changed: list[ChangedBlock] = []
-
-    for file_path in patch_files:
-        # Get file block from graph
-        file_block = pre_graph.get_file_block_with_path(file_path)
-        if file_block is None:
-            continue
-
-        # Find all function and class blocks in the file
-        top_blocks = file_block.find_top_descendants()
-        if top_blocks is None:
-            continue
-
-        for block in top_blocks:
-            status = block.edit_status
-            if status is None:
-                continue
-
-            # Check if block was modified
-            status_str = str(status)
-            if "INSERT" in status_str or "DELETE" in status_str or "UPDATE" in status_str:
-                block_type = _astred_block_type(block)
-                block_name = block.name or "(anonymous)"
-
-                pre_source = ""
-                post_source = ""
-                try:
-                    pre_source = block.get_text() or ""
-                except Exception:
-                    pass
-
-                edit_status_label = "UPDATE"
-                if "INSERT" in status_str:
-                    edit_status_label = "INSERT"
-                elif "DELETE" in status_str:
-                    edit_status_label = "DELETE"
-
-                changed.append(ChangedBlock(
-                    file_path=file_path,
-                    block_name=block_name,
-                    block_type=block_type,
-                    edit_status=edit_status_label,
-                    pre_source=pre_source,
-                    post_source=post_source,
-                ))
-
-    return changed
-
-
-def _astred_block_type(block) -> str:
-    """Map astred_core block class to a string label."""
-    type_name = type(block).__name__
-    mapping = {
-        "BlockFunction": "function",
-        "BlockClass": "class",
-        "BlockClassDeclaration": "class",
-        "BlockStatement": "statement",
-        "BlockImport": "import",
-        "BlockAssignment": "assignment",
-        "BlockVariable": "variable",
-        "BlockAttribute": "attribute",
-    }
-    return mapping.get(type_name, "other")
-
-
-def _apply_patch_to_tempdir(
-    repo_path: pathlib.Path,
-    patch_text: str,
-    python_files: list[str],
-) -> list[str]:
-    """Apply the gold patch and return paths to post-patch files.
-
-    Creates temporary copies of files, applies the patch, and returns
-    the paths to the modified files.
-    """
-    tmpdir = pathlib.Path(tempfile.mkdtemp(prefix="bench_cleanser_"))
-    result_paths: list[str] = []
-
-    try:
-        # Copy original files to tmpdir preserving directory structure
-        for rel_path in python_files:
-            src = repo_path / rel_path
-            if not src.exists():
-                continue
-            dst = tmpdir / rel_path
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            dst.write_text(src.read_text(encoding="utf-8", errors="replace"), encoding="utf-8")
-
-        # Write patch to temp file
-        patch_file = tmpdir / "_patch.diff"
-        patch_file.write_text(patch_text, encoding="utf-8")
-
-        # Apply patch
-        try:
-            subprocess.run(
-                ["git", "apply", "--allow-empty", str(patch_file)],
-                cwd=str(tmpdir),
-                capture_output=True,
-                timeout=30,
-                check=False,
-            )
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            # If git apply fails, try manual application
-            pass
-
-        # Collect post-patch file paths
-        for rel_path in python_files:
-            post_file = tmpdir / rel_path
-            if post_file.exists():
-                result_paths.append(str(post_file))
-
-    except Exception:
-        logger.debug("Patch application to tmpdir failed", exc_info=True)
-
-    return result_paths
-
-
-# ── Python ast fallback ───────────────────────────────────────────────
-
-
-def _compute_with_python_ast(
+def _compute_structural(
     parsed_task: ParsedTask,
     repo_path: pathlib.Path | None,
 ) -> StructuralDiff:
-    """Fallback structural analysis using Python's ast module."""
+    """Compute structural analysis with tree-sitter and conservative fallback."""
     instance_id = parsed_task.record.instance_id
 
-    # Extract changed blocks from patch hunks
-    changed_blocks = _extract_changed_blocks_from_hunks(parsed_task.patch_hunks, repo_path)
+    changed_blocks, multilingual_ast_available = _extract_changed_blocks(
+        parsed_task.patch_hunks,
+        repo_path,
+    )
 
     # Extract test blocks
     test_blocks = _extract_test_blocks(parsed_task, repo_path)
@@ -292,8 +63,35 @@ def _compute_with_python_ast(
         changed_blocks=changed_blocks,
         test_blocks=test_blocks,
         call_edges=call_edges,
-        astred_available=False,
+        multilingual_ast_available=multilingual_ast_available,
     )
+
+
+def _extract_changed_blocks(
+    hunks: list[PatchHunk],
+    repo_path: pathlib.Path | None,
+) -> tuple[list[ChangedBlock], bool]:
+    """Prefer public multilingual AST blocks and fall back per unresolved hunk."""
+
+    if repo_path is None:
+        return _extract_changed_blocks_from_hunks(hunks, repo_path), False
+
+    from bench_cleanser.analysis.tree_sitter_backend import extract_changed_blocks
+
+    changed: list[ChangedBlock] = []
+    seen: set[tuple[str, str, str]] = set()
+    backend_available = False
+    for hunk in hunks:
+        backend_blocks, available = extract_changed_blocks([hunk], repo_path)
+        backend_available = backend_available or available
+        selected = backend_blocks or _extract_changed_blocks_from_hunks([hunk], repo_path)
+        for block in selected:
+            key = (block.file_path, block.block_name, block.edit_status)
+            if key in seen:
+                continue
+            seen.add(key)
+            changed.append(block)
+    return changed, backend_available
 
 
 def _extract_changed_blocks_from_hunks(
@@ -336,8 +134,12 @@ def _extract_changed_blocks_from_hunks(
         # Try to read full function source from repo
         pre_source = ""
         if repo_path and func_name:
-            file_path = repo_path / hunk.file_path
-            if file_path.exists():
+            try:
+                file_path = resolve_confined_repo_file(repo_path, hunk.file_path)
+            except ValueError:
+                logger.debug("Ignoring unsafe structural-diff path: %r", hunk.file_path)
+                file_path = None
+            if file_path is not None and file_path.is_file():
                 try:
                     content = file_path.read_text(encoding="utf-8", errors="replace")
                     pre_source = _extract_function_source_ast(content, func_name)
@@ -494,7 +296,7 @@ def _extract_test_blocks(
         test_blocks.append(TestBlock(
             test_id=test_id,
             test_name=test_name,
-            file_path="",
+            file_path=_file_path_from_test_id(test_id),
             full_source=test_source,
             assertions=assertion_details,
             called_functions=called_funcs,
@@ -517,8 +319,12 @@ def _find_test_source_in_repo(test_id: str, repo_path: pathlib.Path) -> str:
     file_path = _file_path_from_test_id(test_id)
 
     if file_path and test_name:
-        full_path = repo_path / file_path
-        if full_path.exists():
+        try:
+            full_path = resolve_confined_repo_file(repo_path, file_path)
+        except ValueError:
+            logger.debug("Ignoring unsafe test-id path: %r", file_path)
+            return ""
+        if full_path.is_file():
             try:
                 content = full_path.read_text(encoding="utf-8", errors="replace")
                 return extract_function_source(content, test_name)

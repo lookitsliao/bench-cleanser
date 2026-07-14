@@ -1,7 +1,7 @@
 """Console entry points for bench-cleanser.
 
-* ``bench-cleanser``              -> :func:`main`             (contamination pipeline)
-* ``bench-cleanser-trajectory``   -> :func:`trajectory_main`  (Stage 7 fusion + leakage)
+* ``bench-cleanser``              -> :func:`main`             (benchmark-audit pipeline)
+* ``bench-cleanser-trajectory``   -> :func:`trajectory_main`  (Stage 7 evidence fusion)
 * ``bench-cleanser-deep-dive``    -> :func:`deep_dive_main`   (forensic markdown)
 """
 
@@ -13,17 +13,29 @@ import logging
 import pathlib
 import sys
 
+from bench_cleanser import __version__
 from bench_cleanser._console import setup_logging
+
+
+def _add_version_argument(parser: argparse.ArgumentParser) -> None:
+    """Expose the installed package version consistently across CLIs."""
+
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+    )
 
 
 def _parse_pipeline_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         prog="bench-cleanser",
-        description="SWE-bench benchmark contamination detector",
+        description="Audit SWE benchmarks and emit evidence-grounded task reports",
     )
+    _add_version_argument(p)
     p.add_argument(
-        "--config", default="config.yaml",
-        help="Path to configuration YAML file (default: config.yaml)",
+        "--config", default=None,
+        help="Path to configuration YAML file (default: packaged configuration)",
     )
     p.add_argument(
         "--dataset", choices=["verified", "pro", "live", "both"], default="verified",
@@ -51,7 +63,10 @@ def _parse_pipeline_args() -> argparse.Namespace:
     )
     p.add_argument(
         "--resume", action="store_true", default=True,
-        help="Resume from checkpoint — skip tasks with existing reports (default)",
+        help=(
+            "Resume from checkpoint — reuse only complete successful reports "
+            "with matching input/config provenance (default)"
+        ),
     )
     p.add_argument(
         "--no-resume", dest="resume", action="store_false",
@@ -74,8 +89,23 @@ def _print_pipeline_summary(reports: list) -> None:
     return None
 
 
+def _pipeline_exit_code(reports: list) -> int:
+    """Return non-zero when an invocation produced no successful new work."""
+    attempted = getattr(reports, "attempted_count", len(reports))
+    new_successes = getattr(
+        reports,
+        "new_success_count",
+        sum(getattr(report, "pipeline_error", None) is None for report in reports),
+    )
+    if not reports:
+        return 1
+    if attempted > 0 and new_successes == 0:
+        return 1
+    return 0
+
+
 def main() -> None:
-    """Console entry point for the contamination-detection pipeline."""
+    """Console entry point for the benchmark-audit pipeline."""
     from bench_cleanser.data_loader import (
         load_all,
         load_single_task,
@@ -114,18 +144,36 @@ def main() -> None:
             records = load_all(max_per_dataset=args.max_tasks)
 
     logging.info("Loaded %d task(s)", len(records))
+    if not records:
+        logging.error("No tasks were loaded; nothing to analyse")
+        sys.exit(1)
 
     reports = asyncio.run(run_pipeline(records, config, resume=args.resume))
-    print(f"Output written to: {config.output_dir}/  ({len(reports)} task(s))")
+    analytic_count = sum(report.pipeline_error is None for report in reports)
+    failure_count = len(reports) - analytic_count
+    print(
+        f"Output written to: {config.output_dir}/  "
+        f"({len(reports)} task(s): {analytic_count} analysed, {failure_count} failed)"
+    )
+    if failure_count:
+        logging.error(
+            "%d task(s) failed; inspect summary_stats.json and summary.csv",
+            failure_count,
+        )
+    exit_code = _pipeline_exit_code(reports)
+    if exit_code:
+        logging.error("All newly attempted tasks failed")
+        sys.exit(exit_code)
 
 
 def _parse_trajectory_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         prog="bench-cleanser-trajectory",
-        description="Analyze agent trajectories for benchmark leakage patterns",
+        description="Analyze agent trajectories for benchmark-risk signals",
     )
+    _add_version_argument(p)
     p.add_argument("--reports-dir", required=True,
-                   help="Path to directory containing JSON contamination reports")
+                   help="Path to directory containing JSON benchmark-audit reports")
     p.add_argument("--trajectory-source", required=True,
                    help="JSONL file, JSON directory, HuggingFace dataset, "
                         "or Docent collection UUID")
@@ -142,8 +190,8 @@ def _parse_trajectory_args() -> argparse.Namespace:
                    help="Docent API key (or set DOCENT_API_KEY env var)")
     p.add_argument("--model-filter", default="",
                    help="Filter trajectories by model name (Docent sources)")
-    p.add_argument("--config", default="config.yaml",
-                   help="Path to config YAML for LLM settings (default: config.yaml)")
+    p.add_argument("--config", default=None,
+                   help="Path to config YAML (default: packaged configuration)")
     p.add_argument("--output", default=None,
                    help="Output markdown file path (default: stdout)")
     p.add_argument("-v", "--verbose", action="store_true",
@@ -152,7 +200,7 @@ def _parse_trajectory_args() -> argparse.Namespace:
 
 
 def trajectory_main() -> None:
-    """Console entry point for trajectory-leakage + Stage 7 fusion analysis."""
+    """Console entry point for trajectory evidence + Stage 7 fusion analysis."""
     args = _parse_trajectory_args()
     setup_logging(args.verbose)
 
@@ -198,8 +246,9 @@ def trajectory_main() -> None:
 def _parse_deep_dive_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         prog="bench-cleanser-deep-dive",
-        description="Generate forensic per-instance markdown from contamination reports",
+        description="Generate forensic per-instance markdown from benchmark-audit reports",
     )
+    _add_version_argument(p)
     p.add_argument("--reports-dir", required=True,
                    help="Path to directory containing JSON reports")
     p.add_argument("--severity", default="SEVERE",

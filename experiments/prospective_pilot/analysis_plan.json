@@ -1,0 +1,131 @@
+{
+  "schema_version": "prospective-pilot-analysis-plan-0.1.0",
+  "study_id": "matched-24-independent-evidence-development-pilot-v2",
+  "status": "fixed_descriptive_implementations_available",
+  "claim_scope": "descriptive_development_analysis_only_no_h1_through_h6",
+  "analysis_population": {
+    "candidate_count": 66,
+    "cluster_unit": "task",
+    "candidates_per_task": 3,
+    "excluded_task_clusters": [
+      "sympy__sympy-15976",
+      "sphinx-doc__sphinx-8475"
+    ],
+    "future_task_clusters": 22,
+    "repository_count": 4,
+    "repository_stratum_rule": "task_id_prefix_before_double_underscore",
+    "replacement_allowed": false,
+    "repository_generalization": "forbidden"
+  },
+  "target_policies": [
+    {
+      "id": "behavior-mixture-v1",
+      "rule": "the_exact_logged_0.5_preferred_plus_0.5_uniform_behavior_policy",
+      "semantic_required": true,
+      "status": "implemented_fixed_descriptive"
+    },
+    {
+      "id": "always-full-repeat-v1",
+      "rule": "full_execution_then_fresh_worktree_repeat_then_frozen_terminal_rule_for_every_candidate",
+      "semantic_required": false,
+      "status": "implemented_fixed_descriptive"
+    },
+    {
+      "id": "static-targeted-full-v1",
+      "rule": "deterministic_static_then_targeted_then_full_then_repeat_then_frozen_terminal_rule",
+      "semantic_required": false,
+      "status": "implemented_fixed_descriptive"
+    },
+    {
+      "id": "conservative-v1-preferred-v1",
+      "rule": "follow_the_bound_conservative_v1_preferred_action_with_no_exploration",
+      "semantic_required": true,
+      "status": "implemented_fixed_descriptive"
+    },
+    {
+      "id": "semantic-only-v1",
+      "rule": "semantic_once_then_the_frozen_terminal_rule_without_runtime_evidence",
+      "semantic_required": true,
+      "status": "implemented_fixed_descriptive"
+    },
+    {
+      "id": "hash-priority-no-runtime-v1",
+      "rule": "select_the_first_candidate_in_frozen_opaque_candidate_order_without_runtime_evidence",
+      "semantic_required": false,
+      "status": "implemented_fixed_descriptive"
+    }
+  ],
+  "estimands": {
+    "primary": "accepted_set_false_accept_risk_with_coverage_and_cost_reported_separately",
+    "secondary": [
+      "selected_candidate_correctness_per_task",
+      "full_execution_acquisitions_per_task",
+      "cumulative_worker_wall_seconds_per_task",
+      "abstention_per_task",
+      "environment_failure_per_task"
+    ],
+    "unsafe_accept": "task_invalid_or_indeterminate_or_candidate_incorrect_or_indeterminate_conditional_on_valid_task"
+  },
+  "off_policy_evaluation": {
+    "effective_sample_size": "square(sum_task_weights)_divided_by_sum_squared_task_weights",
+    "estimate_release_rule": "omit_when_any_support_violation_or_effective_sample_size_below_10",
+    "joint_weight": "product_over_the_complete_task_cluster_decision_order_of_target_action_probability_divided_by_logged_behavior_action_probability",
+    "minimum_logged_action_probability": 0.07142857142857142,
+    "primary_weight_handling": "no_clipping_no_trimming",
+    "ratio_estimator": "sum_task_weight_times_accept_times_unsafe_indicator_divided_by_sum_task_weight_times_accept",
+    "scheduler_probability": 1.0,
+    "support_unit": "complete_task_cluster_history_across_all_three_candidate_chains"
+  },
+  "implemented_estimators": {
+    "sequential_importance_sampling": {
+      "availability": "implemented",
+      "confidence_interval": "not_implemented",
+      "cross_fitting": "not_applicable_no_nuisance_model",
+      "point_estimate": "self_normalized_accepted_set_ratio",
+      "suppression": "any_support_violation_or_effective_sample_size_below_10_or_empty_weighted_accepted_set",
+      "weight_handling": "no_clipping_no_trimming"
+    },
+    "doubly_robust": {
+      "availability": "not_implemented_not_claimed",
+      "nuisance_model": null,
+      "cross_fitting": null
+    },
+    "learned_or_calibrated_policy": false
+  },
+  "uncertainty": {
+    "confidence_level": 0.95,
+    "exact_binomial_bound": "full_coverage_iid_reference_only",
+    "hypothesis_tests": "none",
+    "primary_interval": "task_level_exact_or_randomization_interval_when_identified",
+    "repository_cluster_asymptotics": "forbidden_with_four_repositories",
+    "sensitivity": {
+      "bootstrap_replicates": 10000,
+      "bootstrap_seed_sha256": "7afd78959705bdad301239a3fae85a9fb56d0253e9fca63c65ffbe01c3ce83c3",
+      "method": "resample_tasks_within_each_fixed_repository_stratum"
+    }
+  },
+  "mandatory_outputs": [
+    "raw_task_cluster_rows",
+    "all_abstentions_and_failures",
+    "support_and_overlap_diagnostics",
+    "task_weights_and_effective_sample_size",
+    "risk_coverage_cost_frontier",
+    "cold_and_warm_cost_decomposition",
+    "descriptive_repository_strata",
+    "deviation_log"
+  ],
+  "available_bindings": {
+    "analysis_implementation": {
+      "bytes": 23448,
+      "logical_path": "experiments/prospective_pilot/analysis.py",
+      "sha256": "bf4c4dbd7d70f1f246edf2f3b08e1356c7c23675f93684008b6e539ffa79b310",
+      "status": "available"
+    },
+    "target_policy_implementation_manifest": {
+      "bytes": 2466,
+      "logical_path": "experiments/prospective_pilot/target_policy_manifest.json",
+      "sha256": "086f8eb16035243b9b8425efb2f1cc654dbf348d864bd99b979044672a720a9f",
+      "status": "available"
+    }
+  }
+}

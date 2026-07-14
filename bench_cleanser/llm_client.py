@@ -1,7 +1,8 @@
-"""Async-capable LLM client using CloudGPT Azure OpenAI endpoint.
+"""Async-capable client for OpenAI-compatible chat-completions APIs.
 
-Uses Azure AD token-based authentication via the cloudgpt module and
-supports gpt-5.4 reasoning effort parameter.
+Authentication uses a normal API key and the endpoint is configurable, so
+the pipeline works with OpenAI and compatible self-hosted or third-party
+providers without provider-specific SDKs.
 
 All structured LLM calls use ``response_format={"type": "json_schema", ...}``
 with strict Pydantic schemas — no regex JSON extraction, no silent fallbacks.
@@ -10,17 +11,16 @@ with strict Pydantic schemas — no regex JSON extraction, no silent fallbacks.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import re
-from collections.abc import Callable
 from typing import Any, TypeVar
 
 import openai
 from openai import (
     APIConnectionError,
     APITimeoutError,
-    AuthenticationError,
     BadRequestError,
     InternalServerError,
     RateLimitError,
@@ -35,106 +35,48 @@ T = TypeVar("T", bound=BaseModel)
 logger = logging.getLogger(__name__)
 
 # Errors that should trigger a retry with exponential back-off.
-# InternalServerError (HTTP 500) is included because Azure OpenAI
-# returns transient 500s under load.
-# BadRequestError (HTTP 400) is included because CloudGPT returns transient
-# 400s ("unsupported operation") during model rollouts and capacity shifts.
-# We also catch Azure credential errors (token expiry, az CLI hiccups)
-# which are transient and resolve on retry.
-_RETRYABLE_ERRORS_LIST: list[type[BaseException]] = [
+# Authentication and bad-request failures are deliberately not retried: they
+# indicate invalid credentials, unsupported request semantics, or a malformed
+# schema and will not heal with backoff.
+_RETRYABLE_ERRORS: tuple[type[BaseException], ...] = (
     APIConnectionError,
     APITimeoutError,
-    AuthenticationError,
-    BadRequestError,
     InternalServerError,
     RateLimitError,
-]
+    TimeoutError,
+)
 
-# Attempt to include Azure credential errors so token-refresh
-# failures are retried rather than treated as fatal.
-try:
-    from azure.identity import CredentialUnavailableError
-    _RETRYABLE_ERRORS_LIST.append(CredentialUnavailableError)
-except ImportError:
-    pass
-try:
-    from azure.core.exceptions import ClientAuthenticationError
-    _RETRYABLE_ERRORS_LIST.append(ClientAuthenticationError)
-except ImportError:
-    pass
-
-_RETRYABLE_ERRORS: tuple[type[BaseException], ...] = tuple(_RETRYABLE_ERRORS_LIST)
-
-# Hard caps for the spare-no-cost retry policy. Per-call backoff is bounded
-# by ``_RETRY_MAX_BACKOFF_SECONDS``; the total wall-clock budget across all
-# retries is bounded by ``_RETRY_MAX_ELAPSED_SECONDS`` so a hung upstream
-# can never block the pipeline indefinitely.
+# Backoff itself is capped independently from the configurable request and
+# total retry deadlines.
 _RETRY_MAX_BACKOFF_SECONDS: float = 60.0
-_RETRY_MAX_ELAPSED_SECONDS: float = 600.0
 
 
 def _create_async_client(
     config: PipelineConfig,
-) -> tuple[openai.AsyncAzureOpenAI, Callable[[], None]]:
-    """Create an AsyncAzureOpenAI client using CloudGPT token provider.
+) -> openai.AsyncOpenAI:
+    """Create a standard OpenAI-compatible async client."""
+    if not config.llm_api_key:
+        raise ValueError(
+            "No LLM API key configured. Set the environment variable named by "
+            f"llm.api_key_env ({config.llm_api_key_env!r}) or set llm.api_key."
+        )
 
-    Uses the cloudgpt module's Azure AD token provider with ``az`` CLI
-    authentication.  Wraps the provider with a caching layer so that
-    ``az`` is not invoked on every single API call — the token is reused
-    until it is close to expiry.
-
-    Returns ``(client, invalidate_token)`` where *invalidate_token* is a
-    callable that clears the cached Azure AD token, forcing the next API
-    call to acquire a fresh one (useful on 401 errors).
-    """
-    import time
-
-    from bench_cleanser._internal.cloudgpt import get_openai_token_provider
-
-    raw_provider = get_openai_token_provider(
-        use_azure_cli=True,
-        skip_access_validation=True,
-    )
-
-    # Cache the token so az CLI is invoked at most once per token lifetime.
-    # Azure AD tokens typically live 60-90 minutes; we refresh 5 min early.
-    _cached_token: str | None = None
-    _token_acquired_at: float = 0.0
-    _TOKEN_LIFETIME = 50 * 60  # refresh every 50 min (conservative)
-
-    def caching_token_provider() -> str:
-        nonlocal _cached_token, _token_acquired_at
-        now = time.monotonic()
-        if _cached_token is not None and (now - _token_acquired_at) < _TOKEN_LIFETIME:
-            return _cached_token
-        logger.info("Acquiring fresh Azure AD token (cached token expired or missing)")
-        _cached_token = raw_provider()
-        _token_acquired_at = now
-        return _cached_token
-
-    def invalidate_token() -> None:
-        nonlocal _cached_token, _token_acquired_at
-        logger.info("Invalidating cached Azure AD token (401 received)")
-        _cached_token = None
-        _token_acquired_at = 0.0
-
-    client = openai.AsyncAzureOpenAI(
-        api_version=config.llm_api_version,
-        azure_endpoint=config.llm_base_url,
-        azure_ad_token_provider=caching_token_provider,
-        max_retries=0,  # We handle retries ourselves with proper backoff
-        timeout=None,   # No timeout — let long reasoning_effort=high calls finish
-    )
-
-    return client, invalidate_token
+    kwargs: dict[str, Any] = {
+        "api_key": config.llm_api_key,
+        "max_retries": 0,  # retry policy and deadlines are enforced below
+        "timeout": config.llm_request_timeout_seconds,
+    }
+    if config.llm_base_url:
+        kwargs["base_url"] = config.llm_base_url
+    return openai.AsyncOpenAI(**kwargs)
 
 
 class LLMClient:
-    """Async wrapper around the CloudGPT Azure OpenAI chat-completions endpoint.
+    """Async wrapper around an OpenAI-compatible chat-completions endpoint.
 
     Supports optional disk-based caching via :class:`ResponseCache` and
     automatic retries with exponential back-off on transient failures.
-    Uses gpt-5.4 reasoning effort for thorough analysis.
+    A configured reasoning effort is forwarded as an optional extension.
     """
 
     def __init__(
@@ -142,24 +84,58 @@ class LLMClient:
         config: PipelineConfig,
         cache: ResponseCache | None = None,
     ) -> None:
-        self._client, self._invalidate_token = _create_async_client(config)
+        if config.retry_attempts < 1:
+            raise ValueError("llm.retry_attempts must be at least 1")
+        if config.llm_request_timeout_seconds <= 0:
+            raise ValueError("llm.request_timeout_seconds must be positive")
+        if config.llm_retry_timeout_seconds <= 0:
+            raise ValueError("llm.retry_timeout_seconds must be positive")
+        if config.retry_delay_seconds < 0:
+            raise ValueError("llm.retry_delay_seconds cannot be negative")
+        if config.max_concurrent_requests < 1:
+            raise ValueError("llm.max_concurrent_requests must be at least 1")
+
+        self._client = _create_async_client(config)
+        self._provider = config.llm_provider
+        self._base_url = config.llm_base_url
         self._model = config.llm_model
         self._max_tokens = config.llm_max_tokens
         self._reasoning_effort = config.llm_reasoning_effort
         self._retry_attempts = config.retry_attempts
         self._retry_delay = config.retry_delay_seconds
+        self._request_timeout = config.llm_request_timeout_seconds
+        self._retry_timeout = config.llm_retry_timeout_seconds
+        self._request_semaphore = asyncio.Semaphore(config.max_concurrent_requests)
         self._cache = cache
 
-    def _cache_key(self, system_prompt: str, user_prompt: str) -> str:
-        """Build a deterministic cache key for a prompt pair."""
-        return ResponseCache.make_key(system_prompt, user_prompt, self._model)
-
-    # Bumped manually when a schema change should invalidate cached
-    # structured-output responses. Keeping the version tag here (rather
-    # than hashing the full Pydantic-generated schema text) means a
-    # cosmetic schema reorder caused by a pydantic upgrade does NOT
-    # wipe the cache.
-    _STRUCTURED_SCHEMA_VERSION = "v1"
+    def _cache_key(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        *,
+        response_mode: str,
+        schema: dict[str, Any] | None = None,
+    ) -> str:
+        """Build an unambiguous key over prompts and complete call semantics."""
+        canonical_schema = ""
+        if schema is not None:
+            canonical_schema = json.dumps(schema, sort_keys=True, separators=(",", ":"))
+        schema_digest = hashlib.sha256(canonical_schema.encode()).hexdigest() if schema else None
+        envelope = {
+            "cache_protocol": "v2",
+            "api": "chat.completions",
+            "provider": getattr(self, "_provider", "openai-compatible"),
+            "base_url": getattr(self, "_base_url", ""),
+            "model": self._model,
+            "max_completion_tokens": getattr(self, "_max_tokens", None),
+            "reasoning_effort": getattr(self, "_reasoning_effort", None),
+            "response_mode": response_mode,
+            "schema_sha256": schema_digest,
+            "system_prompt": system_prompt,
+            "user_prompt": user_prompt,
+        }
+        payload = json.dumps(envelope, sort_keys=True, separators=(",", ":"))
+        return ResponseCache.make_key(payload, "", "")
 
     def _structured_cache_key(
         self,
@@ -167,23 +143,20 @@ class LLMClient:
         user_prompt: str,
         response_model: type[BaseModel],
     ) -> str:
-        """Cache key for structured calls that is stable across pydantic upgrades.
-
-        The full augmented prompt (schema text included) used to be the
-        cache key. That made the key fragile: a pydantic upgrade that
-        reorders schema keys, even cosmetically, invalidated every cached
-        entry across every prior run. Hashing the model name + a manually
-        bumped version tag instead keeps the cache stable across library
-        upgrades while still letting us invalidate intentionally.
-        """
-        schema_id = f"::schema::{response_model.__name__}::{self._STRUCTURED_SCHEMA_VERSION}"
-        return ResponseCache.make_key(system_prompt + schema_id, user_prompt, self._model)
+        """Cache key for a structured call, including its exact JSON schema."""
+        return LLMClient._cache_key(
+            self,
+            system_prompt,
+            user_prompt,
+            response_mode="json_schema",
+            schema=response_model.model_json_schema(),
+        )
 
     async def _call_api(
         self,
         system_prompt: str,
         user_prompt: str,
-        response_format: dict[str, str] | None = None,
+        response_format: dict[str, Any] | None = None,
     ) -> str:
         """Execute a single chat-completion request with retries.
 
@@ -192,10 +165,10 @@ class LLMClient:
         * unified handling for every error in ``_RETRYABLE_ERRORS``
         * exponential backoff with deterministic jitter derived from the
           attempt index (no ``random`` — reproducibility matters)
-        * on ``AuthenticationError`` the cached Azure AD token is dropped
-          so the next attempt reacquires a fresh one
-        * hard caps on total attempts AND total elapsed time so a hung
-          upstream never blocks the pipeline indefinitely
+        * a real timeout around each awaited request, independent of SDK
+          timeout behavior
+        * hard caps on total attempts and total elapsed time, including
+          request time and backoff
 
         Returns the assistant content string. Raises :class:`RuntimeError`
         after the retry budget is exhausted.
@@ -209,23 +182,35 @@ class LLMClient:
             "model": self._model,
             "messages": messages,
             "max_completion_tokens": self._max_tokens,
-            "extra_body": {"reasoning_effort": self._reasoning_effort},
-            "timeout": None,  # No per-request timeout — reasoning_effort=high takes long
+            "timeout": self._request_timeout,
         }
+        if self._reasoning_effort:
+            kwargs["extra_body"] = {"reasoning_effort": self._reasoning_effort}
         if response_format is not None:
             kwargs["response_format"] = response_format
 
         last_exc: BaseException | None = None
-        deadline = asyncio.get_event_loop().time() + _RETRY_MAX_ELAPSED_SECONDS
+        loop = asyncio.get_running_loop()
+        start = loop.time()
+        deadline = start + self._retry_timeout
+        attempts_made = 0
 
         for attempt in range(1, self._retry_attempts + 1):
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                break
+            attempts_made = attempt
+            request_timeout = min(self._request_timeout, remaining)
             try:
-                response = await self._client.chat.completions.create(**kwargs)
+                # ``asyncio.timeout`` is the authoritative deadline. Some
+                # compatible SDK backends have historically ignored their
+                # own timeout argument during a stalled stream/connection.
+                async with asyncio.timeout(request_timeout):
+                    async with self._request_semaphore:
+                        response = await self._client.chat.completions.create(**kwargs)
                 return response.choices[0].message.content or ""
             except _RETRYABLE_ERRORS as exc:
                 last_exc = exc
-                if isinstance(exc, AuthenticationError):
-                    self._invalidate_token()
 
                 if attempt >= self._retry_attempts:
                     break
@@ -237,11 +222,11 @@ class LLMClient:
                 jitter = (attempt % 4) * 0.25 * self._retry_delay
                 delay = min(base + jitter, _RETRY_MAX_BACKOFF_SECONDS)
 
-                now = asyncio.get_event_loop().time()
-                if now + delay > deadline:
+                remaining = deadline - loop.time()
+                if remaining <= delay:
                     logger.error(
-                        "LLM retry budget exhausted (%.0fs elapsed cap) after attempt %d/%d: %s",
-                        _RETRY_MAX_ELAPSED_SECONDS, attempt, self._retry_attempts, exc,
+                        "LLM retry deadline exhausted (%.1fs total cap) after attempt %d/%d: %s",
+                        self._retry_timeout, attempt, self._retry_attempts, exc,
                     )
                     break
 
@@ -258,7 +243,8 @@ class LLMClient:
                 raise
 
         raise RuntimeError(
-            f"LLM request failed after {self._retry_attempts} attempts. "
+            f"LLM request failed after {attempts_made} attempt(s) within the "
+            f"{self._retry_timeout:.1f}s retry deadline. "
             f"Last error ({type(last_exc).__name__ if last_exc else 'unknown'}): "
             f"{last_exc}"
         )
@@ -335,7 +321,14 @@ class LLMClient:
 
         Raises on API failure after retries.
         """
-        key = self._cache_key(system_prompt, user_prompt)
+        if response_format not in {"text", "json_object"}:
+            raise ValueError("response_format must be 'text' or 'json_object'")
+
+        key = self._cache_key(
+            system_prompt,
+            user_prompt,
+            response_mode=response_format,
+        )
 
         if self._cache is not None:
             cached = self._cache.get(key)
@@ -375,7 +368,11 @@ class LLMClient:
 
         Raises on API failure (no silent fallback to ``{}``).
         """
-        key = self._cache_key(system_prompt, user_prompt)
+        key = self._cache_key(
+            system_prompt,
+            user_prompt,
+            response_mode="json_object",
+        )
 
         if not skip_cache and self._cache is not None:
             cached = self._cache.get(key)
@@ -562,13 +559,11 @@ class LLMClient:
                     augmented_system, user_prompt,
                     response_format=strict_format if use_strict else {"type": "json_object"},
                 )
-            except RuntimeError as exc:
-                # _call_api raises RuntimeError after exhausting retries.
-                # If we're still on the strict path and the failure smells
-                # like a schema-rejection (BadRequest about response_format),
-                # downgrade and try again on json_object. Other failures
-                # propagate.
-                if use_strict and "BadRequestError" in str(exc):
+            except BadRequestError:
+                # Some compatible providers support JSON mode but not the
+                # stricter json_schema extension. Downgrade once; ordinary
+                # bad requests on the fallback path remain fatal.
+                if use_strict:
                     logger.warning(
                         "Strict json_schema rejected for %s; falling back to json_object",
                         response_model.__name__,

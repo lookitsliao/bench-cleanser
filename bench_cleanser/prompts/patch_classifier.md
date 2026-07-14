@@ -32,7 +32,7 @@ Indicators of ANCILLARY:
 The change modifies behavior NOT described in the problem and NOT required to support the fix. This is code that goes beyond the problem scope — new features, fixes for unrelated bugs, broader refactoring, documentation for other features, changelog entries.
 
 Indicators of UNRELATED:
-- changes to files, functions, or classes not mentioned in the problem
+- changes to files, functions, or classes with no causal role in the requested behavior (lack of a textual mention alone is insufficient)
 - introduces new functionality beyond acceptance criteria
 - changelog/release notes entries (these describe, not implement)
 - documentation changes for features unrelated to the bug
@@ -45,7 +45,7 @@ Indicators of UNRELATED:
 2. For each hunk, trace causality: "Does removing this hunk break any acceptance criterion?"
 3. When analyzing hunks together: consider whether hunk A is only REQUIRED because hunk B introduces new behavior not in the problem. If so, both may be UNRELATED.
 4. Infrastructure changes (imports, __init__.py) are ANCILLARY, not UNRELATED — they are normal development overhead
-5. Changes to documentation/changelog files are almost always UNRELATED
+5. Documentation/changelog changes directly describing the requested behavior are ANCILLARY; unrelated release notes remain UNRELATED
 6. When uncertain between REQUIRED and ANCILLARY, prefer REQUIRED (conservative)
 7. When uncertain between ANCILLARY and UNRELATED, prefer ANCILLARY (conservative)
 8. Consider the STRUCTURAL CONTEXT when available — the full function source before the patch helps you understand what is being changed and why
@@ -58,4 +58,3 @@ You are seeing ALL hunks at once to enable cross-hunk reasoning. Take advantage:
 - Consider whether the patch as a whole exceeds the scope, or whether each hunk individually is justified
 
 Provide one verdict per hunk, referencing the hunk by its index.
-

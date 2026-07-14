@@ -124,7 +124,7 @@ def _methodology_slide() -> str:
 │  PARSE  │──>│   CODE   │──>│ INTENT │──>│    INTENT    │──>│ TRIAGE │──>│ CLASSIFY │
 │         │   │VISITATION│   │EXTRACT │   │   MATCHING   │   │& SCORE │   │  LABELS  │
 └─────────┘   └──────────┘   └────────┘   └──────────────┘   └────────┘   └──────────┘
- Diff parse    Clone repo     LLM-based    Per-hunk patch     Binary       8 binary
+ Diff parse    Clone repo     LLM-based    Per-hunk patch     Binary       7 binary
  Hunk split    AST analysis   blind to     Per-assertion      signals      labels +
  F2P match     Source code    gold patch    test verdicts                   bucket sev
 ```
@@ -281,8 +281,8 @@ def _pattern_slide(severe_reports: list[ContaminationReport]) -> str:
 
 **Impact on evaluation:**
 1. Agents that correctly solve the stated problem can fail the tests
-2. Knowledge of the gold patch or code review is required to pass
-3. Leaderboard rankings reflect contamination tolerance, not engineering skill
+2. Alternative valid implementations may need explicit adjudication
+3. Aggregate rankings may be sensitive to task validity; this deck does not establish the size or direction of that effect
 
 ---
 """
@@ -302,9 +302,9 @@ def _trajectory_slide(trajectory_data: dict[str, Any]) -> str:
         )
 
     return f"""
-# Trajectory Analysis: Agent Leakage Rates
+# Trajectory Analysis: Direct-Evidence Labels
 
-| Agent | Total | Genuine | Leaked | Rate | Mean Similarity |
+| Agent | Total | Genuine | Direct-evidence labels | Label rate | Mean Similarity |
 |---|---|---|---|---|---|
 {chr(10).join(rows)}
 
@@ -338,7 +338,7 @@ def _agent_impact_slide(trajectory_data: dict[str, Any]) -> str:
         rows.append(f"| `{iid[:30]}` | {leaked}/{total} | {leaked/total:.0%} |")
 
     return f"""
-# Agent Impact: Leakage on Contaminated Tasks
+# Agent Impact: Direct Leakage Labels on Flagged Tasks
 
 | Instance | Agents Leaked / Total | Rate |
 |---|---|---|
@@ -382,8 +382,8 @@ def _recommendations_slide(
 
 Based on **{n_severe} SEVERE** and analysis of **{n_total}** total tasks:
 
-1. **Flag contaminated tasks** in SWE-bench evaluation
-   - Tasks with APPROACH_LOCK or compound signals should be excluded
+1. **Quarantine flagged tasks for adjudication**
+   - Exclusion requires a declared scoring policy and evidence-backed review
 
 2. **Label-specific remediation**
    - APPROACH_LOCK: Accept alternative valid solutions
@@ -391,8 +391,8 @@ Based on **{n_severe} SEVERE** and analysis of **{n_total}** total tasks:
    - OVER_PATCH: Scope the gold patch to the stated problem
 
 3. **Trajectory auditing for leaderboard integrity**
-   - Check if agents access gold patches via package installs
-   - LLM-based trajectory analysis detects subtle cheating patterns
+   - Require direct evidence that prohibited solution information was accessed and used
+   - Package installation, similarity, speed, and convergence are review signals only
 
 ---
 """
@@ -428,8 +428,8 @@ Severity is determined by **which labels are present**, not by scores:
 
 | Severity | Trigger |
 |---|---|
-| <span class="severe">SEVERE</span> | APPROACH_LOCK present, or OVER_TEST + OVER_PATCH both present |
-| <span class="moderate">MODERATE</span> | OVER_TEST alone |
+| <span class="severe">SEVERE</span> | APPROACH_LOCK present, or OVER_TEST present |
+| <span class="moderate">MODERATE</span> | OVER_PATCH plus HIDDEN_CONTEXT or UNCLEAR_DESCRIPTION |
 | <span class="minor">MINOR</span> | OVER_PATCH alone, UNCLEAR_DESCRIPTION, HIDDEN_CONTEXT, or WEAK_COVERAGE |
 | <span class="clean">CLEAN</span> | No contamination labels |
 

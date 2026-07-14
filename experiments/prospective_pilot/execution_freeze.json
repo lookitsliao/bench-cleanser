@@ -1,0 +1,102 @@
+{
+  "schema_version": "prospective-pilot-execution-freeze-0.1.0",
+  "study_id": "matched-24-independent-evidence-development-pilot-v2",
+  "status": "blocked_missing_external_execution_identities",
+  "scope": {
+    "candidate_count": 66,
+    "candidates_per_task": 3,
+    "excluded_task_clusters": [
+      "sympy__sympy-15976",
+      "sphinx-doc__sphinx-8475"
+    ],
+    "future_task_clusters": 22,
+    "replacement_allowed": false
+  },
+  "canonical_dataset": {
+    "parquet_bytes": 2096679,
+    "parquet_sha256": "a45b1fe4e2f0c8390b2b2938ac83e92ed5979000856808f3679c07812e9e6dcd",
+    "provider": "princeton-nlp/SWE-bench_Verified",
+    "revision": "c104f840cc67f8b6eec6f759ebc8b2693d585d4a"
+  },
+  "harness": {
+    "commit": "f7bbbb2ccdf479001d6467c9e34af59e44a840f9",
+    "repository": "https://github.com/SWE-bench/SWE-bench",
+    "tree": "81083caddb04c76896805b38eaa4e43ca3ce2d63"
+  },
+  "platform": {
+    "architecture": {
+      "blocking": true,
+      "status": "unavailable",
+      "value": null
+    },
+    "container_runtime": "docker",
+    "operating_system": "linux",
+    "primary_substrate": "official_per_task_container",
+    "secondary_substrate": "container_free_same_architecture"
+  },
+  "timeouts_seconds": {
+    "environment_build": 3600,
+    "full_execution": 1800,
+    "full_execution_repeat": 1800,
+    "image_pull": 1800,
+    "oracle_hardening": 1800,
+    "patch_application": 300,
+    "process_cleanup": 120,
+    "signal_grace": 15,
+    "targeted_execution": 900
+  },
+  "container_limits": {
+    "capabilities": [],
+    "cpu_count": 4,
+    "log_driver": "none",
+    "memory_bytes": 8589934592,
+    "network": "none",
+    "no_new_privileges": true,
+    "output_capture_bytes_per_stream": 1048576,
+    "pids": 1024,
+    "pull_policy": "never_after_digest_verified_pull",
+    "read_only_root": true,
+    "tmpfs_bytes": 2147483648,
+    "workspace_mount": "read_only_source_plus_attempt_local_copy_on_write_workspace"
+  },
+  "replication": {
+    "disagreement_attempt": 3,
+    "fresh_worktree_per_attempt": true,
+    "required_attempts": 2,
+    "same_image_dependency_test_and_argv_across_attempts": true
+  },
+  "cache_accounting": {
+    "cold_image_build_and_pull_reported_separately": true,
+    "dependency_cache_state_recorded_per_attempt": true,
+    "warm_execution_never_includes_unreported_setup": true
+  },
+  "unavailable_bindings": {
+    "docker_daemon_and_provisioner": {
+      "attestation_sha256": null,
+      "blocking": true,
+      "identity": null,
+      "status": "unavailable"
+    },
+    "per_task_dependency_lock_manifest": {
+      "blocking": true,
+      "bytes": null,
+      "logical_path": null,
+      "sha256": null,
+      "status": "unavailable"
+    },
+    "per_task_execution_spec_manifest": {
+      "blocking": true,
+      "bytes": null,
+      "logical_path": null,
+      "sha256": null,
+      "status": "unavailable"
+    },
+    "per_task_image_digest_manifest": {
+      "blocking": true,
+      "bytes": null,
+      "logical_path": null,
+      "sha256": null,
+      "status": "unavailable"
+    }
+  }
+}

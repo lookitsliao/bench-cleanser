@@ -182,7 +182,7 @@ def test_off_topic_assertions_alone_emits_one_candidate():
     assert any("OFF_TOPIC assertions" in e for e in over_test[0].evidence)
 
 
-def test_task_patch_mismatch_emits_approach_lock():
+def test_task_patch_mismatch_does_not_imply_approach_lock():
     test_analysis = TestAnalysis(
         total_tests=0,
         aligned_count=0,
@@ -201,12 +201,12 @@ def test_task_patch_mismatch_emits_approach_lock():
     )
 
     candidates = _heuristic_labels(_make_intent(), patch_analysis, test_analysis, _make_clarity())
-    approach_lock = [c for c in candidates if c.label == TaskContaminationLabel.APPROACH_LOCK]
-    assert approach_lock
-    assert any("Task/Patch Mismatch" in " | ".join(c.evidence) for c in approach_lock)
+    labels = {c.label for c in candidates}
+    assert TaskContaminationLabel.OVER_PATCH in labels
+    assert TaskContaminationLabel.APPROACH_LOCK not in labels
 
 
-def test_compilation_barrier_emits_approach_lock():
+def test_unrelated_compiled_file_does_not_imply_approach_lock():
     test_analysis = TestAnalysis(
         total_tests=0,
         aligned_count=0,
@@ -234,9 +234,9 @@ def test_compilation_barrier_emits_approach_lock():
     )
 
     candidates = _heuristic_labels(_make_intent(), patch_analysis, test_analysis, _make_clarity())
-    approach_lock = [c for c in candidates if c.label == TaskContaminationLabel.APPROACH_LOCK]
-    assert approach_lock
-    assert any("compilation barrier" in " | ".join(c.evidence).lower() for c in approach_lock)
+    labels = {c.label for c in candidates}
+    assert TaskContaminationLabel.OVER_PATCH in labels
+    assert TaskContaminationLabel.APPROACH_LOCK not in labels
 
 
 def test_self_referential_problem_emits_hidden_context():
@@ -269,7 +269,7 @@ def test_self_referential_problem_emits_hidden_context():
     assert len(hidden) == 1
 
 
-def test_suggested_fix_emits_approach_lock():
+def test_suggested_fix_does_not_imply_approach_lock():
     test_analysis = TestAnalysis(
         total_tests=0,
         aligned_count=0,
@@ -293,8 +293,9 @@ def test_suggested_fix_emits_approach_lock():
         test_analysis,
         _make_clarity(),
     )
-    approach_lock = [c for c in candidates if c.label == TaskContaminationLabel.APPROACH_LOCK]
-    assert approach_lock
+    assert not any(
+        c.label == TaskContaminationLabel.APPROACH_LOCK for c in candidates
+    )
 
 
 def test_cross_ref_coupling_emits_approach_lock():
@@ -336,7 +337,48 @@ def test_cross_ref_coupling_emits_approach_lock():
     assert any("Linked UNRELATED hunks" in " | ".join(c.evidence) for c in approach_lock)
 
 
-def test_pre_staged_test_emits_approach_lock():
+def test_weak_cross_ref_coupling_is_review_only():
+    test_analysis = TestAnalysis(
+        total_tests=0,
+        aligned_count=0,
+        tangential_count=0,
+        unrelated_count=0,
+        total_assertions=0,
+        on_topic_assertions=0,
+        off_topic_assertions=0,
+        has_modified_tests=False,
+    )
+    patch_analysis = PatchAnalysis(
+        total_hunks=0,
+        required_count=0,
+        ancillary_count=0,
+        unrelated_count=0,
+    )
+    cross_ref = CrossReferenceResult(couplings=[
+        OverpatchOvertestLink(
+            test_id="tests/test_x.py::test_case",
+            test_name="tests/test_x.py::test_case",
+            linked_hunk_indices=[1],
+            linked_files=[],
+            evidence_strength="weak",
+            reasoning="Identifier overlap only",
+        )
+    ])
+
+    candidates = _heuristic_labels(
+        _make_intent(),
+        patch_analysis,
+        test_analysis,
+        _make_clarity(),
+        cross_ref=cross_ref,
+    )
+
+    assert not any(
+        c.label == TaskContaminationLabel.APPROACH_LOCK for c in candidates
+    )
+
+
+def test_pre_staged_test_does_not_imply_approach_lock():
     test_analysis = TestAnalysis(
         total_tests=1,
         aligned_count=1,
@@ -365,6 +407,6 @@ def test_pre_staged_test_emits_approach_lock():
         _make_clarity(),
         record=record,
     )
-    approach_lock = [c for c in candidates if c.label == TaskContaminationLabel.APPROACH_LOCK]
-    assert approach_lock
-    assert any("pre-staged" in " | ".join(c.evidence).lower() for c in approach_lock)
+    assert not any(
+        c.label == TaskContaminationLabel.APPROACH_LOCK for c in candidates
+    )

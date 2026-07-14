@@ -1,0 +1,594 @@
+{
+  "schema_version": "paired-execution-smoke-0.1.0",
+  "study_id": "sympy-15976-locally-constructed-container-paired-retrospective-v1",
+  "classification": {
+    "stage": "retrospective_post_draft_locally_constructed_paired_container_feasibility",
+    "claim_scope": "one_task_paired_substrate_feasibility_only",
+    "prospective": false,
+    "blinded": false,
+    "official_swe_bench_image": false,
+    "task_count": 1,
+    "candidate_count": 3,
+    "repeat_count_per_role": 3,
+    "execution_count": 15,
+    "supports_routing_claims": false,
+    "supports_hypotheses_h1_h6": false
+  },
+  "task": {
+    "instance_id": "sympy__sympy-15976",
+    "repository": "sympy/sympy",
+    "version": "1.4",
+    "base_commit": "701441853569d370506514083b995d11f9a130bd",
+    "base_tree": "d1b60b750de1bab2c5a69738e93fcd7110423117",
+    "environment_setup_commit": "73b3f90093754c5ed1561bd885242330e3583004",
+    "targeted_test_file": "sympy/printing/tests/test_mathml.py",
+    "fail_to_pass": [
+      "test_presentation_symbol"
+    ],
+    "executed_test_count": 39,
+    "preparation": "reuse_exact_prepared_workspaces_from_independent_execution_smoke_as_read_only_mounts"
+  },
+  "relation_to_independent_smoke": {
+    "study_id": "sympy-15976-container-free-post-draft-pre-freeze-feasibility-v1",
+    "manifest": {
+      "logical_path": "experiments/independent_execution_smoke/evidence-manifest.json",
+      "bytes": 35718,
+      "sha256": "b0bcec424a570d80a88d06584beb7fad1259fe9fa4fe67db1f4d306ac251e21c"
+    },
+    "comparison_axis": "container_free_macos_arm64_vs_locally_constructed_linux_arm64_container",
+    "same_prepared_workspaces": true,
+    "observed_role_pattern_agreement": true,
+    "claim": "one_task_retrospective_substrate_pair_only"
+  },
+  "runtime": {
+    "docker": {
+      "client_version": "28.1.1",
+      "server_version": "28.1.1",
+      "desktop_version": "4.41.2",
+      "server_os": "linux",
+      "server_architecture": "arm64"
+    },
+    "image": {
+      "construction": "locally_constructed_for_feasibility",
+      "official_swe_bench_image": false,
+      "id": "sha256:131da93f75269d9db60c3e1e7e5f412d6b05445d6b92e55b134d202fd83d074e",
+      "repo_digest": "bench-cleanser/sympy-paired-runtime@sha256:131da93f75269d9db60c3e1e7e5f412d6b05445d6b92e55b134d202fd83d074e",
+      "os": "linux",
+      "architecture": "arm64",
+      "size_bytes": 469094980,
+      "base_reference": "node:18",
+      "base_image_id": "sha256:c6ae79e38498325db67193d391e6ec1d224d96c693a8a4d943498556716d3783",
+      "base_platform": "linux/arm64",
+      "dockerfile_base_digest_pinned": false,
+      "base_identity_receipt": "recorded_during_local_build_setup_but_not_preserved_as_a_contemporaneous_inspect_record"
+    },
+    "dockerfile": {
+      "member": "build/Dockerfile",
+      "bytes": 504,
+      "sha256": "ab835600739006acdf122a11a246561499f2eca13e02a5bbc86d46f7c23296a9"
+    },
+    "python": {
+      "distribution": "python-build-standalone install_only",
+      "version": "3.9.25",
+      "archive_filename": "cpython-3.9.25-20251031-aarch64-linux-gnu-install_only.tar.gz",
+      "archive_bytes": 41536085,
+      "archive_sha256": "6112d46355857680b81849764a6cf9f38cc4cd0d1cf29d432bc12fe5aeedf9d0",
+      "archive_url": "https://github.com/astral-sh/python-build-standalone/releases/download/20251031/cpython-3.9.25%2B20251031-aarch64-unknown-linux-gnu-install_only.tar.gz",
+      "container_binary": "/opt/python/bin/python"
+    },
+    "mpmath": {
+      "declared_version": "1.3.0",
+      "container_target": "/opt/site-packages/mpmath",
+      "mount_read_only": true,
+      "metadata_member": "dependencies/mpmath-1.3.0-METADATA",
+      "metadata_bytes": 8630,
+      "metadata_sha256": "44b66ea444b9c0d19ae94815d356bf047ae6b680c19268b5c265687cd6a81406",
+      "mounted_tree_manifest_member": "dependencies/mpmath-mounted-tree.tsv",
+      "mounted_tree_manifest_bytes": 19122,
+      "mounted_tree_manifest_sha256": "df5f953e1a9a06c64dc2ee7361d1eae06be1ccb3bb80362a4399692984dedae9",
+      "mounted_file_count": 174,
+      "mounted_total_bytes": 3603837,
+      "receipt_timing": "package_metadata_and_mounted_tree_recorded_after_execution"
+    },
+    "execution_contract": {
+      "runner_member": "runner/run_paired_sympy.sh",
+      "runner_bytes": 2431,
+      "runner_sha256": "57716a5f380e9cb4b2f20a2b79920aaebe8e6170d93d17ed1b327f9055071f94",
+      "shell": "/bin/bash",
+      "timeout_seconds": null,
+      "stdout_stderr_capture": "combined_complete_log",
+      "prepared_source_placeholder": "{prepared_source}",
+      "mpmath_source_placeholder": "{mpmath_source}",
+      "docker_argv_template": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull=never",
+        "--network",
+        "none",
+        "--read-only",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges",
+        "--pids-limit",
+        "128",
+        "--memory",
+        "2g",
+        "--memory-swap",
+        "2g",
+        "--cpus",
+        "2",
+        "--user",
+        "65534:65534",
+        "--tmpfs",
+        "/tmp:rw,noexec,nosuid,nodev,size=512m",
+        "--mount",
+        "type=bind,src={prepared_source},dst=/workspace,readonly",
+        "--mount",
+        "type=bind,src={mpmath_source},dst=/opt/site-packages/mpmath,readonly",
+        "--env",
+        "HOME=/tmp",
+        "--env",
+        "TEMP=/tmp",
+        "--env",
+        "TMP=/tmp",
+        "--env",
+        "TMPDIR=/tmp",
+        "--env",
+        "NO_COLOR=1",
+        "--env",
+        "TERM=dumb",
+        "sha256:131da93f75269d9db60c3e1e7e5f412d6b05445d6b92e55b134d202fd83d074e",
+        "-W",
+        "ignore::UserWarning",
+        "-W",
+        "ignore::SyntaxWarning",
+        "bin/test",
+        "-C",
+        "--verbose",
+        "sympy/printing/tests/test_mathml.py"
+      ]
+    }
+  },
+  "roles": [
+    {
+      "name": "baseline",
+      "kind": "base_plus_oracle_test_patch_control",
+      "input_patch_sha256": null
+    },
+    {
+      "name": "gpt5",
+      "kind": "candidate",
+      "input_patch_sha256": "e2fd0256c4495c795129805efd83292f35d9ae656a67bbe55317382d88571971"
+    },
+    {
+      "name": "kimi_k2",
+      "kind": "candidate",
+      "input_patch_sha256": "3e098af68d2c527fdcd4344effbc71789965cb74f14d20b69eb8458080787686"
+    },
+    {
+      "name": "claude_4_sonnet",
+      "kind": "candidate",
+      "input_patch_sha256": "47ac3303f188d01602f5fb74b14b8f4f10281cfbc87707d17bde2e088c7c3585"
+    },
+    {
+      "name": "gold",
+      "kind": "canonical_gold_sanity_control",
+      "input_patch_sha256": "cb296790ccb26aebc97be249df44650cf9cb0653637fd340996e384e632196ae"
+    }
+  ],
+  "evidence_bundle": {
+    "logical_filename": "bench-cleanser-paired-sympy-15976-evidence.tar.gz",
+    "media_type": "application/gzip",
+    "bytes": 18299,
+    "sha256": "90729da3d543fb3ac75405bb782d056a90ae6b1bbb9219a7016404f489aaea3c",
+    "root_directory": "bench-cleanser-paired-sympy-15976-evidence",
+    "file_member_count": 24,
+    "maximum_file_member_bytes": 19122,
+    "location_contract": "external_content_addressed_artifact; no mutable local path is canonical",
+    "supporting_members": [
+      {
+        "path": "build/Dockerfile",
+        "bytes": 504,
+        "sha256": "ab835600739006acdf122a11a246561499f2eca13e02a5bbc86d46f7c23296a9"
+      },
+      {
+        "path": "dependencies/mpmath-1.3.0-METADATA",
+        "bytes": 8630,
+        "sha256": "44b66ea444b9c0d19ae94815d356bf047ae6b680c19268b5c265687cd6a81406"
+      },
+      {
+        "path": "dependencies/mpmath-mounted-tree.tsv",
+        "bytes": 19122,
+        "sha256": "df5f953e1a9a06c64dc2ee7361d1eae06be1ccb3bb80362a4399692984dedae9"
+      },
+      {
+        "path": "raw/acquisitions.tsv",
+        "bytes": 1937,
+        "sha256": "171ad013ad614977c40c700398eacbfba853b6356202f37703749cd06ca7fd11"
+      },
+      {
+        "path": "raw/build-inputs.sha256",
+        "bytes": 319,
+        "sha256": "1a1a4c30db8836b6a0e108446ac35889f87f0ab7189483c49d7e7998ae86014c"
+      },
+      {
+        "path": "raw/docker-version.txt",
+        "bytes": 754,
+        "sha256": "3b8440f29d2a83a9adcbd4814ea4c5992d69074ec9fbebe7b864fc92acdb0e04"
+      },
+      {
+        "path": "raw/host-uname.txt",
+        "bytes": 150,
+        "sha256": "73e7a99fa63b21fe92beef9f978b6f7ff8fb2a5e0d35eaf1f0007b9b947435e2"
+      },
+      {
+        "path": "raw/image-inspect.json",
+        "bytes": 3151,
+        "sha256": "ec02e35264c36fc614a7dcd2ba0771f9856e2fd7af8787654f5c88c6366b86de"
+      },
+      {
+        "path": "runner/run_paired_sympy.sh",
+        "bytes": 2431,
+        "sha256": "57716a5f380e9cb4b2f20a2b79920aaebe8e6170d93d17ed1b327f9055071f94"
+      }
+    ]
+  },
+  "runs": [
+    {
+      "role": "baseline",
+      "repeat": 1,
+      "started_at": "2026-07-13T13:18:51Z",
+      "finished_at": "2026-07-13T13:18:52Z",
+      "return_code": 1,
+      "log": {
+        "path": "raw/baseline-repeat-1.log",
+        "bytes": 2080,
+        "sha256": "76ba853d1b430062a3281f64aedef40ea7eb838a5c529a1e87aa2b2f0757e0a4"
+      },
+      "result": {
+        "status": "failed",
+        "passed": 38,
+        "failed": 1,
+        "total": 39,
+        "target": "failed"
+      }
+    },
+    {
+      "role": "baseline",
+      "repeat": 2,
+      "started_at": "2026-07-13T13:18:52Z",
+      "finished_at": "2026-07-13T13:18:54Z",
+      "return_code": 1,
+      "log": {
+        "path": "raw/baseline-repeat-2.log",
+        "bytes": 2080,
+        "sha256": "384c2efcedf6a1182c695599d7ef812c29992bda9f562f854fdeb338745a7ad5"
+      },
+      "result": {
+        "status": "failed",
+        "passed": 38,
+        "failed": 1,
+        "total": 39,
+        "target": "failed"
+      }
+    },
+    {
+      "role": "baseline",
+      "repeat": 3,
+      "started_at": "2026-07-13T13:18:54Z",
+      "finished_at": "2026-07-13T13:18:55Z",
+      "return_code": 1,
+      "log": {
+        "path": "raw/baseline-repeat-3.log",
+        "bytes": 2079,
+        "sha256": "8b1c9f37b4adc7ab596d36fb68579fac3fd716b02afc958ae55ab9377b6b1d31"
+      },
+      "result": {
+        "status": "failed",
+        "passed": 38,
+        "failed": 1,
+        "total": 39,
+        "target": "failed"
+      }
+    },
+    {
+      "role": "gpt5",
+      "repeat": 1,
+      "started_at": "2026-07-13T13:18:55Z",
+      "finished_at": "2026-07-13T13:18:56Z",
+      "return_code": 0,
+      "log": {
+        "path": "raw/gpt5-repeat-1.log",
+        "bytes": 1722,
+        "sha256": "d9a039426aa030aebade85fb7f50bfb02d1a1e6d87fdddbac6237e337093b300"
+      },
+      "result": {
+        "status": "passed",
+        "passed": 39,
+        "failed": 0,
+        "total": 39,
+        "target": "passed"
+      }
+    },
+    {
+      "role": "gpt5",
+      "repeat": 2,
+      "started_at": "2026-07-13T13:18:56Z",
+      "finished_at": "2026-07-13T13:18:57Z",
+      "return_code": 0,
+      "log": {
+        "path": "raw/gpt5-repeat-2.log",
+        "bytes": 1722,
+        "sha256": "c72e2e2449ddf8aaee7912b6cbd901f1a6254043cdd2f99f5eea9d86132bc552"
+      },
+      "result": {
+        "status": "passed",
+        "passed": 39,
+        "failed": 0,
+        "total": 39,
+        "target": "passed"
+      }
+    },
+    {
+      "role": "gpt5",
+      "repeat": 3,
+      "started_at": "2026-07-13T13:18:57Z",
+      "finished_at": "2026-07-13T13:18:58Z",
+      "return_code": 0,
+      "log": {
+        "path": "raw/gpt5-repeat-3.log",
+        "bytes": 1721,
+        "sha256": "4ad655477c70a2e64899d4f06924fcc6c68f1ec4df4dd50b8341439c95e42ef5"
+      },
+      "result": {
+        "status": "passed",
+        "passed": 39,
+        "failed": 0,
+        "total": 39,
+        "target": "passed"
+      }
+    },
+    {
+      "role": "kimi_k2",
+      "repeat": 1,
+      "started_at": "2026-07-13T13:18:58Z",
+      "finished_at": "2026-07-13T13:19:00Z",
+      "return_code": 1,
+      "log": {
+        "path": "raw/kimi_k2-repeat-1.log",
+        "bytes": 2080,
+        "sha256": "e83647409cb9086f71383cf30e3d3e30cb0dc3aec2c27335c93b779687fa7258"
+      },
+      "result": {
+        "status": "failed",
+        "passed": 38,
+        "failed": 1,
+        "total": 39,
+        "target": "failed"
+      }
+    },
+    {
+      "role": "kimi_k2",
+      "repeat": 2,
+      "started_at": "2026-07-13T13:19:00Z",
+      "finished_at": "2026-07-13T13:19:01Z",
+      "return_code": 1,
+      "log": {
+        "path": "raw/kimi_k2-repeat-2.log",
+        "bytes": 2080,
+        "sha256": "e5ac3d752a6bf5217697c7949db70bb5d1e1d137acca5bb751ff7309e4806aaf"
+      },
+      "result": {
+        "status": "failed",
+        "passed": 38,
+        "failed": 1,
+        "total": 39,
+        "target": "failed"
+      }
+    },
+    {
+      "role": "kimi_k2",
+      "repeat": 3,
+      "started_at": "2026-07-13T13:19:01Z",
+      "finished_at": "2026-07-13T13:19:02Z",
+      "return_code": 1,
+      "log": {
+        "path": "raw/kimi_k2-repeat-3.log",
+        "bytes": 2079,
+        "sha256": "16664591d8c7aa3e375dc90b3b194d9e51accba532ca01ff4b680198be476a50"
+      },
+      "result": {
+        "status": "failed",
+        "passed": 38,
+        "failed": 1,
+        "total": 39,
+        "target": "failed"
+      }
+    },
+    {
+      "role": "claude_4_sonnet",
+      "repeat": 1,
+      "started_at": "2026-07-13T13:19:02Z",
+      "finished_at": "2026-07-13T13:19:03Z",
+      "return_code": 0,
+      "log": {
+        "path": "raw/claude_4_sonnet-repeat-1.log",
+        "bytes": 1722,
+        "sha256": "5241726788bcbdf6c999adfc7489fc670ad23d562fb72c923ed34bf27bcb55e2"
+      },
+      "result": {
+        "status": "passed",
+        "passed": 39,
+        "failed": 0,
+        "total": 39,
+        "target": "passed"
+      }
+    },
+    {
+      "role": "claude_4_sonnet",
+      "repeat": 2,
+      "started_at": "2026-07-13T13:19:03Z",
+      "finished_at": "2026-07-13T13:19:05Z",
+      "return_code": 0,
+      "log": {
+        "path": "raw/claude_4_sonnet-repeat-2.log",
+        "bytes": 1722,
+        "sha256": "bbdfe6669563ec796be90d1527d0638ae007606cd9e3e9c996928c7b20b018cd"
+      },
+      "result": {
+        "status": "passed",
+        "passed": 39,
+        "failed": 0,
+        "total": 39,
+        "target": "passed"
+      }
+    },
+    {
+      "role": "claude_4_sonnet",
+      "repeat": 3,
+      "started_at": "2026-07-13T13:19:05Z",
+      "finished_at": "2026-07-13T13:19:06Z",
+      "return_code": 0,
+      "log": {
+        "path": "raw/claude_4_sonnet-repeat-3.log",
+        "bytes": 1722,
+        "sha256": "9ee9cf75cc8d53d5c69917d302f44f9d9664b83775a144337ac5e0ec3d36dd78"
+      },
+      "result": {
+        "status": "passed",
+        "passed": 39,
+        "failed": 0,
+        "total": 39,
+        "target": "passed"
+      }
+    },
+    {
+      "role": "gold",
+      "repeat": 1,
+      "started_at": "2026-07-13T13:19:06Z",
+      "finished_at": "2026-07-13T13:19:07Z",
+      "return_code": 0,
+      "log": {
+        "path": "raw/gold-repeat-1.log",
+        "bytes": 1722,
+        "sha256": "39a64417310e518ada8070dc44b1e81e97e92480a3930aa73d55e7a5e7ccb4f4"
+      },
+      "result": {
+        "status": "passed",
+        "passed": 39,
+        "failed": 0,
+        "total": 39,
+        "target": "passed"
+      }
+    },
+    {
+      "role": "gold",
+      "repeat": 2,
+      "started_at": "2026-07-13T13:19:07Z",
+      "finished_at": "2026-07-13T13:19:08Z",
+      "return_code": 0,
+      "log": {
+        "path": "raw/gold-repeat-2.log",
+        "bytes": 1722,
+        "sha256": "c1ed8beed163460063fcc55e3014f8de239327cf49430046e960cbe6c8f65db7"
+      },
+      "result": {
+        "status": "passed",
+        "passed": 39,
+        "failed": 0,
+        "total": 39,
+        "target": "passed"
+      }
+    },
+    {
+      "role": "gold",
+      "repeat": 3,
+      "started_at": "2026-07-13T13:19:08Z",
+      "finished_at": "2026-07-13T13:19:09Z",
+      "return_code": 0,
+      "log": {
+        "path": "raw/gold-repeat-3.log",
+        "bytes": 1722,
+        "sha256": "f84de4a195bef9c313f665e9bae895d8f78789b6df8af3e2325062357261b6de"
+      },
+      "result": {
+        "status": "passed",
+        "passed": 39,
+        "failed": 0,
+        "total": 39,
+        "target": "passed"
+      }
+    }
+  ],
+  "aggregate": {
+    "execution_count": 15,
+    "passed_run_count": 9,
+    "failed_run_count": 6,
+    "recorded_interval_seconds": 18,
+    "all_role_repeats_agree": true,
+    "paired_arm_matches_independent_arm": true,
+    "role_results": [
+      {
+        "role": "baseline",
+        "repeat_count": 3,
+        "status": "failed",
+        "passed": 38,
+        "failed": 1,
+        "total": 39,
+        "target": "failed"
+      },
+      {
+        "role": "gpt5",
+        "repeat_count": 3,
+        "status": "passed",
+        "passed": 39,
+        "failed": 0,
+        "total": 39,
+        "target": "passed"
+      },
+      {
+        "role": "kimi_k2",
+        "repeat_count": 3,
+        "status": "failed",
+        "passed": 38,
+        "failed": 1,
+        "total": 39,
+        "target": "failed"
+      },
+      {
+        "role": "claude_4_sonnet",
+        "repeat_count": 3,
+        "status": "passed",
+        "passed": 39,
+        "failed": 0,
+        "total": 39,
+        "target": "passed"
+      },
+      {
+        "role": "gold",
+        "repeat_count": 3,
+        "status": "passed",
+        "passed": 39,
+        "failed": 0,
+        "total": 39,
+        "target": "passed"
+      }
+    ]
+  },
+  "limitations": [
+    "one manually selected task; no population estimate or routing evidence",
+    "retrospective post-draft execution; candidate patches and hosted outcomes were already visible",
+    "locally constructed Linux arm64 image; not an official SWE-bench image or official harness reproduction",
+    "the Dockerfile names node:18 rather than pinning its digest; the exact local base image ID is bound separately but lacks a contemporaneous inspect receipt in the bundle",
+    "the container reused prepared workspaces from the container-free arm; preparation was not independently repeated or re-attested",
+    "one targeted test file, not the complete SWE-bench harness or full repository suite",
+    "the mpmath metadata and mounted-tree receipt were collected after execution, not as a before-and-after attestation",
+    "Docker Desktop virtualization on one arm64 host; no remote Linux CI or cross-architecture evidence",
+    "the runner imposed resource and sandbox bounds but no wall-clock timeout",
+    "test and hash-randomization seeds varied between repeats and were not controlled",
+    "execution is a fallible measurement; base-fails and gold-passes are sanity controls, not semantic ground truth",
+    "no prospective claim, no policy comparison, and no evidence for hypotheses H1-H6"
+  ]
+}

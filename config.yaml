@@ -1,13 +1,17 @@
 llm:
-  base_url: "https://cloudgpt-openai.azure-api.net/"
-  api_version: "2025-04-01-preview"
-  model: "gpt-5.4-20260305"
-  max_tokens: 65536
-  reasoning_effort: "high"
+  provider: "openai-compatible"
+  # The key is read from this environment variable. Avoid storing secrets here.
+  api_key_env: "OPENAI_API_KEY"
+  # OPENAI_BASE_URL overrides this value when set.
+  base_url_env: "OPENAI_BASE_URL"
+  base_url: "https://api.openai.com/v1"
+  model: "gpt-4.1"
+  max_tokens: 32768
+  # Set low/medium/high only for providers and models that support it.
+  reasoning_effort: null
+  request_timeout_seconds: 180
+  retry_timeout_seconds: 600
   max_concurrent_requests: 10
-  # `retry_attempts` only bounds retries for API errors (rate limits, 5xx,
-  # validator). `APIConnectionError` is retried indefinitely so long-running
-  # batches survive transient network drops.
   retry_attempts: 7
   retry_delay_seconds: 5.0
 

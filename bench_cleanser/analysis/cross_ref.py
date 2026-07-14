@@ -1,9 +1,9 @@
 """Cross-reference analysis: detect overpatch-overtest coupling between patch hunks and F2P tests.
 
-When an F2P test exercises functions from UNRELATED patch hunks, the test
-requires code the problem doesn't ask for.  This overpatch-overtest coupling
-is a strong APPROACH_LOCK signal — the agent can't pass the test without
-implementing out-of-scope changes.
+When an F2P test directly exercises functions from UNRELATED patch hunks, the
+test may require code the problem doesn't ask for.  Direct call-graph evidence
+can support APPROACH_LOCK; identifier overlap is only weak review evidence and
+must not deterministically promote a task to that severe label.
 
 Uses CodeContext call-graph data when available, falls back to identifier
 overlap heuristics otherwise.
@@ -146,7 +146,7 @@ def analyze_cross_references(
                     norm = _normalize_path(ct.file_path)
                     if norm in oos_files:
                         linked_indices.update(
-                            i for i, hv in enumerate(patch_analysis.hunk_verdicts)
+                            hv.hunk_index for hv in patch_analysis.hunk_verdicts
                             if hv.verdict == PatchVerdict.UNRELATED
                             and _normalize_path(hv.file_path) == norm
                         )
@@ -157,7 +157,7 @@ def analyze_cross_references(
                     norm = _normalize_path(tf.file_path)
                     if norm in oos_files:
                         linked_indices.update(
-                            i for i, hv in enumerate(patch_analysis.hunk_verdicts)
+                            hv.hunk_index for hv in patch_analysis.hunk_verdicts
                             if hv.verdict == PatchVerdict.UNRELATED
                             and _normalize_path(hv.file_path) == norm
                         )

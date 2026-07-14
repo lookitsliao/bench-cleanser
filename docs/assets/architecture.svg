@@ -1,212 +1,187 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" font-family="ui-sans-serif, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="bench-cleanser architecture: two axes, seven stages, deterministic fusion">
-  <title>bench-cleanser pipeline architecture</title>
-  <desc>Axis 1 (task contamination) flows through Stages 1–6 deterministic + LLM-assisted analysis; Axis 2 (agent trajectory) is classified per (task, agent); Stage 7 fuses both into a single fairness verdict.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">bench-cleanser proposed risk-adaptive SWE verification architecture</title>
+  <desc id="desc">Training-data curation, rollout selection, and evaluation share an implemented candidate/verifier manifest and policy contract. Static evidence is a deterministic bootstrap receipt; the policy discloses nine route actions with at most seven eligible, while oracle hardening remains curator-only. Deployable task-validity prediction and calibrated learned acquisition remain research targets. Curator-only task validity, conditional candidate truth, and evidence-validity adjudication remain outside deployable state and are joined for evaluation.</desc>
   <defs>
-    <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#0b1020"/>
-      <stop offset="100%" stop-color="#11172e"/>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#09111f"/>
+      <stop offset="1" stop-color="#111a31"/>
     </linearGradient>
-    <linearGradient id="axis1Grad" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#1f2a52"/>
-      <stop offset="100%" stop-color="#22305f"/>
+    <linearGradient id="consumer" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#17264b"/>
+      <stop offset="1" stop-color="#203664"/>
     </linearGradient>
-    <linearGradient id="axis2Grad" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#522b3a"/>
-      <stop offset="100%" stop-color="#6b2a3c"/>
+    <linearGradient id="policy" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#15372f"/>
+      <stop offset="1" stop-color="#1d5442"/>
     </linearGradient>
-    <linearGradient id="fuseGrad" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#1d4e3a"/>
-      <stop offset="100%" stop-color="#2a7754"/>
+    <linearGradient id="terminal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#40243e"/>
+      <stop offset="1" stop-color="#62304d"/>
     </linearGradient>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M0,0 L10,5 L0,10 z" fill="#9aa6c9"/>
+      <path d="M0 0 L10 5 L0 10 z" fill="#91a4c9"/>
     </marker>
-    <filter id="soft" x="-10%" y="-10%" width="120%" height="120%">
-      <feGaussianBlur stdDeviation="2" />
-    </filter>
     <style>
-      .axis-label { font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; fill: #c5cce0; }
-      .stage-title { font-size: 14px; font-weight: 700; fill: #e7ecff; }
-      .stage-sub { font-size: 11px; fill: #b5bdd8; }
-      .stage-tag { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; fill: #8a93b5; text-transform: uppercase; }
-      .det-tag { fill: #6ad99c; }
-      .llm-tag { fill: #f4b266; }
-      .verdict-title { font-size: 13px; font-weight: 700; fill: #e7ecff; }
-      .verdict-sub { font-size: 10px; fill: #b5bdd8; }
-      .title { font-size: 22px; font-weight: 800; fill: #f5f7ff; }
-      .subtitle { font-size: 12px; fill: #9aa6c9; }
-      .arrow-line { stroke: #9aa6c9; stroke-width: 1.5; fill: none; }
+      .title { fill:#f6f8ff; font-size:25px; font-weight:800; }
+      .subtitle { fill:#9fb0cf; font-size:12px; }
+      .eyebrow { fill:#8fa3ca; font-size:10px; font-weight:800; letter-spacing:.12em; }
+      .card-title { fill:#eef3ff; font-size:15px; font-weight:750; }
+      .card-copy { fill:#b5c2dc; font-size:11px; }
+      .tiny { fill:#9fb0cf; font-size:10px; }
+      .green { fill:#70dda6; }
+      .amber { fill:#ffc36f; }
+      .pink { fill:#f2a7c2; }
+      .line { fill:none; stroke:#91a4c9; stroke-width:1.6; marker-end:url(#arrow); }
+      .dash { fill:none; stroke:#6f84ab; stroke-width:1.3; stroke-dasharray:5 5; marker-end:url(#arrow); }
     </style>
   </defs>
 
-  <rect width="1280" height="720" fill="url(#bgGrad)"/>
+  <rect width="1280" height="720" fill="url(#background)"/>
+  <text x="38" y="44" class="title">Route Evidence, Not Models</text>
+  <text x="38" y="66" class="subtitle">Research target: candidate-level acquisition under a false-accept budget · execution is a measurement, not ground truth</text>
 
-  <text x="32" y="44" class="title">bench-cleanser — dual-axis benchmark contamination pipeline</text>
-  <text x="32" y="64" class="subtitle">Axis 1: what is wrong with the task · Axis 2: how did the agent get there · Stage 7: fuse → fairness verdict</text>
-  <g transform="translate(1030,32)">
-    <rect width="220" height="32" rx="6" fill="#1a223f" stroke="#2a345e"/>
-    <circle cx="14" cy="16" r="5" fill="#6ad99c"/>
-    <text x="26" y="20" class="stage-sub">deterministic — pure rule engine</text>
+  <!-- SWE-stack consumers -->
+  <g transform="translate(38 92)">
+    <rect width="376" height="78" rx="12" fill="url(#consumer)" stroke="#34548f"/>
+    <text x="18" y="22" class="eyebrow">TRAINING / SFT</text>
+    <text x="18" y="45" class="card-title">Admit · weight · quarantine</text>
+    <text x="18" y="63" class="card-copy">Control label noise, leakage, and unverifiable examples</text>
   </g>
-  <g transform="translate(1030,68)">
-    <rect width="220" height="32" rx="6" fill="#1a223f" stroke="#2a345e"/>
-    <circle cx="14" cy="16" r="5" fill="#f4b266"/>
-    <text x="26" y="20" class="stage-sub">LLM — schema-enforced Pydantic out</text>
+  <g transform="translate(452 92)">
+    <rect width="376" height="78" rx="12" fill="url(#consumer)" stroke="#34548f"/>
+    <text x="18" y="22" class="eyebrow">RL / ROLLOUT SELECTION</text>
+    <text x="18" y="45" class="card-title">Score · acquire · abstain</text>
+    <text x="18" y="63" class="card-copy">Correct optimistic narration and reward hacking</text>
   </g>
-
-  <!-- Axis 1 band -->
-  <g transform="translate(32,108)">
-    <rect width="1216" height="248" rx="14" fill="url(#axis1Grad)" stroke="#2a345e"/>
-    <text x="20" y="32" class="axis-label">Axis 1 · Task contamination</text>
-    <text x="20" y="50" class="stage-sub">Input: TaskRecord — problem statement, hints, gold patch, F2P/P2P tests, before_repo_set_cmd, requirements, interface</text>
-
-    <!-- Stage cards -->
-    <g transform="translate(20,70)">
-      <!-- S1 -->
-      <g transform="translate(0,0)">
-        <rect width="180" height="80" rx="10" fill="#141a36" stroke="#2a345e"/>
-        <text x="14" y="22" class="stage-tag det-tag">stage 1 · 1.5 · det</text>
-        <text x="14" y="42" class="stage-title">Parse + visit</text>
-        <text x="14" y="58" class="stage-sub">patch / test diffs</text>
-        <text x="14" y="72" class="stage-sub">repo clone, AST, imports</text>
-      </g>
-      <!-- S2 -->
-      <g transform="translate(192,0)">
-        <rect width="180" height="80" rx="10" fill="#141a36" stroke="#2a345e"/>
-        <text x="14" y="22" class="stage-tag llm-tag">stage 2 · llm</text>
-        <text x="14" y="42" class="stage-title">Intent extraction</text>
-        <text x="14" y="58" class="stage-sub">acceptance criteria,</text>
-        <text x="14" y="72" class="stage-sub">scope, ambiguity, legitimacy</text>
-      </g>
-      <!-- S3 -->
-      <g transform="translate(384,0)">
-        <rect width="180" height="80" rx="10" fill="#141a36" stroke="#2a345e"/>
-        <text x="14" y="22" class="stage-tag det-tag">stage 3 · det</text>
-        <text x="14" y="42" class="stage-title">Structural diff</text>
-        <text x="14" y="58" class="stage-sub">astred-core multilingual AST</text>
-        <text x="14" y="72" class="stage-sub">stdlib `ast` fallback</text>
-      </g>
-      <!-- S4A -->
-      <g transform="translate(576,0)">
-        <rect width="180" height="80" rx="10" fill="#141a36" stroke="#2a345e"/>
-        <text x="14" y="22" class="stage-tag llm-tag">stage 4a · llm</text>
-        <text x="14" y="42" class="stage-title">Patch ↔ intent</text>
-        <text x="14" y="58" class="stage-sub">per-hunk verdict:</text>
-        <text x="14" y="72" class="stage-sub">REQUIRED · ANCILLARY · UNRELATED</text>
-      </g>
-      <!-- S4B -->
-      <g transform="translate(768,0)">
-        <rect width="180" height="80" rx="10" fill="#141a36" stroke="#2a345e"/>
-        <text x="14" y="22" class="stage-tag llm-tag">stage 4b · llm</text>
-        <text x="14" y="42" class="stage-title">Test ↔ intent</text>
-        <text x="14" y="58" class="stage-sub">test + assertion verdicts:</text>
-        <text x="14" y="72" class="stage-sub">ALIGNED · ON_TOPIC · OFF_TOPIC</text>
-      </g>
-      <!-- S4C -->
-      <g transform="translate(960,0)">
-        <rect width="180" height="80" rx="10" fill="#141a36" stroke="#2a345e"/>
-        <text x="14" y="22" class="stage-tag det-tag">stage 4c · det</text>
-        <text x="14" y="42" class="stage-title">Cross-reference</text>
-        <text x="14" y="58" class="stage-sub">tests ↔ UNRELATED hunks</text>
-        <text x="14" y="72" class="stage-sub">overpatch-overtest coupling</text>
-      </g>
-    </g>
-
-    <g transform="translate(20,162)">
-      <!-- S5 -->
-      <g transform="translate(96,0)">
-        <rect width="380" height="68" rx="10" fill="#141a36" stroke="#2a345e"/>
-        <text x="14" y="22" class="stage-tag llm-tag">stage 5 · llm (schema-enforced)</text>
-        <text x="14" y="42" class="stage-title">Dual-taxonomy classification</text>
-        <text x="14" y="60" class="stage-sub">7 binary labels · cite-or-shut-up evidence rule · TaskLabelItem[]</text>
-      </g>
-      <!-- S6 -->
-      <g transform="translate(496,0)">
-        <rect width="380" height="68" rx="10" fill="#141a36" stroke="#2a345e"/>
-        <text x="14" y="22" class="stage-tag det-tag">stage 6 · det · set membership</text>
-        <text x="14" y="42" class="stage-title">Severity bucket + report build</text>
-        <text x="14" y="60" class="stage-sub">CLEAN · MINOR · MODERATE · SEVERE · no thresholds, no weights</text>
-      </g>
-    </g>
+  <g transform="translate(866 92)">
+    <rect width="376" height="78" rx="12" fill="url(#consumer)" stroke="#34548f"/>
+    <text x="18" y="22" class="eyebrow">EVALUATION</text>
+    <text x="18" y="45" class="card-title">Validate · execute · expose</text>
+    <text x="18" y="63" class="card-copy">Keep raw and validity-adjusted estimands auditable</text>
   </g>
 
-  <!-- Axis 2 band -->
-  <g transform="translate(32,376)">
-    <rect width="816" height="172" rx="14" fill="url(#axis2Grad)" stroke="#3d2a3c"/>
-    <text x="20" y="32" class="axis-label">Axis 2 · Agent trajectory</text>
-    <text x="20" y="50" class="stage-sub">Input: TrajectoryRecord per (task, agent) — Docent · HuggingFace · JSONL · JSON directory</text>
+  <path d="M226 170 L226 196 L134 196 L134 224" class="line"/>
+  <path d="M640 170 L640 198" class="line"/>
+  <path d="M1054 170 L1054 196 L1140 196 L1140 224" class="line"/>
 
-    <g transform="translate(20,70)">
-      <g transform="translate(0,0)">
-        <rect width="240" height="80" rx="10" fill="#1d1426" stroke="#3d2a3c"/>
-        <text x="14" y="22" class="stage-tag det-tag">heuristics · det</text>
-        <text x="14" y="42" class="stage-title">Gold-patch similarity</text>
-        <text x="14" y="58" class="stage-sub">difflib normalised ratio</text>
-        <text x="14" y="72" class="stage-sub">pip-install / F2P-name detection</text>
-      </g>
-      <g transform="translate(252,0)">
-        <rect width="240" height="80" rx="10" fill="#1d1426" stroke="#3d2a3c"/>
-        <text x="14" y="22" class="stage-tag llm-tag">classifier · llm</text>
-        <text x="14" y="42" class="stage-title">Behavioural label</text>
-        <text x="14" y="58" class="stage-sub">passed_genuine · passed_leak ·</text>
-        <text x="14" y="72" class="stage-sub">test_aware · package_leak · …</text>
-      </g>
-      <g transform="translate(504,0)">
-        <rect width="240" height="80" rx="10" fill="#1d1426" stroke="#3d2a3c"/>
-        <text x="14" y="22" class="stage-tag det-tag">cross-agent · det</text>
-        <text x="14" y="42" class="stage-title">Same-patch upgrade</text>
-        <text x="14" y="58" class="stage-sub">≥2 agents on same task</text>
-        <text x="14" y="72" class="stage-sub">all similar → upgrade to LEAK</text>
-      </g>
-    </g>
+  <!-- State and policy -->
+  <g transform="translate(38 224)">
+    <rect width="244" height="336" rx="14" fill="#101b32" stroke="#2d436d"/>
+    <text x="18" y="27" class="eyebrow">DEPLOYABLE STATE</text>
+
+    <rect x="18" y="44" width="208" height="67" rx="9" fill="#17243e" stroke="#304a76"/>
+    <text x="32" y="69" class="card-title">Candidate + context</text>
+    <text x="32" y="88" class="card-copy">patch · lifecycle · provenance</text>
+
+    <rect x="18" y="127" width="208" height="84" rx="9" fill="#17243e" stroke="#304a76"/>
+    <text x="32" y="151" class="card-title">ValidityManifest</text>
+    <text x="32" y="170" class="card-copy">candidate · verifier risk</text>
+    <text x="32" y="188" class="card-copy">provenance · evidence · cost</text>
+
+    <rect x="18" y="227" width="208" height="89" rx="9" fill="url(#policy)" stroke="#3c8a69"/>
+    <text x="32" y="251" class="eyebrow green">WRITE-AHEAD POLICY CONTRACT</text>
+    <text x="32" y="274" class="card-title">Next evidence action</text>
+    <text x="32" y="293" class="card-copy">9 disclosed · at most 7 eligible</text>
+    <text x="32" y="309" class="card-copy">distribution · draw · policy-log head</text>
   </g>
 
-  <!-- Stage 7 fusion -->
-  <g transform="translate(880,376)">
-    <rect width="368" height="172" rx="14" fill="url(#fuseGrad)" stroke="#2d6a4f"/>
-    <text x="20" y="32" class="axis-label">Stage 7 · Fusion</text>
-    <text x="20" y="50" class="stage-sub">deterministic — pure rule engine — no LLM</text>
+  <path d="M282 392 L324 392" class="line"/>
 
-    <g transform="translate(20,68)">
-      <rect width="328" height="86" rx="10" fill="#0e2218" stroke="#2d6a4f"/>
-      <text x="14" y="22" class="verdict-title">FairnessVerdict ∈ { … }</text>
-      <text x="14" y="40" class="verdict-sub">FAIR_PASS · AGENT_CHEATED · CONTAMINATED_PASS</text>
-      <text x="14" y="56" class="verdict-sub">AMBIGUOUS_PASS · UNFAIR_FAILURE · FAIR_FAILURE</text>
-      <text x="14" y="72" class="verdict-sub">AGENT_DISENGAGED · INCONCLUSIVE   + invalidates_measurement</text>
+  <!-- Evidence interventions -->
+  <g transform="translate(324 198)">
+    <rect width="638" height="388" rx="16" fill="#0e192d" stroke="#2d436d"/>
+    <text x="20" y="28" class="eyebrow">EVIDENCE + CURATOR TRUTH SURFACES</text>
+    <text x="20" y="47" class="tiny">Each action has its own cost, failure mode, sensitivity, specificity, and oracle validity</text>
+
+    <g transform="translate(20 68)">
+      <rect width="188" height="94" rx="10" fill="#17243e" stroke="#35517f"/>
+      <text x="14" y="24" class="eyebrow green">DETERMINISTIC BOOTSTRAP</text>
+      <text x="14" y="49" class="card-title">Static checks</text>
+      <text x="14" y="68" class="card-copy">AST · types · patch risk</text>
+      <text x="14" y="84" class="tiny">typed receipt · no propensity</text>
     </g>
+    <g transform="translate(225 68)">
+      <rect width="188" height="94" rx="10" fill="#352916" stroke="#72592a"/>
+      <text x="14" y="24" class="eyebrow amber">EXECUTION-FREE</text>
+      <text x="14" y="49" class="card-title">Semantic verifier</text>
+      <text x="14" y="68" class="card-copy">criteria · ensembles · RM</text>
+      <text x="14" y="84" class="tiny">target: calibrated · reference-free</text>
+    </g>
+    <g transform="translate(430 68)">
+      <rect width="188" height="94" rx="10" fill="#1e2d35" stroke="#456b75"/>
+      <text x="14" y="24" class="eyebrow green">NARROW RUNTIME</text>
+      <text x="14" y="49" class="card-title">Targeted diagnosis</text>
+      <text x="14" y="68" class="card-copy">compile · reproduce · type</text>
+      <text x="14" y="84" class="tiny">less setup, narrower oracle</text>
+    </g>
+
+    <g transform="translate(20 181)">
+      <rect width="188" height="94" rx="10" fill="#26304a" stroke="#536895"/>
+      <text x="14" y="24" class="eyebrow">OPERATOR-PROVISIONED RUNTIME TARGET</text>
+      <text x="14" y="49" class="card-title">Full execution</text>
+      <text x="14" y="68" class="card-copy">pinned harness · repeats</text>
+      <text x="14" y="84" class="tiny">costly · can still be wrong</text>
+    </g>
+    <g transform="translate(225 181)">
+      <rect width="188" height="94" rx="10" fill="#38233b" stroke="#744f7a"/>
+      <text x="14" y="24" class="eyebrow pink">CURATOR-ONLY ORACLE CHECK</text>
+      <text x="14" y="49" class="card-title">Harden the oracle</text>
+      <text x="14" y="68" class="card-copy">gold/base/negative sanity</text>
+      <text x="14" y="84" class="tiny">mutation · adversarial tests</text>
+    </g>
+    <g transform="translate(430 181)">
+      <rect width="188" height="94" rx="10" fill="#302b3e" stroke="#655c82"/>
+      <text x="14" y="24" class="eyebrow pink">PRIVILEGED</text>
+      <text x="14" y="49" class="card-title">Human adjudication</text>
+      <text x="14" y="68" class="card-copy">blind disagreement review</text>
+      <text x="14" y="84" class="tiny">truth label, never router input</text>
+    </g>
+
+    <rect x="20" y="298" width="598" height="68" rx="10" fill="#14271f" stroke="#376e54"/>
+    <text x="36" y="322" class="eyebrow green">SEQUENTIAL UPDATE</text>
+    <text x="36" y="345" class="card-title">Observation → candidate/verifier beliefs → next action</text>
+    <text x="36" y="362" class="tiny">Research target: learned/calibrated acquisition; deployable task-validity estimate absent</text>
   </g>
 
-  <!-- Arrows from axis bands to fusion -->
-  <path class="arrow-line" d="M848 462 L876 462" marker-end="url(#arrow)"/>
-  <path class="arrow-line" d="M640 356 L640 376 L880 376 L880 408 L876 408" marker-end="url(#arrow)" stroke-dasharray="0"/>
+  <path d="M962 392 L1000 392" class="line"/>
+  <path d="M640 586 L640 611" class="line"/>
+  <path d="M324 538 L300 538 L300 507 L282 507" class="dash"/>
 
-  <!-- Outputs -->
-  <g transform="translate(32,572)">
-    <rect width="1216" height="120" rx="14" fill="#0f1530" stroke="#22345e"/>
-    <text x="20" y="32" class="axis-label">Outputs · evidence-grounded · reproducible from disk</text>
+  <!-- Terminal outcomes -->
+  <g transform="translate(1000 224)">
+    <rect width="242" height="336" rx="14" fill="url(#terminal)" stroke="#7d4564"/>
+    <text x="18" y="27" class="eyebrow pink">TERMINAL DECISION</text>
 
-    <g transform="translate(20,52)">
-      <g transform="translate(0,0)">
-        <rect width="284" height="54" rx="10" fill="#141a36" stroke="#22345e"/>
-        <text x="14" y="22" class="stage-title">reports/&lt;instance_id&gt;.json</text>
-        <text x="14" y="40" class="stage-sub">ContaminationReport · labels · evidence · severity</text>
-      </g>
-      <g transform="translate(296,0)">
-        <rect width="284" height="54" rx="10" fill="#141a36" stroke="#22345e"/>
-        <text x="14" y="22" class="stage-title">summary.csv · summary_stats.json</text>
-        <text x="14" y="40" class="stage-sub">aggregate counts · rebuilt from reports/</text>
-      </g>
-      <g transform="translate(592,0)">
-        <rect width="284" height="54" rx="10" fill="#141a36" stroke="#22345e"/>
-        <text x="14" y="22" class="stage-title">trajectory_analysis.{md, json}</text>
-        <text x="14" y="40" class="stage-sub">per-agent labels · fusion verdicts</text>
-      </g>
-      <g transform="translate(888,0)">
-        <rect width="308" height="54" rx="10" fill="#141a36" stroke="#22345e"/>
-        <text x="14" y="22" class="stage-title">deep-dive forensic markdown</text>
-        <text x="14" y="40" class="stage-sub">per-instance citations for human audit</text>
-      </g>
-    </g>
+    <rect x="18" y="45" width="206" height="58" rx="9" fill="#18382b" stroke="#448566"/>
+    <text x="32" y="70" class="card-title">Accept</text>
+    <text x="32" y="88" class="tiny">policy criterion met · no guarantee</text>
+
+    <rect x="18" y="118" width="206" height="58" rx="9" fill="#45252d" stroke="#92505d"/>
+    <text x="32" y="143" class="card-title">Reject</text>
+    <text x="32" y="161" class="card-copy">evidence supports incorrect</text>
+
+    <rect x="18" y="191" width="206" height="58" rx="9" fill="#3b3421" stroke="#81703e"/>
+    <text x="32" y="216" class="card-title">Abstain</text>
+    <text x="32" y="234" class="card-copy">quarantine; do not invent truth</text>
+
+    <text x="18" y="280" class="eyebrow">PRIMARY REPORT</text>
+    <text x="18" y="303" class="card-copy">false accepts · coverage · cost</text>
+    <text x="18" y="321" class="card-copy">execution rate · abstentions</text>
+  </g>
+
+  <!-- Trust boundary and artifact -->
+  <g transform="translate(38 611)">
+    <rect width="1204" height="77" rx="13" fill="#111d34" stroke="#31486f"/>
+    <line x1="395" y1="12" x2="395" y2="65" stroke="#31486f"/>
+    <line x1="810" y1="12" x2="810" y2="65" stroke="#31486f"/>
+    <text x="18" y="25" class="eyebrow green">DEPLOYABLE INPUTS</text>
+    <text x="18" y="48" class="card-copy">No gold patch · hidden test · future commit · eventual label</text>
+
+    <text x="415" y="25" class="eyebrow">PAIRED CORPUS CONTRACT — NO POPULATED DATASET</text>
+    <text x="415" y="48" class="card-copy">Exact decisions · acquisitions · artifacts · costs · propensities</text>
+
+    <text x="830" y="25" class="eyebrow pink">CURATOR-ONLY TRUTH</text>
+    <text x="830" y="48" class="card-copy">Task · candidate · evidence validity · source/protocol/agreement</text>
   </g>
 </svg>

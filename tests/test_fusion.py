@@ -45,11 +45,13 @@ def _report(severity: Severity, labels: list[TaskContaminationLabel]) -> Contami
 
 
 def _traj(agent_label: AgentTrajectoryLabel, pattern: LeakagePattern) -> TrajectoryAnalysis:
+    resolved = agent_label.value.startswith("agent_passed_")
     return TrajectoryAnalysis(
         instance_id="pkg/repo-42",
         agent_name="test-agent",
         leakage_pattern=pattern,
         trajectory_label=agent_label,
+        resolved=resolved,
     )
 
 

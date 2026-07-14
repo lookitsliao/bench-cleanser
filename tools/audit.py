@@ -39,7 +39,6 @@ from collections import Counter, defaultdict
 from datetime import date
 from itertools import combinations
 from pathlib import Path
-from typing import Any
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Configuration
@@ -523,6 +522,7 @@ class ContaminationAuditor:
 
     def __init__(self):
         self._llm = None
+        self._auditor_identity = ""
 
     def _init_llm(self):
         """Lazy LLM initialization — only when analyze is actually called."""
@@ -533,10 +533,11 @@ class ContaminationAuditor:
         if project_root not in sys.path:
             sys.path.insert(0, project_root)
         from bench_cleanser.llm_client import LLMClient
-        from bench_cleanser.models import PipelineConfig
+        from bench_cleanser.pipeline import load_config
 
-        config = PipelineConfig()
+        config = load_config()
         self._llm = LLMClient(config)
+        self._auditor_identity = f"{config.llm_provider}:{config.llm_model}"
         print(f"LLM initialized: {config.llm_model}")
 
     @staticmethod
@@ -656,6 +657,7 @@ details that could only come from knowing the gold patch?"""
         result["resolution_rate"] = row.get("resolution_rate", "N/A")
         result["all_fail"] = row.get("all_fail", "N/A")
         result["model_analyzed"] = trajectory.get("model", "unknown")
+        result["auditor_identity"] = self._auditor_identity or "llm:unknown"
         result["timestamp"] = time.strftime("%Y-%m-%d %H:%M:%S")
 
         DataManager.save_analysis(case_num, result)
@@ -692,7 +694,7 @@ details that could only come from knowing the gold patch?"""
                     f"{result.get('failure_reason', 'unknown')} — "
                     f"{result.get('reasoning', '')[:200]}"
                 )
-                row["audited_by"] = "gpt-5.4-20260305"
+                row["audited_by"] = result.get("auditor_identity", "llm:unknown")
                 row["audit_date"] = result.get("timestamp", "")
                 row["audit_status"] = status_value
                 updated += 1
@@ -855,7 +857,6 @@ class ReportGenerator:
 
             label_names = [l["label"] for l in labels]
             unrelated = ep.get("unrelated", 0)
-            total_hunks = ep.get("total_hunks", 0)
 
             sort_key = (
                 1 if is_error else 0,
@@ -1066,14 +1067,12 @@ def _build_case_study_md(idx: int, report: dict, original: dict | None) -> str:
     intent = report.get("intent", {})
     ep = report.get("patch_analysis", {})
     et = report.get("test_analysis", {})
-    vs = report.get("description_clarity", {})
     labels = report.get("task_labels", [])
     recs = report.get("recommendations", [])
 
     repo = original.get("repo", "unknown") if original else "unknown"
     problem = original.get("problem_statement", "_Not available_") if original else "_Not available_"
     patch = original.get("patch", "") if original else ""
-    test_patch = original.get("test_patch", "") if original else ""
     lang = original.get("repo_language", "unknown") if original else "unknown"
 
     label_names = [l["label"].upper() for l in labels]

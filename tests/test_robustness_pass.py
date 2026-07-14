@@ -4,7 +4,7 @@
   - summary CSV includes the pipeline_error column
   - LLMClient._strip_fences handles ``json/bare/no fence variants
   - LLMClient._strictify_schema produces strict-mode-compatible JSON schemas
-  - LLMClient._structured_cache_key is stable across schema text changes
+  - LLMClient._structured_cache_key is deterministic and mode-specific
   - analyze_trajectories respects max_concurrency
   - classify_cross_agent uses median quorum and gates low-entropy patches
   - classify_task_labels preserves protected heuristics the LLM omits
@@ -123,6 +123,7 @@ def test_stage7_fusion_skips_error_rows():
         agent_name="agent-X",
         leakage_pattern=LeakagePattern.GENUINE_SOLUTION,
         trajectory_label=AgentTrajectoryLabel.AGENT_PASSED_GENUINE,
+        resolved=True,
     )
     # The fusion function itself doesn't know about pipeline_error;
     # the analyzer is the layer that filters. Verify the analyzer-layer
@@ -197,15 +198,13 @@ def test_strictify_schema_drops_defaults():
     assert "default" not in notes_prop
 
 
-def test_structured_cache_key_stable_when_only_schema_text_changes():
-    # The structured cache key MUST NOT change when the same pydantic model
-    # produces a textually different schema across pydantic versions —
-    # otherwise every upgrade silently wipes the .cache directory.
+def test_structured_cache_key_is_deterministic_and_not_a_plain_prompt_key():
+    # Structured call semantics and the schema are part of the key, while
+    # identical logical calls remain deterministic.
     from bench_cleanser.cache import ResponseCache
 
     class _FakeClient:
         _model = "model-X"
-        _STRUCTURED_SCHEMA_VERSION = "v1"
 
         _structured_cache_key = LLMClient._structured_cache_key  # type: ignore[assignment]
 
@@ -324,7 +323,7 @@ def _traj(iid: str, agent: str, patch: str) -> TrajectoryRecord:
     )
 
 
-def test_cross_agent_upgrade_fires_on_three_agent_quorum():
+def test_cross_agent_quorum_creates_review_signal():
     analyses = [
         _analysis("i1", "a1", LeakagePattern.GENUINE_SOLUTION),
         _analysis("i1", "a2", LeakagePattern.GENUINE_SOLUTION),
@@ -336,10 +335,11 @@ def test_cross_agent_upgrade_fires_on_three_agent_quorum():
         _traj("i1", "a3", _GOLD),  # all converged on the gold patch
     ]
     out = classify_cross_agent(analyses, trajs)
-    assert all(a.leakage_pattern == LeakagePattern.GOLD_PATCH_LEAK for a in out)
+    assert all(a.leakage_pattern == LeakagePattern.PARTIAL_MATCH for a in out)
+    assert all(a.trajectory_label == AgentTrajectoryLabel.AGENT_UNKNOWN for a in out)
 
 
-def test_cross_agent_upgrade_tolerates_one_outlier():
+def test_cross_agent_review_signal_tolerates_and_excludes_one_outlier():
     # The previous all-pairs rule would have skipped this case (any single
     # diverging agent vetoed the upgrade). The new median-quorum rule must
     # tolerate at least one outlier in a converged majority. Use 5 agents
@@ -356,9 +356,9 @@ def test_cross_agent_upgrade_tolerates_one_outlier():
         _traj("i1", "a5", "diff --git a/z b/z\n+totally different\n+lines\n+here\n"),
     ]
     out = classify_cross_agent(analyses, trajs)
-    upgraded = sum(1 for a in out if a.leakage_pattern == LeakagePattern.GOLD_PATCH_LEAK)
-    # At least the four converged agents must be upgraded.
-    assert upgraded >= 4
+    review = [a for a in out if a.leakage_pattern == LeakagePattern.PARTIAL_MATCH]
+    assert {a.agent_name for a in review} == {"a1", "a2", "a3", "a4"}
+    assert out[-1].leakage_pattern == LeakagePattern.GENUINE_SOLUTION
 
 
 def test_cross_agent_upgrade_gated_on_low_entropy_patches():

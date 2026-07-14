@@ -1,0 +1,62 @@
+{
+  "schema_version": "prospective-pilot-resource-ceiling-0.1.0",
+  "study_id": "matched-24-independent-evidence-development-pilot-v2",
+  "status": "specified_numeric_ceiling_pending_clean_commit_freeze",
+  "scope": {
+    "candidate_count": 66,
+    "candidates_per_task": 3,
+    "excluded_task_clusters": [
+      "sympy__sympy-15976",
+      "sphinx-doc__sphinx-8475"
+    ],
+    "future_task_clusters": 22,
+    "replacement_allowed": false
+  },
+  "decision_limits": {
+    "maximum_candidate_chain_decisions": 5,
+    "maximum_candidate_terminal_decisions": 66,
+    "maximum_curator_hardening_attempts": 132,
+    "maximum_curator_primary_execution_attempts": 198,
+    "maximum_deterministic_static_acquisitions": 66,
+    "maximum_nonterminal_policy_acquisitions": 264,
+    "maximum_nonterminal_policy_acquisitions_per_candidate": 4,
+    "maximum_secondary_container_free_attempts": 72,
+    "maximum_task_selection_decisions": 22,
+    "maximum_total_acquisition_events": 732,
+    "maximum_total_policy_decisions": 352
+  },
+  "compute_limits": {
+    "maximum_concurrent_workers": 4,
+    "maximum_cumulative_cpu_seconds": 4838400,
+    "maximum_cumulative_worker_wall_seconds": 1209600,
+    "maximum_peak_rss_bytes_per_process": 8589934592,
+    "maximum_total_process_launches": 732,
+    "maximum_total_storage_bytes": 107374182400
+  },
+  "semantic_limits": {
+    "maximum_calls": 66,
+    "maximum_input_tokens": 8650752,
+    "maximum_output_tokens": 2162688,
+    "maximum_usd_micros": 500000000
+  },
+  "human_limits": {
+    "maximum_human_minutes": 7200,
+    "maximum_reviewers": 3
+  },
+  "calendar_limits": {
+    "maximum_seconds_from_activation_to_last_acquisition": 1814400
+  },
+  "enforcement": {
+    "budget_increase_requires_new_protocol_version": true,
+    "counters_committed_before_next_action": true,
+    "outcome_dependent_extension_allowed": false,
+    "on_any_limit": "halt_without_replacement_and_preserve_the_partial_frame",
+    "units": {
+      "cpu": "process_cpu_seconds",
+      "currency": "integer_usd_micros",
+      "human_time": "integer_minutes",
+      "storage": "uncompressed_retained_bytes",
+      "wall_time": "monotonic_worker_seconds_summed_across_attempts"
+    }
+  }
+}

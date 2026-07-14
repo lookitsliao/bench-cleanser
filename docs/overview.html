@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>bench-cleanser — research instrument for the SWE-bench family</title>
+<title>bench-cleanser — risk-adaptive verification for SWE agents</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/black.css" id="theme">
@@ -47,16 +47,34 @@
 <!-- ────────────────────────── 1. Title ────────────────────────── -->
 <section class="center">
   <h1>bench-cleanser</h1>
-  <p class="lead">Deterministic contamination, fairness, and trajectory-leakage analysis for the SWE-bench family.</p>
-  <p class="small dim">A research instrument for the people building, training on, and grading agentic coding LLMs.</p>
+  <p class="lead">Risk-adaptive, evidence-grounded verification for SWE-agent data, rollouts, and evaluation.</p>
+  <p class="small dim">When is semantic evidence enough, when must software execute, and when should the pipeline abstain?</p>
   <p>
-    <span class="pill accent">v1.0.0</span>
-    <span class="pill good">116 offline tests</span>
+    <span class="pill warn">v0.1.0 engineering alpha</span>
+    <span class="pill good">offline regression suite</span>
     <span class="pill good">ruff + mypy clean</span>
     <span class="pill">Python 3.11 / 3.12</span>
     <span class="pill">MIT</span>
   </p>
   <p class="tiny dim">Liao Zhu · 2026</p>
+</section>
+
+<section>
+  <h2>Route evidence, not models</h2>
+  <p>Execution-free checks can miss runtime failures. Containers are not an oracle either: environments break, tests flake, weak suites accept wrong patches, and over-specific suites reject valid alternatives.</p>
+  <div class="grid2">
+    <div>
+      <h3>Deployable candidate uncertainty</h3>
+      <p class="small">Is this patch or trajectory correct?</p>
+    </div>
+    <div>
+      <h3>Verifier uncertainty</h3>
+      <p class="small">Would this test and environment produce a valid label?</p>
+    </div>
+  </div>
+  <p class="small">One versioned candidate/verifier manifest drives routing. A separate exact corpus join supplies privileged task validity, conditional candidate truth, and evidence validity for evaluation. The router can request static, semantic, targeted, full, or oracle-hardening evidence—or abstain.</p>
+  <p><span class="pill warn">Current router is an uncalibrated baseline</span></p>
+  <p class="tiny dim">Execution is a measurement, not ground truth. The proposed claim is post-generation, candidate-level evidence acquisition with separate task-validity, candidate-correctness, and oracle-informativeness uncertainty—not “hybrid verification” or calibration by itself.</p>
 </section>
 
 <!-- ────────────────────────── 2. The question ────────────────────────── -->
@@ -67,7 +85,7 @@
   <table>
     <tr><th></th><th>Looks like</th><th>Actually is</th></tr>
     <tr><td class="dim">Task is broken</td><td>Model failed</td><td>Tests demand undescribed behaviour</td></tr>
-    <tr><td class="dim">Agent cheated</td><td>Model passed</td><td>Agent <code>pip install</code>ed the fix</td></tr>
+    <tr><td class="dim">Prohibited access</td><td>Model passed</td><td>Trace directly shows hidden solution information accessed and used</td></tr>
     <tr><td class="dim">Honest pass</td><td>Model passed</td><td>Model passed</td></tr>
     <tr><td class="dim">Honest fail</td><td>Model failed</td><td>Model failed</td></tr>
   </table>
@@ -92,12 +110,12 @@
       <p class="small">How did this agent reach its result?</p>
       <ul class="small">
         <li>One label per <code>(task, agent)</code></li>
-        <li>Heuristics + LLM, with cross-agent quorum upgrade</li>
+        <li>Heuristics + LLM, with a cross-agent review signal</li>
         <li>Inputs: action trace, final patch, <code>resolved</code> flag</li>
       </ul>
     </div>
   </div>
-  <p class="small">An <code>APPROACH_LOCK</code> task is broken whether or not any model attempts it. An agent that <code>pip install</code>s the fix has cheated whether or not the task is clean. <strong>Stage 7</strong> fuses both axes into a single fairness verdict.</p>
+  <p class="small">An <code>APPROACH_LOCK</code> task is broken whether or not any model attempts it. Package installation, patch similarity, speed, and convergence are review signals—not proof of leakage. <strong>Stage 7</strong> fuses both axes into a single fairness verdict.</p>
 </section>
 
 <!-- ────────────────────────── 4. Axis 1 labels ────────────────────────── -->
@@ -117,7 +135,7 @@
 MODERATE ≜ OVER_PATCH ∈ L  AND  (HIDDEN_CONTEXT ∈ L  OR  UNCLEAR_DESCRIPTION ∈ L)
 MINOR    ≜ any other non-empty contamination subset
 CLEAN    ≜ L = ∅</code></pre>
-  <p class="tiny dim">Aligned with OpenAI's SWE-bench Verified audit: <code>APPROACH_LOCK</code> ↔ "narrow tests"; <code>OVER_TEST</code> ↔ "wide tests".</p>
+  <p class="tiny dim">February 2026 crosswalk to OpenAI's SWE-bench Verified audit: <code>APPROACH_LOCK</code> ↔ "narrow tests"; <code>OVER_TEST</code> ↔ "wide tests". Severity remains this project's review policy.</p>
 </section>
 
 <!-- ────────────────────────── 5. Axis 2 labels ────────────────────────── -->
@@ -126,10 +144,10 @@ CLEAN    ≜ L = ∅</code></pre>
   <table>
     <tr><th>Outcome</th><th>Label</th><th>Pattern</th></tr>
     <tr><td rowspan="5" class="dim">Passed</td><td><code>agent_passed_genuine</code></td><td>Explore → hypothesise → patch → test.</td></tr>
-    <tr><td><code>agent_passed_leak</code></td><td>Final patch ≥ 0.90 similar to gold; direct file jumps.</td></tr>
-    <tr><td><code>agent_passed_package_leak</code></td><td>Agent <code>pip install</code>ed the affected package.</td></tr>
-    <tr><td><code>agent_passed_test_aware</code></td><td>Referenced F2P test names before they were derivable.</td></tr>
-    <tr><td><code>agent_passed_trained_hack</code></td><td>Canonical fix on first try — memorised template.</td></tr>
+    <tr><td><code>agent_passed_leak</code></td><td>Trajectory evidence supports prohibited solution access; similarity alone is only a review signal.</td></tr>
+    <tr><td><code>agent_passed_package_leak</code></td><td>Trace directly shows affected-package source inspected and copied; installation alone is insufficient.</td></tr>
+    <tr><td><code>agent_passed_test_aware</code></td><td>Trace directly exposes hidden F2P information before allowed exploration could reveal it.</td></tr>
+    <tr><td><code>agent_passed_trained_hack</code></td><td>Cross-task or provenance evidence supports memorized exploit behaviour; speed alone is insufficient.</td></tr>
     <tr><td rowspan="2" class="dim">Failed</td><td><code>agent_failed_completed_intent</code></td><td>Addressed the brief; F2P tests rejected it. → <code>UNFAIR_FAILURE</code> driver.</td></tr>
     <tr><td><code>agent_failed_no_intent</code></td><td>Never engaged the problem. Skill gap.</td></tr>
     <tr><td class="dim">Unknown</td><td><code>agent_unknown</code></td><td>Trajectory truncated or malformed.</td></tr>
@@ -154,7 +172,7 @@ CLEAN    ≜ L = ∅</code></pre>
       <td class="invalidates">AGENT_CHEATED</td>
       <td class="fair">FAIR_FAILURE</td>
       <td class="neutral">AGENT_DISENGAGED</td>
-      <td class="neutral">AMBIGUOUS_PASS · INCONCLUSIVE</td>
+      <td class="invalidates">AMBIGUOUS_PASS · INCONCLUSIVE</td>
     </tr>
     <tr>
       <td class="row-label">MODERATE / SEVERE</td>
@@ -162,7 +180,7 @@ CLEAN    ≜ L = ∅</code></pre>
       <td class="invalidates">AGENT_CHEATED</td>
       <td class="invalidates">UNFAIR_FAILURE</td>
       <td class="neutral">AGENT_DISENGAGED</td>
-      <td class="neutral">INCONCLUSIVE</td>
+      <td class="invalidates">INCONCLUSIVE</td>
     </tr>
   </table>
   <p class="small"><span class="invalidates">red</span> verdicts set <code>invalidates_measurement=True</code> — the single boolean a downstream consumer uses to drop a row from a leaderboard. Every verdict ships with <code>reasoning</code> and <code>evidence: list[str]</code>.</p>
@@ -175,7 +193,7 @@ CLEAN    ≜ L = ∅</code></pre>
 <pre><code class="mono">Stage 1   parse      diffs from gold patch + test patch              [deterministic]
 Stage 1.5 visit      shallow-clone repo · attach test source · AST    [deterministic]
 Stage 2   intent     LLM extracts core requirement + scope            [LLM]
-Stage 3   structural astred-core / stdlib ast diff                    [deterministic]
+Stage 3   structural Tree-sitter / Python ast-text fallback           [deterministic]
 Stage 4A  patch ↔ intent                                              [LLM]
 Stage 4B  test  ↔ intent                                              [LLM]
 Stage 4C  cross-ref  overpatch–overtest coupling                      [deterministic]
@@ -194,7 +212,7 @@ Stage 7   fusion     Axis 1 × Axis 2 → FairnessVerdict                [determ
     <tr><td>No floats in severity or fusion</td><td>Severity = set membership; fusion = <code>(severity × labels × traj × resolved) → verdict</code>.</td></tr>
     <tr><td>No <code>random</code></td><td>LLM backoff jitter is <code>(attempt mod 4) · 0.25 · base</code> — deterministic.</td></tr>
     <tr><td>Schema-enforced LLM I/O</td><td><code>response_format={"type":"json_schema","strict":true}</code>, with json_object fallback. Cache-before-validate so a corrupt payload stays inspectable.</td></tr>
-    <tr><td>Resumable runs</td><td><code>--resume</code> on by default; reports reloaded from disk are authoritative.</td></tr>
+    <tr><td>Resumable runs</td><td><code>--resume</code> reuses only complete successful reports with matching input/config fingerprints; stale, malformed, and error reports rerun.</td></tr>
     <tr><td>Frozen across model upgrades</td><td>Severity rules depend only on label set. Swapping the LLM never changes the severity mapping.</td></tr>
     <tr><td>Atomic writes</td><td>Per-report JSON uses <code>tempfile + os.replace</code>; an interrupt never leaves half-files for <code>--resume</code> to mis-load.</td></tr>
     <tr><td>Cite-or-shut-up evidence</td><td>A label without an evidence list is rejected by the classifier.</td></tr>
@@ -214,9 +232,9 @@ Stage 7   fusion     Axis 1 × Axis 2 → FairnessVerdict                [determ
   </table>
   <h3 class="small">Layered classifier</h3>
   <ol class="small">
-    <li><strong>Heuristics</strong> — normalised diff similarity (quote-aware comment strip), pip-install detection, F2P-name leakage.</li>
+    <li><strong>Heuristics</strong> — normalised diff similarity, package-install detection, and F2P-name references create review evidence only.</li>
     <li><strong>LLM</strong> — strict-output Pydantic; heuristic signals embedded in prompt.</li>
-    <li><strong>Cross-agent quorum</strong> — median pairwise similarity ≥ 0.85 AND ≥ 10 added lines → upgrade to <code>GOLD_PATCH_LEAK</code>. Outlier-tolerant; honest low-entropy convergence protected.</li>
+    <li><strong>Cross-agent review signal</strong> — median pairwise similarity ≥ 0.85 AND ≥ 10 added lines downgrades unsupported conclusions to <code>agent_unknown</code>. Convergence never proves gold access.</li>
   </ol>
 </section>
 
@@ -237,16 +255,16 @@ Stage 7   fusion     Axis 1 × Axis 2 → FairnessVerdict                [determ
       <p class="small">Trajectory analyzer now respects <code>max_concurrent_requests</code>. Prevents rate-limit storms silently degrading LLM analysis to the heuristic fallback.</p>
     </div>
     <div>
-      <h3>Cache stable across pydantic</h3>
-      <p class="small">Structured cache key uses <code>(model_name, schema_version)</code>, not the full schema text. Pydantic upgrades no longer wipe cached responses.</p>
+      <h3>Cache semantics are explicit</h3>
+      <p class="small">Canonical identity covers provider, endpoint, model, call mode, request settings, prompts, and the exact structured-output schema digest.</p>
     </div>
     <div>
-      <h3>Heuristic union</h3>
-      <p class="small">Three high-precision deterministic heuristics (pre-staged tests, 0-REQUIRED mismatch, self-referential text) survive even if the LLM omits them.</p>
+      <h3>Protected context signal</h3>
+      <p class="small">Concrete self-referential problem text can preserve a <code>HIDDEN_CONTEXT</code> signal when the LLM omits it. Other heuristic candidates remain review guidance and may be overridden.</p>
     </div>
     <div>
-      <h3>Cross-agent quorum</h3>
-      <p class="small">Median quorum + low-entropy gate. One-line bug fixes no longer get flagged as gold-patch leaks; one diverging agent no longer vetoes the upgrade.</p>
+      <h3>Cross-agent review</h3>
+      <p class="small">A non-trivial, high-similarity patch cluster downgrades affected conclusions to <code>agent_unknown</code> for review. Convergence alone never establishes prohibited gold access.</p>
     </div>
   </div>
 </section>
@@ -256,20 +274,24 @@ Stage 7   fusion     Axis 1 × Axis 2 → FairnessVerdict                [determ
   <h2>Current status</h2>
   <table>
     <tr><th>Surface</th><th>State</th></tr>
-    <tr><td>Source LOC</td><td>~9.9k (33 modules)</td></tr>
-    <tr><td>Tests</td><td>116 offline · no network · no Azure · no git clones</td></tr>
+    <tr><td>Maturity</td><td><span class="pill warn">engineering alpha</span> · no calibrated or downstream claim</td></tr>
+    <tr><td>Tests</td><td>offline regression suite · no external API calls · local Git/filesystem fixtures allowed</td></tr>
     <tr><td>Lint</td><td><span class="pill good">ruff clean</span></td></tr>
-    <tr><td>Types</td><td><span class="pill good">mypy --strict clean</span> across all 33 modules</td></tr>
+    <tr><td>Types</td><td><span class="pill good">mypy clean</span> under repository configuration</td></tr>
     <tr><td>CI</td><td>Python 3.11 + 3.12 matrix on Ubuntu</td></tr>
     <tr><td>Benchmark coverage</td><td>SWE-bench Verified · Pro · Live</td></tr>
     <tr><td>Trajectory sources</td><td>Docent · HuggingFace · JSONL · JSON dir</td></tr>
-    <tr><td>Console scripts</td><td><code>bench-cleanser</code> · <code>bench-cleanser-trajectory</code> · <code>bench-cleanser-deep-dive</code></td></tr>
+    <tr><td>Verification layer</td><td>candidate/verifier manifest · write-ahead action policy · bounded local/pinned-container acquisition requests · corpus 0.5 truth separation · evaluation 0.4 exact join</td></tr>
+    <tr><td>Console scripts</td><td>eight installed entry points, including acquire, corpus, manifest, route, and evaluate</td></tr>
   </table>
   <h3 class="small">Honest caveats</h3>
   <ul class="small">
     <li><code>CLEAN</code> means "no contamination signal on seven labels" — not "perfect benchmark item."</li>
     <li>Axis-1 labels inherit LLM judgement noise; deterministic stages only amplify what upstream labels say.</li>
-    <li>Cross-reference coupling is file-level, not function-level — known gap in <code>audits/severe/AUDIT_PROTOCOL.md</code>.</li>
+    <li>The deterministic router is uncalibrated and does not itself execute a compiler, test, or container.</li>
+    <li>Task validity is curator truth in corpus/evaluation; the deployable router is not task-validity-aware yet.</li>
+    <li>Source/version trust bindings are allowlists, not signatures; hostile producers require authenticated ingestion.</li>
+    <li>Cross-reference coupling remains approximate; empirical precision/recall is not established.</li>
     <li>This is a research instrument, not a metric. It makes human review tractable; it does not replace it.</li>
   </ul>
 </section>
@@ -277,9 +299,9 @@ Stage 7   fusion     Axis 1 × Axis 2 → FairnessVerdict                [determ
 <!-- ────────────────────────── 12. Close ────────────────────────── -->
 <section class="center">
   <h2>What's it for</h2>
-  <p class="lead">If you train on SWE-bench rows, every contaminated task teaches the wrong lesson.<br>If you publish numbers against it, every contaminated row distorts the score.</p>
-  <p><code>bench-cleanser</code> is the tool you run before either.</p>
-  <p class="small dim">github.com/v-liaozhu/bench-cleanser · MIT · v1.0.0</p>
+  <p class="lead">Research target: spend execution where it changes the decision.<br>Model the verifier's failure modes as carefully as the patch's.</p>
+  <p><code>accept · reject · execute · harden · abstain</code></p>
+  <p class="small dim">github.com/v-liaozhu/bench-cleanser · MIT · v0.1.0 engineering alpha</p>
 </section>
 
 </div></div>
