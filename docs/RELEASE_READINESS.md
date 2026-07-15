@@ -1,13 +1,14 @@
 # Release readiness
 
 **Target:** 0.1.0 engineering alpha.
-**Verdict:** the current follow-up tree clears the local engineering-alpha code,
-type, coverage, clean-install, installed-CLI, and automated supply-chain gates,
-but it is **not a release candidate**. It is not yet a clean committed candidate
-and has no current-tree freeze receipt, signed annotated tag, observed Linux CI
-run, named human dependency-license attestation, or durable release/DOI evidence
-deposit. This is not ready for a stable, empirical, or headline research
-release.
+**Verdict:** the current follow-up tree clears its local macOS engineering-alpha
+full-suite, coverage, package-type, lint, clean-build/install, installed-CLI,
+verification, protocol, scientific-ledger, and automated archive/SBOM/license
+gates. It is still **not a release candidate**: it is not yet a clean committed
+candidate and has no current-tree freeze receipt, signed annotated tag, observed
+Linux CI run, named human dependency-license attestation, or durable release/DOI
+evidence deposit. This is not ready for a stable, empirical, or headline
+research release.
 
 **Published-baseline validation (commit `6b26448`, 2026-07-14):** 862 tests
 passed with 72.25% statement coverage against the 70% gate; Ruff passed
@@ -16,16 +17,14 @@ invocations passed; and `git diff --check` passed. An external freeze receipt
 binds that clean commit, but reports activation false with 14 substantive
 blockers. Those results do not cover the current follow-up tree.
 
-**Current follow-up validation (2026-07-14):** 891 tests passed with 72.25%
+**Prior dirty-tree checkpoint (2026-07-14):** 891 tests passed with 72.25%
 statement coverage against the 70% gate; repository-wide Ruff passed; package
 mypy passed across 47 files; all 18 strict CI mypy invocations passed; and
-`git diff --check` passed. The literature, release, protocol, scientific-ledger,
-task-joint-propensity, substrate-accounting, and adversarial supply contracts
-are included. The default protocol check remains valid and fail-closed with 15
-blockers, including the missing current-candidate receipt. These are local
-results on a dirty macOS tree, not canonical clean-commit or Linux receipts.
+`git diff --check` passed. Those results predate the current corpus, evaluation,
+scientific-export, and scheduler-contract follow-up and must not be cited as
+current-tree evidence.
 
-**Current working-tree supply-chain validation (2026-07-14):** a fresh
+**Prior dirty-tree supply-chain checkpoint (2026-07-14):** a fresh
 wheel built through the sdist plus `[structural]` resolved to 55 installed
 distributions (including the root, `pip`, and `setuptools`) in a new Python 3.11
 environment. PyPI's index endpoint was unavailable, so all 54 public dependency
@@ -39,8 +38,33 @@ schema/path/source-bound public provenance hashes remained visible rather than
 being silently baselined. Clean installation, `pip check`, and all eight
 installed entry points plus the manifest-to-route pipeline passed outside the
 checkout. The Linux-only canonical environment lock was intentionally not
-emitted from this dirty macOS tree. This is automated local evidence, not a
-clean Git candidate, observed Linux evidence, or completed legal review.
+emitted from that dirty macOS tree. The current follow-up changes archive bytes,
+member counts, and source-bound provenance, so this is historical evidence only,
+not a current clean Git candidate, observed Linux evidence, or completed legal
+review.
+
+**Latest current-tree validation (2026-07-15):** all 943 offline tests passed
+with 72.69% statement coverage against the 70% gate; package mypy passed across
+47 files; repository-wide Ruff, changed-file formatting, and `git diff --check`
+passed. The 228-test corpus/evaluation/metric/preregistration/scientific-ledger/
+export/supply subset also passed independently. The exact corpus → scheduler →
+preregistration → recognizer hash chain validates with 12 classified
+scheduler-contract SHA fields. The default protocol is internally valid and
+deliberately reports `activation_ready: false` with 15 blockers. No clean-install,
+installed-CLI, package-archive, or Linux-CI receipt was inferred from this test
+run; packaging evidence is recorded separately below.
+
+**Current working-tree packaging and supply-chain validation (2026-07-15):** a
+fresh sdist-built wheel passes `twine check`, installs with `[structural]` and
+all 54 public dependency wheels into a new Python 3.11 environment using the
+retained offline wheel cache, and passes `pip check`. All nine installed CLI
+smokes plus the manifest-to-route pipeline pass outside the checkout. The
+CycloneDX 1.6 SBOM and full license-text inventory agree on 55 installed
+distributions and automated policy reports 55 allow, 0 deny, and 0 review. The
+58-member wheel and 213-member sdist pass confinement, metadata,
+proprietary-dependency, and offline secret checks with zero findings; all 354
+exact public provenance hashes remain visible. This is dirty-tree macOS evidence, not a
+clean-commit or observed Linux receipt and not completed human/legal review.
 
 Passing unit tests is necessary but not sufficient. Bench Cleanser can influence
 training-data admission, RL rewards, rollout selection, and reported rankings;
@@ -50,16 +74,16 @@ false confidence is therefore a release blocker.
 
 | Gate | Required evidence | Current state |
 |---|---|---|
-| Portable install | wheel and sdist build; clean virtualenv install; every CLI works outside checkout | fresh working-tree build, clean install, and installed-CLI smoke pass on macOS and are enforced in CI; clean-commit binding and an observed Linux run remain open |
-| Public dependencies | no proprietary code/auth; public dependency resolution; machine-readable SBOM/inventory; fail-closed allow/deny/review policy; human attestation | the fresh default+structural snapshot has 55 allowed distributions, no deny/review result, exact SBOM/inventory coverage, and zero archive findings; commit-scoped CI plus human/legal attestation remain open |
+| Portable install | wheel and sdist build; clean virtualenv install; every CLI works outside checkout | current follow-up wheel/sdist, clean Python 3.11 install, nine CLI smokes, and manifest-to-route smoke pass on macOS; clean-commit binding and an observed Linux run remain open |
+| Public dependencies | no proprietary code/auth; public dependency resolution; machine-readable SBOM/inventory; fail-closed allow/deny/review policy; human attestation | current offline snapshot has 55 allowed distributions, exact SBOM/inventory agreement, and zero archive findings; commit-scoped Linux CI plus human/legal attestation remain open |
 | Safe untrusted input | repository/commit/patch/source/report paths confined; symlink escapes and hostile identifiers tested | core boundaries covered by focused regressions; fuzz/threat-model review open |
 | Failure integrity | real timeouts; bounded concurrency; stale/error checkpoints rerun; all-failed invocations nonzero | implemented with focused regressions |
 | Analytic integrity | regressions for F2P matching/reconstruction, taxonomy, fusion, and trajectory evidence | known code defects covered; empirical precision/recall remains unknown |
 | Verification trust | authority is usable only under explicit policy bindings and independently identified acquisitions; contradictory or weak-oracle evidence fails closed | schema/router contract and focused regressions exist; bindings are allowlists, not producer authentication or signatures |
-| Paired-corpus integrity | pre-execution feature separation; distinct decision/event/acquisition identities; candidate/artifact/time bindings; repeated execution; blinded task/candidate/evidence truth; repository/time-disjoint splits | strict corpus `0.5.0` separates task validity from conditional candidate correctness, requires provenance-bearing `EvidenceValidityAdjudication`, and makes determinate paired-ready labels pass blinding, reviewer-count, and agreement gates; no populated research corpus exists |
-| Metric integrity | truth joined from the exact corpus; task/candidate/verifier metrics separated; policy/run/seed/calibration/corpus identities preserved; undefined rates remain undefined; every rate exposes counts | strict evaluation `0.4.0` rejects caller-declared truth, binds corpus/record/acquisition-trajectory digests, reports evidence-adjudication source/protocol/exclusion counts, scores quarantine separately, and computes no unsupported OPE estimate; only retrospective hosted-label proxies and a negative v2 matched development result exist, not a prospective independently executed comparison |
+| Paired-corpus integrity | pre-execution feature separation; distinct label and behavior trajectories; candidate/artifact/time bindings; repeated execution; blinded task/candidate/evidence truth; repository/time-disjoint splits | strict corpus `0.6.0` separates deterministic bootstrap/counterfactual/human label evidence from randomized live behavior, requires a sanitized bootstrap source and exact typed live acquisition envelope, excludes opaque audit strings from policy state, and reports disjoint label/bootstrap/live cost and timezone-aware time scopes; no populated research corpus exists |
+| Metric integrity | truth joined from the exact corpus; behavior logger distinct from target policy; task/candidate/verifier metrics separated; undefined rates remain undefined; every rate exposes counts | strict evaluation `0.5.0` rejects caller-declared truth, binds corpus/record/terminal-behavior-trajectory digests, reports target and logger identities separately, scores quarantine separately, and computes no unsupported OPE estimate; only retrospective hosted-label proxies and a negative v2 matched development result exist, not a prospective independently executed comparison |
 | Reproducibility | immutable input/config/model/prompt/scaffold/environment identities and costs in outputs | input/config digests and validity manifests exist; complete run provenance is not yet end-to-end |
-| Coverage | critical-path branch coverage measured; adversarial and installed-behavior fixtures included | current local tree is 72.25% overall against a 70% CI floor; coverage remains sharply uneven and is not release-grade research evidence |
+| Coverage | critical-path branch coverage measured; adversarial and installed-behavior fixtures included | current follow-up coverage is 72.69% overall against the 70% CI floor; coverage remains sharply uneven and is not release-grade research evidence |
 | Research validity | blinded paired semantic/execution/hardened-oracle/human labels; disjoint calibration/test repositories | not met |
 | Downstream value | controlled SFT, RL, rollout, and evaluation experiments with uncertainty | not met |
 | Public research release | version/tag/changelog/artifacts, cards, manifests, environments, and raw outputs agree | not met |
@@ -99,8 +123,8 @@ evidence. It does **not** imply that the research method is validated.
 | One full-execution result could be treated as a terminal oracle | terminal full-execution decisions require repeated, consistent, policy-trusted acquisitions meeting the verifier-validity threshold; otherwise reroute, harden, or abstain |
 | Candidate failure and verifier failure could share one risk path | router records separate candidate and verifier risk and never converts execution error/unavailability into candidate rejection |
 | Paired labels could leak into deployable router inputs | corpus records require an evidence-free, route-free pre-execution manifest; privileged observations and adjudication remain outside it |
-| Corpus events were not fully bound to the candidate and acquisition | corpus `0.5.0` binds candidate artifact locator/digest, generation and collection times, subject candidate, distinct event/decision/acquisition identities, evidence artifact digest/locator, replicate identity, decision history, behavior distribution, and collection policy |
-| Invalid tasks had to be fabricated as correct/incorrect candidates and evaluation trusted caller-supplied truth | corpus `0.5.0` adds blinded `TaskAdjudication` plus conditional `CandidateCorrectness`; evaluation `0.4.0` requires an exact corpus/record/trajectory join, reports task/candidate/verifier metrics separately, and treats abstention as correct quarantine for invalid or indeterminate truth |
+| Deterministic label collection and randomized policy behavior shared one incompatible trajectory | corpus `0.6.0` gives label evidence and live behavior separate canonical digests, binds a sanitized behavior source manifest/bootstrap, excludes bootstrap and labels from behavior propensities, enforces the current typed acquisition/orchestration envelope and available route/chronology bindings, keeps opaque audit strings outside policy state, reports label/bootstrap/live costs separately, and preserves terminal decisions without inventing observations |
+| Invalid tasks had to be fabricated as correct/incorrect candidates and evaluation trusted caller-supplied truth | corpus `0.6.0` retains blinded `TaskAdjudication` plus conditional `CandidateCorrectness`; evaluation `0.5.0` requires exact corpus/record/terminal-behavior joins, reports target policy and behavior logger separately, and treats abstention as correct quarantine for invalid or indeterminate truth |
 | Collection completeness could be mistaken for scientific adequacy | corpus reports explicitly mark power, representativeness, calibration, and downstream value as unassessed |
 | Verification JSON could silently accept ambiguous numeric/object encodings | strict readers reject unknown fields, duplicate keys, non-finite values, duplicate evidence IDs, and duplicate paired observations |
 | Verification artifacts could be partially replaced or reported before a durable write | shared atomic writer flushes the temporary file, atomically replaces the target, flushes the directory where supported, and cleans up on failure |
@@ -111,9 +135,9 @@ evidence. It does **not** imply that the research method is validated.
 | Selective-risk curves could hide abstentions or rank rejects by the wrong confidence | confidence is conditioned on the action taken; abstentions enter an explicit final group and integration extends to full coverage |
 | An untested replay module could imply a supported offline-policy product | dormant, unexported replay code was removed; prospective/OPE support remains an explicit empirical deliverable rather than a hidden eighth surface |
 | Routing could request evidence without any runnable adapter | `bench-cleanser-acquire` executes one bounded argv-only static, semantic, targeted, full, or hardening command with minimal environment, process-group timeout cleanup, bounded digest-bound artifacts, measured local cost, declared semantic cost, and non-authoritative evidence; the pinned-container builder fixes a conservative digest-only local Docker profile but does not attest it |
-| A scalar chosen-action propensity could be presented as sequential logging | the live policy contract requires the full strictly-positive action-level distribution at each typed pre-action state; corpus `0.5.0` embeds it unchanged with the sampler/code/spec/chain identities and reports descriptive support only, with no causal-validity claim |
+| A scalar chosen-action propensity could be presented as sequential logging | the live policy contract requires the full strictly-positive action-level distribution at each typed pre-action state; corpus `0.6.0` reports propensities only from the separate behavior trajectory with sampler/code/spec/chain identities, explicitly excluding deterministic label and bootstrap decisions and making no causal-validity claim |
 | Live decision/event/acquisition identities could not be joined losslessly | `bridge_logged_policy_observation` preserves all three namespaces plus the exact action catalog, behavior distribution, sampler draw, policy digest, and chain heads; global collisions, temporal contradictions, trajectory reuse, and stable-action redefinition fail closed |
-| Public provenance hashes triggered opaque secret-scan failures | the artifact auditor recognizes only exact typed cohort, hosted/matched/feasibility-study, protocol-prehistory, canonical-dataset, literature-lock, and claim-ledger fields by path, schema, field, value, byte/source contract, line, and scanner identity; the current report preserved all 351 classifications and every other finding still failed |
+| Public provenance hashes triggered opaque secret-scan failures | the artifact auditor recognizes only exact typed cohort, hosted/matched/feasibility-study, protocol-prehistory, canonical-dataset, literature-lock, and claim-ledger fields by path, schema, field, value, byte/source contract, line, and scanner identity; the current report preserves all 354 classifications and every other finding still fails closed |
 
 ## Open blockers
 
@@ -134,7 +158,8 @@ evidence. It does **not** imply that the research method is validated.
   authenticated facts.
 - The live policy-log schema records typed router state, concrete action offers,
   terminal actions, full behavior propensities, and a chained pre-action
-  decision. Corpus `0.5.0` now preserves it losslessly beside observations. The
+  decision. Corpus `0.6.0` now preserves it in a dedicated behavior trajectory,
+  separate from deterministic label evidence and bootstrap propensity. The
   experiment-local dispatcher proves pre-launch commit and exactly-once claim
   only inside its declared single-host SQLite boundary; an unsigned provisioner
   or executor artifact still does not prove the declared substrate/spec ran. The
@@ -142,13 +167,17 @@ evidence. It does **not** imply that the research method is validated.
   sequential importance-sampling point diagnostics only; it supplies no causal
   OPE claim, interval, doubly robust estimator, nuisance model, or cross-fitting.
 - A separate experimental single-host scientific ledger defines domain-bound
-  signed-envelope schemas and local storage for bootstrap, curator, resource-
-  reservation, and resource-settlement records. It is empty and unjoined, has
+  signed-envelope schemas and local storage for bootstrap, curator,
+  resource-reservation, and resource-settlement records. Its `0.2.0` export requires an
+  independently supplied full-export digest before semantic replay; it
+  preserves reservation and aggregate overruns, reports their dimensions, and
+  halts new work while allowing outstanding settlements to close. It is empty
+  and unjoined, has
   no human-adjudication record, frozen production authority roles,
   behavior-ledger chronology join, external chain checkpoint, or immutable
-  artifact store, and is not a governed activation configuration. Its local row
-  chain cannot by itself prove absence of writer reordering or suffix
-  truncation. It clears no scientific or activation blocker.
+  artifact store, and is not a governed activation configuration. A pinned
+  digest proves byte identity, not signer authenticity or an independently
+  published checkpoint. It clears no scientific or activation blocker.
 - Prospective protocol `0.3` is internally valid but intentionally reports
   `activation_ready: false`. Its numeric resource ceiling, domain-separated
   seeds, exact-frame scheduler and joint-propensity contract, terminal rule,

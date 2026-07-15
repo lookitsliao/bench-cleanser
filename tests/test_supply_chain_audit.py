@@ -603,6 +603,9 @@ def test_execution_smoke_and_prospective_hashes_are_schema_and_chain_bound(
         Path("bench_cleanser/verification/orchestrate.py"),
         Path("bench_cleanser/verification/policy_log.py"),
         Path("bench_cleanser/verification/router.py"),
+        Path("bench_cleanser/verification/corpus.py"),
+        Path("bench_cleanser/verification/evaluate.py"),
+        Path("bench_cleanser/verification/metrics.py"),
     )
     for relative in relatives:
         target = tmp_path / relative
@@ -628,6 +631,9 @@ def test_execution_smoke_and_prospective_hashes_are_schema_and_chain_bound(
     orchestrator_path = tmp_path / Path("bench_cleanser/verification/orchestrate.py")
     policy_log_path = tmp_path / Path("bench_cleanser/verification/policy_log.py")
     router_path = tmp_path / Path("bench_cleanser/verification/router.py")
+    corpus_path = tmp_path / Path("bench_cleanser/verification/corpus.py")
+    evaluation_path = tmp_path / Path("bench_cleanser/verification/evaluate.py")
+    metrics_path = tmp_path / Path("bench_cleanser/verification/metrics.py")
     assert len(AUDITOR._declared_independent_smoke_manifest_hashes(manifest_path)) == 107
     assert len(AUDITOR._declared_independent_smoke_source_hashes(source_path)) == 30
     prehistory_fields = set(
@@ -699,6 +705,9 @@ def test_execution_smoke_and_prospective_hashes_are_schema_and_chain_bound(
         "implementation.proposal_policy.sha256",
         "implementation.ledger.sha256",
         "implementation.scientific_ledger.sha256",
+        "implementation.corpus_contract.sha256",
+        "implementation.evaluation_contract.sha256",
+        "implementation.metrics_source.sha256",
         "implementation.dispatcher.sha256",
         "implementation.structural_release_bundle_compiler.sha256",
         "implementation.completed_acquisition_validator.sha256",
@@ -887,6 +896,9 @@ def test_execution_smoke_and_prospective_hashes_are_schema_and_chain_bound(
         scientific_ledger_path,
         dispatcher_path,
         orchestrator_path,
+        corpus_path,
+        evaluation_path,
+        metrics_path,
     ):
         original_dependency = dependency_path.read_bytes()
         dependency_path.write_bytes(original_dependency + b"\n")
@@ -896,7 +908,7 @@ def test_execution_smoke_and_prospective_hashes_are_schema_and_chain_bound(
         dependency_path.write_bytes(original_dependency)
 
     assert (
-        len(AUDITOR._declared_prospective_scheduler_contract_hashes(scheduler_contract_path)) == 9
+        len(AUDITOR._declared_prospective_scheduler_contract_hashes(scheduler_contract_path)) == 12
     )
 
 
@@ -908,6 +920,9 @@ def test_prospective_semantic_guards_survive_exact_record_rebinding(
         "bench_cleanser/verification/orchestrate.py",
         "bench_cleanser/verification/policy_log.py",
         "bench_cleanser/verification/router.py",
+        "bench_cleanser/verification/corpus.py",
+        "bench_cleanser/verification/evaluate.py",
+        "bench_cleanser/verification/metrics.py",
         "experiments/prospective_pilot/collection_policy.json",
         "experiments/prospective_pilot/dispatcher.py",
         "experiments/prospective_pilot/frame_manifest.json",
@@ -1008,7 +1023,7 @@ def test_prospective_semantic_guards_survive_exact_record_rebinding(
     for field_name, invalid_value in (
         ("logical_path", "experiments/prospective_pilot/ledger.py"),
         ("profile", "TRUSTED_SCIENTIFIC_LEDGER"),
-        ("schema_version", "prospective-pilot-scientific-ledger-0.2.0"),
+        ("schema_version", "prospective-pilot-scientific-ledger-0.3.0"),
         ("scope", "multi_host_externally_anchored"),
     ):
         contract = json.loads(original_contract)
@@ -1025,8 +1040,8 @@ def test_prospective_semantic_guards_survive_exact_record_rebinding(
 
     for original_symbol, tampered_symbol in (
         (
-            b'SCIENTIFIC_LEDGER_SCHEMA_VERSION = "prospective-pilot-scientific-ledger-0.1.0"',
             b'SCIENTIFIC_LEDGER_SCHEMA_VERSION = "prospective-pilot-scientific-ledger-0.2.0"',
+            b'SCIENTIFIC_LEDGER_SCHEMA_VERSION = "prospective-pilot-scientific-ledger-0.3.0"',
         ),
         (b"class ScientificLedger:", b"class UnboundScientificLedger:"),
         (b"def signed_envelope_bytes(", b"def unsigned_envelope_bytes("),
@@ -1142,6 +1157,9 @@ def test_prospective_classifiers_label_external_and_seed_hashes_unverified(
     relatives = (
         "bench_cleanser/verification/policy_log.py",
         "bench_cleanser/verification/router.py",
+        "bench_cleanser/verification/corpus.py",
+        "bench_cleanser/verification/evaluate.py",
+        "bench_cleanser/verification/metrics.py",
         "experiments/independent_execution_smoke/evidence-manifest.json",
         "experiments/independent_execution_smoke/run_smoke.py",
         "experiments/sphinx_execution_smoke/evidence-manifest.json",

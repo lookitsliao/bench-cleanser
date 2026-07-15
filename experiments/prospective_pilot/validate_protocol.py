@@ -23,6 +23,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from bench_cleanser.verification._io import strict_json_dumps, strict_json_loads
+from bench_cleanser.verification.corpus import CORPUS_SCHEMA_VERSION
+from bench_cleanser.verification.evaluate import EVALUATION_SCHEMA_VERSION
 from bench_cleanser.verification.policy_log import (
     CANONICAL_SAMPLER_ID,
     CANONICAL_SAMPLER_VERSION,
@@ -103,13 +105,18 @@ REVIEW_PACKET_RELATIVE = pathlib.PurePosixPath("experiments/prospective_pilot/re
 VALIDATOR_RELATIVE = pathlib.PurePosixPath("experiments/prospective_pilot/validate_protocol.py")
 ROUTER_RELATIVE = pathlib.PurePosixPath("bench_cleanser/verification/router.py")
 POLICY_LOG_RELATIVE = pathlib.PurePosixPath("bench_cleanser/verification/policy_log.py")
+CORPUS_IMPLEMENTATION_RELATIVE = pathlib.PurePosixPath("bench_cleanser/verification/corpus.py")
+EVALUATION_IMPLEMENTATION_RELATIVE = pathlib.PurePosixPath(
+    "bench_cleanser/verification/evaluate.py"
+)
+METRICS_IMPLEMENTATION_RELATIVE = pathlib.PurePosixPath("bench_cleanser/verification/metrics.py")
 
 PROTOCOL_SCHEMA_VERSION = "prospective-evidence-routing-protocol-0.3.0"
 PREHISTORY_SCHEMA_VERSION = "prospective-pilot-prehistory-0.1.0"
 FREEZE_RECEIPT_SCHEMA_VERSION = "prospective-pilot-freeze-receipt-0.1.0"
 RESOURCE_SCHEMA_VERSION = "prospective-pilot-resource-ceiling-0.1.0"
 POLICY_SCHEMA_VERSION = "prospective-pilot-collection-policy-0.3.0"
-SCHEDULER_SCHEMA_VERSION = "prospective-pilot-scheduler-contract-0.5.0"
+SCHEDULER_SCHEMA_VERSION = "prospective-pilot-scheduler-contract-0.6.0"
 FRAME_SCHEMA_VERSION = "prospective-pilot-frame-manifest-0.1.0"
 EXECUTION_SCHEMA_VERSION = "prospective-pilot-execution-freeze-0.1.0"
 ADJUDICATION_SCHEMA_VERSION = "prospective-pilot-adjudication-plan-0.1.0"
@@ -163,6 +170,9 @@ FREEZE_OBJECT_PATHS = {
     "scheduler_source": SCHEDULER_IMPLEMENTATION_RELATIVE,
     "ledger_source": LEDGER_IMPLEMENTATION_RELATIVE,
     "scientific_ledger_source": SCIENTIFIC_LEDGER_IMPLEMENTATION_RELATIVE,
+    "corpus_source": CORPUS_IMPLEMENTATION_RELATIVE,
+    "evaluation_source": EVALUATION_IMPLEMENTATION_RELATIVE,
+    "metrics_source": METRICS_IMPLEMENTATION_RELATIVE,
     "dispatcher_source": DISPATCHER_IMPLEMENTATION_RELATIVE,
     "release_bundle_source": RELEASE_BUNDLE_IMPLEMENTATION_RELATIVE,
     "acquisition_orchestrator_source": ACQUISITION_ORCHESTRATOR_RELATIVE,
@@ -1309,9 +1319,9 @@ def _validate_scheduler_contract(
         or scheduler["study_id"] != STUDY_ID
         or scheduler["status"]
         != (
-            "scheduler_bootstrap_proposal_ledger_dispatcher_and_partial_"
-            "scientific_ledger_core_"
-            "implemented_operationally_blocked"
+            "scheduler_bootstrap_proposal_ledger_dispatcher_scientific_export_"
+            "audit_and_split_corpus_evaluation_contracts_implemented_"
+            "operationally_blocked"
         )
     ):
         raise ProtocolError("scheduler contract identity or status differs")
@@ -1515,10 +1525,11 @@ def _validate_scheduler_contract(
             "availability": "partial",
             "blocking": True,
             "reason": (
-                "signed_resource_reservation_and_settlement_core_can_report_local_"
-                "committed_usage_and_bootstrap_coverage_but_no_populated_records_"
-                "activation_calendar_acquisition_cost_join_or_trusted_partial_"
-                "frame_compiler_exists"
+                "signed_resource_reservation_and_settlement_core_preserves_"
+                "overruns_and_reports_local_committed_usage_bootstrap_coverage_"
+                "deviations_and_halt_state_but_no_populated_records_activation_"
+                "calendar_acquisition_cost_join_or_trusted_partial_frame_compiler_"
+                "exists"
             ),
         },
         "bootstrap_and_terminal_proposal_policy": {
@@ -1543,18 +1554,20 @@ def _validate_scheduler_contract(
             "availability": "partial",
             "blocking": True,
             "reason": (
-                "signed_bootstrap_curator_and_resource_record_core_exists_but_no_"
-                "human_adjudication_records_populated_stream_frozen_production_"
-                "roles_external_checkpoint_or_cross_ledger_join_exists"
+                "signed_bootstrap_curator_and_resource_record_core_plus_digest_"
+                "pinned_semantic_export_reaudit_exists_but_no_human_adjudication_"
+                "records_populated_stream_frozen_production_roles_external_"
+                "checkpoint_or_cross_ledger_join_exists"
             ),
         },
         "trusted_study_bundle_compiler": {
             "availability": "partial",
             "blocking": True,
             "reason": (
-                "externally_anchored_structural_compiler_derives_policy_terminal_"
-                "selection_and_cost_declarations_but_does_not_join_the_"
-                "unpopulated_scientific_ledger_or_authenticate_scientific_inputs"
+                "behavior_and_label_trajectories_are_separated_and_the_scientific_"
+                "export_is_digest_pinned_and_semantically_reauditable_but_the_"
+                "structural_compiler_does_not_join_the_unpopulated_scientific_"
+                "ledger_or_authenticate_scientific_inputs"
             ),
         },
         "typed_acquisition_persistence": {
@@ -1577,6 +1590,9 @@ def _validate_scheduler_contract(
             "proposal_policy",
             "ledger",
             "scientific_ledger",
+            "corpus_contract",
+            "evaluation_contract",
+            "metrics_source",
             "dispatcher",
             "structural_release_bundle_compiler",
             "completed_acquisition_validator",
@@ -1625,6 +1641,33 @@ def _validate_scheduler_contract(
         scientific_ledger_source,
         {"logical_path", "profile", "schema_version", "scope", "sha256"},
         "scheduler_contract.implementation.scientific_ledger",
+    )
+    corpus_source = _object(
+        implementation["corpus_contract"],
+        "scheduler_contract.implementation.corpus_contract",
+    )
+    _exact_keys(
+        corpus_source,
+        {"logical_path", "profile", "schema_version", "sha256"},
+        "scheduler_contract.implementation.corpus_contract",
+    )
+    evaluation_source = _object(
+        implementation["evaluation_contract"],
+        "scheduler_contract.implementation.evaluation_contract",
+    )
+    _exact_keys(
+        evaluation_source,
+        {"logical_path", "profile", "schema_version", "sha256"},
+        "scheduler_contract.implementation.evaluation_contract",
+    )
+    metrics_source = _object(
+        implementation["metrics_source"],
+        "scheduler_contract.implementation.metrics_source",
+    )
+    _exact_keys(
+        metrics_source,
+        {"logical_path", "sha256"},
+        "scheduler_contract.implementation.metrics_source",
     )
     dispatcher_source = _object(
         implementation["dispatcher"],
@@ -1678,10 +1721,29 @@ def _validate_scheduler_contract(
         or scientific_ledger_source
         != {
             "logical_path": SCIENTIFIC_LEDGER_IMPLEMENTATION_RELATIVE.as_posix(),
-            "profile": "SIGNED_BOOTSTRAP_CURATOR_RESOURCE_CORE",
+            "profile": "SIGNED_BOOTSTRAP_CURATOR_RESOURCE_EXPORT_AUDIT_CORE",
             "schema_version": SCIENTIFIC_LEDGER_SCHEMA_VERSION,
-            "scope": "single_host_local_sqlite_unanchored",
+            "scope": "single_host_local_sqlite_digest_pinned_export_unanchored",
             "sha256": _digest(_read_bytes(root, SCIENTIFIC_LEDGER_IMPLEMENTATION_RELATIVE)),
+        }
+        or corpus_source
+        != {
+            "logical_path": CORPUS_IMPLEMENTATION_RELATIVE.as_posix(),
+            "profile": "DETERMINISTIC_LABEL_EVIDENCE_PLUS_SEPARATE_RANDOMIZED_BEHAVIOR",
+            "schema_version": CORPUS_SCHEMA_VERSION,
+            "sha256": _digest(_read_bytes(root, CORPUS_IMPLEMENTATION_RELATIVE)),
+        }
+        or evaluation_source
+        != {
+            "logical_path": EVALUATION_IMPLEMENTATION_RELATIVE.as_posix(),
+            "profile": "TARGET_POLICY_JOINED_TO_DISTINCT_BEHAVIOR_LOGGER",
+            "schema_version": EVALUATION_SCHEMA_VERSION,
+            "sha256": _digest(_read_bytes(root, EVALUATION_IMPLEMENTATION_RELATIVE)),
+        }
+        or metrics_source
+        != {
+            "logical_path": METRICS_IMPLEMENTATION_RELATIVE.as_posix(),
+            "sha256": _digest(_read_bytes(root, METRICS_IMPLEMENTATION_RELATIVE)),
         }
         or dispatcher_source
         != {
@@ -1704,9 +1766,9 @@ def _validate_scheduler_contract(
         }
         or implementation["status"]
         != (
-            "scheduler_bootstrap_proposal_ledger_dispatcher_structural_bundle_and_"
-            "partial_scientific_ledger_core_available_external_scientific_"
-            "activation_inputs_missing"
+            "scheduler_bootstrap_proposal_ledger_dispatcher_structural_bundle_"
+            "scientific_export_audit_and_split_corpus_evaluation_contracts_"
+            "available_external_scientific_activation_inputs_missing"
         )
     ):
         raise ProtocolError("scheduler and durable-ledger source bindings differ")

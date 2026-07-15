@@ -400,115 +400,115 @@ _PROSPECTIVE_PREHISTORY_DIGEST = bytes(
         99,
     )
 )
-_PROSPECTIVE_PROTOCOL_BYTES = 14_922
+_PROSPECTIVE_PROTOCOL_BYTES = 15_014
 _PROSPECTIVE_PROTOCOL_DIGEST = bytes(
     (
-        24,
-        233,
-        126,
-        46,
-        53,
-        160,
-        137,
-        182,
-        249,
-        132,
-        25,
-        13,
-        204,
-        168,
-        179,
-        197,
-        70,
-        56,
-        153,
-        34,
-        140,
-        62,
-        170,
-        83,
-        11,
-        177,
-        58,
-        239,
-        223,
-        126,
         200,
-        80,
+        48,
+        19,
+        182,
+        170,
+        24,
+        109,
+        233,
+        179,
+        173,
+        55,
+        217,
+        152,
+        142,
+        176,
+        219,
+        253,
+        142,
+        81,
+        199,
+        63,
+        126,
+        167,
+        187,
+        153,
+        158,
+        55,
+        186,
+        160,
+        46,
+        61,
+        1,
     )
 )
-_PROSPECTIVE_VALIDATOR_BYTES = 125_515
+_PROSPECTIVE_VALIDATOR_BYTES = 128_317
 _PROSPECTIVE_VALIDATOR_DIGEST = bytes(
     (
-        232,
-        17,
-        166,
-        192,
-        180,
-        22,
-        230,
-        174,
-        5,
-        86,
+        173,
+        53,
+        77,
+        47,
+        213,
+        18,
+        110,
+        102,
+        128,
         254,
-        74,
-        195,
-        49,
-        14,
-        92,
-        88,
-        201,
-        233,
-        74,
-        147,
-        238,
-        217,
-        151,
-        165,
-        89,
-        86,
-        253,
-        166,
         203,
-        245,
-        212,
+        182,
+        68,
+        163,
+        241,
+        4,
+        15,
+        54,
+        238,
+        175,
+        107,
+        94,
+        84,
+        240,
+        251,
+        176,
+        132,
+        36,
+        148,
+        14,
+        81,
+        166,
     )
 )
 _PROSPECTIVE_COLLECTION_POLICY_BYTES = 8_168
 _PROSPECTIVE_COLLECTION_POLICY_DIGEST = bytes(
     (
-        197,
-        210,
-        118,
-        237,
-        228,
-        97,
-        27,
-        182,
-        45,
-        38,
-        71,
-        103,
-        193,
-        78,
-        243,
-        137,
-        9,
-        172,
-        244,
-        214,
-        176,
-        37,
-        211,
-        216,
-        152,
-        104,
-        218,
-        208,
+        160,
+        107,
+        202,
+        247,
         56,
-        156,
-        191,
-        138,
+        201,
+        98,
+        204,
+        45,
+        232,
+        197,
+        59,
+        101,
+        89,
+        80,
+        209,
+        176,
+        124,
+        238,
+        145,
+        42,
+        115,
+        180,
+        91,
+        179,
+        155,
+        157,
+        95,
+        240,
+        81,
+        47,
+        6,
     )
 )
 _PROSPECTIVE_FRAME_MANIFEST_BYTES = 8_455
@@ -548,78 +548,78 @@ _PROSPECTIVE_FRAME_MANIFEST_DIGEST = bytes(
         25,
     )
 )
-_PROSPECTIVE_SCHEDULER_CONTRACT_BYTES = 8_614
+_PROSPECTIVE_SCHEDULER_CONTRACT_BYTES = 9_591
 _PROSPECTIVE_SCHEDULER_CONTRACT_DIGEST = bytes(
     (
-        225,
-        89,
-        156,
-        25,
-        194,
-        59,
-        80,
-        1,
-        195,
-        132,
+        206,
+        53,
+        8,
+        200,
+        215,
+        184,
+        107,
+        63,
+        199,
+        22,
+        233,
+        200,
+        115,
+        32,
+        88,
         124,
-        137,
-        27,
-        26,
-        134,
-        201,
-        193,
-        149,
-        71,
-        129,
-        207,
-        111,
-        172,
-        158,
-        66,
-        112,
-        151,
-        13,
-        20,
-        238,
-        166,
-        187,
+        130,
+        243,
+        90,
+        55,
+        40,
+        87,
+        92,
+        46,
+        198,
+        242,
+        95,
+        224,
+        244,
+        38,
+        84,
+        86,
     )
 )
-_PROSPECTIVE_SCHEDULER_SOURCE_BYTES = 155_935
+_PROSPECTIVE_SCHEDULER_SOURCE_BYTES = 157_226
 _PROSPECTIVE_SCHEDULER_SOURCE_DIGEST = bytes(
     (
-        253,
-        203,
-        126,
-        220,
-        31,
-        79,
-        13,
-        79,
-        78,
-        132,
-        21,
-        58,
-        144,
-        204,
-        9,
-        74,
-        128,
-        61,
-        97,
-        106,
+        10,
+        158,
+        67,
+        251,
         250,
+        46,
         103,
-        88,
-        39,
-        187,
-        97,
-        175,
+        248,
+        41,
+        139,
         217,
-        20,
-        77,
-        121,
-        225,
+        43,
+        56,
+        189,
+        242,
+        158,
+        47,
+        26,
+        162,
+        26,
+        237,
+        73,
+        59,
+        73,
+        217,
+        80,
+        81,
+        78,
+        133,
+        104,
+        16,
+        203,
     )
 )
 _LITERATURE_CLAIMS_BYTES = 33_608
@@ -723,6 +723,9 @@ _PROSPECTIVE_ACTIVATION_BLOCKERS = (
 _PROSPECTIVE_PROPOSAL_POLICY_PATH = "experiments/prospective_pilot/proposal_policy.py"
 _PROSPECTIVE_RELEASE_BUNDLE_PATH = "experiments/prospective_pilot/release_bundle.py"
 _PROSPECTIVE_SCIENTIFIC_LEDGER_PATH = "experiments/prospective_pilot/scientific_ledger.py"
+_PROSPECTIVE_CORPUS_PATH = "bench_cleanser/verification/corpus.py"
+_PROSPECTIVE_EVALUATION_PATH = "bench_cleanser/verification/evaluate.py"
+_PROSPECTIVE_METRICS_PATH = "bench_cleanser/verification/metrics.py"
 _PROSPECTIVE_PROPOSAL_POLICY_CONFIG: Mapping[str, Any] = {
     "version": "verification-gap-proposal-v1",
     "fallback_action_ids": [
@@ -2510,12 +2513,12 @@ def _declared_prospective_scheduler_contract_hashes(
             "implementation",
         },
     ) or (
-        value["schema_version"] != "prospective-pilot-scheduler-contract-0.5.0"
+        value["schema_version"] != "prospective-pilot-scheduler-contract-0.6.0"
         or value["study_id"] != "matched-24-independent-evidence-development-pilot-v2"
         or value["status"]
         != (
-            "scheduler_bootstrap_proposal_ledger_dispatcher_and_partial_scientific_"
-            "ledger_core_implemented_operationally_blocked"
+            "scheduler_bootstrap_proposal_ledger_dispatcher_scientific_export_audit_"
+            "and_split_corpus_evaluation_contracts_implemented_operationally_blocked"
         )
     ):
         return {}
@@ -2541,10 +2544,10 @@ def _declared_prospective_scheduler_contract_hashes(
             "availability": "partial",
             "blocking": True,
             "reason": (
-                "signed_resource_reservation_and_settlement_core_can_report_local_"
-                "committed_usage_and_bootstrap_coverage_but_no_populated_records_"
-                "activation_calendar_acquisition_cost_join_or_trusted_partial_frame_"
-                "compiler_exists"
+                "signed_resource_reservation_and_settlement_core_preserves_overruns_"
+                "and_reports_local_committed_usage_bootstrap_coverage_deviations_and_"
+                "halt_state_but_no_populated_records_activation_calendar_acquisition_"
+                "cost_join_or_trusted_partial_frame_compiler_exists"
             ),
         },
         "bootstrap_and_terminal_proposal_policy": {
@@ -2568,18 +2571,20 @@ def _declared_prospective_scheduler_contract_hashes(
             "availability": "partial",
             "blocking": True,
             "reason": (
-                "signed_bootstrap_curator_and_resource_record_core_exists_but_no_"
-                "human_adjudication_records_populated_stream_frozen_production_roles_"
-                "external_checkpoint_or_cross_ledger_join_exists"
+                "signed_bootstrap_curator_and_resource_record_core_plus_digest_pinned_"
+                "semantic_export_reaudit_exists_but_no_human_adjudication_records_"
+                "populated_stream_frozen_production_roles_external_checkpoint_or_"
+                "cross_ledger_join_exists"
             ),
         },
         "trusted_study_bundle_compiler": {
             "availability": "partial",
             "blocking": True,
             "reason": (
-                "externally_anchored_structural_compiler_derives_policy_terminal_"
-                "selection_and_cost_declarations_but_does_not_join_the_unpopulated_"
-                "scientific_ledger_or_authenticate_scientific_inputs"
+                "behavior_and_label_trajectories_are_separated_and_the_scientific_"
+                "export_is_digest_pinned_and_semantically_reauditable_but_the_"
+                "structural_compiler_does_not_join_the_unpopulated_scientific_ledger_"
+                "or_authenticate_scientific_inputs"
             ),
         },
         "typed_acquisition_persistence": {
@@ -2615,6 +2620,9 @@ def _declared_prospective_scheduler_contract_hashes(
                 "proposal_policy",
                 "ledger",
                 "scientific_ledger",
+                "corpus_contract",
+                "evaluation_contract",
+                "metrics_source",
                 "dispatcher",
                 "structural_release_bundle_compiler",
                 "completed_acquisition_validator",
@@ -2624,9 +2632,9 @@ def _declared_prospective_scheduler_contract_hashes(
         or implementation["blocking"] is not True
         or implementation["status"]
         != (
-            "scheduler_bootstrap_proposal_ledger_dispatcher_structural_bundle_and_"
-            "partial_scientific_ledger_core_available_external_scientific_activation_"
-            "inputs_missing"
+            "scheduler_bootstrap_proposal_ledger_dispatcher_structural_bundle_"
+            "scientific_export_audit_and_split_corpus_evaluation_contracts_available_"
+            "external_scientific_activation_inputs_missing"
         )
     ):
         return {}
@@ -2635,6 +2643,9 @@ def _declared_prospective_scheduler_contract_hashes(
     proposal = implementation["proposal_policy"]
     ledger = implementation["ledger"]
     scientific_ledger = implementation["scientific_ledger"]
+    corpus = implementation["corpus_contract"]
+    evaluation = implementation["evaluation_contract"]
+    metrics = implementation["metrics_source"]
     dispatcher = implementation["dispatcher"]
     release_bundle = implementation["structural_release_bundle_compiler"]
     completed_validator = implementation["completed_acquisition_validator"]
@@ -2658,6 +2669,21 @@ def _declared_prospective_scheduler_contract_hashes(
             scientific_ledger,
             {"logical_path", "profile", "schema_version", "scope", "sha256"},
             _PROSPECTIVE_SCIENTIFIC_LEDGER_PATH,
+        ),
+        (
+            corpus,
+            {"logical_path", "profile", "schema_version", "sha256"},
+            _PROSPECTIVE_CORPUS_PATH,
+        ),
+        (
+            evaluation,
+            {"logical_path", "profile", "schema_version", "sha256"},
+            _PROSPECTIVE_EVALUATION_PATH,
+        ),
+        (
+            metrics,
+            {"logical_path", "sha256"},
+            _PROSPECTIVE_METRICS_PATH,
         ),
         (
             dispatcher,
@@ -2690,9 +2716,13 @@ def _declared_prospective_scheduler_contract_hashes(
         or proposal["version"] != "verification-gap-proposal-v1"
         or ledger["schema_version"] != "prospective-pilot-ledger-0.1.0"
         or ledger["scope"] != "single_host_local_durable_filesystem"
-        or scientific_ledger["profile"] != "SIGNED_BOOTSTRAP_CURATOR_RESOURCE_CORE"
-        or scientific_ledger["schema_version"] != "prospective-pilot-scientific-ledger-0.1.0"
-        or scientific_ledger["scope"] != "single_host_local_sqlite_unanchored"
+        or scientific_ledger["profile"] != "SIGNED_BOOTSTRAP_CURATOR_RESOURCE_EXPORT_AUDIT_CORE"
+        or scientific_ledger["schema_version"] != "prospective-pilot-scientific-ledger-0.2.0"
+        or scientific_ledger["scope"] != "single_host_local_sqlite_digest_pinned_export_unanchored"
+        or corpus["profile"] != "DETERMINISTIC_LABEL_EVIDENCE_PLUS_SEPARATE_RANDOMIZED_BEHAVIOR"
+        or corpus["schema_version"] != "0.6.0"
+        or evaluation["profile"] != "TARGET_POLICY_JOINED_TO_DISTINCT_BEHAVIOR_LOGGER"
+        or evaluation["schema_version"] != "0.5.0"
         or release_bundle["profile"] != "STRUCTURAL"
         or release_bundle["schema_version"] != "verification-gap-study-bundle-0.2.0"
         or release_bundle["trust_model"] != "out_of_band_sha256_v1"
@@ -2708,10 +2738,22 @@ def _declared_prospective_scheduler_contract_hashes(
     scientific_ledger_payload = _read_regular_bounded(
         root.joinpath(*PurePosixPath(_PROSPECTIVE_SCIENTIFIC_LEDGER_PATH).parts)
     )
+    corpus_payload = _read_regular_bounded(
+        root.joinpath(*PurePosixPath(_PROSPECTIVE_CORPUS_PATH).parts)
+    )
+    evaluation_payload = _read_regular_bounded(
+        root.joinpath(*PurePosixPath(_PROSPECTIVE_EVALUATION_PATH).parts)
+    )
+    metrics_payload = _read_regular_bounded(
+        root.joinpath(*PurePosixPath(_PROSPECTIVE_METRICS_PATH).parts)
+    )
     if (
         proposal_payload is None
         or release_payload is None
         or scientific_ledger_payload is None
+        or corpus_payload is None
+        or evaluation_payload is None
+        or metrics_payload is None
         or not _python_source_contract_matches(
             proposal_payload,
             string_assignments={
@@ -2736,7 +2778,8 @@ def _declared_prospective_scheduler_contract_hashes(
         or not _python_source_contract_matches(
             scientific_ledger_payload,
             string_assignments={
-                "SCIENTIFIC_LEDGER_SCHEMA_VERSION": ("prospective-pilot-scientific-ledger-0.1.0"),
+                "SCIENTIFIC_LEDGER_SCHEMA_VERSION": ("prospective-pilot-scientific-ledger-0.2.0"),
+                "SCIENTIFIC_EXPORT_SCHEMA_VERSION": ("prospective-pilot-scientific-export-0.2.0"),
                 "SIGNED_ENVELOPE_SCHEMA_VERSION": ("prospective-pilot-signed-envelope-0.1.0"),
             },
             required_classes={
@@ -2747,10 +2790,49 @@ def _declared_prospective_scheduler_contract_hashes(
                 "ScientificLedger",
                 "ScientificLedgerAudit",
                 "ScientificLedgerBindings",
+                "ScientificLedgerExportEntry",
+                "ScientificLedgerExportSnapshot",
             },
             required_functions={
+                "audit_scientific_ledger_export",
                 "load_scientific_ledger_bindings",
                 "signed_envelope_bytes",
+            },
+        )
+        or not _python_source_contract_matches(
+            corpus_payload,
+            string_assignments={
+                "CORPUS_SCHEMA_VERSION": "0.6.0",
+                "_LABEL_EVIDENCE_TRAJECTORY_CONTRACT": (
+                    "bench-cleanser-label-evidence-trajectory-v1"
+                ),
+                "_BEHAVIOR_TRAJECTORY_CONTRACT": "bench-cleanser-behavior-trajectory-v1",
+            },
+            required_classes={"BehaviorStep", "PairedEvidence", "VerificationGapRecord"},
+            required_functions={"build_corpus_report", "load_corpus", "validate_corpus"},
+        )
+        or not _python_source_contract_matches(
+            evaluation_payload,
+            string_assignments={"EVALUATION_SCHEMA_VERSION": "0.5.0"},
+            required_classes={"EvaluationOutcome", "JoinedOutcome"},
+            required_functions={
+                "_behavior_logger_identities",
+                "_behavior_trajectory_identity_dict",
+                "_join_outcomes_to_corpus",
+                "build_evaluation_report",
+            },
+        )
+        or not _python_source_contract_matches(
+            metrics_payload,
+            string_assignments={},
+            required_classes={"AggregateMetrics", "RiskCoveragePoint", "VerificationOutcome"},
+            required_functions={
+                "aggregate_metrics",
+                "area_under_risk_coverage",
+                "brier_score",
+                "calibration_table",
+                "risk_coverage_curve",
+                "roc_auc",
             },
         )
     ):
@@ -2764,6 +2846,9 @@ def _declared_prospective_scheduler_contract_hashes(
         "implementation.proposal_policy.sha256",
         "implementation.ledger.sha256",
         "implementation.scientific_ledger.sha256",
+        "implementation.corpus_contract.sha256",
+        "implementation.evaluation_contract.sha256",
+        "implementation.metrics_source.sha256",
         "implementation.dispatcher.sha256",
         "implementation.structural_release_bundle_compiler.sha256",
         "implementation.completed_acquisition_validator.sha256",

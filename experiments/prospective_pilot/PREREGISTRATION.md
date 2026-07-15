@@ -135,13 +135,16 @@ values may be producer-declared and CPU zeros are not measurements. This is an
 externally anchored `STRUCTURAL` bundle, not authenticated adjudication or a
 scientific corpus. A separate experimental single-host scientific-ledger module
 defines domain-bound signed bootstrap, curator, resource-reservation, and
-resource-settlement envelopes. Its source is bound into the scheduler contract
+resource-settlement envelopes. Its `0.2.0` source is bound into the scheduler contract
 as partial implementation infrastructure, but it is neither one of the seven
 activation-configuration objects nor an input to the structural compiler. It
 contains no populated stream and deliberately implements no
 reviewer-vote/adjudication record, frozen production authority roles,
 behavior-ledger chronology join, external chain checkpoint, or immutable
-artifact store. Signed non-policy acquisition, adjudication, resource
+artifact store. Export replay requires a caller-pinned full digest and now
+preserves reservation/ceiling overruns with a sticky halt state, but that is
+byte-integrity and local semantic evidence rather than production
+authentication. Signed non-policy acquisition, adjudication, resource
 settlement, and the incompatible oracle/truth compiler therefore remain
 activation blockers.
 
@@ -236,7 +239,10 @@ repository clustering and adjudication uncertainty.
 
 The core repository already supplies candidate manifests, action catalogs,
 write-ahead propensities, bounded acquisitions, paired corpus truth, and exact
-evaluation joins. The experiment still needs:
+evaluation joins. Corpus `0.6.0` keeps deterministic label/counterfactual data
+separate from randomized behavior; evaluation `0.5.0` joins target outcomes to
+the exact terminal behavior digest without relabeling the logger as the target
+policy. The experiment still needs:
 
 - real repository/image provisioning and execution;
 - a matched-artifact-to-manifest/corpus/analysis adapter;

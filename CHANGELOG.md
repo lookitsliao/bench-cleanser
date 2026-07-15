@@ -12,6 +12,21 @@ in [`docs/RELEASE_READINESS.md`](docs/RELEASE_READINESS.md) are met.
 
 ### Added
 
+- Corpus `0.6.0` and evaluation `0.5.0` separate deterministic
+  bootstrap/counterfactual/human label evidence from the randomized live-policy
+  behavior trajectory. Exact behavior source manifests, deterministic bootstrap
+  history, terminal completion, logger identities, and behavior digests are
+  independently bound; target-policy identity is not rewritten as behavior
+  propensity. The bootstrap source is a sanitized policy projection, while
+  nonempty live-result metadata must match the exact typed acquisition producer
+  envelope and route constants. Opaque audit strings remain excluded from policy
+  state rather than being classified by a brittle content blacklist. Corpus
+  reports expose disjoint label, bootstrap, live-behavior, and inclusive costs
+  with timezone-aware ranges and no invented bootstrap timestamps.
+  Scientific-ledger/export/resource-settlement `0.2.0` adds an independently
+  digest-pinned semantic export replay
+  and durably records resource overruns before halting new work.
+
 - A versioned, reference-free `ValidityManifest` for SWE training, rollout, and
   evaluation candidates, with immutable provenance, separate candidate/verifier
   risk features, measured evidence costs, and auditable route history.
@@ -41,9 +56,9 @@ in [`docs/RELEASE_READINESS.md`](docs/RELEASE_READINESS.md) are met.
 - A strict live `RouterStateView`/`ActionOffer`/`LoggedPolicyDecision` contract
   with typed deployable inputs, concrete action-spec identities, full behavior
   distributions including terminal actions, canonical sampling, and chained
-  decision digests. Corpus `0.5.0` can embed nonterminal live decisions without
-  conflating decision, event, and acquisition identities or collapsing multiple
-  offers per evidence modality. The corpus layer computes no OPE estimate; the
+  decision digests. Corpus `0.6.0` preserves live decisions in a separate
+  behavior trajectory without conflating them with deterministic label evidence
+  or collapsing multiple offers per modality. The corpus layer computes no OPE estimate; the
   separate prospective analysis is limited to support/ESS-gated
   self-normalized importance-sampling point diagnostics.
 - A strict verification-gap corpus schema and `bench-cleanser-corpus` CLI with
@@ -59,8 +74,9 @@ in [`docs/RELEASE_READINESS.md`](docs/RELEASE_READINESS.md) are met.
   trajectory reuse, policy implementation drift, and stable-action redefinition.
 - Strict paired-outcome metrics and CLI reporting for calibration, selective
   risk, auditable false accepts/rejects, execution rate, cost, risk–coverage
-  curves, and subgroup slices. Evaluation `0.4.0` accepts truth-free policy
-  outcomes only when they join exactly to corpus `0.5.0`; task validity,
+  curves, and subgroup slices. Evaluation `0.5.0` accepts truth-free target-policy
+  outcomes only when they join exactly to corpus `0.6.0` and its terminal
+  behavior trajectory; task validity,
   conditional candidate correctness, verifier validity, and quarantine are
   reported separately. Verifier reports preserve adjudication source/protocol
   counts and explicitly exclude indeterminate or inadequately adjudicated labels
@@ -144,8 +160,8 @@ in [`docs/RELEASE_READINESS.md`](docs/RELEASE_READINESS.md) are met.
   partial-frame status, and publishes a content-addressed artifact. It does not
   authenticate producers or manufacture scientific truth.
   A separate experimental single-host scientific-ledger module defines
-  domain-bound signed bootstrap, curator, resource-reservation, and resource-
-  settlement envelopes. It is empty, unjoined, and deliberately supplies no
+  domain-bound signed bootstrap, curator, resource-reservation, and
+  resource-settlement envelopes. It is empty, unjoined, and deliberately supplies no
   reviewer-vote/adjudication record, frozen production roles, behavior-ledger
   chronology join, external checkpoint, immutable artifact store, activation
   claim, or empirical result.
@@ -153,8 +169,8 @@ in [`docs/RELEASE_READINESS.md`](docs/RELEASE_READINESS.md) are met.
   the populated action registry and activation context, authenticated
   provisioning, externally immutable artifact storage, and a clean-commit
   receipt for the current candidate; the receipt for baseline commit `6b26448`
-  does not bind this working tree, and the durable-dispatch and typed-
-  persistence gates remain blocking.
+  does not bind this working tree, and the durable-dispatch and typed-persistence
+  gates remain blocking.
 - Contract-only data and router cards that deny a populated dataset, learned
   policy, calibration, task-validity prediction, or supported performance claim.
 - A partial claim-level literature ledger and fail-closed verifier covering 35

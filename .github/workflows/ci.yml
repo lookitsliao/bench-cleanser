@@ -50,7 +50,7 @@ jobs:
           mypy --strict --explicit-package-bases experiments/prospective_pilot/review_packets.py tests/test_prospective_review_packets.py
           mypy --strict --explicit-package-bases experiments/prospective_pilot/scheduler.py experiments/prospective_pilot/proposal_policy.py experiments/prospective_pilot/target_policies.py experiments/prospective_pilot/analysis.py tests/test_prospective_scheduler.py tests/test_prospective_proposal_policy.py tests/test_prospective_target_policies.py tests/test_prospective_analysis.py
           mypy --strict --explicit-package-bases experiments/prospective_pilot/ledger.py experiments/prospective_pilot/dispatcher.py experiments/prospective_pilot/release_bundle.py tests/test_prospective_ledger.py tests/test_prospective_dispatcher.py tests/test_prospective_release_bundle.py
-          mypy --strict --explicit-package-bases experiments/prospective_pilot/scientific_ledger.py tests/test_prospective_scientific_ledger.py
+          mypy --strict --explicit-package-bases experiments/prospective_pilot/scientific_ledger.py tests/test_prospective_scientific_ledger.py tests/test_prospective_scientific_export.py
           mypy --strict --explicit-package-bases experiments/prospective_pilot/validate_protocol.py
 
       - name: Release and research contract CLIs
@@ -63,7 +63,7 @@ jobs:
           python experiments/sphinx_execution_smoke/verify_evidence.py
           python experiments/prospective_pilot/review_packets.py --help
           python experiments/prospective_pilot/validate_protocol.py
-          pytest tests/test_release_dossier.py tests/test_capture_release_evidence.py tests/test_independent_execution_smoke.py tests/test_paired_execution_smoke.py tests/test_sphinx_execution_smoke.py tests/test_prospective_preregistration.py tests/test_prospective_review_packets.py tests/test_prospective_proposal_policy.py tests/test_prospective_ledger.py tests/test_prospective_dispatcher.py tests/test_prospective_release_bundle.py tests/test_prospective_scientific_ledger.py -q --tb=short
+          pytest tests/test_release_dossier.py tests/test_capture_release_evidence.py tests/test_independent_execution_smoke.py tests/test_paired_execution_smoke.py tests/test_sphinx_execution_smoke.py tests/test_prospective_preregistration.py tests/test_prospective_review_packets.py tests/test_prospective_proposal_policy.py tests/test_prospective_ledger.py tests/test_prospective_dispatcher.py tests/test_prospective_release_bundle.py tests/test_prospective_scientific_ledger.py tests/test_prospective_scientific_export.py -q --tb=short
 
       - name: Quality gates + canonical release evidence (Python ${{ matrix.python-version }})
         # Tests are designed not to call external APIs, and any test that

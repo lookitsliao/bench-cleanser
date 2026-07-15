@@ -46,14 +46,21 @@ frame; no replacement is allowed.
   semantic-model, opaque-map custodian, and reviewer identities also remain
   blockers; the scheduler is not operationally activated.
   [`scientific_ledger.py`](scientific_ledger.py) is a separate experimental
-  single-host partial core for domain-bound signed bootstrap, curator, resource-
-  reservation, and resource-settlement envelopes. It has no populated records,
+  single-host partial core for domain-bound signed bootstrap, curator,
+  resource-reservation, and resource-settlement envelopes. Schema `0.2.0` adds strict
+  semantic replay of an export only against an independently supplied complete
+  export digest, and preserves and reports overruns before halting new work rather
+  than rejecting the measured settlement. It has no populated records,
   frozen production authority roles, reviewer-vote or adjudication surface,
   behavior-ledger chronology join, external chain checkpoint, or immutable
   artifact store. Its source is bound as partial scheduler implementation
   infrastructure, not as an activation-configuration object, and it is not
   consumed by the structural compiler; none of the corresponding blockers is
-  cleared.
+  cleared. Corpus `0.6.0` and evaluation `0.5.0` now avoid a prior incompatible
+  join by separating deterministic label evidence from randomized behavior and
+  by keeping target-policy identity distinct from the behavior logger. They are
+  bound collection/evaluation contracts, not a substitute for the missing
+  cross-ledger compiler.
   [`release_bundle.py`](release_bundle.py) is the first fail-closed publication
   bridge. It requires a separately pinned canonical anchor, reopens and audits
   ledger, action-spec, artifact, and completed-output bytes, and derives policy

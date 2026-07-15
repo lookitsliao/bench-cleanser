@@ -338,14 +338,16 @@ def test_activation_configs_are_exact_and_keep_real_unknowns_blocking() -> None:
     proposal_source = ROOT / "experiments/prospective_pilot/proposal_policy.py"
     ledger_source = ROOT / "experiments/prospective_pilot/ledger.py"
     scientific_ledger_source = ROOT / "experiments/prospective_pilot/scientific_ledger.py"
+    corpus_source = ROOT / "bench_cleanser/verification/corpus.py"
+    evaluation_source = ROOT / "bench_cleanser/verification/evaluate.py"
+    metrics_source = ROOT / "bench_cleanser/verification/metrics.py"
     dispatcher_source = ROOT / "experiments/prospective_pilot/dispatcher.py"
     release_bundle_source = ROOT / "experiments/prospective_pilot/release_bundle.py"
     orchestrator_source = ROOT / "bench_cleanser/verification/orchestrate.py"
-    assert scheduler["schema_version"] == "prospective-pilot-scheduler-contract-0.5.0"
+    assert scheduler["schema_version"] == "prospective-pilot-scheduler-contract-0.6.0"
     assert scheduler["status"] == (
-        "scheduler_bootstrap_proposal_ledger_dispatcher_and_partial_"
-        "scientific_ledger_core_"
-        "implemented_operationally_blocked"
+        "scheduler_bootstrap_proposal_ledger_dispatcher_scientific_export_audit_"
+        "and_split_corpus_evaluation_contracts_implemented_operationally_blocked"
     )
     assert (
         scheduler["candidate_chain"]["nonterminal_acquisition_id_preallocated_in_policy_decision"]
@@ -375,10 +377,26 @@ def test_activation_configs_are_exact_and_keep_real_unknowns_blocking() -> None:
         },
         "scientific_ledger": {
             "logical_path": "experiments/prospective_pilot/scientific_ledger.py",
-            "profile": "SIGNED_BOOTSTRAP_CURATOR_RESOURCE_CORE",
-            "schema_version": "prospective-pilot-scientific-ledger-0.1.0",
-            "scope": "single_host_local_sqlite_unanchored",
+            "profile": "SIGNED_BOOTSTRAP_CURATOR_RESOURCE_EXPORT_AUDIT_CORE",
+            "schema_version": "prospective-pilot-scientific-ledger-0.2.0",
+            "scope": "single_host_local_sqlite_digest_pinned_export_unanchored",
             "sha256": hashlib.sha256(scientific_ledger_source.read_bytes()).hexdigest(),
+        },
+        "corpus_contract": {
+            "logical_path": "bench_cleanser/verification/corpus.py",
+            "profile": "DETERMINISTIC_LABEL_EVIDENCE_PLUS_SEPARATE_RANDOMIZED_BEHAVIOR",
+            "schema_version": "0.6.0",
+            "sha256": hashlib.sha256(corpus_source.read_bytes()).hexdigest(),
+        },
+        "evaluation_contract": {
+            "logical_path": "bench_cleanser/verification/evaluate.py",
+            "profile": "TARGET_POLICY_JOINED_TO_DISTINCT_BEHAVIOR_LOGGER",
+            "schema_version": "0.5.0",
+            "sha256": hashlib.sha256(evaluation_source.read_bytes()).hexdigest(),
+        },
+        "metrics_source": {
+            "logical_path": "bench_cleanser/verification/metrics.py",
+            "sha256": hashlib.sha256(metrics_source.read_bytes()).hexdigest(),
         },
         "dispatcher": {
             "logical_path": "experiments/prospective_pilot/dispatcher.py",
@@ -397,9 +415,9 @@ def test_activation_configs_are_exact_and_keep_real_unknowns_blocking() -> None:
             "sha256": hashlib.sha256(orchestrator_source.read_bytes()).hexdigest(),
         },
         "status": (
-            "scheduler_bootstrap_proposal_ledger_dispatcher_structural_bundle_and_"
-            "partial_scientific_ledger_core_available_external_scientific_"
-            "activation_inputs_missing"
+            "scheduler_bootstrap_proposal_ledger_dispatcher_structural_bundle_"
+            "scientific_export_audit_and_split_corpus_evaluation_contracts_"
+            "available_external_scientific_activation_inputs_missing"
         ),
     }
     assert frame["task_count"] == 22
@@ -411,10 +429,10 @@ def test_activation_configs_are_exact_and_keep_real_unknowns_blocking() -> None:
             "availability": "partial",
             "blocking": True,
             "reason": (
-                "signed_resource_reservation_and_settlement_core_can_report_local_"
-                "committed_usage_and_bootstrap_coverage_but_no_populated_records_"
-                "activation_calendar_acquisition_cost_join_or_trusted_partial_"
-                "frame_compiler_exists"
+                "signed_resource_reservation_and_settlement_core_preserves_overruns_"
+                "and_reports_local_committed_usage_bootstrap_coverage_deviations_and_"
+                "halt_state_but_no_populated_records_activation_calendar_acquisition_"
+                "cost_join_or_trusted_partial_frame_compiler_exists"
             ),
         },
         "bootstrap_and_terminal_proposal_policy": {
@@ -439,18 +457,20 @@ def test_activation_configs_are_exact_and_keep_real_unknowns_blocking() -> None:
             "availability": "partial",
             "blocking": True,
             "reason": (
-                "signed_bootstrap_curator_and_resource_record_core_exists_but_no_"
-                "human_adjudication_records_populated_stream_frozen_production_"
-                "roles_external_checkpoint_or_cross_ledger_join_exists"
+                "signed_bootstrap_curator_and_resource_record_core_plus_digest_pinned_"
+                "semantic_export_reaudit_exists_but_no_human_adjudication_records_"
+                "populated_stream_frozen_production_roles_external_checkpoint_or_"
+                "cross_ledger_join_exists"
             ),
         },
         "trusted_study_bundle_compiler": {
             "availability": "partial",
             "blocking": True,
             "reason": (
-                "externally_anchored_structural_compiler_derives_policy_terminal_"
-                "selection_and_cost_declarations_but_does_not_join_the_"
-                "unpopulated_scientific_ledger_or_authenticate_scientific_inputs"
+                "behavior_and_label_trajectories_are_separated_and_the_scientific_"
+                "export_is_digest_pinned_and_semantically_reauditable_but_the_"
+                "structural_compiler_does_not_join_the_unpopulated_scientific_ledger_"
+                "or_authenticate_scientific_inputs"
             ),
         },
         "typed_acquisition_persistence": {

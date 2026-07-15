@@ -77,12 +77,15 @@ Given a reference-free candidate, the deployable verification surface emits a
 strict validity manifest, separates candidate risk from verifier risk,
 recommends the next evidence action, records write-ahead policy propensities,
 executes a bounded operator-supplied action, and preserves distinct
-decision/event/acquisition identities. Separately, corpus `0.5.0` records
-provenance-bearing task validity, candidate correctness conditional on a valid
-task, and one `EvidenceValidityAdjudication` per evidence event. Evaluation
-`0.4.0` accepts no caller-declared truth and joins those adjudications by exact
-corpus, record, and acquisition-trajectory digests. The current router is not
-yet task-validity-aware.
+decision/event/acquisition identities. Separately, corpus `0.6.0` keeps
+deterministic bootstrap, counterfactual, and human label evidence apart from an
+exact randomized live-policy behavior trajectory; it records provenance-bearing
+task validity, candidate correctness conditional on a valid task, and one
+`EvidenceValidityAdjudication` per label-evidence event. Evaluation `0.5.0`
+accepts no caller-declared truth and joins those adjudications by exact corpus,
+record, and behavior-trajectory digests. Target-policy identities remain
+explicitly distinct from the behavior logger. The current router is not yet
+task-validity-aware.
 
 Given a curator-side SWE-bench-style row (task description + gold patch +
 F2P/P2P tests + optional `before_repo_set_cmd` + optional agent trajectory), the
@@ -647,12 +650,21 @@ live write-ahead policy contract needed for prospective research. The policy
 sees an allowlisted state projection and logs a complete catalog of concrete
 adapter/spec identities, availability masks, expected costs, a positive
 behavior distribution over evidence and terminal actions, a canonical sampler
-draw, and a hash-chain link. Corpus schema `0.5.0` embeds a nonterminal logged
-decision unchanged beside its resulting observation: decision, event, and
-acquisition IDs remain distinct, while concrete offers, multiple adapters per
-modality, terminal offers, action-level propensities, sampler draw, code/config
-digest, and chain heads remain lossless. The bridge rejects terminal choices,
-privileged observations, mismatched histories, and post-outcome reconstruction.
+draw, and a hash-chain link. Corpus schema `0.6.0` preserves those live steps in
+a dedicated `behavior_trajectory` rather than mixing them into deterministic
+label-evidence collection. It binds a safe source manifest whose bootstrap
+metadata is stripped and whose reason is a canonical code, outside randomized
+propensity accounting; decision and
+acquisition IDs, concrete offers, terminal actions, action-level propensities,
+sampler draw, code/config digest, and chain heads remain lossless. Nonempty live
+metadata must match the exact typed acquisition/orchestration envelope; producer
+constants, outcome/return-code semantics, declared cost scope, retained semantic
+digest, candidate/action identity, base commit, route index, and chronology are
+checked. Opaque locator, capture-error, workspace, policy, and digest fields
+remain audit-only and are excluded from router state; the corpus does not pretend
+to infer their semantic content. The canonical bootstrap reason makes the
+round-zero source manifest exactly reconstructible from the logged scheduler
+state. Mismatched histories and post-outcome reconstruction fail closed.
 The prospective-pilot `ledger.py`/`dispatcher.py` composes these contracts into
 a tested single-host claim-before-launch core with non-replayable claims and
 exact completed-output recovery. It remains experiment-local and
@@ -667,8 +679,12 @@ structural artifact, not a paired corpus or performance report; a separately
 signed anchor, populated authenticated scientific records, a cross-ledger
 chronology/artifact join, and calibrated score inputs remain missing. The
 separate fail-closed scientific ledger supplies only partial bootstrap,
-curator-evidence, and resource receipt schemas; it supplies no adjudicated truth
-and does not make this compiler scientifically eligible.
+curator-evidence, and resource receipt schemas. Its `0.2.0` export can be
+semantically replay-audited only when the caller supplies an independently
+pinned full-export digest; resource overruns are preserved and force a halt
+instead of being discarded. It still supplies no adjudicated truth, production
+signature authority, external checkpoint, or cross-ledger compiler, so it does
+not make the structural bundle scientifically eligible.
 This is still a schema and bridge, not a durable policy service or an OPE
 estimator.
 
@@ -696,15 +712,21 @@ conclusive execution, adjudication, and repository-disjoint splits. With
 `--require-paired`, every determinate `EvidenceValidityAdjudication` must also be
 blinded, have at least two annotators, and meet the 0.80 agreement threshold;
 indeterminate evidence validity remains in report denominators but is excluded
-from verifier calibration. Corpus `0.5.0` keeps `TaskValidity` (`valid`,
+from verifier calibration. Corpus `0.6.0` keeps `TaskValidity` (`valid`,
 `invalid`, `indeterminate`) separate from `CandidateCorrectness` (`correct`,
 `incorrect`, `indeterminate`, `not_applicable`) and rejects legacy booleans that
 would silently invent truth. Its report explicitly marks scientific adequacy as
 unassessed; schema completeness is not a sample-size, calibration, or
 downstream-value certificate.
+Cost reporting is disjoint by label evidence, deterministic behavior bootstrap,
+and live behavior, with an inclusive total. Live-result timestamps are reported
+separately; corpus `0.6.0` explicitly marks bootstrap acquisition time as
+unavailable instead of fabricating it from surrounding events.
 
-`bench-cleanser-evaluate` `0.4.0` consumes truth-free policy outcomes plus the
-exact corpus. It rejects identity/digest/trajectory mismatches, separately
+`bench-cleanser-evaluate` `0.5.0` consumes truth-free target-policy outcomes plus
+the exact corpus. It rejects identity/digest/behavior-trajectory mismatches,
+requires a terminal-complete live behavior log, reports its logger identity
+separately from the evaluated target policy, and separately
 scores `probability_task_valid`, candidate correctness conditional on valid
 tasks, and per-modality verifier validity only from determinate, paired-ready
 labels. It reports adjudication source/protocol counts, raw totals, and explicit
@@ -910,7 +932,7 @@ Generated outputs (`output/`, `.cache/`, ad-hoc audit / slides directories) are 
   reward integration, or deployed learned evidence policy. The shared schemas
   are research infrastructure, not an end-to-end training or rollout product.
 - The deployable manifest/router models candidate and verifier risk only. Task
-  validity is separately adjudicated in corpus/evaluation `0.5.0`/`0.4.0`.
+  validity is separately adjudicated in corpus/evaluation `0.6.0`/`0.5.0`.
   Evaluation accepts a task-validity probability, but no current router produces
   one; no learned or calibrated task-validity routing policy exists yet.
 - Deployable-router trust bindings are exact source/version allowlists, not

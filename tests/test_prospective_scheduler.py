@@ -67,6 +67,7 @@ from experiments.prospective_pilot.scheduler import (
     load_study_bindings,
     load_task_round_decision,
     load_task_selection_decision,
+    reconstruct_initial_behavior_source_manifest,
     validate_complete_study_ledger,
     validate_task_round_chain,
     validate_task_trajectory,
@@ -104,7 +105,7 @@ def _initial_state(task_id: str, candidate_id: str) -> RouterStateView:
         verifier_risk=0.3,
         expected_information_gain=0.35,
         estimated_relative_cost=0.01,
-        reasons=("deterministic static bootstrap",),
+        reasons=("deterministic_bootstrap",),
         terminal=False,
     )
     bootstrap_observation = EvidenceObservation(
@@ -144,10 +145,12 @@ def _initial_state(task_id: str, candidate_id: str) -> RouterStateView:
 
 
 def _action_spec_preimage(action_id: str) -> bytes:
-    return strict_json_dumps({
-        "action_id": action_id,
-        "fixture_contract": "prospective-scheduler-test-v1",
-    }).encode("utf-8")
+    return strict_json_dumps(
+        {
+            "action_id": action_id,
+            "fixture_contract": "prospective-scheduler-test-v1",
+        }
+    ).encode("utf-8")
 
 
 def _catalog() -> tuple[ActionOffer, ...]:
@@ -174,25 +177,23 @@ def _catalog() -> tuple[ActionOffer, ...]:
         else:
             available = True
             reason = "execution_binding_available"
-        offers.append(ActionOffer(
-            action_id=action_id,
-            route_action=route_action,
-            evidence_kind=None if terminal else _ACTION_KIND[route_action],
-            adapter_id=(
-                "adapter-oracle-hardening"
-                if action_id == "hardening_curator"
-                else f"adapter-{action_id}"
-            ),
-            adapter_version="v1",
-            action_spec_sha256=hashlib.sha256(
-                _action_spec_preimage(action_id)
-            ).hexdigest(),
-            available=available,
-            availability_reason=reason,
-            expected_cost=(
-                EvidenceCost() if terminal else EvidenceCost(wall_seconds=1.0)
-            ),
-        ))
+        offers.append(
+            ActionOffer(
+                action_id=action_id,
+                route_action=route_action,
+                evidence_kind=None if terminal else _ACTION_KIND[route_action],
+                adapter_id=(
+                    "adapter-oracle-hardening"
+                    if action_id == "hardening_curator"
+                    else f"adapter-{action_id}"
+                ),
+                adapter_version="v1",
+                action_spec_sha256=hashlib.sha256(_action_spec_preimage(action_id)).hexdigest(),
+                available=available,
+                availability_reason=reason,
+                expected_cost=(EvidenceCost() if terminal else EvidenceCost(wall_seconds=1.0)),
+            )
+        )
     return tuple(offers)
 
 
@@ -222,9 +223,7 @@ def _candidate(
         decision_count=decisions,
         nonterminal_acquisition_count=acquisitions,
         completed_nonterminal_action_ids=completed,
-        router_state_sha256=(
-            router_state_sha256 or safe_state.canonical_digest()
-        ),
+        router_state_sha256=(router_state_sha256 or safe_state.canonical_digest()),
         history_sha256=history_sha256 or safe_state.history_sha256(),
         policy_trajectory_head_sha256=(
             policy_head_sha256
@@ -259,7 +258,11 @@ def _restore_prior_route(route: RouterRouteStep) -> RouteDecision:
         verifier_risk=route.verifier_risk,
         expected_information_gain=route.expected_information_gain,
         estimated_relative_cost=route.estimated_relative_cost,
-        reasons=("restored safe route projection",),
+        reasons=(
+            "deterministic_bootstrap"
+            if route.action == RouteAction.RUN_STATIC
+            else "restored safe route projection",
+        ),
         terminal=False,
         scores_calibrated=route.scores_calibrated,
         calibration_id=route.calibration_id,
@@ -308,10 +311,7 @@ def _append_typed_result(
             observation,
         ],
         route_history=[
-            *(
-                _restore_prior_route(item.route)
-                for item in old_state.bootstrap_history
-            ),
+            *(_restore_prior_route(item.route) for item in old_state.bootstrap_history),
             *(_restore_prior_route(item) for item in old_state.route_history),
             route,
         ],
@@ -327,33 +327,27 @@ def _successor_inputs(
     *,
     status: EvidenceStatus = EvidenceStatus.INCONCLUSIVE,
 ) -> tuple[CandidateRoundInput, ...]:
-    decision_by_id = {
-        item.candidate_id: item for item in previous.scheduled_decisions
-    }
-    disposition_by_id = {
-        item.candidate_id: item for item in previous.resulting_dispositions
-    }
+    decision_by_id = {item.candidate_id: item for item in previous.scheduled_decisions}
+    disposition_by_id = {item.candidate_id: item for item in previous.resulting_dispositions}
     result: list[CandidateRoundInput] = []
     for old in previous.candidates:
         disposition = disposition_by_id[old.candidate_id]
         decision = decision_by_id.get(old.candidate_id)
         if old.activity != CandidateActivity.ACTIVE:
-            result.append(CandidateRoundInput(
-                candidate_id=old.candidate_id,
-                activity=old.activity,
-                decision_count=old.decision_count,
-                nonterminal_acquisition_count=old.nonterminal_acquisition_count,
-                completed_nonterminal_action_ids=(
-                    old.completed_nonterminal_action_ids
-                ),
-                router_state_sha256=old.router_state_sha256,
-                history_sha256=old.history_sha256,
-                policy_trajectory_head_sha256=(
-                    disposition.policy_trajectory_head_sha256
-                ),
-                bound_router_decision=None,
-                action_catalog=_catalog(),
-            ))
+            result.append(
+                CandidateRoundInput(
+                    candidate_id=old.candidate_id,
+                    activity=old.activity,
+                    decision_count=old.decision_count,
+                    nonterminal_acquisition_count=old.nonterminal_acquisition_count,
+                    completed_nonterminal_action_ids=(old.completed_nonterminal_action_ids),
+                    router_state_sha256=old.router_state_sha256,
+                    history_sha256=old.history_sha256,
+                    policy_trajectory_head_sha256=(disposition.policy_trajectory_head_sha256),
+                    bound_router_decision=None,
+                    action_catalog=_catalog(),
+                )
+            )
             continue
         assert decision is not None
         route_action = COLLECTION_ACTION_ROUTE[decision.chosen_action_id]
@@ -362,10 +356,14 @@ def _successor_inputs(
             RouteAction.REJECT,
             RouteAction.ABSTAIN,
         }
-        completed = tuple(sorted((
-            *old.completed_nonterminal_action_ids,
-            *((decision.chosen_action_id,) if acquisition else ()),
-        )))
+        completed = tuple(
+            sorted(
+                (
+                    *old.completed_nonterminal_action_ids,
+                    *((decision.chosen_action_id,) if acquisition else ()),
+                )
+            )
+        )
         if acquisition:
             assert old.bound_router_decision is not None
             assert decision.logged_policy_decision.acquisition_id is not None
@@ -383,22 +381,22 @@ def _successor_inputs(
             bound = None
             router_sha = old.router_state_sha256
             history_sha = old.history_sha256
-        result.append(CandidateRoundInput(
-            candidate_id=old.candidate_id,
-            activity=disposition.activity,
-            decision_count=old.decision_count + 1,
-            nonterminal_acquisition_count=(
-                old.nonterminal_acquisition_count + int(acquisition)
-            ),
-            completed_nonterminal_action_ids=completed,
-            router_state_sha256=router_sha,
-            history_sha256=history_sha,
-            policy_trajectory_head_sha256=(
-                disposition.policy_trajectory_head_sha256
-            ),
-            bound_router_decision=bound,
-            action_catalog=_catalog(),
-        ))
+        result.append(
+            CandidateRoundInput(
+                candidate_id=old.candidate_id,
+                activity=disposition.activity,
+                decision_count=old.decision_count + 1,
+                nonterminal_acquisition_count=(
+                    old.nonterminal_acquisition_count + int(acquisition)
+                ),
+                completed_nonterminal_action_ids=completed,
+                router_state_sha256=router_sha,
+                history_sha256=history_sha,
+                policy_trajectory_head_sha256=(disposition.policy_trajectory_head_sha256),
+                bound_router_decision=bound,
+                action_catalog=_catalog(),
+            )
+        )
     return tuple(result)
 
 
@@ -446,9 +444,7 @@ def test_exact_frame_rng_order_and_repository_bindings(
     }
     assert len(bindings.frame.task_ids) == 22
     assert sum(len(items) for _, items in bindings.frame.tasks) == 66
-    assert bindings.frame.source_feature_freeze_sha256 == (
-        EXPECTED_SOURCE_FEATURE_FREEZE["sha256"]
-    )
+    assert bindings.frame.source_feature_freeze_sha256 == (EXPECTED_SOURCE_FEATURE_FREEZE["sha256"])
     order = derive_task_order(bindings.frame.task_ids)
     assert set(order) == set(bindings.frame.task_ids)
     assert tuple(len(batch) for batch in derive_task_batches(bindings.frame.task_ids)) == (
@@ -500,10 +496,18 @@ def test_round_is_exact_frame_bound_deterministic_and_strict_json(
     assert first.protocol_sha256 == bindings.protocol_sha256
     assert first.router_source_sha256 == ROUTER_SOURCE_SHA256
     assert first.router_policy_config_sha256 == ROUTER_POLICY_CONFIG_SHA256
-    assert all(
-        item.candidate_scheduler_probability == 1.0
-        for item in first.scheduled_decisions
-    )
+    assert all(item.candidate_scheduler_probability == 1.0 for item in first.scheduled_decisions)
+    for item in first.scheduled_decisions:
+        logged = item.logged_policy_decision
+        source = reconstruct_initial_behavior_source_manifest(logged.router_state)
+        assert source.canonical_digest() == logged.manifest_sha256
+        assert (
+            RouterStateView.from_manifest(
+                source,
+                bootstrap_history=logged.router_state.bootstrap_history,
+            )
+            == logged.router_state
+        )
     assert first.task_trajectory_action_log_propensities == tuple(
         item.chosen_log_action_propensity for item in first.scheduled_decisions
     )
@@ -599,17 +603,14 @@ def test_round_zero_requires_three_distinct_candidate_bootstrap_receipts(
     candidate_id = candidate_ids[0]
     catalog = _catalog()
     first = _initial_state(task_id, candidate_id)
-    with pytest.raises(ValueError, match="one deterministic static bootstrap"):
+    with pytest.raises(ValueError, match="exact canonical source preimage"):
         _candidate(
             task_id,
             candidate_ids[0],
             state=replace(first, bootstrap_history=()),
         )
 
-    states = [
-        _initial_state(task_id, candidate_id)
-        for candidate_id in candidate_ids
-    ]
+    states = [_initial_state(task_id, candidate_id) for candidate_id in candidate_ids]
     duplicated_step = replace(
         states[1].bootstrap_history[0],
         receipt_sha256=states[0].bootstrap_history[0].receipt_sha256,
@@ -631,9 +632,7 @@ def test_round_zero_requires_three_distinct_candidate_bootstrap_receipts(
         item.action_spec_sha256 for item in catalog if item.action_id == "full_primary"
     )
     same_repeat = tuple(
-        replace(item, action_spec_sha256=primary_spec)
-        if item.action_id == "full_repeat"
-        else item
+        replace(item, action_spec_sha256=primary_spec) if item.action_id == "full_repeat" else item
         for item in catalog
     )
     with pytest.raises(ValueError, match="distinct fresh-worktree action spec"):
@@ -683,9 +682,7 @@ def test_frame_candidate_substitution_and_typed_successor_rejected(
         if item.activity == CandidateActivity.ACTIVE
     }
     target_index = next(
-        index
-        for index, item in enumerate(valid_successors)
-        if item.candidate_id in active_ids
+        index for index, item in enumerate(valid_successors) if item.candidate_id in active_ids
     )
     target = valid_successors[target_index]
     reset_state = _initial_state(first.task_id, target.candidate_id)
@@ -749,12 +746,9 @@ def test_scheduler_policy_log_and_corpus_use_exact_join_identities(
     )
 
     for round_position, round_decision in enumerate(chain):
-        state_by_candidate = {
-            item.candidate_id: item for item in round_decision.candidates
-        }
+        state_by_candidate = {item.candidate_id: item for item in round_decision.candidates}
         disposition_by_candidate = {
-            item.candidate_id: item
-            for item in round_decision.resulting_dispositions
+            item.candidate_id: item for item in round_decision.resulting_dispositions
         }
         for scheduled in round_decision.scheduled_decisions:
             state = state_by_candidate[scheduled.candidate_id]
@@ -766,9 +760,7 @@ def test_scheduler_policy_log_and_corpus_use_exact_join_identities(
             assert logged.decision_sha256 == scheduled.selection_identity_sha256
             assert logged.trajectory_id.startswith("traj-")
             assert logged.trajectory_head_sha256 == (
-                disposition_by_candidate[
-                    scheduled.candidate_id
-                ].policy_trajectory_head_sha256
+                disposition_by_candidate[scheduled.candidate_id].policy_trajectory_head_sha256
             )
 
             if logged.terminal:
@@ -782,9 +774,7 @@ def test_scheduler_policy_log_and_corpus_use_exact_join_identities(
                 if item.candidate_id == scheduled.candidate_id
             )
             assert successor.bound_router_decision is not None
-            observation = (
-                successor.bound_router_decision.router_state.evidence_history[-1]
-            )
+            observation = successor.bound_router_decision.router_state.evidence_history[-1]
             assert observation.acquisition_id == logged.acquisition_id
             event = bridge_logged_policy_observation(
                 event_id=f"evt-{logged.decision_id.removeprefix('dec-')}",
@@ -814,9 +804,7 @@ def test_selection_requires_complete_chronological_genesis_chain(
     )
     assert selection.disposition == TaskSelectionDisposition.ABSTAIN
     assert selection.selected_candidate_id is None
-    assert selection.round_decision_sha256s == tuple(
-        item.decision_sha256 for item in chain
-    )
+    assert selection.round_decision_sha256s == tuple(item.decision_sha256 for item in chain)
     validate_task_trajectory(chain, selection, bindings=bindings)
     restored = load_task_selection_decision(
         io.StringIO(strict_json_dumps(selection.to_dict())),
@@ -855,12 +843,14 @@ def test_mechanics_policy_skips_unavailable_semantic_and_exposes_paired_terminal
         else item
         for item in _catalog()
     )
-    fallback = _build_candidate_state(_candidate(
-        task_id,
-        candidate_id,
-        state=initial,
-        catalog=semantic_unavailable,
-    ))
+    fallback = _build_candidate_state(
+        _candidate(
+            task_id,
+            candidate_id,
+            state=initial,
+            catalog=semantic_unavailable,
+        )
+    )
     assert fallback.bound_router_decision is not None
     assert fallback.bound_router_decision.action == RouteAction.RUN_SEMANTIC
     assert fallback.preferred_action_id == "targeted_primary"
@@ -876,19 +866,19 @@ def test_mechanics_policy_skips_unavailable_semantic_and_exposes_paired_terminal
                 state,
                 bound,
                 chosen_action_id=action_id,
-                acquisition_id=_acquisition_id(
-                    f"paired:{candidate_id}:{action_id}:{status.value}"
-                ),
+                acquisition_id=_acquisition_id(f"paired:{candidate_id}:{action_id}:{status.value}"),
                 status=status,
             )
-        candidate = _build_candidate_state(_candidate(
-            task_id,
-            candidate_id,
-            decisions=2,
-            acquisitions=2,
-            completed=("full_primary", "full_repeat"),
-            state=state,
-        ))
+        candidate = _build_candidate_state(
+            _candidate(
+                task_id,
+                candidate_id,
+                decisions=2,
+                acquisitions=2,
+                completed=("full_primary", "full_repeat"),
+                state=state,
+            )
+        )
         by_id = {item.action_id: item for item in candidate.action_catalog}
         assert candidate.preferred_action_id == expected_action
         assert by_id[expected_action].available is True
@@ -906,17 +896,17 @@ def test_mechanics_policy_skips_unavailable_semantic_and_exposes_paired_terminal
             acquisition_id=_acquisition_id(f"error:{candidate_id}:{action_id}"),
             status=status,
         )
-    error_candidate = _build_candidate_state(_candidate(
-        task_id,
-        candidate_id,
-        decisions=2,
-        acquisitions=2,
-        completed=("full_primary", "full_repeat"),
-        state=error_state,
-    ))
-    error_by_id = {
-        item.action_id: item for item in error_candidate.action_catalog
-    }
+    error_candidate = _build_candidate_state(
+        _candidate(
+            task_id,
+            candidate_id,
+            decisions=2,
+            acquisitions=2,
+            completed=("full_primary", "full_repeat"),
+            state=error_state,
+        )
+    )
+    error_by_id = {item.action_id: item for item in error_candidate.action_catalog}
     assert error_by_id["reject"].available is False
 
 
@@ -930,20 +920,20 @@ def test_complete_ledger_rejects_fork_replay_and_counter_reuse(
         chain = _complete_chain(bindings, task_id)
         chains[task_id] = chain
         all_rounds.extend(chain)
-        selections.append(build_task_selection_decision(
-            chain,
-            bindings=bindings,
-            scheduled_at=_timestamp(10),
-        ))
+        selections.append(
+            build_task_selection_decision(
+                chain,
+                bindings=bindings,
+                scheduled_at=_timestamp(10),
+            )
+        )
     validate_complete_study_ledger(
         all_rounds,
         selections,
         bindings=bindings,
     )
     counters = [
-        decision.action_draw_counter
-        for item in all_rounds
-        for decision in item.scheduled_decisions
+        decision.action_draw_counter for item in all_rounds for decision in item.scheduled_decisions
     ]
     assert len(counters) == len(set(counters))
 
@@ -974,9 +964,7 @@ def test_nonfinite_and_selection_chain_tampering_fail_closed(
         scheduled_at=_timestamp(10),
     )
     tampered = selection.to_dict()
-    tampered["round_decision_sha256s"] = list(
-        reversed(tampered["round_decision_sha256s"])
-    )
+    tampered["round_decision_sha256s"] = list(reversed(tampered["round_decision_sha256s"]))
     with pytest.raises(ValueError):
         load_task_selection_decision(
             io.StringIO(strict_json_dumps(tampered)),

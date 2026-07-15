@@ -27,10 +27,11 @@ The research program therefore separates three truth uncertainties:
    produce an informative, valid label for this candidate?
 
 The engineering-alpha manifest/router currently exposes candidate and verifier
-risk only. Corpus `0.5.0` and evaluation `0.4.0` now represent provenance-bearing
-task-validity, conditional-candidate-correctness, and per-event
-evidence-validity adjudications separately, without allowing those labels into
-live policy state. A learned research policy
+risk only. Corpus `0.6.0` now separates deterministic label evidence from the
+randomized live behavior trajectory, and evaluation `0.5.0` joins target-policy
+outcomes to the exact terminal behavior log while reporting the logger identity
+separately. Task-validity, conditional-candidate-correctness, and per-event
+evidence-validity adjudications remain outside live policy state. A learned research policy
 must add a deployable task-validity estimate rather than bury ambiguity inside
 candidate error; that routing surface is not implemented today.
 

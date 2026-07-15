@@ -5,16 +5,26 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import pathlib
+import sys
 from dataclasses import replace
 
 import pytest
 
 import bench_cleanser.verification.corpus as verification_corpus
+from bench_cleanser import __version__
+from bench_cleanser.verification.acquire import (
+    ACQUISITION_SCHEMA_VERSION,
+    SEMANTIC_OUTPUT_SCHEMA_VERSION,
+    AcquisitionRequest,
+    acquire_evidence,
+)
 from bench_cleanser.verification.corpus import (
     CORPUS_SCHEMA_VERSION,
     MIN_ADJUDICATOR_AGREEMENT,
     AcquisitionDecision,
     ActionPropensity,
+    BehaviorStep,
     CandidateAdjudication,
     CandidateCorrectness,
     CandidateType,
@@ -44,11 +54,21 @@ from bench_cleanser.verification.models import (
     RouteDecision,
     ValidityManifest,
 )
+from bench_cleanser.verification.orchestrate import (
+    ATTEMPT_SCOPE,
+    ATTEMPT_SEMANTICS,
+    DETACHED_CHILD_CONTAINMENT,
+    EXECUTION_BACKEND,
+    ORCHESTRATION_SCHEMA_VERSION,
+    WORKSPACE_IDENTITY_SCOPE,
+)
 from bench_cleanser.verification.policy_log import (
     GENESIS_TRAJECTORY_HEAD_SHA256,
     ActionOffer,
     BehaviorProbability,
+    BootstrapHistoryStep,
     LoggedPolicyDecision,
+    RouterRouteStep,
     RouterStateView,
     canonical_action_spec_sha256,
 )
@@ -114,6 +134,7 @@ def _live_policy_decision(
     decided_at: str = "2026-01-02T12:00:00.000000Z",
     identity_index: int | None = None,
     trajectory_id: str = "trajectory-corpus-bridge",
+    bootstrap_history: tuple[BootstrapHistoryStep, ...] = (),
 ) -> LoggedPolicyDecision:
     action_kind = {
         RouteAction.RUN_STATIC: EvidenceKind.STATIC,
@@ -129,51 +150,50 @@ def _live_policy_decision(
             route_action=action,
             evidence_kind=None if action in terminal else action_kind[action],
             adapter_id=(
-                "terminal-disposition"
-                if action in terminal
-                else f"adapter-{action.value}"
+                "terminal-disposition" if action in terminal else f"adapter-{action.value}"
             ),
             adapter_version="v1",
-            action_spec_sha256=canonical_action_spec_sha256({
-                "action": action.value,
-                "variant": "default",
-            }),
+            action_spec_sha256=canonical_action_spec_sha256(
+                {
+                    "action": action.value,
+                    "variant": "default",
+                }
+            ),
             available=True,
             availability_reason="fixture available",
             expected_cost=(
-                EvidenceCost()
-                if action in terminal
-                else EvidenceCost(wall_seconds=1.0, usd=0.01)
+                EvidenceCost() if action in terminal else EvidenceCost(wall_seconds=1.0, usd=0.01)
             ),
         )
         for action in RouteAction
     ]
-    offers.append(ActionOffer(
-        action_id="semantic-second-adapter",
-        route_action=RouteAction.RUN_SEMANTIC,
-        evidence_kind=EvidenceKind.SEMANTIC,
-        adapter_id="adapter-semantic-second",
-        adapter_version="v2",
-        action_spec_sha256=canonical_action_spec_sha256({
-            "action": RouteAction.RUN_SEMANTIC.value,
-            "variant": "second",
-        }),
-        available=True,
-        availability_reason="fixture available",
-        expected_cost=EvidenceCost(wall_seconds=0.5, usd=0.005),
-    ))
+    offers.append(
+        ActionOffer(
+            action_id="semantic-second-adapter",
+            route_action=RouteAction.RUN_SEMANTIC,
+            evidence_kind=EvidenceKind.SEMANTIC,
+            adapter_id="adapter-semantic-second",
+            adapter_version="v2",
+            action_spec_sha256=canonical_action_spec_sha256(
+                {
+                    "action": RouteAction.RUN_SEMANTIC.value,
+                    "variant": "second",
+                }
+            ),
+            available=True,
+            availability_reason="fixture available",
+            expected_cost=EvidenceCost(wall_seconds=0.5, usd=0.005),
+        )
+    )
     catalog = tuple(sorted(offers, key=lambda item: item.action_id))
     propensity = 1.0 / len(catalog)
-    distribution = tuple(
-        BehaviorProbability(item.action_id, propensity) for item in catalog
-    )
+    distribution = tuple(BehaviorProbability(item.action_id, propensity) for item in catalog)
     chosen_action_id = f"route-{RouteAction.RUN_STATIC.value}"
-    lower = sum(
-        item.propensity
-        for item in distribution
-        if item.action_id < chosen_action_id
+    lower = sum(item.propensity for item in distribution if item.action_id < chosen_action_id)
+    state = RouterStateView.from_manifest(
+        manifest,
+        bootstrap_history=bootstrap_history,
     )
-    state = RouterStateView.from_manifest(manifest)
     step = len(state.evidence_history)
     identity = step + 1 if identity_index is None else identity_index
     return LoggedPolicyDecision(
@@ -200,6 +220,31 @@ def _live_policy_decision(
         sampler_version="v1",
         sampler_draw=lower + propensity / 2.0,
         router_state=state,
+    )
+
+
+def _terminalize_policy_decision(
+    decision: LoggedPolicyDecision,
+    *,
+    action: RouteAction = RouteAction.ABSTAIN,
+) -> LoggedPolicyDecision:
+    chosen_action_id = f"route-{action.value}"
+    chosen = next(
+        item for item in decision.behavior_distribution if item.action_id == chosen_action_id
+    )
+    lower = sum(
+        item.propensity
+        for item in decision.behavior_distribution
+        if item.action_id < chosen_action_id
+    )
+    return replace(
+        decision,
+        acquisition_id=None,
+        chosen_action_id=chosen_action_id,
+        chosen_propensity=chosen.propensity,
+        sampler_draw=lower + chosen.propensity / 2.0,
+        decision_sha256="",
+        trajectory_head_sha256="",
     )
 
 
@@ -300,19 +345,21 @@ def _record(
         (EvidenceKind.ORACLE_HARDENING, 0, False),
         (EvidenceKind.HUMAN_ADJUDICATION, 0, True),
     ):
-        events.append(_event(
-            kind,
-            replicate=replicate,
-            status=(
-                human_status
-                if kind == EvidenceKind.HUMAN_ADJUDICATION
-                else EvidenceStatus.SUPPORTS_CORRECT
-            ),
-            authoritative=authoritative,
-            subject_candidate_id=candidate_id,
-            manifest=manifest,
-            prior_observations=tuple(events),
-        ))
+        events.append(
+            _event(
+                kind,
+                replicate=replicate,
+                status=(
+                    human_status
+                    if kind == EvidenceKind.HUMAN_ADJUDICATION
+                    else EvidenceStatus.SUPPORTS_CORRECT
+                ),
+                authoritative=authoritative,
+                subject_candidate_id=candidate_id,
+                manifest=manifest,
+                prior_observations=tuple(events),
+            )
+        )
     return VerificationGapRecord(
         manifest=manifest,
         split=split,
@@ -344,6 +391,127 @@ def _record(
     )
 
 
+def _behavior_trajectory(
+    record: VerificationGapRecord,
+    *,
+    identity_index: int = 101,
+    trajectory_id: str = "trajectory-corpus-behavior",
+    source_manifest: ValidityManifest | None = None,
+    bootstrap_history: tuple[BootstrapHistoryStep, ...] = (),
+    result_observation: EvidenceObservation | None = None,
+) -> tuple[BehaviorStep, BehaviorStep]:
+    resolved_source_manifest = source_manifest or ValidityManifest.from_dict(
+        record.manifest.to_dict()
+    )
+    first_decision = _live_policy_decision(
+        resolved_source_manifest,
+        identity_index=identity_index,
+        trajectory_id=trajectory_id,
+        bootstrap_history=bootstrap_history,
+    )
+    first_result = result_observation or replace(
+        record.observations[0].observation,
+        acquisition_id=first_decision.acquisition_id or "",
+        authoritative=False,
+        privileged_inputs=(),
+        metadata={},
+    )
+    if first_result.acquisition_id != first_decision.acquisition_id:
+        raise ValueError("fixture result must belong to its generated behavior decision")
+    first_step = BehaviorStep(
+        decision=first_decision,
+        observation=first_result,
+        artifact_sha256="b" * 64,
+        artifact_locator="artifact://fixture/behavior/static/1",
+        collected_at="2026-01-02T13:00:00Z",
+    )
+
+    successor_manifest = ValidityManifest.from_dict(resolved_source_manifest.to_dict())
+    successor_manifest.add_evidence(
+        verification_corpus._deployable_observation_projection(first_result)
+    )
+    successor_manifest.add_decision(
+        RouteDecision(
+            action=RouteAction.RUN_STATIC,
+            policy_version="fixture-route-v1",
+            candidate_risk=0.4,
+            verifier_risk=0.3,
+            expected_information_gain=0.6,
+            estimated_relative_cost=0.2,
+            reasons=("fixture prior behavior route",),
+        )
+    )
+    successor = _live_policy_decision(
+        successor_manifest,
+        prior_head=first_decision.trajectory_head_sha256,
+        decided_at="2026-01-02T14:00:00.000000Z",
+        identity_index=identity_index + 1,
+        trajectory_id=trajectory_id,
+        bootstrap_history=bootstrap_history,
+    )
+    return first_step, BehaviorStep(decision=_terminalize_policy_decision(successor))
+
+
+def _behavior_source_with_bootstrap(
+    record: VerificationGapRecord,
+) -> tuple[ValidityManifest, tuple[BootstrapHistoryStep, ...]]:
+    source_manifest = ValidityManifest.from_dict(record.manifest.to_dict())
+    bootstrap_identity = hashlib.sha256(
+        f"{record.manifest.candidate_id}\0fixture-bootstrap".encode()
+    ).hexdigest()
+    observation = replace(
+        record.observations[0].observation,
+        acquisition_id=f"acq-{bootstrap_identity[:32]}",
+        authoritative=False,
+        privileged_inputs=(),
+        metadata={},
+    )
+    route = RouteDecision(
+        action=RouteAction.RUN_STATIC,
+        policy_version="fixture-bootstrap-v1",
+        candidate_risk=0.4,
+        verifier_risk=0.3,
+        expected_information_gain=0.6,
+        estimated_relative_cost=0.2,
+        reasons=("deterministic_bootstrap",),
+    )
+    source_manifest.add_evidence(observation)
+    source_manifest.add_decision(route)
+    bootstrap = BootstrapHistoryStep(
+        receipt_sha256=bootstrap_identity,
+        route=RouterRouteStep.from_route_decision(route),
+        observation=observation,
+    )
+    return source_manifest, (bootstrap,)
+
+
+def _with_behavior(
+    record: VerificationGapRecord,
+    *,
+    bootstrap: bool = False,
+    identity_index: int = 101,
+    trajectory_id: str = "trajectory-corpus-behavior",
+) -> VerificationGapRecord:
+    if bootstrap:
+        source_manifest, bootstrap_history = _behavior_source_with_bootstrap(record)
+    else:
+        source_manifest = ValidityManifest.from_dict(record.manifest.to_dict())
+        bootstrap_history = ()
+    behavior_trajectory = _behavior_trajectory(
+        record,
+        identity_index=identity_index,
+        trajectory_id=trajectory_id,
+        source_manifest=source_manifest,
+        bootstrap_history=bootstrap_history,
+    )
+    return replace(
+        record,
+        behavior_source_manifest=source_manifest,
+        behavior_bootstrap_history=bootstrap_history,
+        behavior_trajectory=behavior_trajectory,
+    )
+
+
 def _resequence(
     record: VerificationGapRecord,
     observations: tuple[PairedEvidence, ...],
@@ -354,9 +522,9 @@ def _resequence(
     resolved_manifest = manifest or record.manifest
     rebuilt: list[PairedEvidence] = []
     for index, item in enumerate(observations):
-        available_actions: (
-            dict[EvidenceKind, float] | tuple[ActionPropensity, ...]
-        ) = item.decision.available_actions
+        available_actions: dict[EvidenceKind, float] | tuple[ActionPropensity, ...] = (
+            item.decision.available_actions
+        )
         if action_overrides and index in action_overrides:
             available_actions = action_overrides[index]
         decision = build_acquisition_decision(
@@ -382,6 +550,697 @@ def test_complete_record_round_trips_and_validates() -> None:
     assert restored.canonical_digest() == record.canonical_digest()
     assert restored.schema_version == CORPUS_SCHEMA_VERSION
     validate_corpus([restored], require_paired=True)
+
+
+def test_randomized_behavior_and_deterministic_paired_labels_validate() -> None:
+    record = _with_behavior(_record())
+
+    validate_corpus([record], require_paired=True)
+
+    assert all(
+        len(item.decision.available_actions) == 1
+        and item.decision.history_conditioned_propensity == 1.0
+        for item in record.observations
+        if isinstance(item.decision, AcquisitionDecision)
+    )
+    report = build_corpus_report([record])
+    diagnostics = report["propensity_diagnostics"]
+    assert diagnostics["decision_source"] == "record.behavior_trajectory_only"
+    assert diagnostics["label_evidence_decisions_excluded"] == 7
+    assert diagnostics["deterministic_bootstrap_steps_excluded"] == 0
+    assert diagnostics["overall"]["decisions"] == 2
+    assert diagnostics["overall"]["randomized_decisions"] == 2
+    assert diagnostics["overall"]["deterministic_decisions"] == 0
+    assert diagnostics["overall"]["action_level_behavior"]["logged_policy_decisions"] == 2
+    assert diagnostics["by_collection_policy"][0]["decisions"] == 2
+    assert report["behavior_trajectory_counts"] == {
+        "nonempty": 1,
+        "empty": 0,
+        "bootstrap_steps": 0,
+        "steps": 2,
+        "nonterminal_steps": 1,
+        "terminal_steps": 1,
+    }
+    assert report["behavior_trajectories"] == [
+        {
+            "instance_id": record.manifest.instance_id,
+            "candidate_id": record.manifest.candidate_id,
+            "behavior_trajectory_digest": record.behavior_trajectory_digest(),
+            "behavior_source_manifest_sha256": (
+                record.behavior_source_manifest.canonical_digest()
+                if record.behavior_source_manifest is not None
+                else None
+            ),
+            "bootstrap_step_count": 0,
+            "behavior_step_count": 2,
+            "nonterminal_step_count": 1,
+            "terminal_step_count": 1,
+        }
+    ]
+
+
+def test_behavior_trajectory_round_trips_with_exact_decisions_and_results() -> None:
+    record = _with_behavior(_record())
+
+    restored = VerificationGapRecord.from_dict(record.to_dict())
+
+    assert restored.behavior_trajectory == record.behavior_trajectory
+    assert restored.behavior_trajectory_digest() == record.behavior_trajectory_digest()
+    assert restored.to_dict() == record.to_dict()
+    validate_corpus([restored], require_paired=True)
+
+
+def test_behavior_source_manifest_and_bootstrap_are_explicitly_bound() -> None:
+    base_record = _record()
+    payload = base_record.to_dict()
+    del payload["behavior_source_manifest"]
+    with pytest.raises(ValueError, match="missing required behavior fields"):
+        VerificationGapRecord.from_dict(payload)
+
+    unbound_behavior = _behavior_trajectory(base_record)
+    with pytest.raises(ValueError, match="requires behavior_source_manifest"):
+        replace(base_record, behavior_trajectory=unbound_behavior)
+
+    orphan_source = ValidityManifest.from_dict(base_record.manifest.to_dict())
+    with pytest.raises(ValueError, match="require a nonempty behavior trajectory"):
+        replace(base_record, behavior_source_manifest=orphan_source)
+
+    record = _with_behavior(base_record, bootstrap=True)
+    restored = VerificationGapRecord.from_dict(record.to_dict())
+    validate_corpus([restored], require_paired=True)
+
+    assert restored.behavior_source_manifest is not None
+    assert restored.behavior_bootstrap_history == (
+        restored.behavior_trajectory[0].decision.router_state.bootstrap_history
+    )
+    report = build_corpus_report([restored])
+    diagnostics = report["propensity_diagnostics"]
+    assert diagnostics["overall"]["decisions"] == 2
+    assert diagnostics["deterministic_bootstrap_steps_excluded"] == 1
+    assert report["behavior_trajectory_counts"] == {
+        "nonempty": 1,
+        "empty": 0,
+        "bootstrap_steps": 1,
+        "steps": 2,
+        "nonterminal_steps": 1,
+        "terminal_steps": 1,
+    }
+    assert report["behavior_trajectories"][0]["bootstrap_step_count"] == 1
+
+
+def test_behavior_source_manifest_rejects_baseline_and_suffix_tampering() -> None:
+    record = _with_behavior(_record(), bootstrap=True)
+    assert record.behavior_source_manifest is not None
+
+    foreign_source = ValidityManifest.from_dict(record.behavior_source_manifest.to_dict())
+    foreign_source.provenance["dataset_revision"] = "foreign-revision"
+    with pytest.raises(ValueError, match="source manifest baseline contradicts"):
+        replace(record, behavior_source_manifest=foreign_source)
+
+    source_with_suffix = ValidityManifest.from_dict(record.behavior_source_manifest.to_dict())
+    extra_observation = replace(
+        record.behavior_trajectory[0].observation,
+        acquisition_id="acq-" + "c" * 32,
+    )
+    source_with_suffix.add_evidence(extra_observation)
+    source_with_suffix.add_decision(
+        RouteDecision(
+            action=RouteAction.RUN_STATIC,
+            policy_version="fixture-bootstrap-v1",
+            candidate_risk=0.4,
+            verifier_risk=0.3,
+            expected_information_gain=0.6,
+            estimated_relative_cost=0.2,
+            reasons=("unbound suffix",),
+        )
+    )
+    with pytest.raises(ValueError, match="only the bound bootstrap prefix"):
+        replace(record, behavior_source_manifest=source_with_suffix)
+
+    record.behavior_source_manifest.provenance["dataset_revision"] = "mutated-after-construction"
+    with pytest.raises(ValueError, match="source manifest baseline contradicts"):
+        validate_corpus([record])
+
+
+def test_behavior_source_manifest_rejects_nested_privileged_bootstrap_metadata() -> None:
+    record = _with_behavior(_record(), bootstrap=True)
+    assert record.behavior_source_manifest is not None
+    source = ValidityManifest.from_dict(record.behavior_source_manifest.to_dict())
+    source.evidence[0] = replace(
+        source.evidence[0],
+        metadata={"runner": {"message": "gold patch truth"}},
+    )
+
+    with pytest.raises(ValueError, match="metadata must be stripped"):
+        replace(record, behavior_source_manifest=source)
+
+    source = ValidityManifest.from_dict(record.behavior_source_manifest.to_dict())
+    source.route_history[0] = replace(
+        source.route_history[0],
+        reasons=("gold patch truth",),
+    )
+    with pytest.raises(ValueError, match="route reasons must be canonical"):
+        replace(record, behavior_source_manifest=source)
+
+
+def test_behavior_bootstrap_acquisition_identity_is_disjoint_from_labels() -> None:
+    record = _record()
+    source_manifest, bootstrap_history = _behavior_source_with_bootstrap(record)
+    colliding_observation = replace(
+        bootstrap_history[0].observation,
+        acquisition_id=record.observations[0].observation.acquisition_id,
+    )
+    source_manifest.evidence[0] = colliding_observation
+    colliding_bootstrap = (replace(bootstrap_history[0], observation=colliding_observation),)
+    behavior = _behavior_trajectory(
+        record,
+        source_manifest=source_manifest,
+        bootstrap_history=colliding_bootstrap,
+    )
+
+    with pytest.raises(ValueError, match="namespaces must be disjoint"):
+        replace(
+            record,
+            behavior_source_manifest=source_manifest,
+            behavior_bootstrap_history=colliding_bootstrap,
+            behavior_trajectory=behavior,
+        )
+
+
+def _operational_behavior_metadata(
+    record: VerificationGapRecord,
+    step: BehaviorStep,
+) -> dict[str, object]:
+    assert step.observation is not None
+    capture_stream = {
+        "captured_bytes": 0,
+        "total_bytes": 0,
+        "truncated": False,
+        "sha256": hashlib.sha256(b"").hexdigest(),
+        "read_error": None,
+    }
+    return {
+        "acquisition_schema_version": ACQUISITION_SCHEMA_VERSION,
+        "runner": "bench-cleanser-acquire",
+        "runner_version": __version__,
+        "outcome": "supports_correct",
+        "return_code": 0,
+        "capture_incomplete": False,
+        "artifact_sha256": step.artifact_sha256,
+        "artifact_locator": step.artifact_locator,
+        "capture_bindings": {
+            "stdout": dict(capture_stream),
+            "stderr": dict(capture_stream),
+        },
+        "stdout_truncated": False,
+        "stderr_truncated": False,
+        "measured_cost_dimensions": ["wall_seconds", "storage_bytes"],
+        "route_provenance": {
+            "orchestration_schema_version": ORCHESTRATION_SCHEMA_VERSION,
+            "manifest_sha256_before_acquisition": "1" * 64,
+            "route_history_index": (
+                len(record.behavior_bootstrap_history) + step.decision.decision_step
+            ),
+            "route_decision_sha256": "2" * 64,
+            "route_action": step.decision.chosen_offer.route_action.value,
+            "policy_version": "conservative-v1",
+            "expected_evidence_kind": step.observation.kind.value,
+            "plan_sha256": "3" * 64,
+            "request_sha256": "4" * 64,
+            "instance_id": step.decision.instance_id,
+            "candidate_id": step.decision.candidate_id,
+            "base_commit": record.base_commit,
+            "workspace_id": "fixture-workspace",
+            "workspace_identity_sha256": "5" * 64,
+            "acquisition_id": step.observation.acquisition_id,
+            "prepared_at": step.decision.decided_at,
+            "prepared_envelope_sha256": "6" * 64,
+            "attempt_semantics": ATTEMPT_SEMANTICS,
+            "attempt_scope": ATTEMPT_SCOPE,
+            "workspace_identity_scope": WORKSPACE_IDENTITY_SCOPE,
+            "execution_backend": EXECUTION_BACKEND,
+            "detached_child_containment": DETACHED_CHILD_CONTAINMENT,
+        },
+    }
+
+
+def _operational_behavior_observation(
+    step: BehaviorStep,
+    metadata: dict[str, object],
+) -> EvidenceObservation:
+    assert step.observation is not None
+    return replace(
+        step.observation,
+        verifier_validity=None,
+        cost=EvidenceCost(
+            wall_seconds=step.observation.cost.wall_seconds,
+            storage_bytes=step.observation.cost.storage_bytes,
+        ),
+        metadata=metadata,
+    )
+
+
+@pytest.mark.parametrize("metadata_key", ["ground_truth", "gold_patch", "debug_note"])
+def test_behavior_results_reject_unknown_metadata_keys(metadata_key: str) -> None:
+    record = _with_behavior(_record())
+    first = record.behavior_trajectory[0]
+    assert first.observation is not None
+
+    metadata = _operational_behavior_metadata(record, first)
+    metadata[metadata_key] = "untyped"
+    with pytest.raises(ValueError, match="not operationally allowlisted"):
+        replace(
+            first,
+            observation=_operational_behavior_observation(first, metadata),
+        )
+
+    with pytest.raises(ValueError, match="missing producer fields"):
+        replace(
+            first,
+            observation=_operational_behavior_observation(
+                first,
+                {"runner": "fixture-runner"},
+            ),
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("runner", "candidate_correct_official_solution", "runner identity differs"),
+        ("runner", "gοld_patch_accepted", "runner identity differs"),
+        ("return_code", "correct", "must be an integer"),
+        ("return_code", None, "requires a non-negative return code"),
+        ("outcome", "oracle_verdict_pass", "not a known operational outcome"),
+    ],
+)
+def test_behavior_results_require_typed_producer_values(
+    field: str,
+    value: object,
+    message: str,
+) -> None:
+    record = _with_behavior(_record())
+    first = record.behavior_trajectory[0]
+    assert first.observation is not None
+
+    metadata = _operational_behavior_metadata(record, first)
+    metadata[field] = value
+    with pytest.raises(ValueError, match=message):
+        replace(
+            first,
+            observation=_operational_behavior_observation(first, metadata),
+        )
+
+
+def test_behavior_results_accept_the_operational_acquisition_envelope() -> None:
+    record = _with_behavior(_record())
+    first, terminal = record.behavior_trajectory
+    assert first.observation is not None
+    metadata = _operational_behavior_metadata(record, first)
+
+    accepted = replace(
+        first,
+        observation=_operational_behavior_observation(first, metadata),
+    )
+    assert accepted.observation is not None
+    assert accepted.observation.metadata["runner"] == "bench-cleanser-acquire"
+    rebuilt_terminal = _behavior_trajectory(
+        record,
+        source_manifest=record.behavior_source_manifest,
+        bootstrap_history=record.behavior_bootstrap_history,
+        result_observation=accepted.observation,
+    )[1]
+    validate_corpus([replace(record, behavior_trajectory=(accepted, rebuilt_terminal))])
+
+    locator = "artifact://gold-repository/label-tools/result"
+    locator_metadata = dict(metadata)
+    locator_metadata["artifact_locator"] = locator
+    locator_step = replace(
+        first,
+        artifact_locator=locator,
+        observation=_operational_behavior_observation(first, locator_metadata),
+    )
+    assert locator_step.artifact_locator == locator
+
+    tampered_metadata = dict(metadata)
+    tampered_route = dict(metadata["route_provenance"])
+    tampered_route["candidate_id"] = f"sha256:{'f' * 64}"
+    tampered_metadata["route_provenance"] = tampered_route
+    with pytest.raises(ValueError, match="route provenance differs"):
+        replace(
+            first,
+            observation=_operational_behavior_observation(first, tampered_metadata),
+        )
+
+    for key, value in (
+        ("attempt_scope", "foreign"),
+        ("execution_backend", "foreign"),
+        ("orchestration_schema_version", "999.0"),
+    ):
+        tampered_metadata = dict(metadata)
+        tampered_route = dict(metadata["route_provenance"])
+        tampered_route[key] = value
+        tampered_metadata["route_provenance"] = tampered_route
+        with pytest.raises(ValueError, match="producer constants differ"):
+            replace(
+                first,
+                observation=_operational_behavior_observation(first, tampered_metadata),
+            )
+
+    future_metadata = dict(metadata)
+    future_route = dict(metadata["route_provenance"])
+    future_route["prepared_at"] = "2099-01-01T00:00:00Z"
+    future_metadata["route_provenance"] = future_route
+    with pytest.raises(ValueError, match="prepared between"):
+        replace(
+            first,
+            observation=_operational_behavior_observation(first, future_metadata),
+        )
+
+    for key, value, message in (
+        ("base_commit", "b" * 40, "base commit differs"),
+        ("route_history_index", 99, "history index differs"),
+    ):
+        tampered_metadata = dict(metadata)
+        tampered_route = dict(metadata["route_provenance"])
+        tampered_route[key] = value
+        tampered_metadata["route_provenance"] = tampered_route
+        tampered_step = replace(
+            first,
+            observation=_operational_behavior_observation(first, tampered_metadata),
+        )
+        with pytest.raises(ValueError, match=message):
+            replace(record, behavior_trajectory=(tampered_step, terminal))
+
+
+def test_behavior_results_reject_producer_impossible_nonsemantic_costs() -> None:
+    record = _with_behavior(_record())
+    first = record.behavior_trajectory[0]
+    metadata = _operational_behavior_metadata(record, first)
+    observation = _operational_behavior_observation(first, metadata)
+
+    with pytest.raises(ValueError, match="cannot carry token or currency cost"):
+        replace(
+            first,
+            observation=replace(
+                observation,
+                cost=replace(observation.cost, input_tokens=1),
+            ),
+        )
+
+    with pytest.raises(ValueError, match="measured cost scope differs"):
+        replace(
+            first,
+            observation=replace(
+                observation,
+                cost=replace(observation.cost, cpu_seconds=0.01),
+            ),
+        )
+
+    read_error_metadata = dict(metadata)
+    capture_bindings = dict(metadata["capture_bindings"])
+    stdout = dict(capture_bindings["stdout"])
+    stdout["read_error"] = "fixture read failure"
+    capture_bindings["stdout"] = stdout
+    read_error_metadata["capture_bindings"] = capture_bindings
+    with pytest.raises(ValueError, match="read error contradicts producer outcome"):
+        replace(
+            first,
+            observation=_operational_behavior_observation(
+                first,
+                read_error_metadata,
+            ),
+        )
+
+    with pytest.raises(ValueError, match="confidence differs"):
+        replace(
+            first,
+            observation=replace(observation, confidence=0.5),
+        )
+
+    for field, value in (
+        ("source", " fixture-static "),
+        ("source", "fixture\x00static"),
+        ("source_version", ""),
+        ("source_version", " v1 "),
+        ("source_version", "v1\x00hidden"),
+    ):
+        with pytest.raises(ValueError, match="source identity differs"):
+            replace(
+                first,
+                observation=replace(observation, **{field: value}),
+            )
+
+    inconsistent_capture = dict(metadata)
+    capture_bindings = dict(metadata["capture_bindings"])
+    stdout = dict(capture_bindings["stdout"])
+    stdout["total_bytes"] = 1
+    capture_bindings["stdout"] = stdout
+    inconsistent_capture["capture_bindings"] = capture_bindings
+    with pytest.raises(ValueError, match="truncation contradicts byte counts"):
+        replace(
+            first,
+            observation=_operational_behavior_observation(
+                first,
+                inconsistent_capture,
+            ),
+        )
+
+
+def test_behavior_step_ingests_the_current_acquire_producer(
+    tmp_path: pathlib.Path,
+) -> None:
+    record = _with_behavior(_record())
+    first = record.behavior_trajectory[0]
+    observation = acquire_evidence(
+        AcquisitionRequest(
+            kind=EvidenceKind.STATIC,
+            source="fixture-static",
+            source_version="v1",
+            workspace_root=str(tmp_path),
+            argv=(sys.executable, "-c", "raise SystemExit(0)"),
+            timeout_seconds=5.0,
+        ),
+        artifact_directory=tmp_path / "artifacts",
+        acquisition_id=first.decision.acquisition_id,
+    )
+    artifact_sha256 = observation.metadata["artifact_sha256"]
+    artifact_locator = observation.metadata["artifact_locator"]
+    assert isinstance(artifact_sha256, str)
+    assert isinstance(artifact_locator, str)
+
+    actual = BehaviorStep(
+        decision=first.decision,
+        observation=observation,
+        artifact_sha256=artifact_sha256,
+        artifact_locator=artifact_locator,
+        collected_at="2026-07-15T00:00:00Z",
+    )
+
+    assert actual.observation is not None
+    assert actual.observation.metadata["acquisition_schema_version"] == (ACQUISITION_SCHEMA_VERSION)
+
+
+def test_behavior_step_ingests_and_checks_current_semantic_producer(
+    tmp_path: pathlib.Path,
+) -> None:
+    record = _with_behavior(_record())
+    first = record.behavior_trajectory[0]
+    chosen_action_id = f"route-{RouteAction.RUN_SEMANTIC.value}"
+    chosen = next(
+        item for item in first.decision.behavior_distribution if item.action_id == chosen_action_id
+    )
+    lower = sum(
+        item.propensity
+        for item in first.decision.behavior_distribution
+        if item.action_id < chosen_action_id
+    )
+    decision = replace(
+        first.decision,
+        chosen_action_id=chosen_action_id,
+        chosen_propensity=chosen.propensity,
+        sampler_draw=lower + chosen.propensity / 2.0,
+        decision_sha256="",
+        trajectory_head_sha256="",
+    )
+    payload = {
+        "schema_version": SEMANTIC_OUTPUT_SCHEMA_VERSION,
+        "status": EvidenceStatus.SUPPORTS_CORRECT.value,
+        "candidate_probability": 0.9,
+        "calibrated_risk_upper_bound": None,
+        "calibration_id": "",
+        "verifier_validity": 0.8,
+        "privileged_inputs": [],
+        "cost": {
+            "input_tokens": 10,
+            "output_tokens": 2,
+            "usd": 0.01,
+        },
+    }
+    rendered = json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n"
+    observation = acquire_evidence(
+        AcquisitionRequest(
+            kind=EvidenceKind.SEMANTIC,
+            source="fixture-semantic",
+            source_version="v1",
+            workspace_root=str(tmp_path),
+            argv=(
+                sys.executable,
+                "-c",
+                f"import sys; sys.stdout.write({rendered!r})",
+            ),
+            timeout_seconds=5.0,
+            supports_incorrect_exit_codes=(),
+        ),
+        artifact_directory=tmp_path / "semantic-artifacts",
+        acquisition_id=decision.acquisition_id,
+    )
+    artifact_sha256 = observation.metadata["artifact_sha256"]
+    artifact_locator = observation.metadata["artifact_locator"]
+    assert isinstance(artifact_sha256, str)
+    assert isinstance(artifact_locator, str)
+
+    actual = BehaviorStep(
+        decision=decision,
+        observation=observation,
+        artifact_sha256=artifact_sha256,
+        artifact_locator=artifact_locator,
+        collected_at="2026-07-15T00:00:00Z",
+    )
+    assert actual.observation is not None
+    assert actual.observation.metadata["outcome"] == "semantic_result"
+
+    undeclared_cost = dict(observation.metadata)
+    undeclared_cost["producer_declared_cost_dimensions"] = (
+        "input_tokens",
+        "output_tokens",
+    )
+    with pytest.raises(ValueError, match="exceed producer-declared dimensions"):
+        replace(actual, observation=replace(observation, metadata=undeclared_cost))
+
+    wrong_digest = dict(observation.metadata)
+    wrong_digest["semantic_output_sha256"] = "0" * 64
+    with pytest.raises(ValueError, match="differs from retained stdout"):
+        replace(actual, observation=replace(observation, metadata=wrong_digest))
+
+    impossible_semantic_fields = (
+        {"candidate_probability": 0.1},
+        {
+            "status": EvidenceStatus.INCONCLUSIVE,
+            "candidate_probability": 0.9,
+        },
+        {"calibration_id": "unbound-calibration"},
+    )
+    for changes in impossible_semantic_fields:
+        with pytest.raises(ValueError, match="fields differ from the acquisition producer"):
+            replace(
+                actual,
+                observation=replace(observation, **changes),
+            )
+
+
+def test_behavior_step_requires_exact_terminal_and_nonterminal_result_shapes() -> None:
+    record = _with_behavior(_record())
+    first, terminal = record.behavior_trajectory
+
+    with pytest.raises(ValueError, match="nonterminal behavior step requires"):
+        BehaviorStep(decision=first.decision)
+
+    with pytest.raises(ValueError, match="terminal behavior step cannot carry"):
+        BehaviorStep(
+            decision=terminal.decision,
+            observation=first.observation,
+            artifact_sha256=first.artifact_sha256,
+            artifact_locator=first.artifact_locator,
+            collected_at=first.collected_at,
+        )
+
+
+def test_behavior_trajectory_rejects_noncontiguous_and_broken_chains() -> None:
+    record = _with_behavior(_record())
+    first, terminal = record.behavior_trajectory
+
+    with pytest.raises(ValueError, match="steps must start at zero and be contiguous"):
+        replace(record, behavior_trajectory=(terminal,))
+
+    broken_decision = replace(
+        terminal.decision,
+        prior_trajectory_head_sha256="f" * 64,
+        decision_sha256="",
+        trajectory_head_sha256="",
+    )
+    with pytest.raises(ValueError, match="broken prior-head link"):
+        replace(
+            record,
+            behavior_trajectory=(first, replace(terminal, decision=broken_decision)),
+        )
+
+    successor_state = terminal.decision.router_state
+    tampered_state = replace(
+        successor_state,
+        evidence_history=(replace(successor_state.evidence_history[0], source="tampered-source"),),
+    )
+    tampered_successor = replace(
+        terminal.decision,
+        history_sha256=tampered_state.history_sha256(),
+        router_state_sha256=tampered_state.canonical_digest(),
+        router_state=tampered_state,
+        decision_sha256="",
+        trajectory_head_sha256="",
+    )
+    with pytest.raises(ValueError, match="exact prior result"):
+        replace(
+            record,
+            behavior_trajectory=(
+                first,
+                replace(terminal, decision=tampered_successor),
+            ),
+        )
+
+
+def test_label_and_behavior_trajectory_digests_change_independently() -> None:
+    record = _with_behavior(_record())
+    behavior = record.behavior_trajectory
+    label_digest = record.label_evidence_trajectory_digest()
+    behavior_digest = record.behavior_trajectory_digest()
+
+    label_events = list(record.observations)
+    label_events[0] = replace(
+        label_events[0],
+        artifact_locator="artifact://fixture/static/recollected",
+    )
+    label_changed = replace(record, observations=tuple(label_events))
+    assert label_changed.label_evidence_trajectory_digest() != label_digest
+    assert label_changed.behavior_trajectory_digest() == behavior_digest
+
+    behavior_changed = replace(
+        record,
+        behavior_trajectory=(
+            replace(
+                behavior[0],
+                artifact_locator="artifact://fixture/behavior/static/recollected",
+            ),
+            behavior[1],
+        ),
+    )
+    assert behavior_changed.label_evidence_trajectory_digest() == label_digest
+    assert behavior_changed.behavior_trajectory_digest() != behavior_digest
+
+
+def test_behavior_trajectory_tampering_changes_digest_or_fails_closed() -> None:
+    record = _with_behavior(_record())
+    payload = record.to_dict()
+    payload["behavior_trajectory"][0]["artifact_sha256"] = "0" * 64
+
+    changed = VerificationGapRecord.from_dict(payload)
+
+    assert changed.behavior_trajectory_digest() != record.behavior_trajectory_digest()
+    assert changed.label_evidence_trajectory_digest() == record.label_evidence_trajectory_digest()
+
+    payload = record.to_dict()
+    payload["behavior_trajectory"][0]["decision"]["decision_sha256"] = "0" * 64
+    with pytest.raises(ValueError, match="decision_sha256 does not match"):
+        VerificationGapRecord.from_dict(payload)
 
 
 def test_evidence_validity_adjudication_round_trips_with_provenance() -> None:
@@ -502,7 +1361,7 @@ def test_legacy_scalar_evidence_validity_fails_with_migration_error() -> None:
         ValueError,
         match=(
             r"legacy observations\[0\]\.validity_label is unsupported in corpus "
-            r"0\.5\.0; provide provenance-bearing validity_adjudication"
+            r"0\.6\.0; provide provenance-bearing validity_adjudication"
         ),
     ):
         VerificationGapRecord.from_dict(payload)
@@ -532,15 +1391,17 @@ def test_live_policy_bridge_is_lossless_and_keeps_all_three_identities() -> None
     assert isinstance(restored.decision, LoggedPolicyDecision)
     assert restored.decision.to_dict() == policy_decision.to_dict()
     assert restored.decision.decision_sha256 == policy_decision.decision_sha256
+    assert restored.decision.trajectory_head_sha256 == policy_decision.trajectory_head_sha256
     assert (
-        restored.decision.trajectory_head_sha256
-        == policy_decision.trajectory_head_sha256
+        len(
+            [
+                offer
+                for offer in restored.decision.action_catalog
+                if offer.evidence_kind == EvidenceKind.SEMANTIC
+            ]
+        )
+        == 2
     )
-    assert len([
-        offer
-        for offer in restored.decision.action_catalog
-        if offer.evidence_kind == EvidenceKind.SEMANTIC
-    ]) == 2
     assert {
         offer.route_action
         for offer in restored.decision.action_catalog
@@ -559,23 +1420,10 @@ def test_live_policy_bridge_is_lossless_and_keeps_all_three_identities() -> None
     record = replace(_record(), observations=(restored,))
     validate_corpus([record])
     report = build_corpus_report([record])
-    exact = report["propensity_diagnostics"]["overall"][
-        "action_level_behavior"
-    ]
-    assert exact["logged_policy_decisions"] == 1
-    assert len([
-        offer for offer in exact["offers"]
-        if offer["evidence_kind"] == EvidenceKind.SEMANTIC.value
-    ]) == 2
-    assert {
-        offer["route_action"]
-        for offer in exact["offers"]
-        if offer["evidence_kind"] is None
-    } == {
-        RouteAction.ACCEPT.value,
-        RouteAction.REJECT.value,
-        RouteAction.ABSTAIN.value,
-    }
+    exact = report["propensity_diagnostics"]["overall"]["action_level_behavior"]
+    assert exact["logged_policy_decisions"] == 0
+    assert exact["offers"] == []
+    assert report["propensity_diagnostics"]["label_evidence_decisions_excluded"] == 1
 
 
 def test_live_policy_bridge_fails_closed_on_mismatched_or_posthoc_inputs() -> None:
@@ -595,9 +1443,7 @@ def test_live_policy_bridge_fails_closed_on_mismatched_or_posthoc_inputs() -> No
         )
 
     terminal_offer = next(
-        offer
-        for offer in decision.action_catalog
-        if offer.route_action == RouteAction.ABSTAIN
+        offer for offer in decision.action_catalog if offer.route_action == RouteAction.ABSTAIN
     )
     terminal_catalog = tuple(
         replace(
@@ -611,9 +1457,7 @@ def test_live_policy_bridge_fails_closed_on_mismatched_or_posthoc_inputs() -> No
         )
         for offer in decision.action_catalog
     )
-    terminal_distribution = (
-        BehaviorProbability(terminal_offer.action_id, 1.0),
-    )
+    terminal_distribution = (BehaviorProbability(terminal_offer.action_id, 1.0),)
     terminal = replace(
         decision,
         acquisition_id=None,
@@ -633,9 +1477,7 @@ def test_live_policy_bridge_fails_closed_on_mismatched_or_posthoc_inputs() -> No
                 observation,
                 acquisition_id="",
             ),
-            validity_adjudication=_validity_adjudication(
-                EvidenceValidity.INDETERMINATE
-            ),
+            validity_adjudication=_validity_adjudication(EvidenceValidity.INDETERMINATE),
             collected_at="2026-01-03T00:00:00Z",
         )
 
@@ -689,15 +1531,17 @@ def test_live_policy_bridge_rejects_missing_and_future_observation_times() -> No
 
     successor_manifest = ValidityManifest.from_dict(manifest.to_dict())
     successor_manifest.add_evidence(first_observation)
-    successor_manifest.add_decision(RouteDecision(
-        action=RouteAction.RUN_STATIC,
-        policy_version="fixture-route-v1",
-        candidate_risk=0.4,
-        verifier_risk=0.3,
-        expected_information_gain=0.6,
-        estimated_relative_cost=0.2,
-        reasons=("fixture prior route",),
-    ))
+    successor_manifest.add_decision(
+        RouteDecision(
+            action=RouteAction.RUN_STATIC,
+            policy_version="fixture-route-v1",
+            candidate_risk=0.4,
+            verifier_risk=0.3,
+            expected_information_gain=0.6,
+            estimated_relative_cost=0.2,
+            reasons=("fixture prior route",),
+        )
+    )
     future_observing_decision = _live_policy_decision(
         successor_manifest,
         prior_head=first_decision.trajectory_head_sha256,
@@ -734,15 +1578,17 @@ def test_live_policy_decisions_cannot_follow_curated_collection() -> None:
     curated = record.observations[0]
     successor_manifest = ValidityManifest.from_dict(record.manifest.to_dict())
     successor_manifest.add_evidence(curated.observation)
-    successor_manifest.add_decision(RouteDecision(
-        action=RouteAction.RUN_STATIC,
-        policy_version="fixture-route-v1",
-        candidate_risk=0.4,
-        verifier_risk=0.3,
-        expected_information_gain=0.6,
-        estimated_relative_cost=0.2,
-        reasons=("fixture prior route",),
-    ))
+    successor_manifest.add_decision(
+        RouteDecision(
+            action=RouteAction.RUN_STATIC,
+            policy_version="fixture-route-v1",
+            candidate_risk=0.4,
+            verifier_risk=0.3,
+            expected_information_gain=0.6,
+            estimated_relative_cost=0.2,
+            reasons=("fixture prior route",),
+        )
+    )
     live_decision = _live_policy_decision(
         successor_manifest,
         prior_head="f" * 64,
@@ -772,11 +1618,13 @@ def test_report_exposes_denominators_completeness_validity_and_cost() -> None:
     assert report["paired_complete_records"] == 1
     assert report["task_validity_counts"] == {"valid": 1}
     assert report["candidate_correctness_counts"] == {"correct": 1}
-    assert report["record_digests"] == [{
-        "instance_id": "owner__repo-1",
-        "candidate_id": f"sha256:{_DEFAULT_CANDIDATE_SHA256}",
-        "record_sha256": _record().canonical_digest(),
-    }]
+    assert report["record_digests"] == [
+        {
+            "instance_id": "owner__repo-1",
+            "candidate_id": f"sha256:{_DEFAULT_CANDIDATE_SHA256}",
+            "record_sha256": _record().canonical_digest(),
+        }
+    ]
     assert report["evidence_event_counts"]["full_execution"] == 2
     assert report["evidence_validity_counts"]["semantic"] == {"valid": 1}
     assert report["evidence_validity_adjudication_status_counts"]["semantic"] == {
@@ -787,24 +1635,131 @@ def test_report_exposes_denominators_completeness_validity_and_cost() -> None:
     }
     assert report["cost_totals"]["input_tokens"] == 70
     assert report["corpus_digest"]
-    assert report["acquisition_trajectories"] == [{
-        "instance_id": "owner__repo-1",
-        "candidate_id": f"sha256:{_DEFAULT_CANDIDATE_SHA256}",
-        "collection_policy": "paired-all-modalities",
-        "collection_policy_version": "v1",
-        "acquisition_trajectory_digest": _record().acquisition_trajectory_digest(),
-    }]
+    assert report["acquisition_trajectories"] == [
+        {
+            "instance_id": "owner__repo-1",
+            "candidate_id": f"sha256:{_DEFAULT_CANDIDATE_SHA256}",
+            "collection_policy": "paired-all-modalities",
+            "collection_policy_version": "v1",
+            "acquisition_trajectory_digest": _record().acquisition_trajectory_digest(),
+        }
+    ]
+    assert report["label_evidence_trajectory_contract"] == (
+        "bench-cleanser-label-evidence-trajectory-v1"
+    )
+    assert report["label_evidence_trajectories"] == [
+        {
+            "instance_id": "owner__repo-1",
+            "candidate_id": f"sha256:{_DEFAULT_CANDIDATE_SHA256}",
+            "collection_policy": "paired-all-modalities",
+            "collection_policy_version": "v1",
+            "label_evidence_trajectory_digest": (_record().label_evidence_trajectory_digest()),
+        }
+    ]
+    assert report["behavior_trajectory_contract"] == ("bench-cleanser-behavior-trajectory-v1")
+    assert report["behavior_trajectories"] == [
+        {
+            "instance_id": "owner__repo-1",
+            "candidate_id": f"sha256:{_DEFAULT_CANDIDATE_SHA256}",
+            "behavior_trajectory_digest": _record().behavior_trajectory_digest(),
+            "behavior_source_manifest_sha256": None,
+            "bootstrap_step_count": 0,
+            "behavior_step_count": 0,
+            "nonterminal_step_count": 0,
+            "terminal_step_count": 0,
+        }
+    ]
+    assert report["behavior_trajectory_counts"] == {
+        "nonempty": 0,
+        "empty": 1,
+        "bootstrap_steps": 0,
+        "steps": 0,
+        "nonterminal_steps": 0,
+        "terminal_steps": 0,
+    }
     assert report["completeness_scope"] == "schema_and_collection_protocol_only"
     assert report["scientific_adequacy"]["assessed"] is False
     assert report["minimum_adjudicator_agreement"] == MIN_ADJUDICATOR_AGREEMENT
     propensity = report["propensity_diagnostics"]
     assert propensity["scope"] == "descriptive_logged_behavior_policy_only"
-    assert propensity["overall"]["decisions"] == 7
-    assert propensity["overall"]["deterministic_decisions"] == 7
+    assert propensity["decision_source"] == "record.behavior_trajectory_only"
+    assert propensity["label_evidence_decisions_excluded"] == 7
+    assert propensity["deterministic_bootstrap_steps_excluded"] == 0
+    assert propensity["overall"]["decisions"] == 0
+    assert propensity["overall"]["deterministic_decisions"] == 0
     assert propensity["overall"]["randomized_decisions"] == 0
+    assert propensity["overall"]["minimum_chosen_propensity"] is None
     assert propensity["contextual_overlap"]["assessed"] is False
     assert propensity["causal_validity"]["assessed"] is False
     assert propensity["causal_validity"]["off_policy_estimates_computed"] is False
+
+
+def test_report_scopes_label_bootstrap_and_live_behavior_cost_and_time() -> None:
+    record = _with_behavior(_record(), bootstrap=True)
+
+    report = build_corpus_report([record])
+
+    assert report["cost_totals_scope"] == (
+        "inclusive_disjoint_label_evidence_behavior_bootstrap_and_live_behavior"
+    )
+    assert report["cost_totals_by_trajectory"]["label_evidence"]["input_tokens"] == 70
+    assert report["cost_totals_by_trajectory"]["behavior_bootstrap"]["input_tokens"] == 10
+    assert report["cost_totals_by_trajectory"]["live_behavior"]["input_tokens"] == 10
+    assert report["cost_totals_by_trajectory"]["inclusive"]["input_tokens"] == 90
+    assert report["cost_totals"]["input_tokens"] == 90
+    assert report["evidence_time_ranges"] == {
+        "label_evidence": {
+            "minimum": "2026-01-03T00:00:00Z",
+            "maximum": "2026-01-03T00:00:00Z",
+        },
+        "behavior_bootstrap": None,
+        "live_behavior": {
+            "minimum": "2026-01-02T13:00:00Z",
+            "maximum": "2026-01-02T13:00:00Z",
+        },
+        "inclusive_observed": {
+            "minimum": "2026-01-02T13:00:00Z",
+            "maximum": "2026-01-03T00:00:00Z",
+        },
+    }
+    assert report["evidence_time_range"] == report["evidence_time_ranges"]["inclusive_observed"]
+    assert report["behavior_bootstrap_time_status"]["available"] is False
+
+
+def test_report_time_ranges_compare_timezone_aware_instants() -> None:
+    later = replace(
+        _record(instance_id="instance-later"),
+        task_created_at="2026-01-02T20:30:00-05:00",
+        candidate_generated_at="2026-01-02T20:45:00-05:00",
+        observations=tuple(
+            replace(item, collected_at="2026-01-02T21:00:00-05:00")
+            for item in _record(instance_id="instance-later").observations
+        ),
+    )
+    earlier = replace(
+        _record(instance_id="instance-earlier"),
+        task_created_at="2026-01-03T00:00:00Z",
+        candidate_generated_at="2026-01-03T00:15:00Z",
+        observations=tuple(
+            replace(item, collected_at="2026-01-03T00:30:00Z")
+            for item in _record(instance_id="instance-earlier").observations
+        ),
+    )
+
+    report = build_corpus_report([later, earlier])
+
+    assert report["task_time_ranges"]["development"] == {
+        "minimum": "2026-01-03T00:00:00Z",
+        "maximum": "2026-01-02T20:30:00-05:00",
+    }
+    assert report["candidate_time_ranges"]["development"] == {
+        "minimum": "2026-01-03T00:15:00Z",
+        "maximum": "2026-01-02T20:45:00-05:00",
+    }
+    assert report["evidence_time_range"] == {
+        "minimum": "2026-01-03T00:30:00Z",
+        "maximum": "2026-01-02T21:00:00-05:00",
+    }
 
 
 def test_loader_rejects_malformed_rows_without_changing_denominator() -> None:
@@ -824,7 +1779,7 @@ def test_loader_rejects_duplicate_json_keys() -> None:
 
 def test_legacy_schemas_and_scalar_propensity_rows_fail_closed() -> None:
     payload = _record().to_dict()
-    for legacy_version in ("0.2.0", "0.3.0", "0.4.0"):
+    for legacy_version in ("0.2.0", "0.3.0", "0.4.0", "0.5.0"):
         payload["schema_version"] = legacy_version
         with pytest.raises(
             ValueError,
@@ -884,12 +1839,8 @@ def test_repository_groups_cannot_cross_splits() -> None:
 
 
 def test_repository_aliases_normalize_before_split_isolation() -> None:
-    assert normalize_repository_identity(
-        "https://github.com/Owner/Repo.git/"
-    ) == "owner/repo"
-    assert normalize_repository_identity(
-        "git@github.com:owner/repo.git"
-    ) == "owner/repo"
+    assert normalize_repository_identity("https://github.com/Owner/Repo.git/") == "owner/repo"
+    assert normalize_repository_identity("git@github.com:owner/repo.git") == "owner/repo"
 
     development = _record(repository="https://github.com/Owner/Repo.git")
     test = _record(
@@ -921,8 +1872,7 @@ def test_task_timestamp_requires_timezone_and_strict_splits_are_temporal() -> No
         task_created_at="2026-06-01T00:00:00Z",
         candidate_generated_at="2026-06-02T00:00:00Z",
         observations=tuple(
-            replace(item, collected_at="2026-06-03T00:00:00Z")
-            for item in development.observations
+            replace(item, collected_at="2026-06-03T00:00:00Z") for item in development.observations
         ),
     )
     test = _record(
@@ -936,8 +1886,7 @@ def test_task_timestamp_requires_timezone_and_strict_splits_are_temporal() -> No
         task_created_at="2026-05-01T00:00:00Z",
         candidate_generated_at="2026-05-02T00:00:00Z",
         observations=tuple(
-            replace(item, collected_at="2026-05-03T00:00:00Z")
-            for item in test.observations
+            replace(item, collected_at="2026-05-03T00:00:00Z") for item in test.observations
         ),
     )
 
@@ -950,8 +1899,7 @@ def test_strict_pairing_requires_every_modality_and_repeated_full_runs() -> None
     no_semantic = _resequence(
         record,
         tuple(
-            item for item in record.observations
-            if item.observation.kind != EvidenceKind.SEMANTIC
+            item for item in record.observations if item.observation.kind != EvidenceKind.SEMANTIC
         ),
     )
     with pytest.raises(ValueError, match="missing evidence kinds"):
@@ -960,11 +1908,9 @@ def test_strict_pairing_requires_every_modality_and_repeated_full_runs() -> None
     one_full = _resequence(
         record,
         tuple(
-            item for item in record.observations
-            if not (
-                item.observation.kind == EvidenceKind.FULL_EXECUTION
-                and item.replicate == 1
-            )
+            item
+            for item in record.observations
+            if not (item.observation.kind == EvidenceKind.FULL_EXECUTION and item.replicate == 1)
         ),
     )
     with pytest.raises(ValueError, match="fewer than two conclusive full-execution"):
@@ -980,9 +1926,7 @@ def test_strict_pairing_requires_every_modality_and_repeated_full_runs() -> None
                     status=EvidenceStatus.UNAVAILABLE,
                     authoritative=False,
                 ),
-                validity_adjudication=_validity_adjudication(
-                    EvidenceValidity.INVALID
-                ),
+                validity_adjudication=_validity_adjudication(EvidenceValidity.INVALID),
                 artifact_sha256="",
                 artifact_locator="",
             )
@@ -1009,9 +1953,7 @@ def test_strict_pairing_rejects_selectively_logged_or_unblinded_truth() -> None:
 
     unblinded = replace(
         _record(),
-        candidate_adjudication=replace(
-            _record().candidate_adjudication, blinded=False
-        ),
+        candidate_adjudication=replace(_record().candidate_adjudication, blinded=False),
     )
     with pytest.raises(ValueError, match="not blinded"):
         validate_corpus([unblinded], require_paired=True)
@@ -1240,10 +2182,12 @@ def test_live_trajectory_and_policy_action_identity_are_corpus_stable() -> None:
         decision=reused_trajectory_decision,
     )
     with pytest.raises(ValueError, match="trajectory_id .* crosses corpus records"):
-        validate_corpus([
-            first_record,
-            replace(second_record, observations=(reused_trajectory_event,)),
-        ])
+        validate_corpus(
+            [
+                first_record,
+                replace(second_record, observations=(reused_trajectory_event,)),
+            ]
+        )
 
     redefined_implementation = replace(
         second_decision,
@@ -1258,13 +2202,15 @@ def test_live_trajectory_and_policy_action_identity_are_corpus_stable() -> None:
         decision=redefined_implementation,
     )
     with pytest.raises(ValueError, match="changes code/config identity"):
-        validate_corpus([
-            first_record,
-            replace(
-                second_record,
-                observations=(redefined_implementation_event,),
-            ),
-        ])
+        validate_corpus(
+            [
+                first_record,
+                replace(
+                    second_record,
+                    observations=(redefined_implementation_event,),
+                ),
+            ]
+        )
 
     changed_catalog = tuple(
         replace(offer, adapter_id="adapter-semantic-redefined")
@@ -1280,13 +2226,15 @@ def test_live_trajectory_and_policy_action_identity_are_corpus_stable() -> None:
     )
     redefined_event = replace(second_event, decision=redefined_decision)
     with pytest.raises(ValueError, match="changes intervention identity"):
-        validate_corpus([
-            first_record,
-            replace(second_record, observations=(redefined_event,)),
-        ])
+        validate_corpus(
+            [
+                first_record,
+                replace(second_record, observations=(redefined_event,)),
+            ]
+        )
 
 
-def test_randomized_decision_logs_full_distribution_and_descriptive_support() -> None:
+def test_randomized_label_collection_is_not_reported_as_behavior_support() -> None:
     record = _record()
     randomized = _resequence(
         record,
@@ -1297,9 +2245,7 @@ def test_randomized_decision_logs_full_distribution_and_descriptive_support() ->
     )
     decision = randomized.observations[1].decision
 
-    assert decision.history_event_ids == (
-        randomized.observations[0].event_id,
-    )
+    assert decision.history_event_ids == (randomized.observations[0].event_id,)
     assert decision.chosen_action == EvidenceKind.SEMANTIC
     assert decision.history_conditioned_propensity == 0.25
     assert [item.to_dict() for item in decision.available_actions] == [
@@ -1309,11 +2255,11 @@ def test_randomized_decision_logs_full_distribution_and_descriptive_support() ->
 
     diagnostics = build_corpus_report([randomized])["propensity_diagnostics"]
     overall = diagnostics["overall"]
-    assert overall["randomized_decisions"] == 1
-    assert overall["minimum_chosen_propensity"] == 0.25
-    assert overall["per_action"]["static"]["available_decisions"] == 2
-    assert overall["per_action"]["static"]["chosen_decisions"] == 1
-    assert diagnostics["by_collection_policy"][0]["randomized_decisions"] == 1
+    assert overall["decisions"] == 0
+    assert overall["randomized_decisions"] == 0
+    assert overall["minimum_chosen_propensity"] is None
+    assert diagnostics["label_evidence_decisions_excluded"] == 7
+    assert diagnostics["by_collection_policy"] == []
 
 
 def test_action_distribution_requires_order_uniqueness_normalization_and_match() -> None:
@@ -1587,8 +2533,10 @@ def test_corpus_cli_reports_output_write_failure_cleanly(
         SystemExit,
         match="verification corpus validation failed: fixture output failure",
     ):
-        verification_corpus.main([
-            str(corpus_path),
-            "--output",
-            str(tmp_path / "report.json"),
-        ])
+        verification_corpus.main(
+            [
+                str(corpus_path),
+                "--output",
+                str(tmp_path / "report.json"),
+            ]
+        )

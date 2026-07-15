@@ -46,19 +46,20 @@ from bench_cleanser.verification.models import (
 )
 from bench_cleanser.verification.policy_log import RouterRouteStep
 
-SCIENTIFIC_LEDGER_SCHEMA_VERSION = "prospective-pilot-scientific-ledger-0.1.0"
+SCIENTIFIC_LEDGER_SCHEMA_VERSION = "prospective-pilot-scientific-ledger-0.2.0"
 SCIENTIFIC_RECORD_SCHEMA_VERSION = "prospective-pilot-scientific-record-0.1.0"
-SCIENTIFIC_EXPORT_SCHEMA_VERSION = "prospective-pilot-scientific-export-0.1.0"
+SCIENTIFIC_EXPORT_SCHEMA_VERSION = "prospective-pilot-scientific-export-0.2.0"
 BOOTSTRAP_RECEIPT_SCHEMA_VERSION = "prospective-pilot-bootstrap-receipt-0.1.0"
 CURATOR_RECEIPT_SCHEMA_VERSION = "prospective-pilot-curator-receipt-0.1.0"
 RESOURCE_RESERVATION_SCHEMA_VERSION = "prospective-pilot-resource-reservation-0.1.0"
-RESOURCE_SETTLEMENT_SCHEMA_VERSION = "prospective-pilot-resource-settlement-0.1.0"
+RESOURCE_SETTLEMENT_SCHEMA_VERSION = "prospective-pilot-resource-settlement-0.2.0"
 SIGNATURE_VERIFICATION_SCHEMA_VERSION = "prospective-pilot-signature-verification-0.1.0"
 SIGNED_ENVELOPE_SCHEMA_VERSION = "prospective-pilot-signed-envelope-0.1.0"
 STUDY_ID = "matched-24-independent-evidence-development-pilot-v2"
 GENESIS_RECORD_SHA256 = "0" * 64
 _MAX_SIGNATURE_BYTES = 1024 * 1024
 _MAX_RECORD_BYTES = 4 * 1024 * 1024
+_MAX_SCIENTIFIC_EXPORT_BYTES = 512 * 1024 * 1024
 _SHA256_RE = re.compile(r"[0-9a-f]{64}\Z")
 _CANDIDATE_RE = re.compile(r"sha256:[0-9a-f]{64}\Z")
 _IDENTIFIER_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/+@-]{0,254}\Z")
@@ -145,7 +146,7 @@ class ScientificLedgerConflict(ScientificLedgerError):
 
 
 class ResourceCeilingExceeded(ScientificLedgerError):
-    """A reservation or settlement would exceed the frozen resource ceiling."""
+    """New work would exceed a ceiling or is forbidden after a measured deviation."""
 
 
 class ScientificRecordKind(str, Enum):
@@ -237,6 +238,12 @@ def _timestamp(value: Any, field_name: str) -> str:
 def _nonnegative_integer(value: Any, field_name: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ScientificLedgerError(f"{field_name} must be a non-negative integer")
+    return value
+
+
+def _boolean(value: Any, field_name: str) -> bool:
+    if not isinstance(value, bool):
+        raise ScientificLedgerError(f"{field_name} must be a boolean")
     return value
 
 
@@ -357,6 +364,32 @@ class ResourceUsage:
         if not isinstance(other, ResourceUsage):
             return False
         return all(getattr(self, name) <= getattr(other, name) for name in self.field_names())
+
+
+def _usage_exceeded_dimensions(
+    usage: ResourceUsage,
+    ceiling: ResourceUsage,
+) -> tuple[str, ...]:
+    if not isinstance(usage, ResourceUsage) or not isinstance(ceiling, ResourceUsage):
+        raise ScientificLedgerError("resource deviation comparison requires ResourceUsage")
+    return tuple(
+        name
+        for name in ResourceUsage.field_names()
+        if getattr(usage, name) > getattr(ceiling, name)
+    )
+
+
+def _canonical_resource_dimensions(value: Any, field_name: str) -> tuple[str, ...]:
+    if not isinstance(value, (list, tuple)):
+        raise ScientificLedgerError(f"{field_name} must be a sequence")
+    dimensions = tuple(_string(item, f"{field_name}[{index}]") for index, item in enumerate(value))
+    allowed = ResourceUsage.field_names()
+    if any(item not in allowed for item in dimensions):
+        raise ScientificLedgerError(f"{field_name} contains an unknown resource dimension")
+    canonical = tuple(name for name in allowed if name in dimensions)
+    if dimensions != canonical or len(dimensions) != len(set(dimensions)):
+        raise ScientificLedgerError(f"{field_name} must be unique and in canonical order")
+    return dimensions
 
 
 @dataclass(frozen=True)
@@ -831,6 +864,8 @@ class SignatureVerification:
             raise ScientificLedgerError("signature_base64 is invalid") from exc
         if not decoded or len(decoded) > _MAX_SIGNATURE_BYTES:
             raise ScientificLedgerError("detached signature size is invalid")
+        if base64.b64encode(decoded).decode("ascii") != self.signature_base64:
+            raise ScientificLedgerError("signature_base64 is not canonical")
         if _sha256(decoded) != self.signature_sha256:
             raise ScientificLedgerError("signature bytes differ from signature_sha256")
 
@@ -1393,6 +1428,16 @@ class AppendReceipt:
 
 @dataclass(frozen=True)
 class ScientificLedgerAudit:
+    """Replay-derived ledger state, including sticky measured-resource deviations.
+
+    ``resource_deviation_count`` counts signed settlements whose actual usage
+    exceeds their reservation. ``resource_deviation_dimension_count`` counts
+    settlement-by-dimension overrun occurrences, while the dimension tuples are
+    canonical unions. Aggregate-ceiling dimensions and ``halt_required`` remain
+    sticky after later settlements release enough reservation to fall below the
+    ceiling; the historical deviation cannot be erased by closing the frame.
+    """
+
     bindings_sha256: str
     record_count: int
     record_head_sha256: str
@@ -1409,6 +1454,73 @@ class ScientificLedgerAudit:
     observed_candidate_count: int
     complete_bootstrap_candidate_coverage: bool
     committed_resource_usage: ResourceUsage
+    resource_deviation_count: int
+    resource_deviation_dimension_count: int
+    reservation_overrun_dimensions: tuple[str, ...]
+    aggregate_ceiling_exceeded_dimensions: tuple[str, ...]
+    ceiling_exceeded: bool
+    halt_required: bool
+
+    def __post_init__(self) -> None:
+        for name in (
+            "record_count",
+            "bootstrap_receipt_count",
+            "bootstrap_candidate_count",
+            "curator_receipt_count",
+            "resource_reservation_count",
+            "resource_settlement_count",
+            "active_reservation_count",
+            "active_worker_count",
+            "expected_task_count",
+            "expected_candidate_count",
+            "observed_task_count",
+            "observed_candidate_count",
+            "resource_deviation_count",
+            "resource_deviation_dimension_count",
+        ):
+            _nonnegative_integer(getattr(self, name), f"scientific_audit.{name}")
+        _digest(self.bindings_sha256, "scientific_audit.bindings_sha256")
+        _digest(self.record_head_sha256, "scientific_audit.record_head_sha256")
+        _boolean(
+            self.complete_bootstrap_candidate_coverage,
+            "scientific_audit.complete_bootstrap_candidate_coverage",
+        )
+        _boolean(self.ceiling_exceeded, "scientific_audit.ceiling_exceeded")
+        _boolean(self.halt_required, "scientific_audit.halt_required")
+        if not isinstance(self.committed_resource_usage, ResourceUsage):
+            raise ScientificLedgerError("scientific audit committed usage is invalid")
+        reservation_dimensions = _canonical_resource_dimensions(
+            self.reservation_overrun_dimensions,
+            "scientific_audit.reservation_overrun_dimensions",
+        )
+        aggregate_dimensions = _canonical_resource_dimensions(
+            self.aggregate_ceiling_exceeded_dimensions,
+            "scientific_audit.aggregate_ceiling_exceeded_dimensions",
+        )
+        object.__setattr__(self, "reservation_overrun_dimensions", reservation_dimensions)
+        object.__setattr__(
+            self,
+            "aggregate_ceiling_exceeded_dimensions",
+            aggregate_dimensions,
+        )
+        if self.resource_deviation_count > self.resource_settlement_count:
+            raise ScientificLedgerError("scientific audit deviation count exceeds settlement count")
+        if self.resource_deviation_dimension_count < len(reservation_dimensions):
+            raise ScientificLedgerError(
+                "scientific audit deviation dimension count is inconsistent"
+            )
+        if self.resource_deviation_count == 0:
+            if self.resource_deviation_dimension_count != 0 or reservation_dimensions:
+                raise ScientificLedgerError("scientific audit deviation state is inconsistent")
+        elif (
+            self.resource_deviation_dimension_count < self.resource_deviation_count
+            or not reservation_dimensions
+        ):
+            raise ScientificLedgerError("scientific audit deviation state is inconsistent")
+        if self.ceiling_exceeded != bool(aggregate_dimensions):
+            raise ScientificLedgerError("scientific audit ceiling-exceeded state is inconsistent")
+        if self.halt_required != (self.resource_deviation_count > 0 or self.ceiling_exceeded):
+            raise ScientificLedgerError("scientific audit halt state is inconsistent")
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -1421,7 +1533,7 @@ class ScientificLedgerAudit:
             "signed_envelopes_domain_bound": True,
             "signer_key_scheme_verifier_profiles_frozen": False,
             "resource_reservations_joined_to_acquisitions": False,
-            "resource_overrun_or_deviation_records_supported": False,
+            "resource_overrun_or_deviation_records_supported": True,
             "bootstrap_manifest_frozen_and_recomputed": False,
             "external_checkpoint_present": False,
             "externally_immutable_storage_bound": False,
@@ -1449,12 +1561,261 @@ class ScientificLedgerAudit:
                 "bootstrap_precedes_behavior_round_zero_proven": False,
             },
             "committed_resource_usage": self.committed_resource_usage.to_dict(),
+            "resource_deviations": {
+                "settlement_count": self.resource_deviation_count,
+                "dimension_count": self.resource_deviation_dimension_count,
+                "reservation_overrun_dimensions": list(self.reservation_overrun_dimensions),
+                "aggregate_ceiling_exceeded_dimensions": list(
+                    self.aggregate_ceiling_exceeded_dimensions
+                ),
+                "ceiling_exceeded": self.ceiling_exceeded,
+                "halt_required": self.halt_required,
+            },
             "claim_boundary": (
-                "durable typed non-policy records only; no activation, producer "
-                "authentication, behavior-ledger chronology join, human "
-                "adjudication, external chain anchoring, or scientific readiness claim"
+                "durable typed non-policy records preserve and report signed measured "
+                "resource deviations without clamping and derive a fail-closed halt; "
+                "no activation, producer authentication, behavior-ledger chronology "
+                "join, human adjudication, external chain anchoring, or scientific "
+                "readiness claim"
             ),
         }
+
+    @classmethod
+    def from_dict(cls, value: Any) -> ScientificLedgerAudit:
+        """Reconstruct only the exact, explicitly non-cryptographic audit schema."""
+
+        data = _object(value, "scientific_export.audit")
+        _exact_fields(
+            data,
+            {
+                "schema_version",
+                "bindings_sha256",
+                "record_count",
+                "record_head_sha256",
+                "stored_external_verification_receipt_structure_validated",
+                "detached_signatures_cryptographically_reverified_during_audit",
+                "signed_envelopes_domain_bound",
+                "signer_key_scheme_verifier_profiles_frozen",
+                "resource_reservations_joined_to_acquisitions",
+                "resource_overrun_or_deviation_records_supported",
+                "bootstrap_manifest_frozen_and_recomputed",
+                "external_checkpoint_present",
+                "externally_immutable_storage_bound",
+                "writer_reordering_detected_by_external_anchor",
+                "prefix_truncation_detected_by_external_anchor",
+                "activation_calendar_bound_and_checked",
+                "human_adjudication_supported",
+                "counts",
+                "partial_frame",
+                "committed_resource_usage",
+                "resource_deviations",
+                "claim_boundary",
+            },
+            "scientific_export.audit",
+        )
+        counts = _object(data["counts"], "scientific_export.audit.counts")
+        _exact_fields(
+            counts,
+            {
+                "bootstrap_receipts",
+                "bootstrap_candidates",
+                "curator_receipts",
+                "resource_reservations",
+                "resource_settlements",
+                "active_reservations",
+                "active_workers",
+            },
+            "scientific_export.audit.counts",
+        )
+        partial_frame = _object(
+            data["partial_frame"],
+            "scientific_export.audit.partial_frame",
+        )
+        _exact_fields(
+            partial_frame,
+            {
+                "expected_tasks",
+                "expected_candidates",
+                "observed_tasks",
+                "observed_candidates",
+                "complete_bootstrap_candidate_coverage",
+                "bootstrap_precedes_behavior_round_zero_proven",
+            },
+            "scientific_export.audit.partial_frame",
+        )
+        deviations = _object(
+            data["resource_deviations"],
+            "scientific_export.audit.resource_deviations",
+        )
+        _exact_fields(
+            deviations,
+            {
+                "settlement_count",
+                "dimension_count",
+                "reservation_overrun_dimensions",
+                "aggregate_ceiling_exceeded_dimensions",
+                "ceiling_exceeded",
+                "halt_required",
+            },
+            "scientific_export.audit.resource_deviations",
+        )
+        result = cls(
+            bindings_sha256=_digest(
+                data["bindings_sha256"],
+                "scientific_export.audit.bindings_sha256",
+            ),
+            record_count=_nonnegative_integer(
+                data["record_count"],
+                "scientific_export.audit.record_count",
+            ),
+            record_head_sha256=_digest(
+                data["record_head_sha256"],
+                "scientific_export.audit.record_head_sha256",
+            ),
+            bootstrap_receipt_count=_nonnegative_integer(
+                counts["bootstrap_receipts"],
+                "scientific_export.audit.counts.bootstrap_receipts",
+            ),
+            bootstrap_candidate_count=_nonnegative_integer(
+                counts["bootstrap_candidates"],
+                "scientific_export.audit.counts.bootstrap_candidates",
+            ),
+            curator_receipt_count=_nonnegative_integer(
+                counts["curator_receipts"],
+                "scientific_export.audit.counts.curator_receipts",
+            ),
+            resource_reservation_count=_nonnegative_integer(
+                counts["resource_reservations"],
+                "scientific_export.audit.counts.resource_reservations",
+            ),
+            resource_settlement_count=_nonnegative_integer(
+                counts["resource_settlements"],
+                "scientific_export.audit.counts.resource_settlements",
+            ),
+            active_reservation_count=_nonnegative_integer(
+                counts["active_reservations"],
+                "scientific_export.audit.counts.active_reservations",
+            ),
+            active_worker_count=_nonnegative_integer(
+                counts["active_workers"],
+                "scientific_export.audit.counts.active_workers",
+            ),
+            expected_task_count=_nonnegative_integer(
+                partial_frame["expected_tasks"],
+                "scientific_export.audit.partial_frame.expected_tasks",
+            ),
+            expected_candidate_count=_nonnegative_integer(
+                partial_frame["expected_candidates"],
+                "scientific_export.audit.partial_frame.expected_candidates",
+            ),
+            observed_task_count=_nonnegative_integer(
+                partial_frame["observed_tasks"],
+                "scientific_export.audit.partial_frame.observed_tasks",
+            ),
+            observed_candidate_count=_nonnegative_integer(
+                partial_frame["observed_candidates"],
+                "scientific_export.audit.partial_frame.observed_candidates",
+            ),
+            complete_bootstrap_candidate_coverage=_boolean(
+                partial_frame["complete_bootstrap_candidate_coverage"],
+                "scientific_export.audit.partial_frame.complete_bootstrap_candidate_coverage",
+            ),
+            committed_resource_usage=ResourceUsage.from_dict(data["committed_resource_usage"]),
+            resource_deviation_count=_nonnegative_integer(
+                deviations["settlement_count"],
+                "scientific_export.audit.resource_deviations.settlement_count",
+            ),
+            resource_deviation_dimension_count=_nonnegative_integer(
+                deviations["dimension_count"],
+                "scientific_export.audit.resource_deviations.dimension_count",
+            ),
+            reservation_overrun_dimensions=_canonical_resource_dimensions(
+                deviations["reservation_overrun_dimensions"],
+                "scientific_export.audit.resource_deviations.reservation_overrun_dimensions",
+            ),
+            aggregate_ceiling_exceeded_dimensions=_canonical_resource_dimensions(
+                deviations["aggregate_ceiling_exceeded_dimensions"],
+                "scientific_export.audit.resource_deviations.aggregate_ceiling_exceeded_dimensions",
+            ),
+            ceiling_exceeded=_boolean(
+                deviations["ceiling_exceeded"],
+                "scientific_export.audit.resource_deviations.ceiling_exceeded",
+            ),
+            halt_required=_boolean(
+                deviations["halt_required"],
+                "scientific_export.audit.resource_deviations.halt_required",
+            ),
+        )
+        if result.to_dict() != data:
+            raise ScientificLedgerError(
+                "scientific export audit claims differ from the frozen claim boundary"
+            )
+        return result
+
+
+@dataclass(frozen=True)
+class ScientificLedgerExportEntry:
+    """One immutable, structurally verified export record.
+
+    ``verification`` is a stored external-verifier receipt.  Constructing this
+    entry does not cryptographically re-run that verifier.
+    """
+
+    subject: SignedSubject
+    verification: SignatureVerification
+    sequence: int
+    record_sha256: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(
+            self.subject,
+            (
+                BootstrapReceipt,
+                CuratorReceipt,
+                ResourceReservation,
+                ResourceSettlement,
+            ),
+        ):
+            raise ScientificLedgerError("scientific export entry subject is invalid")
+        if not isinstance(self.verification, SignatureVerification):
+            raise ScientificLedgerError("scientific export entry verification is invalid")
+        if _nonnegative_integer(self.sequence, "scientific_export.entry.sequence") == 0:
+            raise ScientificLedgerError("scientific export entry sequence must be positive")
+        _digest(self.record_sha256, "scientific_export.entry.record_sha256")
+
+
+@dataclass(frozen=True)
+class ScientificLedgerExportSnapshot:
+    """A fully re-audited export whose complete byte digest was pinned out of band."""
+
+    bindings: ScientificLedgerBindings
+    audit: ScientificLedgerAudit
+    export_sha256: str
+    records: tuple[ScientificLedgerExportEntry, ...]
+    detached_signatures_cryptographically_reverified_during_audit: bool = field(
+        default=False,
+        init=False,
+    )
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.bindings, ScientificLedgerBindings):
+            raise ScientificLedgerError("scientific export snapshot bindings are invalid")
+        if not isinstance(self.audit, ScientificLedgerAudit):
+            raise ScientificLedgerError("scientific export snapshot audit is invalid")
+        _digest(self.export_sha256, "scientific_export.export_sha256")
+        if not isinstance(self.records, tuple) or not all(
+            isinstance(entry, ScientificLedgerExportEntry) for entry in self.records
+        ):
+            raise ScientificLedgerError(
+                "scientific export snapshot records must be immutable typed entries"
+            )
+        if self.audit.bindings_sha256 != self.bindings.canonical_sha256:
+            raise ScientificLedgerError("scientific export snapshot bindings differ from audit")
+        if self.audit.record_count != len(self.records):
+            raise ScientificLedgerError("scientific export snapshot count differs from audit")
+        expected_head = self.records[-1].record_sha256 if self.records else GENESIS_RECORD_SHA256
+        if self.audit.record_head_sha256 != expected_head:
+            raise ScientificLedgerError("scientific export snapshot head differs from audit")
 
 
 @dataclass
@@ -1466,6 +1827,8 @@ class _DerivedState:
     )
     reservations: dict[str, tuple[ResourceReservation, str]] = field(default_factory=dict)
     settlements: dict[str, ResourceSettlement] = field(default_factory=dict)
+    resource_deviations: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    aggregate_ceiling_exceeded_dimensions_seen: set[str] = field(default_factory=set)
     observed_tasks: set[str] = field(default_factory=set)
     observed_candidates: set[str] = field(default_factory=set)
 
@@ -1487,6 +1850,67 @@ class _DerivedState:
             if reservation_id not in self.settlements:
                 result.update(reservation.worker_ids)
         return result
+
+    @property
+    def resource_deviation_dimension_count(self) -> int:
+        return sum(len(dimensions) for dimensions in self.resource_deviations.values())
+
+    @property
+    def reservation_overrun_dimensions(self) -> tuple[str, ...]:
+        observed = {
+            dimension
+            for dimensions in self.resource_deviations.values()
+            for dimension in dimensions
+        }
+        return tuple(name for name in ResourceUsage.field_names() if name in observed)
+
+    @property
+    def aggregate_ceiling_exceeded_dimensions(self) -> tuple[str, ...]:
+        return tuple(
+            name
+            for name in ResourceUsage.field_names()
+            if name in self.aggregate_ceiling_exceeded_dimensions_seen
+        )
+
+    @property
+    def halt_required(self) -> bool:
+        return bool(self.resource_deviations or self.aggregate_ceiling_exceeded_dimensions_seen)
+
+
+def _audit_from_state(
+    bindings: ScientificLedgerBindings,
+    state: _DerivedState,
+    *,
+    record_count: int,
+    record_head_sha256: str,
+) -> ScientificLedgerAudit:
+    count = _nonnegative_integer(record_count, "scientific audit record_count")
+    head = _digest(record_head_sha256, "scientific audit record_head_sha256")
+    committed = state.committed_usage()
+    return ScientificLedgerAudit(
+        bindings_sha256=bindings.canonical_sha256,
+        record_count=count,
+        record_head_sha256=head,
+        bootstrap_receipt_count=len(state.bootstraps),
+        bootstrap_candidate_count=len(state.bootstraps),
+        curator_receipt_count=len(state.curator_acquisitions),
+        resource_reservation_count=len(state.reservations),
+        resource_settlement_count=len(state.settlements),
+        active_reservation_count=state.active_reservation_count,
+        active_worker_count=len(state.active_worker_ids),
+        expected_task_count=bindings.task_count,
+        expected_candidate_count=bindings.candidate_count,
+        observed_task_count=len(state.observed_tasks),
+        observed_candidate_count=len(state.observed_candidates),
+        complete_bootstrap_candidate_coverage=(len(state.bootstraps) == bindings.candidate_count),
+        committed_resource_usage=committed,
+        resource_deviation_count=len(state.resource_deviations),
+        resource_deviation_dimension_count=state.resource_deviation_dimension_count,
+        reservation_overrun_dimensions=state.reservation_overrun_dimensions,
+        aggregate_ceiling_exceeded_dimensions=(state.aggregate_ceiling_exceeded_dimensions),
+        ceiling_exceeded=bool(state.aggregate_ceiling_exceeded_dimensions),
+        halt_required=state.halt_required,
+    )
 
 
 def _assert_bound_subject(bindings: ScientificLedgerBindings, subject: SignedSubject) -> None:
@@ -1537,12 +1961,8 @@ def _assert_usage_within_limits(
     usage: ResourceUsage,
     limits: ResourceLimits,
 ) -> None:
-    if not usage.no_more_than(limits.maximum_usage):
-        exceeded = [
-            name
-            for name in ResourceUsage.field_names()
-            if getattr(usage, name) > getattr(limits.maximum_usage, name)
-        ]
+    exceeded = _usage_exceeded_dimensions(usage, limits.maximum_usage)
+    if exceeded:
         raise ResourceCeilingExceeded(f"aggregate resource ceiling exceeded: {exceeded}")
 
 
@@ -1554,6 +1974,11 @@ def _apply_subject(
     record_sha256: str,
 ) -> None:
     _assert_bound_subject(bindings, subject)
+    if state.halt_required and not isinstance(subject, ResourceSettlement):
+        raise ResourceCeilingExceeded(
+            "scientific ledger is halted after a measured resource deviation; "
+            "only outstanding reservations may settle or abandon"
+        )
     if subject.task_id is not None:
         state.observed_tasks.add(subject.task_id)
     if subject.candidate_id is not None:
@@ -1635,10 +2060,18 @@ def _apply_subject(
             raise ScientificLedgerError("resource settlement scope differs from its reservation")
         if subject.settled_at < reservation.reserved_at:
             raise ScientificLedgerError("resource settlement predates its reservation")
-        if not subject.actual.no_more_than(reservation.reserved):
-            raise ResourceCeilingExceeded("resource settlement exceeds its committed reservation")
+        reservation_overrun_dimensions = _usage_exceeded_dimensions(
+            subject.actual,
+            reservation.reserved,
+        )
         state.settlements[subject.reservation_id] = subject
-        _assert_usage_within_limits(state.committed_usage(), bindings.resource_limits)
+        aggregate_ceiling_dimensions = _usage_exceeded_dimensions(
+            state.committed_usage(),
+            bindings.resource_limits.maximum_usage,
+        )
+        if reservation_overrun_dimensions:
+            state.resource_deviations[subject.reservation_id] = reservation_overrun_dimensions
+        state.aggregate_ceiling_exceeded_dimensions_seen.update(aggregate_ceiling_dimensions)
         return
     raise ScientificLedgerError("unsupported scientific record")
 
@@ -1667,6 +2100,253 @@ def _record_preimage(
         "signature_verification": verification.to_dict(),
         "previous_record_sha256": previous_record_sha256,
     }
+
+
+def _canonical_export_object(raw_line: bytes, *, line_number: int) -> dict[str, Any]:
+    if not raw_line:
+        raise ScientificLedgerError("scientific ledger export contains a blank line")
+    if len(raw_line) > _MAX_RECORD_BYTES:
+        raise ScientificLedgerError(
+            f"scientific ledger export line {line_number} exceeds the byte ceiling"
+        )
+    try:
+        text = raw_line.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ScientificLedgerError(
+            f"scientific ledger export line {line_number} is not UTF-8"
+        ) from exc
+    try:
+        value = strict_json_loads(text)
+    except ValueError as exc:
+        raise ScientificLedgerError(
+            f"scientific ledger export line {line_number} is invalid JSON: {exc}"
+        ) from exc
+    data = _object(value, f"scientific_export.line[{line_number}]")
+    if strict_json_dumps(data) != text:
+        raise ScientificLedgerError(
+            f"scientific ledger export line {line_number} is not canonical JSON"
+        )
+    return data
+
+
+def audit_scientific_ledger_export(
+    export_bytes: bytes,
+    *,
+    expected_export_sha256: str,
+) -> ScientificLedgerExportSnapshot:
+    """Reconstruct and re-audit an externally digest-pinned JSONL export.
+
+    The complete export digest must come from the caller; it is never inferred
+    from the header or hash chain.  Stored signature-verification receipts are
+    structurally and semantically checked, but detached signatures are not
+    cryptographically re-verified by this read-only API.
+    """
+
+    if not isinstance(export_bytes, bytes):
+        raise TypeError("scientific ledger export must be bytes")
+    expected_digest = _digest(
+        expected_export_sha256,
+        "scientific_export.expected_export_sha256",
+    )
+    if not export_bytes:
+        raise ScientificLedgerError("scientific ledger export cannot be empty")
+    if len(export_bytes) > _MAX_SCIENTIFIC_EXPORT_BYTES:
+        raise ScientificLedgerError("scientific ledger export exceeds the byte ceiling")
+    export_digest = _sha256(export_bytes)
+    if export_digest != expected_digest:
+        raise ScientificLedgerError(
+            "scientific ledger export differs from the independently pinned digest"
+        )
+    if not export_bytes.endswith(b"\n"):
+        raise ScientificLedgerError("scientific ledger export is not newline terminated")
+    raw_lines = export_bytes.split(b"\n")
+    if raw_lines[-1] != b"":  # pragma: no cover - guarded by endswith above.
+        raise ScientificLedgerError("scientific ledger export terminator is invalid")
+    raw_lines = raw_lines[:-1]
+    if not raw_lines:
+        raise ScientificLedgerError("scientific ledger export omits its header")
+    if any(not raw_line for raw_line in raw_lines):
+        raise ScientificLedgerError("scientific ledger export contains a blank line")
+
+    header = _canonical_export_object(raw_lines[0], line_number=1)
+    _exact_fields(
+        header,
+        {
+            "schema_version",
+            "kind",
+            "bindings",
+            "bindings_sha256",
+            "record_count",
+            "record_head_sha256",
+            "audit",
+        },
+        "scientific_export.header",
+    )
+    if header["schema_version"] != SCIENTIFIC_EXPORT_SCHEMA_VERSION:
+        raise ScientificLedgerError("unsupported scientific ledger export schema")
+    if header["kind"] != "scientific_ledger_export_header":
+        raise ScientificLedgerError("scientific ledger export header kind is invalid")
+    bindings = ScientificLedgerBindings.from_dict(header["bindings"])
+    header_bindings_sha256 = _digest(
+        header["bindings_sha256"],
+        "scientific_export.header.bindings_sha256",
+    )
+    if (
+        header["bindings"] != bindings.to_dict()
+        or header_bindings_sha256 != bindings.canonical_sha256
+    ):
+        raise ScientificLedgerError("scientific ledger export bindings differ from their digest")
+    declared_count = _nonnegative_integer(
+        header["record_count"],
+        "scientific_export.header.record_count",
+    )
+    declared_head = _digest(
+        header["record_head_sha256"],
+        "scientific_export.header.record_head_sha256",
+    )
+    stored_audit = ScientificLedgerAudit.from_dict(header["audit"])
+    if len(raw_lines) != declared_count + 1:
+        raise ScientificLedgerError(
+            "scientific ledger export record count detects truncation or extra lines"
+        )
+
+    record_fields = {
+        "schema_version",
+        "sequence",
+        "kind",
+        "record_id",
+        "task_id",
+        "candidate_id",
+        "occurred_at",
+        "payload",
+        "signature_verification",
+        "previous_record_sha256",
+    }
+    state = _DerivedState()
+    head = GENESIS_RECORD_SHA256
+    entries: list[ScientificLedgerExportEntry] = []
+    for expected_sequence, raw_line in enumerate(raw_lines[1:], start=1):
+        record = _canonical_export_object(raw_line, line_number=expected_sequence + 1)
+        _exact_fields(
+            record,
+            record_fields,
+            f"scientific_export.record[{expected_sequence}]",
+        )
+        if record["schema_version"] != SCIENTIFIC_RECORD_SCHEMA_VERSION:
+            raise ScientificLedgerError("unsupported scientific export record schema")
+        sequence = _nonnegative_integer(
+            record["sequence"],
+            f"scientific_export.record[{expected_sequence}].sequence",
+        )
+        if sequence != expected_sequence:
+            raise ScientificLedgerError("scientific export record sequence is not contiguous")
+        try:
+            kind = ScientificRecordKind(record["kind"])
+        except (TypeError, ValueError) as exc:
+            raise ScientificLedgerError("scientific export record kind is invalid") from exc
+        record_id = _digest(
+            record["record_id"],
+            f"scientific_export.record[{expected_sequence}].record_id",
+        )
+        task_id = _optional_task(
+            record["task_id"],
+            f"scientific_export.record[{expected_sequence}].task_id",
+        )
+        candidate_id = _optional_candidate(
+            record["candidate_id"],
+            f"scientific_export.record[{expected_sequence}].candidate_id",
+        )
+        occurred_at = _timestamp(
+            record["occurred_at"],
+            f"scientific_export.record[{expected_sequence}].occurred_at",
+        )
+        previous_record_sha256 = _digest(
+            record["previous_record_sha256"],
+            f"scientific_export.record[{expected_sequence}].previous_record_sha256",
+        )
+        subject = _subject_from_dict(kind, record["payload"])
+        verification = SignatureVerification.from_dict(record["signature_verification"])
+        _assert_signer_authorized(bindings, subject, verification.signer_id)
+        envelope_bytes = signed_envelope_bytes(bindings, subject)
+        if verification.subject_sha256 != _sha256(envelope_bytes):
+            raise ScientificLedgerError(
+                "scientific export signature receipt names a different envelope digest"
+            )
+        if verification.verified_at < subject.event_time:
+            raise ScientificLedgerError(
+                "scientific export signature verification predates its signed event"
+            )
+        expected_preimage = _record_preimage(
+            sequence=expected_sequence,
+            kind=kind,
+            record_id=subject.record_id,
+            task_id=subject.task_id,
+            candidate_id=subject.candidate_id,
+            occurred_at=subject.event_time,
+            payload=subject.to_dict(),
+            verification=verification,
+            previous_record_sha256=head,
+        )
+        if (
+            record_id != subject.record_id
+            or task_id != subject.task_id
+            or candidate_id != subject.candidate_id
+            or occurred_at != subject.event_time
+            or previous_record_sha256 != head
+            or record != expected_preimage
+        ):
+            raise ScientificLedgerError(
+                "scientific export record preimage or previous-record chain differs"
+            )
+        expected_json = strict_json_dumps(expected_preimage)
+        record_sha256 = _sha256(expected_json.encode("utf-8"))
+        _apply_subject(
+            state,
+            bindings,
+            subject,
+            record_sha256=record_sha256,
+        )
+        entries.append(
+            ScientificLedgerExportEntry(
+                subject=subject,
+                verification=verification,
+                sequence=expected_sequence,
+                record_sha256=record_sha256,
+            )
+        )
+        head = record_sha256
+
+    recomputed_audit = _audit_from_state(
+        bindings,
+        state,
+        record_count=len(entries),
+        record_head_sha256=head,
+    )
+    if stored_audit != recomputed_audit:
+        raise ScientificLedgerError("scientific ledger export stored audit differs from records")
+    expected_header = {
+        "schema_version": SCIENTIFIC_EXPORT_SCHEMA_VERSION,
+        "kind": "scientific_ledger_export_header",
+        "bindings": bindings.to_dict(),
+        "bindings_sha256": bindings.canonical_sha256,
+        "record_count": recomputed_audit.record_count,
+        "record_head_sha256": recomputed_audit.record_head_sha256,
+        "audit": recomputed_audit.to_dict(),
+    }
+    if (
+        declared_count != recomputed_audit.record_count
+        or declared_head != recomputed_audit.record_head_sha256
+        or header != expected_header
+    ):
+        raise ScientificLedgerError(
+            "scientific ledger export header count, head, or audit differs from records"
+        )
+    return ScientificLedgerExportSnapshot(
+        bindings=bindings,
+        audit=recomputed_audit,
+        export_sha256=export_digest,
+        records=tuple(entries),
+    )
 
 
 def _validate_database_metadata(
@@ -1915,27 +2595,11 @@ class ScientificLedger:
                 record_sha256=expected_sha,
             )
             head = expected_sha
-        committed = state.committed_usage()
-        _assert_usage_within_limits(committed, self.bindings.resource_limits)
-        audit = ScientificLedgerAudit(
-            bindings_sha256=self.bindings.canonical_sha256,
+        audit = _audit_from_state(
+            self.bindings,
+            state,
             record_count=len(rows),
             record_head_sha256=head,
-            bootstrap_receipt_count=len(state.bootstraps),
-            bootstrap_candidate_count=len(state.bootstraps),
-            curator_receipt_count=len(state.curator_acquisitions),
-            resource_reservation_count=len(state.reservations),
-            resource_settlement_count=len(state.settlements),
-            active_reservation_count=state.active_reservation_count,
-            active_worker_count=len(state.active_worker_ids),
-            expected_task_count=self.bindings.task_count,
-            expected_candidate_count=self.bindings.candidate_count,
-            observed_task_count=len(state.observed_tasks),
-            observed_candidate_count=len(state.observed_candidates),
-            complete_bootstrap_candidate_coverage=(
-                len(state.bootstraps) == self.bindings.candidate_count
-            ),
-            committed_resource_usage=committed,
         )
         return audit, state
 

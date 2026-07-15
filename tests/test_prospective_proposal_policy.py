@@ -50,7 +50,9 @@ def _route(action: RouteAction, *, version: str) -> RouteDecision:
         verifier_risk=0.3,
         expected_information_gain=0.5,
         estimated_relative_cost=0.2,
-        reasons=("truth-free fixture",),
+        reasons=(
+            "deterministic_bootstrap" if action == RouteAction.RUN_STATIC else "truth-free fixture",
+        ),
         terminal=False,
     )
 
@@ -158,16 +160,22 @@ def test_unavailable_semantic_falls_through_to_targeted() -> None:
         completed_nonterminal_action_ids=(),
     )
     assert proposal.action_id is None
-    assert preferred_action_id(
-        router_action=RouteAction.RUN_SEMANTIC,
-        action_catalog=_catalog(semantic_available=False),
-        proposal=proposal,
-    ) == TARGETED_ACTION_ID
-    assert preferred_action_id(
-        router_action=RouteAction.RUN_SEMANTIC,
-        action_catalog=_catalog(semantic_available=True),
-        proposal=proposal,
-    ) == SEMANTIC_ACTION_ID
+    assert (
+        preferred_action_id(
+            router_action=RouteAction.RUN_SEMANTIC,
+            action_catalog=_catalog(semantic_available=False),
+            proposal=proposal,
+        )
+        == TARGETED_ACTION_ID
+    )
+    assert (
+        preferred_action_id(
+            router_action=RouteAction.RUN_SEMANTIC,
+            action_catalog=_catalog(semantic_available=True),
+            proposal=proposal,
+        )
+        == SEMANTIC_ACTION_ID
+    )
 
 
 @pytest.mark.parametrize(
@@ -190,11 +198,14 @@ def test_two_concordant_full_executions_expose_a_fallible_terminal_proposal(
         ),
     )
     assert proposal.action_id == expected
-    assert preferred_action_id(
-        router_action=RouteAction.ABSTAIN,
-        action_catalog=_catalog(semantic_available=False),
-        proposal=proposal,
-    ) == expected
+    assert (
+        preferred_action_id(
+            router_action=RouteAction.ABSTAIN,
+            action_catalog=_catalog(semantic_available=False),
+            proposal=proposal,
+        )
+        == expected
+    )
 
 
 @pytest.mark.parametrize(

@@ -373,7 +373,13 @@ def test_signed_bootstrap_round_trips_and_exports_without_policy_join(
     assert audit.to_dict()["external_checkpoint_present"] is False
     assert audit.to_dict()["signer_key_scheme_verifier_profiles_frozen"] is False
     assert audit.to_dict()["resource_reservations_joined_to_acquisitions"] is False
-    assert audit.to_dict()["resource_overrun_or_deviation_records_supported"] is False
+    assert audit.to_dict()["resource_overrun_or_deviation_records_supported"] is True
+    assert audit.resource_deviation_count == 0
+    assert audit.resource_deviation_dimension_count == 0
+    assert audit.reservation_overrun_dimensions == ()
+    assert audit.aggregate_ceiling_exceeded_dimensions == ()
+    assert audit.ceiling_exceeded is False
+    assert audit.halt_required is False
     assert audit.to_dict()["bootstrap_manifest_frozen_and_recomputed"] is False
     assert audit.to_dict()["externally_immutable_storage_bound"] is False
     assert audit.to_dict()["writer_reordering_detected_by_external_anchor"] is False
@@ -640,7 +646,7 @@ def test_worker_identity_and_count_are_enforced(
     assert ledger.audit().active_worker_count == 1
 
 
-def test_settlement_must_match_reservation_scope_digest_and_committed_maximum(
+def test_settlement_must_match_reservation_scope_and_digest(
     tmp_path: pathlib.Path,
 ) -> None:
     ledger = _ledger(tmp_path)
@@ -670,17 +676,126 @@ def test_settlement_must_match_reservation_scope_digest_and_committed_maximum(
                 reservation_record_sha256=_digest("wrong-record"),
             ),
         )
-    with pytest.raises(ResourceCeilingExceeded, match="committed reservation"):
-        _append(
-            ledger,
-            _settlement(
-                reservation,
-                receipt,
-                actual=replace(reservation.reserved, cpu_micros=3_000_000),
-            ),
-        )
-
     assert ledger.audit().active_reservation_count == 1
+
+
+def test_overrun_settlement_is_inserted_retries_and_reaudits_exactly(
+    tmp_path: pathlib.Path,
+) -> None:
+    ledger = _ledger(tmp_path)
+    reservation = _reservation()
+    reservation_receipt = _append(ledger, reservation)
+    settlement = _settlement(
+        reservation,
+        reservation_receipt,
+        actual=replace(reservation.reserved, cpu_micros=3_000_000),
+    )
+
+    inserted = _append(ledger, settlement)
+    retried = _append(ledger, settlement, verifier=_UnavailableVerifier())
+    audit = ledger.audit()
+    reopened = ScientificLedger(ledger.path, bindings=ledger.bindings)
+
+    assert inserted.inserted is True
+    assert retried == replace(inserted, inserted=False)
+    assert audit == reopened.audit()
+    assert audit.record_count == 2
+    assert audit.resource_settlement_count == 1
+    assert audit.active_reservation_count == 0
+    assert audit.committed_resource_usage == settlement.actual
+    assert audit.resource_deviation_count == 1
+    assert audit.resource_deviation_dimension_count == 1
+    assert audit.reservation_overrun_dimensions == ("cpu_micros",)
+    assert audit.aggregate_ceiling_exceeded_dimensions == ()
+    assert audit.ceiling_exceeded is False
+    assert audit.halt_required is True
+    assert audit.to_dict()["resource_deviations"] == {
+        "settlement_count": 1,
+        "dimension_count": 1,
+        "reservation_overrun_dimensions": ["cpu_micros"],
+        "aggregate_ceiling_exceeded_dimensions": [],
+        "ceiling_exceeded": False,
+        "halt_required": True,
+    }
+
+
+def test_aggregate_overrun_halts_new_work_but_outstanding_settlements_close(
+    tmp_path: pathlib.Path,
+) -> None:
+    maximum = ResourceUsage(
+        acquisition_events=10,
+        process_launches=10,
+        cpu_micros=3_000_000,
+        worker_wall_micros=10_000_000,
+        peak_rss_bytes=1_000_000,
+        storage_bytes=10_000,
+        semantic_calls=10,
+        input_tokens=10_000,
+        output_tokens=10_000,
+        usd_micros=10_000,
+        human_minutes=100,
+    )
+    ledger = _ledger(tmp_path, bindings=_bindings(workers=2, maximum_usage=maximum))
+    first = _reservation(
+        reserved=ResourceUsage(cpu_micros=1_500_000),
+        worker_ids=("worker-a",),
+    )
+    second = _reservation(
+        "reservation-b",
+        candidate_id=CANDIDATE_B,
+        reserved=ResourceUsage(cpu_micros=1_500_000),
+        worker_ids=("worker-b",),
+    )
+    first_receipt = _append(ledger, first)
+    second_receipt = _append(ledger, second)
+    overrun = _settlement(
+        first,
+        first_receipt,
+        actual=ResourceUsage(cpu_micros=2_500_000),
+    )
+    _append(ledger, overrun)
+
+    halted = ledger.audit()
+    assert halted.committed_resource_usage.cpu_micros == 4_000_000
+    assert halted.aggregate_ceiling_exceeded_dimensions == ("cpu_micros",)
+    assert halted.ceiling_exceeded is True
+    assert halted.halt_required is True
+    assert halted.active_reservation_count == 1
+    assert _append(ledger, second, verifier=_UnavailableVerifier()) == replace(
+        second_receipt,
+        inserted=False,
+    )
+
+    for new_work in (
+        _bootstrap(candidate_id=CANDIDATE_B, acquisition_id="bootstrap-after-overrun"),
+        _curator(acquisition_id="curator-after-overrun", candidate_id=CANDIDATE_B),
+        _reservation(
+            "reservation-after-overrun",
+            candidate_id=CANDIDATE_B,
+            worker_ids=("worker-c",),
+        ),
+    ):
+        with pytest.raises(ResourceCeilingExceeded, match="halted after a measured"):
+            _append(ledger, new_work)
+
+    abandoned = replace(
+        _settlement(second, second_receipt, actual=ResourceUsage(), settled_at=T3),
+        outcome=ResourceOutcome.ABANDONED,
+    )
+    _append(ledger, abandoned)
+    closed = ledger.audit()
+
+    assert closed.record_count == 4
+    assert closed.resource_settlement_count == 2
+    assert closed.active_reservation_count == 0
+    assert closed.active_worker_count == 0
+    assert closed.committed_resource_usage.cpu_micros == 2_500_000
+    assert closed.resource_deviation_count == 1
+    assert closed.resource_deviation_dimension_count == 1
+    assert closed.reservation_overrun_dimensions == ("cpu_micros",)
+    assert closed.aggregate_ceiling_exceeded_dimensions == ("cpu_micros",)
+    assert closed.ceiling_exceeded is True
+    assert closed.halt_required is True
 
 
 def test_exclusive_resource_key_cannot_be_reused_after_settlement(

@@ -15,7 +15,12 @@ from bench_cleanser.verification.models import RouteAction
 
 @dataclass(frozen=True)
 class VerificationOutcome:
-    """One prediction, disposition, cost, label, and experiment identity."""
+    """One scored target-policy prediction joined to a behavior-policy log.
+
+    ``policy_id`` and ``policy_version`` name the evaluated target policy;
+    ``behavior_trajectory_digest`` names the independent logging-policy history.
+    Those policy identities are intentionally allowed to differ.
+    """
 
     instance_id: str
     candidate_id: str
@@ -29,7 +34,7 @@ class VerificationOutcome:
     calibration_id: str
     corpus_id: str
     corpus_revision: str
-    acquisition_trajectory_digest: str
+    behavior_trajectory_digest: str
     execution_count: int = 0
     cost: float = 0.0
     subgroup: str = "all"
@@ -67,12 +72,12 @@ class VerificationOutcome:
             raise ValueError("outcomes require a terminal accept/reject/abstain action")
         if isinstance(self.seed, bool) or not isinstance(self.seed, int) or self.seed < 0:
             raise ValueError("seed must be a non-negative integer")
-        if not isinstance(self.acquisition_trajectory_digest, str) or not re.fullmatch(
+        if not isinstance(self.behavior_trajectory_digest, str) or not re.fullmatch(
             r"[0-9a-f]{64}",
-            self.acquisition_trajectory_digest,
+            self.behavior_trajectory_digest,
         ):
             raise ValueError(
-                "acquisition_trajectory_digest must be 64 lowercase hexadecimal characters"
+                "behavior_trajectory_digest must be 64 lowercase hexadecimal characters"
             )
         if isinstance(self.execution_count, bool) or not isinstance(self.execution_count, int):
             raise ValueError("execution_count must be an integer")
@@ -119,10 +124,10 @@ class VerificationOutcome:
         )
 
     @property
-    def acquisition_trajectory_key(self) -> tuple[str, ...]:
-        """Exact trajectory join without changing candidate-level pairing."""
+    def behavior_trajectory_key(self) -> tuple[str, ...]:
+        """Exact behavior-logger trajectory join without changing target pairing."""
 
-        return (*self.candidate_key, self.acquisition_trajectory_digest)
+        return (*self.candidate_key, self.behavior_trajectory_digest)
 
     @property
     def evaluation_identity(self) -> tuple[str, str, str, int, str, str, str]:
@@ -239,8 +244,7 @@ def brier_score(outcomes: list[VerificationOutcome]) -> float:
     if not outcomes:
         raise ValueError("at least one outcome is required")
     return sum(
-        (item.probability_correct - float(item.truth_correct)) ** 2
-        for item in outcomes
+        (item.probability_correct - float(item.truth_correct)) ** 2 for item in outcomes
     ) / len(outcomes)
 
 
@@ -276,17 +280,19 @@ def calibration_table(
             accuracy = None
             gap = None
             weighted_gap = None
-        table.append(CalibrationBin(
-            index=index,
-            lower_bound=index / bins,
-            upper_bound=(index + 1) / bins,
-            count=len(bucket),
-            positive_count=positives,
-            mean_probability=probability,
-            empirical_accuracy=accuracy,
-            absolute_gap=gap,
-            weighted_gap=weighted_gap,
-        ))
+        table.append(
+            CalibrationBin(
+                index=index,
+                lower_bound=index / bins,
+                upper_bound=(index + 1) / bins,
+                count=len(bucket),
+                positive_count=positives,
+                mean_probability=probability,
+                empirical_accuracy=accuracy,
+                absolute_gap=gap,
+                weighted_gap=weighted_gap,
+            )
+        )
     return table
 
 
@@ -334,8 +340,7 @@ def aggregate_metrics(
     decision_errors = sum(not item.correct_decision for item in covered)
     executed = sum(item.execution_count > 0 for item in outcomes)
     squared_errors = sum(
-        (item.probability_correct - float(item.truth_correct)) ** 2
-        for item in outcomes
+        (item.probability_correct - float(item.truth_correct)) ** 2 for item in outcomes
     )
 
     return AggregateMetrics(
@@ -361,9 +366,7 @@ def aggregate_metrics(
         mean_cost=sum(item.cost for item in outcomes) / len(outcomes),
         brier_score=squared_errors / len(outcomes),
         brier_sum=squared_errors,
-        expected_calibration_error=expected_calibration_error(
-            outcomes, bins=calibration_bins
-        ),
+        expected_calibration_error=expected_calibration_error(outcomes, bins=calibration_bins),
         roc_auc=roc_auc(outcomes),
     )
 
@@ -404,25 +407,27 @@ def risk_coverage_curve(
         terminal_errors = sum(not item.correct_decision for item in terminal)
         conservative_errors = terminal_errors + abstentions
         executed = sum(item.execution_count > 0 for item in retained)
-        points.append(RiskCoveragePoint(
-            coverage=len(retained) / len(outcomes),
-            retained=len(retained),
-            terminal_decisions=len(terminal),
-            abstentions_included=abstentions,
-            decision_errors=conservative_errors,
-            terminal_decision_errors=terminal_errors,
-            accepted=len(accepted),
-            false_accepts=false_accepts,
-            truth_incorrect=truth_incorrect,
-            executed=executed,
-            decision_error_risk=conservative_errors / len(retained),
-            selective_error_risk=_ratio(terminal_errors, len(terminal)),
-            false_accept_rate=_ratio(false_accepts, truth_incorrect),
-            accepted_error_rate=_ratio(false_accepts, len(accepted)),
-            execution_rate=executed / len(retained),
-            mean_cost=sum(item.cost for item in retained) / len(retained),
-            minimum_confidence=threshold,
-        ))
+        points.append(
+            RiskCoveragePoint(
+                coverage=len(retained) / len(outcomes),
+                retained=len(retained),
+                terminal_decisions=len(terminal),
+                abstentions_included=abstentions,
+                decision_errors=conservative_errors,
+                terminal_decision_errors=terminal_errors,
+                accepted=len(accepted),
+                false_accepts=false_accepts,
+                truth_incorrect=truth_incorrect,
+                executed=executed,
+                decision_error_risk=conservative_errors / len(retained),
+                selective_error_risk=_ratio(terminal_errors, len(terminal)),
+                false_accept_rate=_ratio(false_accepts, truth_incorrect),
+                accepted_error_rate=_ratio(false_accepts, len(accepted)),
+                execution_rate=executed / len(retained),
+                mean_cost=sum(item.cost for item in retained) / len(retained),
+                minimum_confidence=threshold,
+            )
+        )
         index = end
     return points
 

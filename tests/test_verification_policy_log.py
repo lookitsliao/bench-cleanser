@@ -62,7 +62,11 @@ def _route(action: RouteAction) -> RouteDecision:
         verifier_risk=0.3,
         expected_information_gain=0.6,
         estimated_relative_cost=0.2,
-        reasons=("fixture prior route",),
+        reasons=(
+            "deterministic_bootstrap"
+            if action == RouteAction.RUN_STATIC
+            else "fixture prior route",
+        ),
     )
 
 
@@ -123,26 +127,28 @@ def _catalog(
     offers = []
     for action in RouteAction:
         terminal = action in _TERMINAL
-        offers.append(ActionOffer(
-            action_id=action.value,
-            route_action=action,
-            evidence_kind=None if terminal else _ACTION_KIND[action],
-            adapter_id="terminal-disposition" if terminal else f"adapter-{action.value}",
-            adapter_version="v1",
-            action_spec_sha256=canonical_action_spec_sha256({
-                "action": action.value,
-                "adapter_version": "v1",
-            }),
-            available=action not in unavailable,
-            availability_reason=(
-                "fixture unavailable" if action in unavailable else "fixture available"
-            ),
-            expected_cost=(
-                EvidenceCost()
-                if terminal
-                else EvidenceCost(wall_seconds=1.0, usd=0.01)
-            ),
-        ))
+        offers.append(
+            ActionOffer(
+                action_id=action.value,
+                route_action=action,
+                evidence_kind=None if terminal else _ACTION_KIND[action],
+                adapter_id="terminal-disposition" if terminal else f"adapter-{action.value}",
+                adapter_version="v1",
+                action_spec_sha256=canonical_action_spec_sha256(
+                    {
+                        "action": action.value,
+                        "adapter_version": "v1",
+                    }
+                ),
+                available=action not in unavailable,
+                availability_reason=(
+                    "fixture unavailable" if action in unavailable else "fixture available"
+                ),
+                expected_cost=(
+                    EvidenceCost() if terminal else EvidenceCost(wall_seconds=1.0, usd=0.01)
+                ),
+            )
+        )
     return tuple(sorted(offers, key=lambda item: item.action_id))
 
 
@@ -152,8 +158,7 @@ def _distribution(
     available = [item for item in catalog if item.available]
     probability = 1.0 / len(available)
     return tuple(
-        BehaviorProbability(action_id=item.action_id, propensity=probability)
-        for item in available
+        BehaviorProbability(action_id=item.action_id, propensity=probability) for item in available
     )
 
 
@@ -181,16 +186,12 @@ def _logged(
 ) -> LoggedPolicyDecision:
     action_catalog = catalog or _catalog()
     behavior = distribution or _distribution(action_catalog)
-    chosen_offer = next(
-        item for item in action_catalog if item.action_id == chosen_action_id
-    )
+    chosen_offer = next(item for item in action_catalog if item.action_id == chosen_action_id)
     step = len(state.evidence_history)
     return LoggedPolicyDecision(
         trajectory_id=trajectory_id,
         decision_id=f"dec-{step + 1:032x}",
-        acquisition_id=(
-            None if chosen_offer.route_action in _TERMINAL else f"acq-{step + 1:032x}"
-        ),
+        acquisition_id=(None if chosen_offer.route_action in _TERMINAL else f"acq-{step + 1:032x}"),
         decision_step=step,
         decided_at=decided_at,
         instance_id=state.instance_id,
@@ -206,8 +207,7 @@ def _logged(
         behavior_distribution=behavior,
         chosen_action_id=chosen_action_id,
         chosen_propensity=next(
-            item.propensity for item in behavior
-            if item.action_id == chosen_action_id
+            item.propensity for item in behavior if item.action_id == chosen_action_id
         ),
         selection_reason_code="fixture-sampled-action",
         sampler_id="inverse-cdf",
@@ -221,18 +221,14 @@ def test_decision_round_trips_with_stable_hashes_and_full_catalog() -> None:
     state = RouterStateView.from_manifest(_manifest())
     decision = _logged(state)
 
-    restored = load_logged_policy_decision(
-        io.StringIO(strict_json_dumps(decision.to_dict()))
-    )
+    restored = load_logged_policy_decision(io.StringIO(strict_json_dumps(decision.to_dict())))
 
     assert restored.to_dict() == decision.to_dict()
     assert restored.canonical_digest() == decision.decision_sha256
     assert restored.schema_version == POLICY_DECISION_SCHEMA_VERSION
     assert restored.router_state.schema_version == ROUTER_STATE_SCHEMA_VERSION
     assert {item.route_action for item in restored.action_catalog} == set(RouteAction)
-    assert restored.prior_trajectory_head_sha256 == (
-        GENESIS_TRAJECTORY_HEAD_SHA256
-    )
+    assert restored.prior_trajectory_head_sha256 == (GENESIS_TRAJECTORY_HEAD_SHA256)
     assert restored.trajectory_head_sha256 != restored.decision_sha256
     assert restored.terminal is False
 
@@ -243,9 +239,7 @@ def test_bootstrap_is_bound_but_does_not_advance_policy_step_or_head() -> None:
         state,
         chosen_action_id=RouteAction.RUN_SEMANTIC.value,
     )
-    restored = load_logged_policy_decision(
-        io.StringIO(strict_json_dumps(decision.to_dict()))
-    )
+    restored = load_logged_policy_decision(io.StringIO(strict_json_dumps(decision.to_dict())))
 
     assert restored.router_state.bootstrap_history == (step,)
     assert restored.router_state.evidence_history == ()
@@ -262,12 +256,20 @@ def test_bootstrap_prefix_and_safe_observation_fail_closed() -> None:
     with pytest.raises(ValueError, match="exact manifest prefix"):
         RouterStateView.from_manifest(manifest, bootstrap_history=(step,))
 
+    noncanonical = replace(
+        _route(RouteAction.RUN_STATIC),
+        reasons=("deterministic static bootstrap",),
+    )
+    with pytest.raises(ValueError, match="canonical deterministic bootstrap"):
+        RouterStateView.from_manifest(
+            _manifest(routes=(noncanonical,), evidence=(step.observation,)),
+            bootstrap_history=(step,),
+        )
+
     with pytest.raises(ValueError, match="deterministic static"):
         replace(
             step,
-            route=RouterRouteStep.from_route_decision(
-                _route(RouteAction.RUN_SEMANTIC)
-            ),
+            route=RouterRouteStep.from_route_decision(_route(RouteAction.RUN_SEMANTIC)),
         )
     with pytest.raises(ValueError, match="metadata must be stripped"):
         replace(
@@ -278,9 +280,7 @@ def test_bootstrap_prefix_and_safe_observation_fail_closed() -> None:
             ),
         )
     duplicated = state.to_dict()
-    duplicated["evidence_history"] = [
-        duplicated["bootstrap_history"][0]["observation"]
-    ]
+    duplicated["evidence_history"] = [duplicated["bootstrap_history"][0]["observation"]]
     with pytest.raises(ValueError, match="acquisition_id values must be unique"):
         RouterStateView.from_dict(duplicated)
 
@@ -309,9 +309,7 @@ def test_policy_chain_rejects_mutated_bootstrap_receipt() -> None:
     )
     mutated = replace(
         successor,
-        bootstrap_history=(
-            replace(step, receipt_sha256=_sha("substituted receipt")),
-        ),
+        bootstrap_history=(replace(step, receipt_sha256=_sha("substituted receipt")),),
     )
     second = _logged(
         mutated,
@@ -368,51 +366,59 @@ def test_router_state_strips_allowlisted_operational_metadata() -> None:
         (
             _manifest(
                 routes=(_route(RouteAction.RUN_STATIC),),
-                evidence=(EvidenceObservation(
-                    kind=EvidenceKind.STATIC,
-                    status=EvidenceStatus.INCONCLUSIVE,
-                    source="fixture",
-                    acquisition_id="acq-" + "1" * 32,
-                    privileged_inputs=("gold_patch",),
-                ),),
+                evidence=(
+                    EvidenceObservation(
+                        kind=EvidenceKind.STATIC,
+                        status=EvidenceStatus.INCONCLUSIVE,
+                        source="fixture",
+                        acquisition_id="acq-" + "1" * 32,
+                        privileged_inputs=("gold_patch",),
+                    ),
+                ),
             ),
             "privileged evidence",
         ),
         (
             _manifest(
                 routes=(_route(RouteAction.RUN_STATIC),),
-                evidence=(EvidenceObservation(
-                    kind=EvidenceKind.HUMAN_ADJUDICATION,
-                    status=EvidenceStatus.SUPPORTS_CORRECT,
-                    source="panel",
-                    acquisition_id="acq-" + "1" * 32,
-                ),),
+                evidence=(
+                    EvidenceObservation(
+                        kind=EvidenceKind.HUMAN_ADJUDICATION,
+                        status=EvidenceStatus.SUPPORTS_CORRECT,
+                        source="panel",
+                        acquisition_id="acq-" + "1" * 32,
+                    ),
+                ),
             ),
             "human adjudication",
         ),
         (
             _manifest(
                 routes=(_route(RouteAction.RUN_STATIC),),
-                evidence=(EvidenceObservation(
-                    kind=EvidenceKind.STATIC,
-                    status=EvidenceStatus.INCONCLUSIVE,
-                    source="fixture",
-                    acquisition_id="acq-" + "1" * 32,
-                    metadata={"gold_patch": "leak"},
-                ),),
+                evidence=(
+                    EvidenceObservation(
+                        kind=EvidenceKind.STATIC,
+                        status=EvidenceStatus.INCONCLUSIVE,
+                        source="fixture",
+                        acquisition_id="acq-" + "1" * 32,
+                        metadata={"gold_patch": "leak"},
+                    ),
+                ),
             ),
             "may encode privileged data",
         ),
         (
             _manifest(
                 routes=(_route(RouteAction.RUN_STATIC),),
-                evidence=(EvidenceObservation(
-                    kind=EvidenceKind.STATIC,
-                    status=EvidenceStatus.INCONCLUSIVE,
-                    source="fixture",
-                    acquisition_id="acq-" + "1" * 32,
-                    metadata={"arbitrary_feature": True},
-                ),),
+                evidence=(
+                    EvidenceObservation(
+                        kind=EvidenceKind.STATIC,
+                        status=EvidenceStatus.INCONCLUSIVE,
+                        source="fixture",
+                        acquisition_id="acq-" + "1" * 32,
+                        metadata={"arbitrary_feature": True},
+                    ),
+                ),
             ),
             "not allowlisted",
         ),
@@ -432,23 +438,29 @@ def test_router_state_rejects_privileged_provenance_and_bad_history_shape() -> N
     with pytest.raises(ValueError, match="privileged truth or outcome"):
         RouterStateView.from_manifest(privileged)
 
-    evidence_without_route = _manifest(evidence=(EvidenceObservation(
-        kind=EvidenceKind.STATIC,
-        status=EvidenceStatus.INCONCLUSIVE,
-        source="fixture",
-        acquisition_id="acq-" + "1" * 32,
-    ),))
+    evidence_without_route = _manifest(
+        evidence=(
+            EvidenceObservation(
+                kind=EvidenceKind.STATIC,
+                status=EvidenceStatus.INCONCLUSIVE,
+                source="fixture",
+                acquisition_id="acq-" + "1" * 32,
+            ),
+        )
+    )
     with pytest.raises(ValueError, match="one-to-one"):
         RouterStateView.from_manifest(evidence_without_route)
 
     mismatch = _manifest(
         routes=(_route(RouteAction.RUN_FULL),),
-        evidence=(EvidenceObservation(
-            kind=EvidenceKind.STATIC,
-            status=EvidenceStatus.INCONCLUSIVE,
-            source="fixture",
-            acquisition_id="acq-" + "1" * 32,
-        ),),
+        evidence=(
+            EvidenceObservation(
+                kind=EvidenceKind.STATIC,
+                status=EvidenceStatus.INCONCLUSIVE,
+                source="fixture",
+                acquisition_id="acq-" + "1" * 32,
+            ),
+        ),
     )
     with pytest.raises(ValueError, match="action/evidence mismatch"):
         RouterStateView.from_manifest(mismatch)
@@ -479,26 +491,22 @@ def test_router_state_rejects_values_that_cannot_round_trip_canonically() -> Non
         acquisition_id="acq-" + "1" * 32,
     )
     with pytest.raises(ValueError, match="surrounding or control whitespace"):
-        RouterStateView.from_manifest(_manifest(
-            routes=(_route(RouteAction.RUN_STATIC),),
-            evidence=(spaced_source,),
-        ))
+        RouterStateView.from_manifest(
+            _manifest(
+                routes=(_route(RouteAction.RUN_STATIC),),
+                evidence=(spaced_source,),
+            )
+        )
 
 
 def test_action_offer_enforces_route_kind_spec_and_terminal_cost() -> None:
-    offer = next(
-        item for item in _catalog()
-        if item.route_action == RouteAction.RUN_STATIC
-    )
+    offer = next(item for item in _catalog() if item.route_action == RouteAction.RUN_STATIC)
     with pytest.raises(ValueError, match="incompatible evidence_kind"):
         replace(offer, evidence_kind=EvidenceKind.FULL_EXECUTION)
     with pytest.raises(ValueError, match="64 lowercase"):
         replace(offer, action_spec_sha256="SHA256:" + "a" * 64)
 
-    terminal = next(
-        item for item in _catalog()
-        if item.route_action == RouteAction.ABSTAIN
-    )
+    terminal = next(item for item in _catalog() if item.route_action == RouteAction.ABSTAIN)
     with pytest.raises(ValueError, match="cannot declare evidence_kind"):
         replace(terminal, evidence_kind=EvidenceKind.STATIC)
     with pytest.raises(ValueError, match="zero expected cost"):
@@ -519,17 +527,13 @@ def test_catalog_requires_unique_complete_actions_and_terminal_support() -> None
         _logged(state, catalog=tuple(catalog))
 
     catalog = list(_catalog())
-    accept = next(
-        item for item in catalog if item.route_action == RouteAction.ACCEPT
-    )
+    accept = next(item for item in catalog if item.route_action == RouteAction.ACCEPT)
     catalog.append(replace(accept, action_id="second_accept"))
     catalog = sorted(catalog, key=lambda item: item.action_id)
     with pytest.raises(ValueError, match="terminal RouteAction values"):
         _logged(state, catalog=tuple(catalog))
 
-    missing = tuple(
-        item for item in _catalog() if item.route_action != RouteAction.ACCEPT
-    )
+    missing = tuple(item for item in _catalog() if item.route_action != RouteAction.ACCEPT)
     with pytest.raises(ValueError, match="represent every RouteAction"):
         _logged(state, catalog=missing)
 
@@ -554,15 +558,15 @@ def test_catalog_requires_unique_complete_actions_and_terminal_support() -> None
 def test_catalog_supports_multiple_concrete_offers_for_one_modality() -> None:
     state = RouterStateView.from_manifest(_manifest())
     catalog = list(_catalog())
-    static = next(
-        item for item in catalog if item.route_action == RouteAction.RUN_STATIC
+    static = next(item for item in catalog if item.route_action == RouteAction.RUN_STATIC)
+    catalog.append(
+        replace(
+            static,
+            action_id="run_static_alternate",
+            adapter_id="alternate-static-adapter",
+            action_spec_sha256=_sha("alternate static intervention"),
+        )
     )
-    catalog.append(replace(
-        static,
-        action_id="run_static_alternate",
-        adapter_id="alternate-static-adapter",
-        action_spec_sha256=_sha("alternate static intervention"),
-    ))
     catalog_tuple = tuple(sorted(catalog, key=lambda item: item.action_id))
     decision = _logged(
         state,
@@ -572,10 +576,7 @@ def test_catalog_supports_multiple_concrete_offers_for_one_modality() -> None:
     )
 
     assert decision.chosen_offer.adapter_id == "alternate-static-adapter"
-    assert sum(
-        item.route_action == RouteAction.RUN_STATIC
-        for item in decision.action_catalog
-    ) == 2
+    assert sum(item.route_action == RouteAction.RUN_STATIC for item in decision.action_catalog) == 2
 
 
 def test_behavior_distribution_matches_availability_normalization_and_draw() -> None:
@@ -616,10 +617,13 @@ def test_behavior_distribution_matches_availability_normalization_and_draw() -> 
             behavior_distribution=tuple(reversed(decision.behavior_distribution)),
         )
 
-    two_action_catalog = _catalog(unavailable=set(RouteAction) - {
-        RouteAction.ABSTAIN,
-        RouteAction.ACCEPT,
-    })
+    two_action_catalog = _catalog(
+        unavailable=set(RouteAction)
+        - {
+            RouteAction.ABSTAIN,
+            RouteAction.ACCEPT,
+        }
+    )
     tiny_support = (
         BehaviorProbability(action_id=RouteAction.ABSTAIN.value, propensity=1e-15),
         BehaviorProbability(
@@ -665,10 +669,13 @@ def test_preferred_uniform_policy_has_exact_positive_support_and_canonical_draw(
     assert decision.behavior_distribution == behavior
     for probability in behavior:
         draw = _draw_for(behavior, probability.action_id)
-        assert sample_behavior_action(
-            behavior,
-            sampler_draw=draw,
-        ) == probability.action_id
+        assert (
+            sample_behavior_action(
+                behavior,
+                sampler_draw=draw,
+            )
+            == probability.action_id
+        )
 
 
 @pytest.mark.parametrize("exploration_mass", [True, 0.0, -0.1, 1.1, float("nan")])
@@ -785,10 +792,12 @@ def test_two_step_chain_binds_prior_head_and_realized_acquisition() -> None:
         acquisition_id=first.acquisition_id or "",
         metadata={"runner": "bench-cleanser-acquire"},
     )
-    second_state = RouterStateView.from_manifest(_manifest(
-        routes=(_route(RouteAction.RUN_STATIC),),
-        evidence=(observation,),
-    ))
+    second_state = RouterStateView.from_manifest(
+        _manifest(
+            routes=(_route(RouteAction.RUN_STATIC),),
+            evidence=(observation,),
+        )
+    )
     second = _logged(
         second_state,
         chosen_action_id=RouteAction.ACCEPT.value,
@@ -830,7 +839,8 @@ def test_two_step_chain_binds_prior_head_and_realized_acquisition() -> None:
         chosen_action_id=RouteAction.RUN_FULL.value,
         acquisition_id=first.acquisition_id,
         chosen_propensity=next(
-            item.propensity for item in second.behavior_distribution
+            item.propensity
+            for item in second.behavior_distribution
             if item.action_id == RouteAction.RUN_FULL.value
         ),
         sampler_draw=_draw_for(
@@ -872,7 +882,8 @@ def test_two_step_chain_binds_prior_head_and_realized_acquisition() -> None:
 
     changed_catalog = list(second.action_catalog)
     static_index = next(
-        index for index, item in enumerate(changed_catalog)
+        index
+        for index, item in enumerate(changed_catalog)
         if item.route_action == RouteAction.RUN_STATIC
     )
     changed_catalog[static_index] = replace(
@@ -901,10 +912,12 @@ def test_terminal_decision_cannot_have_a_chain_successor() -> None:
         source="fixture",
         acquisition_id="acq-" + "8" * 32,
     )
-    successor_state = RouterStateView.from_manifest(_manifest(
-        routes=(_route(RouteAction.RUN_STATIC),),
-        evidence=(observation,),
-    ))
+    successor_state = RouterStateView.from_manifest(
+        _manifest(
+            routes=(_route(RouteAction.RUN_STATIC),),
+            evidence=(observation,),
+        )
+    )
     successor = _logged(
         successor_state,
         prior_head=terminal.trajectory_head_sha256,

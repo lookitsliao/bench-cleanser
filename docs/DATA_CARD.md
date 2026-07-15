@@ -5,7 +5,7 @@
 **Artifact status:** schema and collection contract only. There is no released
 or populated verification-gap dataset in this repository.
 
-Corpus schema `0.5.0`, its validator, and synthetic fixtures describe how a
+Corpus schema `0.6.0`, its validator, and synthetic fixtures describe how a
 future paired dataset must be represented. The hosted-outcome, matched-rollout,
 real-agent, and seed studies are development studies; none satisfies the corpus
 card below and none may be advertised as the released dataset.
@@ -13,9 +13,10 @@ card below and none may be advertised as the released dataset.
 ## Intended unit and purpose
 
 One record represents one exact task/candidate pair joined to a reference-free
-deployable manifest, an acquisition trajectory, measured evidence events, and
-curator-only truth. The same task may have multiple candidate records. Task is
-the split and analysis cluster.
+pre-execution manifest, deterministic label/counterfactual evidence, a separate
+randomized live-policy behavior trajectory, and curator-only truth. The same
+task may have multiple candidate records. Task is the split and analysis
+cluster.
 
 The intended uses are:
 
@@ -35,10 +36,17 @@ The deployable surface contains only information available to a live policy:
 
 - dataset/repository/base-commit and candidate-patch identities;
 - lifecycle context and reference-free risk features;
-- complete pre-action catalogs and history-conditioned propensities;
-- acquired observations, source/version, status, local measured cost, and
-  calibration declarations; and
+- a safe behavior-source manifest and deterministic bootstrap history that are
+  explicitly outside randomized propensity accounting;
+- complete live pre-action catalogs, history-conditioned propensities, terminal
+  decision, and acquired behavior observations; and
 - write-ahead policy, sampler, action-spec, and chain identities.
+
+The safe policy projection strips bootstrap/live metadata and free-form route
+reasons. The raw live record may retain schema-checked artifact locators,
+capture errors, workspace identifiers, and externally declared digests for
+audit. Those opaque strings are not model features or labels, and this schema
+does not authenticate or semantically classify them.
 
 The curator-only surface contains:
 
@@ -80,9 +88,11 @@ Every release must preserve:
   scaffold, policy, and code digests where applicable;
 - action-spec preimages and immutable raw evidence bytes;
 - cold build/pull, warm execution, cache, queue, token, storage, dollar, and
-  human-time costs;
+  human-time costs, reported separately for label evidence, deterministic
+  bootstrap, and live behavior before any inclusive total;
 - adjudication instructions, reviewer blinding, agreement, and deviations;
-- record, corpus, acquisition-trajectory, and evaluation digests; and
+- record, corpus, label-evidence-trajectory, behavior-trajectory, and evaluation
+  digests; and
 - environment lock, SBOM, license inventory, and redistribution decision.
 
 Checksums prove byte identity, not authenticity. A public release must also
@@ -109,6 +119,8 @@ redistribution attestation bound to the exact research-artifact manifest.
 ## Known limitations and current evidence
 
 - No populated paired corpus exists.
+- No compiler yet joins the behavior ledger, scientific ledger, reviewer votes,
+  resource settlements, and candidate registry into corpus `0.6.0` records.
 - No blinded adjudication set or inter-rater result exists.
 - No repository/time-disjoint calibration or test population exists.
 - Current hosted studies are Python-only and repository-imbalanced.

@@ -39,6 +39,7 @@ from bench_cleanser.verification.models import (
 from bench_cleanser.verification.policy_log import (
     CANONICAL_SAMPLER_ID,
     CANONICAL_SAMPLER_VERSION,
+    DETERMINISTIC_BOOTSTRAP_REASON,
     GENESIS_TRAJECTORY_HEAD_SHA256,
     ActionOffer,
     BehaviorProbability,
@@ -68,15 +69,9 @@ BEHAVIOR_POLICY_ID = "prospective-pilot-behavior"
 BEHAVIOR_POLICY_VERSION = "v3"
 BEHAVIOR_SELECTION_REASON_CODE = "preferred_plus_uniform"
 
-ACTION_DRAW_SEED_SHA256 = (
-    "f79578fb9860ef0eb4bf02a62691e98c4002a5de96b8dda9ab2d3616f082b574"
-)
-CANDIDATE_ORDER_SEED_SHA256 = (
-    "4521fcca1866d783919b9e3899e0c6e679f2a4c790e63420c2747abb6716f4eb"
-)
-TASK_ORDER_SEED_SHA256 = (
-    "601dfd7774d58876b42240e4f98e897c19a55356eccca67a39f81a4c7299ca32"
-)
+ACTION_DRAW_SEED_SHA256 = "f79578fb9860ef0eb4bf02a62691e98c4002a5de96b8dda9ab2d3616f082b574"
+CANDIDATE_ORDER_SEED_SHA256 = "4521fcca1866d783919b9e3899e0c6e679f2a4c790e63420c2747abb6716f4eb"
+TASK_ORDER_SEED_SHA256 = "601dfd7774d58876b42240e4f98e897c19a55356eccca67a39f81a4c7299ca32"
 ACTION_DRAW_DOMAIN = "bench-cleanser/prospective-pilot-v2/action-draw"
 CANDIDATE_ORDER_DOMAIN = "bench-cleanser/prospective-pilot-v2/candidate-order"
 TASK_ORDER_DOMAIN = "bench-cleanser/prospective-pilot-v2/task-order"
@@ -88,27 +83,19 @@ MAXIMUM_CANDIDATE_DECISIONS = 5
 MAXIMUM_NONTERMINAL_ACQUISITIONS = 4
 EXPLORATION_MASS = 0.5
 MINIMUM_ACTION_PROPENSITY = 0.5 / 7.0
-ACTION_COUNTER_SLOTS_PER_TASK = (
-    CANDIDATES_PER_TASK * MAXIMUM_CANDIDATE_DECISIONS
-)
+ACTION_COUNTER_SLOTS_PER_TASK = CANDIDATES_PER_TASK * MAXIMUM_CANDIDATE_DECISIONS
 
 FRAME_MANIFEST_SCHEMA_VERSION = "prospective-pilot-frame-manifest-0.1.0"
-FRAME_MANIFEST_RELATIVE_PATH = pathlib.Path(
-    "experiments/prospective_pilot/frame_manifest.json"
-)
+FRAME_MANIFEST_RELATIVE_PATH = pathlib.Path("experiments/prospective_pilot/frame_manifest.json")
 COLLECTION_POLICY_RELATIVE_PATH = pathlib.Path(
     "experiments/prospective_pilot/collection_policy.json"
 )
 SCHEDULER_CONTRACT_RELATIVE_PATH = pathlib.Path(
     "experiments/prospective_pilot/scheduler_contract.json"
 )
-PROTOCOL_RELATIVE_PATH = pathlib.Path(
-    "experiments/prospective_pilot/preregistration.json"
-)
+PROTOCOL_RELATIVE_PATH = pathlib.Path("experiments/prospective_pilot/preregistration.json")
 ROUTER_RELATIVE_PATH = pathlib.Path("bench_cleanser/verification/router.py")
-ROUTER_SOURCE_SHA256 = (
-    "47a64e8fb0e387c2199fb939e4eef6615f8b15f8b6578d79a97650327bfe40d4"
-)
+ROUTER_SOURCE_SHA256 = "47a64e8fb0e387c2199fb939e4eef6615f8b15f8b6578d79a97650327bfe40d4"
 ROUTER_POLICY_VERSION = "conservative-v1"
 ROUTER_POLICY_CONFIG = {
     "allow_semantic_accept_in_evaluation": False,
@@ -353,9 +340,7 @@ class FrozenStudyFrame:
             tasks.append((task_id, candidates))
             tasks_payload.append({"task_id": task_id, "candidate_ids": list(candidates)})
         task_ids = [task_id for task_id, _ in tasks]
-        candidate_ids = sorted(
-            candidate for _, candidates in tasks for candidate in candidates
-        )
+        candidate_ids = sorted(candidate for _, candidates in tasks for candidate in candidates)
         expected_hashes = {
             "task_ids_sha256": _canonical_sha256(task_ids),
             "candidate_ids_sha256": _canonical_sha256(candidate_ids),
@@ -419,9 +404,7 @@ class SchedulerBindings:
         ).hexdigest()
         if frame_digest != self.frame.manifest_sha256:
             raise ValueError("scheduler frame is not the repository-bound manifest")
-        router_digest = hashlib.sha256(
-            (repository / ROUTER_RELATIVE_PATH).read_bytes()
-        ).hexdigest()
+        router_digest = hashlib.sha256((repository / ROUTER_RELATIVE_PATH).read_bytes()).hexdigest()
         if router_digest != self.router_source_sha256:
             raise ValueError("scheduler router source is not the repository-bound file")
         validation = validate_protocol(repository)
@@ -431,8 +414,7 @@ class SchedulerBindings:
             != self.collection_policy_sha256
             or validation.configuration_sha256.get("scheduler_contract")
             != self.scheduler_contract_sha256
-            or validation.configuration_sha256.get("frame_manifest")
-            != self.frame.manifest_sha256
+            or validation.configuration_sha256.get("frame_manifest") != self.frame.manifest_sha256
         ):
             raise ValueError("scheduler bindings differ from strict protocol validation")
 
@@ -574,8 +556,7 @@ def _timestamp(value: Any, field_name: str) -> str:
         parsed = datetime.strptime(raw, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=UTC)
     except ValueError as exc:
         raise ValueError(
-            f"{field_name} must use canonical UTC format "
-            "YYYY-MM-DDTHH:MM:SS.ffffffZ"
+            f"{field_name} must use canonical UTC format YYYY-MM-DDTHH:MM:SS.ffffffZ"
         ) from exc
     canonical = parsed.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
     if canonical != raw:
@@ -623,26 +604,29 @@ def _fixed_hash_order(
 ) -> tuple[str, ...]:
     if not isinstance(values, (list, tuple)):
         raise ValueError(f"{field_name} must be a sequence")
-    normalized = tuple(_string(value, f"{field_name}[{index}]") for index, value in enumerate(values))
+    normalized = tuple(
+        _string(value, f"{field_name}[{index}]") for index, value in enumerate(values)
+    )
     if len(normalized) != len(set(normalized)):
         raise ValueError(f"{field_name} cannot contain duplicates")
     seed = bytes.fromhex(_digest(seed_sha256, f"{field_name} seed"))
     domain_bytes = _string(domain, f"{field_name} domain").encode("utf-8")
-    return tuple(sorted(
-        normalized,
-        key=lambda value: (
-            hashlib.sha256(
-                seed + b"\x00" + domain_bytes + b"\x00" + value.encode("utf-8")
-            ).hexdigest(),
-            value,
-        ),
-    ))
+    return tuple(
+        sorted(
+            normalized,
+            key=lambda value: (
+                hashlib.sha256(
+                    seed + b"\x00" + domain_bytes + b"\x00" + value.encode("utf-8")
+                ).hexdigest(),
+                value,
+            ),
+        )
+    )
 
 
 def derive_candidate_order(candidate_ids: Sequence[str]) -> tuple[str, ...]:
     normalized = tuple(
-        _candidate_id(value, f"candidate_ids[{index}]")
-        for index, value in enumerate(candidate_ids)
+        _candidate_id(value, f"candidate_ids[{index}]") for index, value in enumerate(candidate_ids)
     )
     if len(normalized) != CANDIDATES_PER_TASK:
         raise ValueError("candidate order requires exactly three candidates")
@@ -658,8 +642,7 @@ def derive_task_order(task_ids: Sequence[str]) -> tuple[str, ...]:
     if len(task_ids) != FUTURE_TASK_COUNT:
         raise ValueError("task order requires the exact 22-task future frame")
     normalized = tuple(
-        _safe_identifier(value, f"task_ids[{index}]")
-        for index, value in enumerate(task_ids)
+        _safe_identifier(value, f"task_ids[{index}]") for index, value in enumerate(task_ids)
     )
     return _fixed_hash_order(
         normalized,
@@ -679,9 +662,7 @@ def derive_task_batches(task_ids: Sequence[str]) -> tuple[tuple[str, ...], ...]:
 
 def _routing_policy_payload(policy: RoutingPolicy) -> dict[str, Any]:
     return {
-        "allow_semantic_accept_in_evaluation": (
-            policy.allow_semantic_accept_in_evaluation
-        ),
+        "allow_semantic_accept_in_evaluation": (policy.allow_semantic_accept_in_evaluation),
         "full_relative_cost": policy.full_relative_cost,
         "hardening_relative_cost": policy.hardening_relative_cost,
         "high_candidate_risk": policy.high_candidate_risk,
@@ -689,12 +670,8 @@ def _routing_policy_payload(policy: RoutingPolicy) -> dict[str, Any]:
         "maximum_false_accept_risk": policy.maximum_false_accept_risk,
         "maximum_full_execution_attempts": policy.maximum_full_execution_attempts,
         "maximum_hardening_attempts": policy.maximum_hardening_attempts,
-        "minimum_authoritative_verifier_validity": (
-            policy.minimum_authoritative_verifier_validity
-        ),
-        "minimum_full_execution_replicates": (
-            policy.minimum_full_execution_replicates
-        ),
+        "minimum_authoritative_verifier_validity": (policy.minimum_authoritative_verifier_validity),
+        "minimum_full_execution_replicates": (policy.minimum_full_execution_replicates),
         "semantic_relative_cost": policy.semantic_relative_cost,
         "static_relative_cost": policy.static_relative_cost,
         "targeted_relative_cost": policy.targeted_relative_cost,
@@ -727,21 +704,20 @@ def _manifest_from_router_state(state: RouterStateView) -> ValidityManifest:
         ],
         route_history=[
             RouteDecision(
-                    action=item.route.action,
-                    policy_version=item.route.policy_version,
-                    candidate_risk=item.route.candidate_risk,
-                    verifier_risk=item.route.verifier_risk,
-                    expected_information_gain=(
-                        item.route.expected_information_gain
-                    ),
-                    estimated_relative_cost=item.route.estimated_relative_cost,
-                    reasons=("frozen_deterministic_bootstrap",),
-                    terminal=False,
-                    scores_calibrated=item.route.scores_calibrated,
-                    calibration_id=item.route.calibration_id,
-                )
+                action=item.route.action,
+                policy_version=item.route.policy_version,
+                candidate_risk=item.route.candidate_risk,
+                verifier_risk=item.route.verifier_risk,
+                expected_information_gain=(item.route.expected_information_gain),
+                estimated_relative_cost=item.route.estimated_relative_cost,
+                reasons=(DETERMINISTIC_BOOTSTRAP_REASON,),
+                terminal=False,
+                scores_calibrated=item.route.scores_calibrated,
+                calibration_id=item.route.calibration_id,
+            )
             for item in state.bootstrap_history
-        ] + [
+        ]
+        + [
             RouteDecision(
                 action=item.action,
                 policy_version=item.policy_version,
@@ -759,6 +735,29 @@ def _manifest_from_router_state(state: RouterStateView) -> ValidityManifest:
     )
 
 
+def reconstruct_initial_behavior_source_manifest(
+    state: RouterStateView,
+) -> ValidityManifest:
+    """Recover and verify the exact bootstrap-only source for behavior export."""
+
+    if not isinstance(state, RouterStateView):
+        raise ValueError("router state must be a safe RouterStateView preimage")
+    if state.evidence_history or state.route_history:
+        raise ValueError("initial behavior source reconstruction requires no randomized history")
+    manifest = _manifest_from_router_state(state)
+    if manifest.canonical_digest() != state.source_manifest_sha256:
+        raise ValueError("initial router state does not retain an exact canonical source preimage")
+    if (
+        RouterStateView.from_manifest(
+            manifest,
+            bootstrap_history=state.bootstrap_history,
+        )
+        != state
+    ):
+        raise ValueError("reconstructed behavior source does not reproduce router state")
+    return manifest
+
+
 def _frozen_router_decision(state: RouterStateView) -> RouteDecision:
     policy = RoutingPolicy()
     payload = _routing_policy_payload(policy)
@@ -766,7 +765,12 @@ def _frozen_router_decision(state: RouterStateView) -> RouteDecision:
         ROUTER_POLICY_CONFIG_SHA256
     ):
         raise ValueError("runtime RoutingPolicy defaults differ from the frozen config")
-    return ConservativeRouter(policy).route(_manifest_from_router_state(state))
+    manifest = (
+        reconstruct_initial_behavior_source_manifest(state)
+        if not state.evidence_history and not state.route_history
+        else _manifest_from_router_state(state)
+    )
+    return ConservativeRouter(policy).route(manifest)
 
 
 @dataclass(frozen=True)
@@ -889,10 +893,14 @@ class BoundRouterDecision:
         if projection != expected_projection:
             raise ValueError("bound router projection differs from frozen-router recomputation")
         computed = _canonical_sha256(self._payload())
-        if self.decision_sha256 and _digest(
-            self.decision_sha256,
-            "bound_router.decision_sha256",
-        ) != computed:
+        if (
+            self.decision_sha256
+            and _digest(
+                self.decision_sha256,
+                "bound_router.decision_sha256",
+            )
+            != computed
+        ):
             raise ValueError("bound router decision digest differs")
         object.__setattr__(self, "decision_sha256", computed)
 
@@ -1113,18 +1121,14 @@ def _validate_catalog(action_catalog: Sequence[ActionOffer]) -> tuple[ActionOffe
     for offer in catalog:
         if offer.route_action != COLLECTION_ACTION_ROUTE[offer.action_id]:
             raise ValueError(f"action {offer.action_id!r} has the wrong route binding")
-        reason_field = (
-            f"action_catalog[{offer.action_id!r}].availability_reason"
-        )
+        reason_field = f"action_catalog[{offer.action_id!r}].availability_reason"
         reason = (
             "curator_only_not_policy_available"
             if offer.availability_reason == "curator_only_not_policy_available"
             else _code(offer.availability_reason, reason_field)
         )
         if reason not in _ALLOWED_AVAILABILITY_REASONS:
-            raise ValueError(
-                f"action {offer.action_id!r} uses an unregistered availability reason"
-            )
+            raise ValueError(f"action {offer.action_id!r} uses an unregistered availability reason")
         available_reasons = {
             "always_available",
             "execution_binding_available",
@@ -1132,9 +1136,7 @@ def _validate_catalog(action_catalog: Sequence[ActionOffer]) -> tuple[ActionOffe
             "semantic_binding_available",
         }
         if offer.available != (reason in available_reasons):
-            raise ValueError(
-                f"action {offer.action_id!r} availability contradicts its reason code"
-            )
+            raise ValueError(f"action {offer.action_id!r} availability contradicts its reason code")
         _safe_identifier(
             offer.adapter_id,
             f"action_catalog[{offer.action_id!r}].adapter_id",
@@ -1144,10 +1146,7 @@ def _validate_catalog(action_catalog: Sequence[ActionOffer]) -> tuple[ActionOffe
             f"action_catalog[{offer.action_id!r}].adapter_version",
         )
     by_id = {item.action_id: item for item in catalog}
-    if (
-        by_id["full_primary"].action_spec_sha256
-        == by_id["full_repeat"].action_spec_sha256
-    ):
+    if by_id["full_primary"].action_spec_sha256 == by_id["full_repeat"].action_spec_sha256:
         raise ValueError("full_repeat requires a distinct fresh-worktree action spec")
     return catalog
 
@@ -1170,67 +1169,83 @@ def _canonical_catalog(
     result: list[ActionOffer] = []
     for offer in source:
         if offer.action_id == "accept":
-            result.append(replace(
-                offer,
-                available=admissibility.accept_eligible,
-                availability_reason=(
-                    "proposal_terminal_available"
-                    if admissibility.accept_eligible
-                    else "proposal_terminal_unavailable"
-                ),
-            ))
+            result.append(
+                replace(
+                    offer,
+                    available=admissibility.accept_eligible,
+                    availability_reason=(
+                        "proposal_terminal_available"
+                        if admissibility.accept_eligible
+                        else "proposal_terminal_unavailable"
+                    ),
+                )
+            )
         elif offer.action_id == "reject":
-            result.append(replace(
-                offer,
-                available=admissibility.reject_eligible,
-                availability_reason=(
-                    "proposal_terminal_available"
-                    if admissibility.reject_eligible
-                    else "proposal_terminal_unavailable"
-                ),
-            ))
+            result.append(
+                replace(
+                    offer,
+                    available=admissibility.reject_eligible,
+                    availability_reason=(
+                        "proposal_terminal_available"
+                        if admissibility.reject_eligible
+                        else "proposal_terminal_unavailable"
+                    ),
+                )
+            )
         elif offer.action_id == "abstain":
-            result.append(replace(
-                offer,
-                available=True,
-                availability_reason="always_available",
-            ))
+            result.append(
+                replace(
+                    offer,
+                    available=True,
+                    availability_reason="always_available",
+                )
+            )
         elif offer.action_id == "static_bootstrap":
-            result.append(replace(
-                offer,
-                available=False,
-                availability_reason="deterministic_bootstrap_completed",
-            ))
+            result.append(
+                replace(
+                    offer,
+                    available=False,
+                    availability_reason="deterministic_bootstrap_completed",
+                )
+            )
         elif offer.action_id == "hardening_curator":
-            result.append(replace(
-                offer,
-                available=False,
-                availability_reason="curator_only_not_policy_available",
-            ))
+            result.append(
+                replace(
+                    offer,
+                    available=False,
+                    availability_reason="curator_only_not_policy_available",
+                )
+            )
         elif offer.action_id in completed_nonterminal_action_ids:
-            result.append(replace(
-                offer,
-                available=False,
-                availability_reason="action_already_completed",
-            ))
+            result.append(
+                replace(
+                    offer,
+                    available=False,
+                    availability_reason="action_already_completed",
+                )
+            )
         elif (
             offer.action_id == "full_repeat"
             and "full_primary" not in completed_nonterminal_action_ids
         ):
-            result.append(replace(
-                offer,
-                available=False,
-                availability_reason="primary_full_required",
-            ))
+            result.append(
+                replace(
+                    offer,
+                    available=False,
+                    availability_reason="primary_full_required",
+                )
+            )
         elif (
             decisions >= MAXIMUM_CANDIDATE_DECISIONS - 1
             or acquisitions >= MAXIMUM_NONTERMINAL_ACQUISITIONS
         ):
-            result.append(replace(
-                offer,
-                available=False,
-                availability_reason="acquisition_ceiling",
-            ))
+            result.append(
+                replace(
+                    offer,
+                    available=False,
+                    availability_reason="acquisition_ceiling",
+                )
+            )
         else:
             result.append(offer)
     normalized = tuple(result)
@@ -1328,8 +1343,7 @@ def _validate_candidate_common(
         router_state = bound_router_decision.router_state
         if (
             len(router_state.bootstrap_history) != 1
-            or router_state.bootstrap_history[0].route.action
-            != RouteAction.RUN_STATIC
+            or router_state.bootstrap_history[0].route.action != RouteAction.RUN_STATIC
             or len(router_state.evidence_history) != acquisitions
             or len(router_state.route_history) != acquisitions
         ):
@@ -1380,13 +1394,9 @@ class CandidateRoundState:
             assert self.bound_router_decision is not None
             proposal = terminal_proposal(
                 self.bound_router_decision.router_state,
-                completed_nonterminal_action_ids=(
-                    self.completed_nonterminal_action_ids
-                ),
+                completed_nonterminal_action_ids=(self.completed_nonterminal_action_ids),
             )
-            expected_admissibility = TerminalAdmissibility.from_proposal(
-                proposal
-            )
+            expected_admissibility = TerminalAdmissibility.from_proposal(proposal)
             if self.terminal_admissibility != expected_admissibility:
                 raise ValueError("terminal admissibility contradicts the bound router")
             expected_catalog = _canonical_catalog(
@@ -1394,9 +1404,7 @@ class CandidateRoundState:
                 activity=self.activity,
                 decisions=self.decision_count,
                 acquisitions=self.nonterminal_acquisition_count,
-                completed_nonterminal_action_ids=(
-                    self.completed_nonterminal_action_ids
-                ),
+                completed_nonterminal_action_ids=(self.completed_nonterminal_action_ids),
                 admissibility=expected_admissibility,
             )
             if self.action_catalog != expected_catalog:
@@ -1416,9 +1424,7 @@ class CandidateRoundState:
                 activity=self.activity,
                 decisions=self.decision_count,
                 acquisitions=self.nonterminal_acquisition_count,
-                completed_nonterminal_action_ids=(
-                    self.completed_nonterminal_action_ids
-                ),
+                completed_nonterminal_action_ids=(self.completed_nonterminal_action_ids),
                 admissibility=self.terminal_admissibility,
             )
             if self.action_catalog != expected_catalog:
@@ -1432,16 +1438,12 @@ class CandidateRoundState:
             "activity": self.activity.value,
             "decision_count": self.decision_count,
             "nonterminal_acquisition_count": self.nonterminal_acquisition_count,
-            "completed_nonterminal_action_ids": list(
-                self.completed_nonterminal_action_ids
-            ),
+            "completed_nonterminal_action_ids": list(self.completed_nonterminal_action_ids),
             "router_state_sha256": self.router_state_sha256,
             "history_sha256": self.history_sha256,
             "policy_trajectory_head_sha256": self.policy_trajectory_head_sha256,
             "bound_router_decision": (
-                None
-                if self.bound_router_decision is None
-                else self.bound_router_decision.to_dict()
+                None if self.bound_router_decision is None else self.bound_router_decision.to_dict()
             ),
             "terminal_admissibility": self.terminal_admissibility.to_dict(),
             "action_catalog": [item.to_dict() for item in self.action_catalog],
@@ -1503,9 +1505,7 @@ class CandidateRoundState:
             bound_router_decision=(
                 None if raw_router is None else BoundRouterDecision.from_dict(raw_router)
             ),
-            terminal_admissibility=TerminalAdmissibility.from_dict(
-                data["terminal_admissibility"]
-            ),
+            terminal_admissibility=TerminalAdmissibility.from_dict(data["terminal_admissibility"]),
             action_catalog=tuple(
                 ActionOffer.from_dict(item, action_index)
                 for action_index, item in enumerate(catalog)
@@ -1519,9 +1519,7 @@ def _build_candidate_state(item: CandidateRoundInput) -> CandidateRoundState:
         assert item.bound_router_decision is not None
         proposal = terminal_proposal(
             item.bound_router_decision.router_state,
-            completed_nonterminal_action_ids=(
-                item.completed_nonterminal_action_ids
-            ),
+            completed_nonterminal_action_ids=(item.completed_nonterminal_action_ids),
         )
         admissibility = TerminalAdmissibility.from_proposal(proposal)
         catalog = _canonical_catalog(
@@ -1606,8 +1604,7 @@ class CandidateActionDecision:
         if not 0.0 <= draw < 1.0:
             raise ValueError("candidate decision sampler_draw must be in [0, 1)")
         if not isinstance(self.behavior_distribution, (list, tuple)) or any(
-            not isinstance(item, BehaviorProbability)
-            for item in self.behavior_distribution
+            not isinstance(item, BehaviorProbability) for item in self.behavior_distribution
         ):
             raise ValueError("candidate behavior_distribution is invalid")
         distribution = tuple(self.behavior_distribution)
@@ -1630,9 +1627,7 @@ class CandidateActionDecision:
             "candidate_decision.chosen_action_propensity",
         )
         expected_propensity = next(
-            item.propensity
-            for item in distribution
-            if item.action_id == self.chosen_action_id
+            item.propensity for item in distribution if item.action_id == self.chosen_action_id
         )
         if propensity != expected_propensity:
             raise ValueError("chosen action propensity differs from its distribution entry")
@@ -1642,18 +1637,14 @@ class CandidateActionDecision:
         )
         if log_propensity != log(propensity):
             raise ValueError("chosen log action propensity identity differs")
-        if sample_behavior_action(distribution, sampler_draw=draw) != (
-            self.chosen_action_id
-        ):
+        if sample_behavior_action(distribution, sampler_draw=draw) != (self.chosen_action_id):
             raise ValueError("chosen action differs from the canonical inverse-CDF sample")
         _digest(
             self.selection_identity_sha256,
             "candidate_decision.selection_identity_sha256",
         )
         if not isinstance(self.logged_policy_decision, LoggedPolicyDecision):
-            raise ValueError(
-                "candidate decision requires an exact LoggedPolicyDecision preimage"
-            )
+            raise ValueError("candidate decision requires an exact LoggedPolicyDecision preimage")
         logged = self.logged_policy_decision
         if (
             logged.candidate_id != self.candidate_id
@@ -1668,9 +1659,7 @@ class CandidateActionDecision:
             or logged.selection_reason_code != BEHAVIOR_SELECTION_REASON_CODE
             or logged.decision_sha256 != self.selection_identity_sha256
         ):
-            raise ValueError(
-                "candidate decision differs from its logged policy decision"
-            )
+            raise ValueError("candidate decision differs from its logged policy decision")
         object.__setattr__(self, "behavior_distribution", distribution)
         object.__setattr__(self, "candidate_scheduler_probability", 1.0)
         object.__setattr__(self, "sampler_draw", draw)
@@ -1685,9 +1674,7 @@ class CandidateActionDecision:
             "candidate_scheduler_probability": self.candidate_scheduler_probability,
             "action_draw_counter": self.action_draw_counter,
             "sampler_draw": self.sampler_draw,
-            "behavior_distribution": [
-                item.to_dict() for item in self.behavior_distribution
-            ],
+            "behavior_distribution": [item.to_dict() for item in self.behavior_distribution],
             "chosen_action_id": self.chosen_action_id,
             "chosen_action_propensity": self.chosen_action_propensity,
             "chosen_log_action_propensity": self.chosen_log_action_propensity,
@@ -1763,9 +1750,7 @@ class CandidateActionDecision:
                 data["selection_identity_sha256"],
                 f"{field_name}.selection_identity_sha256",
             ),
-            logged_policy_decision=LoggedPolicyDecision.from_dict(
-                data["logged_policy_decision"]
-            ),
+            logged_policy_decision=LoggedPolicyDecision.from_dict(data["logged_policy_decision"]),
         )
 
 
@@ -1874,9 +1859,7 @@ def _build_action_decision(
     )
     draw = derive_action_draw(counter)
     chosen = sample_behavior_action(distribution, sampler_draw=draw)
-    propensity = next(
-        item.propensity for item in distribution if item.action_id == chosen
-    )
+    propensity = next(item.propensity for item in distribution if item.action_id == chosen)
     state_sha256 = _state_digest(state)
     identity_material = {
         "contract": SCHEDULER_CHAIN_CONTRACT,
@@ -1896,27 +1879,38 @@ def _build_action_decision(
         "chosen_log_action_propensity": log(propensity),
     }
     identity_seed = _canonical_sha256(identity_material)
-    decision_id = "dec-" + _canonical_sha256({
-        "kind": "prospective_policy_decision",
-        "identity_seed": identity_seed,
-    })[:32]
+    decision_id = (
+        "dec-"
+        + _canonical_sha256(
+            {
+                "kind": "prospective_policy_decision",
+                "identity_seed": identity_seed,
+            }
+        )[:32]
+    )
     route_action = COLLECTION_ACTION_ROUTE[chosen]
     acquisition_id = (
         None
         if route_action in _TERMINAL_ROUTE_ACTIONS
-        else "acq-" + _canonical_sha256({
-            "kind": "prospective_acquisition",
-            "identity_seed": identity_seed,
-        })[:32]
+        else "acq-"
+        + _canonical_sha256(
+            {
+                "kind": "prospective_acquisition",
+                "identity_seed": identity_seed,
+            }
+        )[:32]
     )
     assert state.bound_router_decision is not None
     router_state = state.bound_router_decision.router_state
     logged = LoggedPolicyDecision(
-        trajectory_id="traj-" + _canonical_sha256({
-            "study_id": SCHEDULER_STUDY_ID,
-            "task_id": task_id,
-            "candidate_id": state.candidate_id,
-        })[:32],
+        trajectory_id="traj-"
+        + _canonical_sha256(
+            {
+                "study_id": SCHEDULER_STUDY_ID,
+                "task_id": task_id,
+                "candidate_id": state.candidate_id,
+            }
+        )[:32],
         decision_id=decision_id,
         acquisition_id=acquisition_id,
         decision_step=state.decision_count,
@@ -2025,21 +2019,31 @@ class TaskRoundDecision:
         self._validate_candidates_and_decisions()
         self._validate_probabilities_and_dispositions()
         computed = _canonical_sha256(self._payload())
-        if self.decision_sha256 and _digest(
-            self.decision_sha256,
-            "task_round.decision_sha256",
-        ) != computed:
+        if (
+            self.decision_sha256
+            and _digest(
+                self.decision_sha256,
+                "task_round.decision_sha256",
+            )
+            != computed
+        ):
             raise ValueError("task round decision digest differs")
         object.__setattr__(self, "decision_sha256", computed)
-        head = _canonical_sha256({
-            "contract": SCHEDULER_CHAIN_CONTRACT,
-            "prior_task_head_sha256": self.prior_task_head_sha256,
-            "decision_sha256": computed,
-        })
-        if self.task_head_sha256 and _digest(
-            self.task_head_sha256,
-            "task_round.task_head_sha256",
-        ) != head:
+        head = _canonical_sha256(
+            {
+                "contract": SCHEDULER_CHAIN_CONTRACT,
+                "prior_task_head_sha256": self.prior_task_head_sha256,
+                "decision_sha256": computed,
+            }
+        )
+        if (
+            self.task_head_sha256
+            and _digest(
+                self.task_head_sha256,
+                "task_round.task_head_sha256",
+            )
+            != head
+        ):
             raise ValueError("task round chain head differs")
         object.__setattr__(self, "task_head_sha256", head)
 
@@ -2134,9 +2138,7 @@ class TaskRoundDecision:
         for state in candidates:
             if state.activity == CandidateActivity.ACTIVE:
                 if state.decision_count != self.round_index:
-                    raise ValueError(
-                        "active candidate decision count must equal the round index"
-                    )
+                    raise ValueError("active candidate decision count must equal the round index")
                 assert state.bound_router_decision is not None
                 if state.bound_router_decision.router_state.instance_id != self.task_id:
                     raise ValueError("bound router state belongs to a different task")
@@ -2184,48 +2186,59 @@ class TaskRoundDecision:
                 raise ValueError("candidate action-draw counter differs")
             if decision.sampler_draw != derive_action_draw(counter):
                 raise ValueError("candidate sampler draw differs from the frozen generator")
-            identity_seed = _canonical_sha256({
-                "contract": SCHEDULER_CHAIN_CONTRACT,
-                "task_id": self.task_id,
-                "round_index": self.round_index,
-                "candidate_id": state.candidate_id,
-                "candidate_position": position,
-                "state_sha256": decision.state_sha256,
-                "candidate_scheduler_probability": 1.0,
-                "action_draw_counter": counter,
-                "sampler_id": self.sampler_id,
-                "sampler_version": self.sampler_version,
-                "sampler_draw": decision.sampler_draw,
-                "behavior_distribution": [
-                    item.to_dict() for item in expected_distribution
-                ],
-                "chosen_action_id": decision.chosen_action_id,
-                "chosen_action_propensity": decision.chosen_action_propensity,
-                "chosen_log_action_propensity": (
-                    decision.chosen_log_action_propensity
-                ),
-            })
-            expected_decision_id = "dec-" + _canonical_sha256({
-                "kind": "prospective_policy_decision",
-                "identity_seed": identity_seed,
-            })[:32]
+            identity_seed = _canonical_sha256(
+                {
+                    "contract": SCHEDULER_CHAIN_CONTRACT,
+                    "task_id": self.task_id,
+                    "round_index": self.round_index,
+                    "candidate_id": state.candidate_id,
+                    "candidate_position": position,
+                    "state_sha256": decision.state_sha256,
+                    "candidate_scheduler_probability": 1.0,
+                    "action_draw_counter": counter,
+                    "sampler_id": self.sampler_id,
+                    "sampler_version": self.sampler_version,
+                    "sampler_draw": decision.sampler_draw,
+                    "behavior_distribution": [item.to_dict() for item in expected_distribution],
+                    "chosen_action_id": decision.chosen_action_id,
+                    "chosen_action_propensity": decision.chosen_action_propensity,
+                    "chosen_log_action_propensity": (decision.chosen_log_action_propensity),
+                }
+            )
+            expected_decision_id = (
+                "dec-"
+                + _canonical_sha256(
+                    {
+                        "kind": "prospective_policy_decision",
+                        "identity_seed": identity_seed,
+                    }
+                )[:32]
+            )
             route_action = COLLECTION_ACTION_ROUTE[decision.chosen_action_id]
             expected_acquisition_id = (
                 None
                 if route_action in _TERMINAL_ROUTE_ACTIONS
-                else "acq-" + _canonical_sha256({
-                    "kind": "prospective_acquisition",
-                    "identity_seed": identity_seed,
-                })[:32]
+                else "acq-"
+                + _canonical_sha256(
+                    {
+                        "kind": "prospective_acquisition",
+                        "identity_seed": identity_seed,
+                    }
+                )[:32]
             )
             logged = decision.logged_policy_decision
             assert state.bound_router_decision is not None
             router_state = state.bound_router_decision.router_state
-            expected_trajectory_id = "traj-" + _canonical_sha256({
-                "study_id": SCHEDULER_STUDY_ID,
-                "task_id": self.task_id,
-                "candidate_id": state.candidate_id,
-            })[:32]
+            expected_trajectory_id = (
+                "traj-"
+                + _canonical_sha256(
+                    {
+                        "study_id": SCHEDULER_STUDY_ID,
+                        "task_id": self.task_id,
+                        "candidate_id": state.candidate_id,
+                    }
+                )[:32]
+            )
             if (
                 logged.trajectory_id != expected_trajectory_id
                 or logged.decision_id != expected_decision_id
@@ -2237,17 +2250,12 @@ class TaskRoundDecision:
                 or logged.manifest_sha256 != router_state.source_manifest_sha256
                 or logged.history_sha256 != state.history_sha256
                 or logged.router_state_sha256 != state.router_state_sha256
-                or logged.prior_trajectory_head_sha256
-                != state.policy_trajectory_head_sha256
-                or logged.policy_code_config_sha256
-                != self.collection_policy_sha256
+                or logged.prior_trajectory_head_sha256 != state.policy_trajectory_head_sha256
+                or logged.policy_code_config_sha256 != self.collection_policy_sha256
                 or logged.action_catalog != state.action_catalog
-                or logged.decision_sha256
-                != decision.selection_identity_sha256
+                or logged.decision_sha256 != decision.selection_identity_sha256
             ):
-                raise ValueError(
-                    "candidate logged policy identity differs from the frozen round"
-                )
+                raise ValueError("candidate logged policy identity differs from the frozen round")
         object.__setattr__(self, "scheduled_decisions", decisions)
 
     def _validate_probabilities_and_dispositions(self) -> None:
@@ -2255,15 +2263,21 @@ class TaskRoundDecision:
             item.chosen_log_action_propensity for item in self.scheduled_decisions
         )
         expected_round_probability = exp(expected_round_log)
-        if _number(
-            self.round_joint_log_probability,
-            "task_round.round_joint_log_probability",
-        ) != expected_round_log:
+        if (
+            _number(
+                self.round_joint_log_probability,
+                "task_round.round_joint_log_probability",
+            )
+            != expected_round_log
+        ):
             raise ValueError("round joint log probability is not the sum of action logs")
-        if _number(
-            self.round_joint_probability,
-            "task_round.round_joint_probability",
-        ) != expected_round_probability:
+        if (
+            _number(
+                self.round_joint_probability,
+                "task_round.round_joint_probability",
+            )
+            != expected_round_probability
+        ):
             raise ValueError("round joint reporting probability differs")
         if not isinstance(
             self.task_trajectory_action_log_propensities,
@@ -2272,9 +2286,7 @@ class TaskRoundDecision:
             raise ValueError("task trajectory log-propensity terms must be a sequence")
         terms = tuple(
             _number(item, f"task_round.log_propensity_terms[{index}]")
-            for index, item in enumerate(
-                self.task_trajectory_action_log_propensities
-            )
+            for index, item in enumerate(self.task_trajectory_action_log_propensities)
         )
         current_terms = tuple(
             item.chosen_log_action_propensity for item in self.scheduled_decisions
@@ -2284,33 +2296,43 @@ class TaskRoundDecision:
         prior_terms = terms[: -len(current_terms)]
         prior_log = fsum(prior_terms)
         prior_probability = exp(prior_log)
-        if _number(
-            self.prior_task_trajectory_log_probability,
-            "task_round.prior_task_trajectory_log_probability",
-        ) != prior_log:
+        if (
+            _number(
+                self.prior_task_trajectory_log_probability,
+                "task_round.prior_task_trajectory_log_probability",
+            )
+            != prior_log
+        ):
             raise ValueError("prior task log probability differs from its canonical terms")
-        if _number(
-            self.prior_task_trajectory_probability,
-            "task_round.prior_task_trajectory_probability",
-        ) != prior_probability:
+        if (
+            _number(
+                self.prior_task_trajectory_probability,
+                "task_round.prior_task_trajectory_probability",
+            )
+            != prior_probability
+        ):
             raise ValueError("prior task probability differs from its canonical terms")
         if self.round_index == 0 and prior_terms:
             raise ValueError("first task round cannot carry prior propensity terms")
         expected_task_log = fsum(terms)
         expected_task_probability = exp(expected_task_log)
-        if _number(
-            self.task_trajectory_log_probability,
-            "task_round.task_trajectory_log_probability",
-        ) != expected_task_log:
+        if (
+            _number(
+                self.task_trajectory_log_probability,
+                "task_round.task_trajectory_log_probability",
+            )
+            != expected_task_log
+        ):
             raise ValueError("task trajectory log probability identity differs")
-        if _number(
-            self.task_trajectory_probability,
-            "task_round.task_trajectory_probability",
-        ) != expected_task_probability:
+        if (
+            _number(
+                self.task_trajectory_probability,
+                "task_round.task_trajectory_probability",
+            )
+            != expected_task_probability
+        ):
             raise ValueError("task trajectory reporting probability differs")
-        decision_by_candidate = {
-            item.candidate_id: item for item in self.scheduled_decisions
-        }
+        decision_by_candidate = {item.candidate_id: item for item in self.scheduled_decisions}
         expected_dispositions = tuple(
             ResultingCandidateDisposition(
                 candidate_id=state.candidate_id,
@@ -2329,31 +2351,29 @@ class TaskRoundDecision:
         if dispositions != expected_dispositions:
             raise ValueError("resulting candidate dispositions differ")
         object.__setattr__(self, "resulting_dispositions", dispositions)
-        complete = all(
-            item.activity != CandidateActivity.ACTIVE for item in dispositions
-        )
+        complete = all(item.activity != CandidateActivity.ACTIVE for item in dispositions)
         if not isinstance(self.completes_candidate_chains, bool) or (
             self.completes_candidate_chains != complete
         ):
             raise ValueError("completes_candidate_chains differs")
-        expected_state_sha256 = _canonical_sha256({
-            "task_id": self.task_id,
-            "task_order_sha256": self.task_order_sha256,
-            "task_order_index": self.task_order_index,
-            "round_index": self.round_index,
-            "prior_task_head_sha256": self.prior_task_head_sha256,
-            "collection_policy_sha256": self.collection_policy_sha256,
-            "scheduler_contract_sha256": self.scheduler_contract_sha256,
-            "frame_manifest_sha256": self.frame_manifest_sha256,
-            "protocol_sha256": self.protocol_sha256,
-            "router_source_sha256": self.router_source_sha256,
-            "router_policy_config_sha256": self.router_policy_config_sha256,
-            "candidate_order": list(self.candidate_order),
-            "candidates": [item.to_dict() for item in self.candidates],
-            "scheduled_decisions": [
-                item.to_dict() for item in self.scheduled_decisions
-            ],
-        })
+        expected_state_sha256 = _canonical_sha256(
+            {
+                "task_id": self.task_id,
+                "task_order_sha256": self.task_order_sha256,
+                "task_order_index": self.task_order_index,
+                "round_index": self.round_index,
+                "prior_task_head_sha256": self.prior_task_head_sha256,
+                "collection_policy_sha256": self.collection_policy_sha256,
+                "scheduler_contract_sha256": self.scheduler_contract_sha256,
+                "frame_manifest_sha256": self.frame_manifest_sha256,
+                "protocol_sha256": self.protocol_sha256,
+                "router_source_sha256": self.router_source_sha256,
+                "router_policy_config_sha256": self.router_policy_config_sha256,
+                "candidate_order": list(self.candidate_order),
+                "candidates": [item.to_dict() for item in self.candidates],
+                "scheduled_decisions": [item.to_dict() for item in self.scheduled_decisions],
+            }
+        )
         if _digest(self.task_state_sha256, "task_round.task_state_sha256") != (
             expected_state_sha256
         ):
@@ -2387,12 +2407,8 @@ class TaskRoundDecision:
             "round_index": self.round_index,
             "scheduled_at": self.scheduled_at,
             "prior_task_head_sha256": self.prior_task_head_sha256,
-            "prior_task_trajectory_probability": (
-                self.prior_task_trajectory_probability
-            ),
-            "prior_task_trajectory_log_probability": (
-                self.prior_task_trajectory_log_probability
-            ),
+            "prior_task_trajectory_probability": (self.prior_task_trajectory_probability),
+            "prior_task_trajectory_log_probability": (self.prior_task_trajectory_log_probability),
             "collection_policy_sha256": self.collection_policy_sha256,
             "scheduler_contract_sha256": self.scheduler_contract_sha256,
             "frame_manifest_sha256": self.frame_manifest_sha256,
@@ -2401,21 +2417,15 @@ class TaskRoundDecision:
             "router_policy_config_sha256": self.router_policy_config_sha256,
             "candidate_order": list(self.candidate_order),
             "candidates": [item.to_dict() for item in self.candidates],
-            "scheduled_decisions": [
-                item.to_dict() for item in self.scheduled_decisions
-            ],
+            "scheduled_decisions": [item.to_dict() for item in self.scheduled_decisions],
             "round_joint_probability": self.round_joint_probability,
             "round_joint_log_probability": self.round_joint_log_probability,
             "task_trajectory_action_log_propensities": list(
                 self.task_trajectory_action_log_propensities
             ),
             "task_trajectory_probability": self.task_trajectory_probability,
-            "task_trajectory_log_probability": (
-                self.task_trajectory_log_probability
-            ),
-            "resulting_dispositions": [
-                item.to_dict() for item in self.resulting_dispositions
-            ],
+            "task_trajectory_log_probability": (self.task_trajectory_log_probability),
+            "resulting_dispositions": [item.to_dict() for item in self.resulting_dispositions],
             "completes_candidate_chains": self.completes_candidate_chains,
             "task_state_sha256": self.task_state_sha256,
         }
@@ -2606,8 +2616,7 @@ class TaskRoundDecision:
                 for index, item in enumerate(candidate_order)
             ),
             candidates=tuple(
-                CandidateRoundState.from_dict(item, index)
-                for index, item in enumerate(candidates)
+                CandidateRoundState.from_dict(item, index) for index, item in enumerate(candidates)
             ),
             scheduled_decisions=tuple(
                 CandidateActionDecision.from_dict(item, index)
@@ -2692,8 +2701,7 @@ def build_task_round_decision(
         raise ValueError("candidate inputs differ from the frozen task mapping")
     candidate_order = derive_candidate_order(tuple(input_by_id))
     states = tuple(
-        _build_candidate_state(input_by_id[candidate_id])
-        for candidate_id in candidate_order
+        _build_candidate_state(input_by_id[candidate_id]) for candidate_id in candidate_order
     )
     task_order = derive_task_order(bindings.frame.task_ids)
     task_order_index = task_order.index(task)
@@ -2702,14 +2710,8 @@ def build_task_round_decision(
         raise ValueError("prior task-round prefix belongs to a different task")
     if prefix and prefix[-1].completes_candidate_chains:
         raise ValueError("a completed candidate trajectory cannot continue")
-    prior_head = (
-        SCHEDULER_GENESIS_SHA256 if not prefix else prefix[-1].task_head_sha256
-    )
-    prior_terms = (
-        ()
-        if not prefix
-        else prefix[-1].task_trajectory_action_log_propensities
-    )
+    prior_head = SCHEDULER_GENESIS_SHA256 if not prefix else prefix[-1].task_head_sha256
+    prior_terms = () if not prefix else prefix[-1].task_trajectory_action_log_propensities
     prior_log = fsum(prior_terms)
     prior_probability = exp(prior_log)
     decisions = tuple(
@@ -2752,22 +2754,24 @@ def build_task_round_decision(
     )
     complete = all(item.activity != CandidateActivity.ACTIVE for item in dispositions)
     task_order_sha256 = _canonical_sha256(list(task_order))
-    task_state_sha256 = _canonical_sha256({
-        "task_id": task,
-        "task_order_sha256": task_order_sha256,
-        "task_order_index": task_order_index,
-        "round_index": round_index,
-        "prior_task_head_sha256": prior_head,
-        "collection_policy_sha256": bindings.collection_policy_sha256,
-        "scheduler_contract_sha256": bindings.scheduler_contract_sha256,
-        "frame_manifest_sha256": bindings.frame.manifest_sha256,
-        "protocol_sha256": bindings.protocol_sha256,
-        "router_source_sha256": bindings.router_source_sha256,
-        "router_policy_config_sha256": bindings.router_policy_config_sha256,
-        "candidate_order": list(candidate_order),
-        "candidates": [item.to_dict() for item in states],
-        "scheduled_decisions": [item.to_dict() for item in decisions],
-    })
+    task_state_sha256 = _canonical_sha256(
+        {
+            "task_id": task,
+            "task_order_sha256": task_order_sha256,
+            "task_order_index": task_order_index,
+            "round_index": round_index,
+            "prior_task_head_sha256": prior_head,
+            "collection_policy_sha256": bindings.collection_policy_sha256,
+            "scheduler_contract_sha256": bindings.scheduler_contract_sha256,
+            "frame_manifest_sha256": bindings.frame.manifest_sha256,
+            "protocol_sha256": bindings.protocol_sha256,
+            "router_source_sha256": bindings.router_source_sha256,
+            "router_policy_config_sha256": bindings.router_policy_config_sha256,
+            "candidate_order": list(candidate_order),
+            "candidates": [item.to_dict() for item in states],
+            "scheduled_decisions": [item.to_dict() for item in decisions],
+        }
+    )
     result = TaskRoundDecision(
         task_id=task,
         task_order=task_order,
@@ -2867,9 +2871,7 @@ def validate_task_round_chain(
         bootstrap_steps.append(steps[0])
     if len({item.receipt_sha256 for item in bootstrap_steps}) != CANDIDATES_PER_TASK:
         raise ValueError("round zero bootstrap receipt identities must be candidate-distinct")
-    if len(
-        {item.observation.acquisition_id for item in bootstrap_steps}
-    ) != CANDIDATES_PER_TASK:
+    if len({item.observation.acquisition_id for item in bootstrap_steps}) != CANDIDATES_PER_TASK:
         raise ValueError("round zero bootstrap acquisition IDs must be candidate-distinct")
     seen_decisions: set[str] = set()
     for index, current in enumerate(decisions):
@@ -2894,30 +2896,24 @@ def validate_task_round_chain(
             raise ValueError("task round chain changes task/candidate identity")
         if (
             current.collection_policy_sha256 != previous.collection_policy_sha256
-            or current.scheduler_contract_sha256
-            != previous.scheduler_contract_sha256
+            or current.scheduler_contract_sha256 != previous.scheduler_contract_sha256
             or current.frame_manifest_sha256 != previous.frame_manifest_sha256
             or current.protocol_sha256 != previous.protocol_sha256
             or current.router_source_sha256 != previous.router_source_sha256
-            or current.router_policy_config_sha256
-            != previous.router_policy_config_sha256
+            or current.router_policy_config_sha256 != previous.router_policy_config_sha256
         ):
             raise ValueError("task round chain changes frozen configuration identity")
         if current.prior_task_head_sha256 != previous.task_head_sha256:
             raise ValueError("task round chain has a broken prior-head link")
         if (
-            current.prior_task_trajectory_probability
-            != previous.task_trajectory_probability
+            current.prior_task_trajectory_probability != previous.task_trajectory_probability
             or current.prior_task_trajectory_log_probability
             != previous.task_trajectory_log_probability
         ):
             raise ValueError("task round chain has a broken probability/log prefix")
         expected_terms = (
             *previous.task_trajectory_action_log_propensities,
-            *(
-                item.chosen_log_action_propensity
-                for item in current.scheduled_decisions
-            ),
+            *(item.chosen_log_action_propensity for item in current.scheduled_decisions),
         )
         if current.task_trajectory_action_log_propensities != expected_terms:
             raise ValueError("task round chain has a broken canonical log-term prefix")
@@ -2926,13 +2922,8 @@ def validate_task_round_chain(
 
         prior_state = {item.candidate_id: item for item in previous.candidates}
         current_state = {item.candidate_id: item for item in current.candidates}
-        prior_action = {
-            item.candidate_id: item for item in previous.scheduled_decisions
-        }
-        resulting = {
-            item.candidate_id: item
-            for item in previous.resulting_dispositions
-        }
+        prior_action = {item.candidate_id: item for item in previous.scheduled_decisions}
+        resulting = {item.candidate_id: item for item in previous.resulting_dispositions}
         for candidate_id in previous.candidate_order:
             old = prior_state[candidate_id]
             new = current_state[candidate_id]
@@ -2946,17 +2937,13 @@ def validate_task_round_chain(
             old_offers = {item.action_id: item for item in old.action_catalog}
             new_offers = {item.action_id: item for item in new.action_catalog}
             for action_id in COLLECTION_ACTION_IDS:
-                if _offer_identity(old_offers[action_id]) != _offer_identity(
-                    new_offers[action_id]
-                ):
+                if _offer_identity(old_offers[action_id]) != _offer_identity(new_offers[action_id]):
                     raise ValueError("stable action_id changes intervention identity")
             if old.activity != CandidateActivity.ACTIVE:
                 if (
                     new.decision_count != old.decision_count
-                    or new.nonterminal_acquisition_count
-                    != old.nonterminal_acquisition_count
-                    or new.completed_nonterminal_action_ids
-                    != old.completed_nonterminal_action_ids
+                    or new.nonterminal_acquisition_count != old.nonterminal_acquisition_count
+                    or new.completed_nonterminal_action_ids != old.completed_nonterminal_action_ids
                     or new.router_state_sha256 != old.router_state_sha256
                     or new.history_sha256 != old.history_sha256
                 ):
@@ -2970,13 +2957,15 @@ def validate_task_round_chain(
             expected_acquisitions = old.nonterminal_acquisition_count + int(acquisition)
             if new.nonterminal_acquisition_count != expected_acquisitions:
                 raise ValueError("candidate acquisition count does not match prior action")
-            completed_extension = (
-                (action.chosen_action_id,) if acquisition else ()
+            completed_extension = (action.chosen_action_id,) if acquisition else ()
+            expected_completed = tuple(
+                sorted(
+                    (
+                        *old.completed_nonterminal_action_ids,
+                        *completed_extension,
+                    )
+                )
             )
-            expected_completed = tuple(sorted((
-                *old.completed_nonterminal_action_ids,
-                *completed_extension,
-            )))
             if new.completed_nonterminal_action_ids != expected_completed:
                 raise ValueError("candidate completed action IDs do not match prior action")
             if acquisition:
@@ -2987,15 +2976,11 @@ def validate_task_round_chain(
                 old_router_state = old.bound_router_decision.router_state
                 new_router_state = new.bound_router_decision.router_state
                 if (
-                    new_router_state.bootstrap_history
-                    != old_router_state.bootstrap_history
-                    or
-                    new_router_state.evidence_history[:-1]
-                    != old_router_state.evidence_history
+                    new_router_state.bootstrap_history != old_router_state.bootstrap_history
+                    or new_router_state.evidence_history[:-1] != old_router_state.evidence_history
                     or len(new_router_state.evidence_history)
                     != len(old_router_state.evidence_history) + 1
-                    or new_router_state.route_history[:-1]
-                    != old_router_state.route_history
+                    or new_router_state.route_history[:-1] != old_router_state.route_history
                     or len(new_router_state.route_history)
                     != len(old_router_state.route_history) + 1
                 ):
@@ -3111,15 +3096,21 @@ class TaskSelectionDecision:
             raise ValueError("task selection requires a nonempty action trajectory")
         log_probability = fsum(log_terms)
         probability = exp(log_probability)
-        if _number(
-            self.final_task_trajectory_probability,
-            "task_selection.final_task_trajectory_probability",
-        ) != probability:
+        if (
+            _number(
+                self.final_task_trajectory_probability,
+                "task_selection.final_task_trajectory_probability",
+            )
+            != probability
+        ):
             raise ValueError("final task probability differs from canonical action terms")
-        if _number(
-            self.final_task_trajectory_log_probability,
-            "task_selection.final_task_trajectory_log_probability",
-        ) != log_probability:
+        if (
+            _number(
+                self.final_task_trajectory_log_probability,
+                "task_selection.final_task_trajectory_log_probability",
+            )
+            != log_probability
+        ):
             raise ValueError("final task log probability differs from canonical action terms")
         for name in (
             "collection_policy_sha256",
@@ -3139,8 +3130,7 @@ class TaskSelectionDecision:
         if order != derive_candidate_order(order):
             raise ValueError("task-selection candidate order differs")
         if not isinstance(self.final_dispositions, (list, tuple)) or any(
-            not isinstance(item, ResultingCandidateDisposition)
-            for item in self.final_dispositions
+            not isinstance(item, ResultingCandidateDisposition) for item in self.final_dispositions
         ):
             raise ValueError("task-selection final dispositions are invalid")
         dispositions = tuple(self.final_dispositions)
@@ -3165,30 +3155,35 @@ class TaskSelectionDecision:
             raise ValueError("task selection disposition differs")
         if self.selected_candidate_id != expected_selected:
             raise ValueError("task selection does not choose the first accepted candidate")
-        expected_identity = _canonical_sha256({
-            "study_id": self.study_id,
-            "task_id": self.task_id,
-            "round_decision_sha256s": list(round_ids),
-            "final_round_decision_sha256": final_round_id,
-            "final_task_head_sha256": self.final_task_head_sha256,
-            "final_task_action_log_propensities": list(log_terms),
-            "final_task_trajectory_probability": probability,
-            "final_task_trajectory_log_probability": log_probability,
-            "collection_policy_sha256": self.collection_policy_sha256,
-            "scheduler_contract_sha256": self.scheduler_contract_sha256,
-            "frame_manifest_sha256": self.frame_manifest_sha256,
-            "protocol_sha256": self.protocol_sha256,
-            "router_source_sha256": self.router_source_sha256,
-            "router_policy_config_sha256": self.router_policy_config_sha256,
-            "candidate_order": list(order),
-            "final_dispositions": [item.to_dict() for item in dispositions],
-            "disposition": expected_disposition.value,
-            "selected_candidate_id": expected_selected,
-        })
-        if _digest(
-            self.selection_identity_sha256,
-            "task_selection.selection_identity_sha256",
-        ) != expected_identity:
+        expected_identity = _canonical_sha256(
+            {
+                "study_id": self.study_id,
+                "task_id": self.task_id,
+                "round_decision_sha256s": list(round_ids),
+                "final_round_decision_sha256": final_round_id,
+                "final_task_head_sha256": self.final_task_head_sha256,
+                "final_task_action_log_propensities": list(log_terms),
+                "final_task_trajectory_probability": probability,
+                "final_task_trajectory_log_probability": log_probability,
+                "collection_policy_sha256": self.collection_policy_sha256,
+                "scheduler_contract_sha256": self.scheduler_contract_sha256,
+                "frame_manifest_sha256": self.frame_manifest_sha256,
+                "protocol_sha256": self.protocol_sha256,
+                "router_source_sha256": self.router_source_sha256,
+                "router_policy_config_sha256": self.router_policy_config_sha256,
+                "candidate_order": list(order),
+                "final_dispositions": [item.to_dict() for item in dispositions],
+                "disposition": expected_disposition.value,
+                "selected_candidate_id": expected_selected,
+            }
+        )
+        if (
+            _digest(
+                self.selection_identity_sha256,
+                "task_selection.selection_identity_sha256",
+            )
+            != expected_identity
+        ):
             raise ValueError("task selection identity differs")
         object.__setattr__(self, "candidate_order", order)
         object.__setattr__(self, "final_dispositions", dispositions)
@@ -3202,10 +3197,14 @@ class TaskSelectionDecision:
             log_probability,
         )
         computed = _canonical_sha256(self._payload())
-        if self.decision_sha256 and _digest(
-            self.decision_sha256,
-            "task_selection.decision_sha256",
-        ) != computed:
+        if (
+            self.decision_sha256
+            and _digest(
+                self.decision_sha256,
+                "task_selection.decision_sha256",
+            )
+            != computed
+        ):
             raise ValueError("task-selection decision digest differs")
         object.__setattr__(self, "decision_sha256", computed)
 
@@ -3218,15 +3217,9 @@ class TaskSelectionDecision:
             "round_decision_sha256s": list(self.round_decision_sha256s),
             "final_round_decision_sha256": self.final_round_decision_sha256,
             "final_task_head_sha256": self.final_task_head_sha256,
-            "final_task_action_log_propensities": list(
-                self.final_task_action_log_propensities
-            ),
-            "final_task_trajectory_probability": (
-                self.final_task_trajectory_probability
-            ),
-            "final_task_trajectory_log_probability": (
-                self.final_task_trajectory_log_probability
-            ),
+            "final_task_action_log_propensities": list(self.final_task_action_log_propensities),
+            "final_task_trajectory_probability": (self.final_task_trajectory_probability),
+            "final_task_trajectory_log_probability": (self.final_task_trajectory_log_probability),
             "collection_policy_sha256": self.collection_policy_sha256,
             "scheduler_contract_sha256": self.scheduler_contract_sha256,
             "frame_manifest_sha256": self.frame_manifest_sha256,
@@ -3234,9 +3227,7 @@ class TaskSelectionDecision:
             "router_source_sha256": self.router_source_sha256,
             "router_policy_config_sha256": self.router_policy_config_sha256,
             "candidate_order": list(self.candidate_order),
-            "final_dispositions": [
-                item.to_dict() for item in self.final_dispositions
-            ],
+            "final_dispositions": [item.to_dict() for item in self.final_dispositions],
             "disposition": self.disposition.value,
             "selected_candidate_id": self.selected_candidate_id,
             "selection_identity_sha256": self.selection_identity_sha256,
@@ -3402,47 +3393,39 @@ def build_task_selection_decision(
         if selected is not None
         else TaskSelectionDisposition.ABSTAIN
     )
-    identity = _canonical_sha256({
-        "study_id": SCHEDULER_STUDY_ID,
-        "task_id": final_round.task_id,
-        "round_decision_sha256s": [item.decision_sha256 for item in chain],
-        "final_round_decision_sha256": final_round.decision_sha256,
-        "final_task_head_sha256": final_round.task_head_sha256,
-        "final_task_action_log_propensities": list(
-            final_round.task_trajectory_action_log_propensities
-        ),
-        "final_task_trajectory_probability": (
-            final_round.task_trajectory_probability
-        ),
-        "final_task_trajectory_log_probability": (
-            final_round.task_trajectory_log_probability
-        ),
-        "collection_policy_sha256": bindings.collection_policy_sha256,
-        "scheduler_contract_sha256": bindings.scheduler_contract_sha256,
-        "frame_manifest_sha256": bindings.frame.manifest_sha256,
-        "protocol_sha256": bindings.protocol_sha256,
-        "router_source_sha256": bindings.router_source_sha256,
-        "router_policy_config_sha256": bindings.router_policy_config_sha256,
-        "candidate_order": list(final_round.candidate_order),
-        "final_dispositions": [
-            item.to_dict() for item in final_round.resulting_dispositions
-        ],
-        "disposition": disposition.value,
-        "selected_candidate_id": selected,
-    })
+    identity = _canonical_sha256(
+        {
+            "study_id": SCHEDULER_STUDY_ID,
+            "task_id": final_round.task_id,
+            "round_decision_sha256s": [item.decision_sha256 for item in chain],
+            "final_round_decision_sha256": final_round.decision_sha256,
+            "final_task_head_sha256": final_round.task_head_sha256,
+            "final_task_action_log_propensities": list(
+                final_round.task_trajectory_action_log_propensities
+            ),
+            "final_task_trajectory_probability": (final_round.task_trajectory_probability),
+            "final_task_trajectory_log_probability": (final_round.task_trajectory_log_probability),
+            "collection_policy_sha256": bindings.collection_policy_sha256,
+            "scheduler_contract_sha256": bindings.scheduler_contract_sha256,
+            "frame_manifest_sha256": bindings.frame.manifest_sha256,
+            "protocol_sha256": bindings.protocol_sha256,
+            "router_source_sha256": bindings.router_source_sha256,
+            "router_policy_config_sha256": bindings.router_policy_config_sha256,
+            "candidate_order": list(final_round.candidate_order),
+            "final_dispositions": [item.to_dict() for item in final_round.resulting_dispositions],
+            "disposition": disposition.value,
+            "selected_candidate_id": selected,
+        }
+    )
     result = TaskSelectionDecision(
         task_id=final_round.task_id,
         scheduled_at=selection_time,
         round_decision_sha256s=tuple(item.decision_sha256 for item in chain),
         final_round_decision_sha256=final_round.decision_sha256,
         final_task_head_sha256=final_round.task_head_sha256,
-        final_task_action_log_propensities=(
-            final_round.task_trajectory_action_log_propensities
-        ),
+        final_task_action_log_propensities=(final_round.task_trajectory_action_log_propensities),
         final_task_trajectory_probability=final_round.task_trajectory_probability,
-        final_task_trajectory_log_probability=(
-            final_round.task_trajectory_log_probability
-        ),
+        final_task_trajectory_log_probability=(final_round.task_trajectory_log_probability),
         collection_policy_sha256=bindings.collection_policy_sha256,
         scheduler_contract_sha256=bindings.scheduler_contract_sha256,
         frame_manifest_sha256=bindings.frame.manifest_sha256,
@@ -3480,13 +3463,9 @@ def validate_task_trajectory(
         "round_decision_sha256s": tuple(item.decision_sha256 for item in rounds),
         "final_round_decision_sha256": final_round.decision_sha256,
         "final_task_head_sha256": final_round.task_head_sha256,
-        "final_task_action_log_propensities": (
-            final_round.task_trajectory_action_log_propensities
-        ),
+        "final_task_action_log_propensities": (final_round.task_trajectory_action_log_propensities),
         "final_task_trajectory_probability": final_round.task_trajectory_probability,
-        "final_task_trajectory_log_probability": (
-            final_round.task_trajectory_log_probability
-        ),
+        "final_task_trajectory_log_probability": (final_round.task_trajectory_log_probability),
         "collection_policy_sha256": bindings.collection_policy_sha256,
         "scheduler_contract_sha256": bindings.scheduler_contract_sha256,
         "frame_manifest_sha256": bindings.frame.manifest_sha256,

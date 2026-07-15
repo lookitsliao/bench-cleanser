@@ -70,7 +70,7 @@ match explicit policy bindings.
 ## Training and evaluation data
 
 There is no trained router and therefore no training dataset. No held-out
-calibration set exists. Corpus `0.5.0` and evaluation `0.4.0` are infrastructure
+calibration set exists. Corpus `0.6.0` and evaluation `0.5.0` are infrastructure
 for the future task/candidate/oracle model; they are not evidence that the
 baseline is calibrated.
 

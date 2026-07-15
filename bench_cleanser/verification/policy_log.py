@@ -48,6 +48,7 @@ POLICY_DECISION_CHAIN_CONTRACT = "bench-cleanser-policy-decision-chain-v1"
 GENESIS_TRAJECTORY_HEAD_SHA256 = "0" * 64
 CANONICAL_SAMPLER_ID = "inverse-cdf"
 CANONICAL_SAMPLER_VERSION = "v1"
+DETERMINISTIC_BOOTSTRAP_REASON = "deterministic_bootstrap"
 
 _PROPENSITY_TOLERANCE = 1e-12
 _DIGEST_RE = re.compile(r"[0-9a-f]{64}")
@@ -204,13 +205,10 @@ def _enum(enum_type: type[Any], value: Any, field_name: str) -> Any:
 def _canonical_timestamp(value: Any, field_name: str) -> str:
     timestamp = _string(value, field_name)
     try:
-        parsed = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ").replace(
-            tzinfo=UTC
-        )
+        parsed = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=UTC)
     except ValueError as exc:
         raise ValueError(
-            f"{field_name} must use canonical UTC format "
-            "YYYY-MM-DDTHH:MM:SS.ffffffZ"
+            f"{field_name} must use canonical UTC format YYYY-MM-DDTHH:MM:SS.ffffffZ"
         ) from exc
     canonical = parsed.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
     if timestamp != canonical:
@@ -484,18 +482,14 @@ def _router_evidence_dict(observation: EvidenceObservation) -> dict[str, Any]:
         "source": observation.source,
         "source_version": observation.source_version,
         "acquisition_id": observation.acquisition_id,
-        "confidence": (
-            None if observation.confidence is None else float(observation.confidence)
-        ),
+        "confidence": (None if observation.confidence is None else float(observation.confidence)),
         "candidate_probability": (
             None
             if observation.candidate_probability is None
             else float(observation.candidate_probability)
         ),
         "verifier_validity": (
-            None
-            if observation.verifier_validity is None
-            else float(observation.verifier_validity)
+            None if observation.verifier_validity is None else float(observation.verifier_validity)
         ),
         "calibrated_risk_upper_bound": (
             None
@@ -576,13 +570,9 @@ def _validate_source_metadata(observation: EvidenceObservation, index: int) -> N
     for key in observation.metadata:
         fingerprint = _metadata_fingerprint(key)
         if any(fragment in fingerprint for fragment in _PRIVILEGED_METADATA_FRAGMENTS):
-            raise ValueError(
-                f"evidence[{index}].metadata key {key!r} may encode privileged data"
-            )
+            raise ValueError(f"evidence[{index}].metadata key {key!r} may encode privileged data")
         if key not in _OPERATIONAL_METADATA_KEYS:
-            raise ValueError(
-                f"evidence[{index}].metadata key {key!r} is not allowlisted"
-            )
+            raise ValueError(f"evidence[{index}].metadata key {key!r} is not allowlisted")
 
 
 @dataclass(frozen=True)
@@ -762,15 +752,13 @@ class RouterStateView:
         unknown_provenance = sorted(set(keys) - _ROUTER_PROVENANCE_KEYS)
         if unknown_provenance:
             raise ValueError(
-                "router_state.provenance has non-allowlisted keys: "
-                f"{unknown_provenance}"
+                f"router_state.provenance has non-allowlisted keys: {unknown_provenance}"
             )
         validate_deployable_provenance(dict(provenance))
         object.__setattr__(self, "provenance", provenance)
 
         if not isinstance(self.bootstrap_history, (list, tuple)) or any(
-            not isinstance(item, BootstrapHistoryStep)
-            for item in self.bootstrap_history
+            not isinstance(item, BootstrapHistoryStep) for item in self.bootstrap_history
         ):
             raise ValueError(
                 "router_state.bootstrap_history must contain BootstrapHistoryStep values"
@@ -823,14 +811,10 @@ class RouterStateView:
         if not isinstance(self.route_history, (list, tuple)) or any(
             not isinstance(item, RouterRouteStep) for item in self.route_history
         ):
-            raise ValueError(
-                "router_state.route_history must contain RouterRouteStep values"
-            )
+            raise ValueError("router_state.route_history must contain RouterRouteStep values")
         routes = tuple(self.route_history)
         if len(routes) != len(evidence):
-            raise ValueError(
-                "router-state route and evidence histories must be one-to-one"
-            )
+            raise ValueError("router-state route and evidence histories must be one-to-one")
         for index, (decision, observation) in enumerate(zip(routes, evidence)):
             expected_kind = _ACTION_EVIDENCE_KIND.get(decision.action)
             if expected_kind is None or observation.kind != expected_kind:
@@ -863,13 +847,10 @@ class RouterStateView:
         if not isinstance(manifest, ValidityManifest):
             raise ValueError("manifest must be a ValidityManifest")
         normalized_provenance = validate_deployable_provenance(manifest.provenance)
-        unknown_provenance = sorted(
-            set(normalized_provenance) - _ROUTER_PROVENANCE_KEYS
-        )
+        unknown_provenance = sorted(set(normalized_provenance) - _ROUTER_PROVENANCE_KEYS)
         if unknown_provenance:
             raise ValueError(
-                "manifest provenance has non-allowlisted router keys: "
-                f"{unknown_provenance}"
+                f"manifest provenance has non-allowlisted router keys: {unknown_provenance}"
             )
         safe_evidence: list[EvidenceObservation] = []
         for index, item in enumerate(manifest.evidence):
@@ -878,41 +859,41 @@ class RouterStateView:
             if item.privileged_inputs:
                 raise ValueError("privileged evidence is not a deployable router input")
             _validate_source_metadata(item, index)
-            safe_evidence.append(EvidenceObservation(
-                kind=item.kind,
-                status=item.status,
-                source=item.source,
-                source_version=item.source_version,
-                acquisition_id=item.acquisition_id,
-                confidence=item.confidence,
-                candidate_probability=item.candidate_probability,
-                verifier_validity=item.verifier_validity,
-                calibrated_risk_upper_bound=item.calibrated_risk_upper_bound,
-                calibration_id=item.calibration_id,
-                authoritative=item.authoritative,
-                cost=item.cost,
-            ))
-        if not isinstance(bootstrap_history, (list, tuple)) or any(
-            not isinstance(item, BootstrapHistoryStep)
-            for item in bootstrap_history
-        ):
-            raise ValueError(
-                "bootstrap_history must contain BootstrapHistoryStep values"
+            safe_evidence.append(
+                EvidenceObservation(
+                    kind=item.kind,
+                    status=item.status,
+                    source=item.source,
+                    source_version=item.source_version,
+                    acquisition_id=item.acquisition_id,
+                    confidence=item.confidence,
+                    candidate_probability=item.candidate_probability,
+                    verifier_validity=item.verifier_validity,
+                    calibrated_risk_upper_bound=item.calibrated_risk_upper_bound,
+                    calibration_id=item.calibration_id,
+                    authoritative=item.authoritative,
+                    cost=item.cost,
+                )
             )
+        if not isinstance(bootstrap_history, (list, tuple)) or any(
+            not isinstance(item, BootstrapHistoryStep) for item in bootstrap_history
+        ):
+            raise ValueError("bootstrap_history must contain BootstrapHistoryStep values")
         bootstrap = tuple(bootstrap_history)
         safe_routes = tuple(
-            RouterRouteStep.from_route_decision(item)
-            for item in manifest.route_history
+            RouterRouteStep.from_route_decision(item) for item in manifest.route_history
         )
         prefix_length = len(bootstrap)
-        if (
-            tuple(safe_evidence[:prefix_length])
-            != tuple(item.observation for item in bootstrap)
-            or safe_routes[:prefix_length]
-            != tuple(item.route for item in bootstrap)
+        if tuple(safe_evidence[:prefix_length]) != tuple(
+            item.observation for item in bootstrap
+        ) or safe_routes[:prefix_length] != tuple(item.route for item in bootstrap):
+            raise ValueError("bootstrap_history does not match the exact manifest prefix")
+        if any(
+            item.reasons != (DETERMINISTIC_BOOTSTRAP_REASON,)
+            for item in manifest.route_history[:prefix_length]
         ):
             raise ValueError(
-                "bootstrap_history does not match the exact manifest prefix"
+                "bootstrap manifest routes must use the canonical deterministic bootstrap reason"
             )
         return cls(
             instance_id=manifest.instance_id,
@@ -927,22 +908,22 @@ class RouterStateView:
         )
 
     def history_sha256(self) -> str:
-        return _canonical_sha256({
-            "contract": "bench-cleanser-router-history-v2",
-            "bootstrap_steps": [
-                item.to_dict() for item in self.bootstrap_history
-            ],
-            "randomized_steps": [
-                {
-                    "route": route.to_dict(),
-                    "evidence": _router_evidence_dict(evidence),
-                }
-                for route, evidence in zip(
-                    self.route_history,
-                    self.evidence_history,
-                )
-            ],
-        })
+        return _canonical_sha256(
+            {
+                "contract": "bench-cleanser-router-history-v2",
+                "bootstrap_steps": [item.to_dict() for item in self.bootstrap_history],
+                "randomized_steps": [
+                    {
+                        "route": route.to_dict(),
+                        "evidence": _router_evidence_dict(evidence),
+                    }
+                    for route, evidence in zip(
+                        self.route_history,
+                        self.evidence_history,
+                    )
+                ],
+            }
+        )
 
     def canonical_digest(self) -> str:
         return _canonical_sha256(self.to_dict())
@@ -955,15 +936,9 @@ class RouterStateView:
             "lifecycle_stage": self.lifecycle_stage.value,
             "risk_profile": _risk_profile_dict(self.risk_profile),
             "provenance": dict(self.provenance),
-            "bootstrap_history": [
-                item.to_dict() for item in self.bootstrap_history
-            ],
-            "evidence_history": [
-                _router_evidence_dict(item) for item in self.evidence_history
-            ],
-            "route_history": [
-                item.to_dict() for item in self.route_history
-            ],
+            "bootstrap_history": [item.to_dict() for item in self.bootstrap_history],
+            "evidence_history": [_router_evidence_dict(item) for item in self.evidence_history],
+            "route_history": [item.to_dict() for item in self.route_history],
             "source_manifest_sha256": self.source_manifest_sha256,
         }
 
@@ -1020,12 +995,10 @@ class RouterStateView:
                 for index, item in enumerate(bootstrap_data)
             ),
             evidence_history=tuple(
-                _router_evidence_from_dict(item, index)
-                for index, item in enumerate(evidence_data)
+                _router_evidence_from_dict(item, index) for index, item in enumerate(evidence_data)
             ),
             route_history=tuple(
-                _router_route_from_dict(item, index)
-                for index, item in enumerate(route_data)
+                _router_route_from_dict(item, index) for index, item in enumerate(route_data)
             ),
             source_manifest_sha256=_digest(
                 data["source_manifest_sha256"],
@@ -1065,9 +1038,7 @@ class ActionOffer:
             if self.expected_cost != EvidenceCost():
                 raise ValueError("terminal action offers must have zero expected cost")
         elif expected_kind is None or self.evidence_kind != expected_kind:
-            raise ValueError(
-                "acquisition action offer has an incompatible evidence_kind"
-            )
+            raise ValueError("acquisition action offer has an incompatible evidence_kind")
         _string(self.adapter_id, "action_offer.adapter_id", identifier=True)
         _string(
             self.adapter_version,
@@ -1092,9 +1063,7 @@ class ActionOffer:
         return {
             "action_id": self.action_id,
             "route_action": self.route_action.value,
-            "evidence_kind": (
-                self.evidence_kind.value if self.evidence_kind is not None else None
-            ),
+            "evidence_kind": (self.evidence_kind.value if self.evidence_kind is not None else None),
             "adapter_id": self.adapter_id,
             "adapter_version": self.adapter_version,
             "action_spec_sha256": self.action_spec_sha256,
@@ -1289,15 +1258,11 @@ def sample_behavior_action(
     if not isinstance(distribution, (list, tuple)) or not distribution:
         raise ValueError("behavior_distribution must be a non-empty sequence")
     if any(not isinstance(item, BehaviorProbability) for item in distribution):
-        raise ValueError(
-            "behavior_distribution must contain BehaviorProbability values"
-        )
+        raise ValueError("behavior_distribution must contain BehaviorProbability values")
     normalized = tuple(distribution)
     action_ids = [item.action_id for item in normalized]
     if len(action_ids) != len(set(action_ids)):
-        raise ValueError(
-            "behavior_distribution cannot contain duplicate action_id values"
-        )
+        raise ValueError("behavior_distribution cannot contain duplicate action_id values")
     if action_ids != sorted(action_ids):
         raise ValueError("behavior_distribution must be ordered by action_id")
     if not isclose(
@@ -1357,9 +1322,7 @@ class LoggedPolicyDecision:
         if self.acquisition_id is not None:
             acquisition_id = _string(self.acquisition_id, "acquisition_id")
             if not _ACQUISITION_ID_RE.fullmatch(acquisition_id):
-                raise ValueError(
-                    "acquisition_id must be 'acq-' plus 32 lowercase hex characters"
-                )
+                raise ValueError("acquisition_id must be 'acq-' plus 32 lowercase hex characters")
         if (
             isinstance(self.decision_step, bool)
             or not isinstance(self.decision_step, int)
@@ -1391,9 +1354,7 @@ class LoggedPolicyDecision:
             self.sampler_id != CANONICAL_SAMPLER_ID
             or self.sampler_version != CANONICAL_SAMPLER_VERSION
         ):
-            raise ValueError(
-                "policy decisions require the canonical inverse-cdf/v1 sampler"
-            )
+            raise ValueError("policy decisions require the canonical inverse-cdf/v1 sampler")
         if not isinstance(self.router_state, RouterStateView):
             raise ValueError("router_state must be a RouterStateView")
         if self.instance_id != self.router_state.instance_id:
@@ -1425,47 +1386,29 @@ class LoggedPolicyDecision:
         if len(action_ids) != len(set(action_ids)):
             raise ValueError("action_catalog cannot contain duplicate action_id values")
         route_actions = [item.route_action for item in catalog]
-        missing_actions = sorted(
-            action.value for action in set(RouteAction) - set(route_actions)
-        )
-        extra_actions = sorted(
-            action.value for action in set(route_actions) - set(RouteAction)
-        )
+        missing_actions = sorted(action.value for action in set(RouteAction) - set(route_actions))
+        extra_actions = sorted(action.value for action in set(route_actions) - set(RouteAction))
         if missing_actions or extra_actions:
             raise ValueError(
                 "action_catalog must represent every RouteAction; "
                 f"missing={missing_actions}, extra={extra_actions}"
             )
-        terminal_counts = {
-            action: route_actions.count(action) for action in _TERMINAL_ACTIONS
-        }
+        terminal_counts = {action: route_actions.count(action) for action in _TERMINAL_ACTIONS}
         invalid_terminal_counts = {
-            action.value: count
-            for action, count in terminal_counts.items()
-            if count != 1
+            action.value: count for action, count in terminal_counts.items() if count != 1
         }
         if invalid_terminal_counts:
             raise ValueError(
                 "terminal RouteAction values must each have exactly one offer; "
                 f"counts={invalid_terminal_counts}"
             )
-        abstain_offer = next(
-            item for item in catalog if item.route_action == RouteAction.ABSTAIN
-        )
+        abstain_offer = next(item for item in catalog if item.route_action == RouteAction.ABSTAIN)
         if not abstain_offer.available:
-            raise ValueError(
-                "action_catalog must provide positive behavior support for abstention"
-            )
+            raise ValueError("action_catalog must provide positive behavior support for abstention")
         declared_availability = {
-            RouteAction.RUN_TARGETED: (
-                self.router_state.risk_profile.targeted_execution_available
-            ),
-            RouteAction.RUN_FULL: (
-                self.router_state.risk_profile.full_execution_available
-            ),
-            RouteAction.HARDEN_ORACLE: (
-                self.router_state.risk_profile.oracle_hardening_available
-            ),
+            RouteAction.RUN_TARGETED: (self.router_state.risk_profile.targeted_execution_available),
+            RouteAction.RUN_FULL: (self.router_state.risk_profile.full_execution_available),
+            RouteAction.HARDEN_ORACLE: (self.router_state.risk_profile.oracle_hardening_available),
         }
         contradictory_actions = sorted(
             offer.route_action.value
@@ -1482,20 +1425,15 @@ class LoggedPolicyDecision:
         object.__setattr__(self, "action_catalog", catalog)
 
         if not isinstance(self.behavior_distribution, (list, tuple)) or any(
-            not isinstance(item, BehaviorProbability)
-            for item in self.behavior_distribution
+            not isinstance(item, BehaviorProbability) for item in self.behavior_distribution
         ):
-            raise ValueError(
-                "behavior_distribution must contain BehaviorProbability values"
-            )
+            raise ValueError("behavior_distribution must contain BehaviorProbability values")
         distribution = tuple(self.behavior_distribution)
         distribution_ids = [item.action_id for item in distribution]
         if distribution_ids != sorted(distribution_ids):
             raise ValueError("behavior_distribution must be ordered by action_id")
         if len(distribution_ids) != len(set(distribution_ids)):
-            raise ValueError(
-                "behavior_distribution cannot contain duplicate action_id values"
-            )
+            raise ValueError("behavior_distribution cannot contain duplicate action_id values")
         available_ids = {item.action_id for item in catalog if item.available}
         if set(distribution_ids) != available_ids:
             missing = sorted(available_ids - set(distribution_ids))
@@ -1518,9 +1456,7 @@ class LoggedPolicyDecision:
             "chosen_action_id",
             identifier=True,
         )
-        probability_by_id = {
-            item.action_id: item.propensity for item in distribution
-        }
+        probability_by_id = {item.action_id: item.propensity for item in distribution}
         chosen_probability = probability_by_id.get(chosen_action_id)
         if chosen_probability is None:
             raise ValueError("chosen_action_id must identify an available action")
@@ -1545,9 +1481,7 @@ class LoggedPolicyDecision:
         object.__setattr__(self, "sampler_draw", sampler_draw)
         sampled_action = _sample_action(distribution, sampler_draw)
         if sampled_action != chosen_action_id:
-            raise ValueError(
-                "chosen_action_id does not match the canonical sampler draw"
-            )
+            raise ValueError("chosen_action_id does not match the canonical sampler draw")
         catalog_by_id = {item.action_id: item for item in catalog}
         chosen_offer = catalog_by_id[chosen_action_id]
         if chosen_offer.route_action in _TERMINAL_ACTIONS:
@@ -1565,28 +1499,25 @@ class LoggedPolicyDecision:
             if supplied_decision_sha256 != computed_decision_sha256:
                 raise ValueError("decision_sha256 does not match canonical decision content")
         object.__setattr__(self, "decision_sha256", computed_decision_sha256)
-        computed_head = _canonical_sha256({
-            "contract": POLICY_DECISION_CHAIN_CONTRACT,
-            "prior_trajectory_head_sha256": self.prior_trajectory_head_sha256,
-            "decision_sha256": computed_decision_sha256,
-        })
+        computed_head = _canonical_sha256(
+            {
+                "contract": POLICY_DECISION_CHAIN_CONTRACT,
+                "prior_trajectory_head_sha256": self.prior_trajectory_head_sha256,
+                "decision_sha256": computed_decision_sha256,
+            }
+        )
         if self.trajectory_head_sha256:
             supplied_head = _digest(
                 self.trajectory_head_sha256,
                 "trajectory_head_sha256",
             )
             if supplied_head != computed_head:
-                raise ValueError(
-                    "trajectory_head_sha256 does not match the decision chain"
-                )
+                raise ValueError("trajectory_head_sha256 does not match the decision chain")
         object.__setattr__(self, "trajectory_head_sha256", computed_head)
 
     @property
     def chosen_offer(self) -> ActionOffer:
-        return next(
-            item for item in self.action_catalog
-            if item.action_id == self.chosen_action_id
-        )
+        return next(item for item in self.action_catalog if item.action_id == self.chosen_action_id)
 
     @property
     def terminal(self) -> bool:
@@ -1610,9 +1541,7 @@ class LoggedPolicyDecision:
             "policy_version": self.policy_version,
             "policy_code_config_sha256": self.policy_code_config_sha256,
             "action_catalog": [item.to_dict() for item in self.action_catalog],
-            "behavior_distribution": [
-                item.to_dict() for item in self.behavior_distribution
-            ],
+            "behavior_distribution": [item.to_dict() for item in self.behavior_distribution],
             "chosen_action_id": self.chosen_action_id,
             "chosen_propensity": self.chosen_propensity,
             "selection_reason_code": self.selection_reason_code,
@@ -1626,11 +1555,13 @@ class LoggedPolicyDecision:
         computed = _canonical_sha256(self._decision_payload())
         if computed != self.decision_sha256:
             raise ValueError("policy decision changed after validation")
-        computed_head = _canonical_sha256({
-            "contract": POLICY_DECISION_CHAIN_CONTRACT,
-            "prior_trajectory_head_sha256": self.prior_trajectory_head_sha256,
-            "decision_sha256": computed,
-        })
+        computed_head = _canonical_sha256(
+            {
+                "contract": POLICY_DECISION_CHAIN_CONTRACT,
+                "prior_trajectory_head_sha256": self.prior_trajectory_head_sha256,
+                "decision_sha256": computed,
+            }
+        )
         if computed_head != self.trajectory_head_sha256:
             raise ValueError("policy decision chain head changed after validation")
         return computed
@@ -1738,8 +1669,7 @@ class LoggedPolicyDecision:
                 "policy_decision.policy_code_config_sha256",
             ),
             action_catalog=tuple(
-                ActionOffer.from_dict(item, index)
-                for index, item in enumerate(catalog)
+                ActionOffer.from_dict(item, index) for index, item in enumerate(catalog)
             ),
             behavior_distribution=tuple(
                 BehaviorProbability.from_dict(item, index)
@@ -1830,9 +1760,7 @@ def validate_policy_decision_chain(
             raise ValueError("policy decision chain steps must start at zero and be contiguous")
         current.canonical_digest()
         if index == 0:
-            if current.prior_trajectory_head_sha256 != (
-                GENESIS_TRAJECTORY_HEAD_SHA256
-            ):
+            if current.prior_trajectory_head_sha256 != (GENESIS_TRAJECTORY_HEAD_SHA256):
                 raise ValueError("first policy decision does not use the genesis head")
             continue
         previous = decisions[index - 1]
@@ -1878,9 +1806,7 @@ def validate_policy_decision_chain(
                 current_offer.action_spec_sha256,
             )
             if current_identity != prior_identity:
-                raise ValueError(
-                    f"stable action_id {action_id!r} changes intervention identity"
-                )
+                raise ValueError(f"stable action_id {action_id!r} changes intervention identity")
         if current_state.evidence_history[:-1] != prior_state.evidence_history:
             raise ValueError("successor router state changes prior evidence history")
         if current_state.route_history[:-1] != prior_state.route_history:

@@ -32,12 +32,18 @@ from bench_cleanser.verification.metrics import (
 )
 from bench_cleanser.verification.models import RouteAction
 
-EVALUATION_SCHEMA_VERSION = "0.4.0"
+EVALUATION_SCHEMA_VERSION = "0.5.0"
 
 
 @dataclass(frozen=True)
 class EvaluationOutcome:
-    """One policy disposition whose truth must be joined from corpus 0.5.0."""
+    """One evaluated target-policy disposition joined to corpus 0.6.0 truth.
+
+    ``policy_id`` and ``policy_version`` identify the target policy being
+    scored. ``behavior_trajectory_digest`` identifies the separate logging
+    policy history stored in the joined corpus record. The target and behavior
+    policy identities need not match.
+    """
 
     instance_id: str
     candidate_id: str
@@ -53,7 +59,7 @@ class EvaluationOutcome:
     corpus_revision: str
     corpus_digest: str
     corpus_record_sha256: str
-    acquisition_trajectory_digest: str
+    behavior_trajectory_digest: str
     execution_count: int = 0
     cost: float = 0.0
     subgroup: str = "all"
@@ -97,13 +103,11 @@ class EvaluationOutcome:
         for name in (
             "corpus_digest",
             "corpus_record_sha256",
-            "acquisition_trajectory_digest",
+            "behavior_trajectory_digest",
         ):
             value = getattr(self, name)
             if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None:
-                raise ValueError(
-                    f"{name} must be 64 lowercase hexadecimal characters"
-                )
+                raise ValueError(f"{name} must be 64 lowercase hexadecimal characters")
         if (
             isinstance(self.execution_count, bool)
             or not isinstance(self.execution_count, int)
@@ -199,9 +203,7 @@ def _require_integer(value: Any, field: str, line_number: int) -> int:
 def _require_sha256_digest(value: Any, field: str, line_number: int) -> str:
     digest = _require_string(value, field, line_number)
     if not re.fullmatch(r"[0-9a-f]{64}", digest):
-        raise ValueError(
-            f"line {line_number}: {field} must be 64 lowercase hexadecimal characters"
-        )
+        raise ValueError(f"line {line_number}: {field} must be 64 lowercase hexadecimal characters")
     return digest
 
 
@@ -216,8 +218,14 @@ def parse_outcome(data: dict[str, Any], *, line_number: int = 1) -> EvaluationOu
     if legacy_truth_fields:
         raise ValueError(
             f"line {line_number}: legacy evaluation truth fields {legacy_truth_fields} "
-            "are unsupported in evaluation schema 0.4.0; truth must come from an "
-            "exact corpus 0.5.0 digest join"
+            "are unsupported in evaluation schema 0.5.0; truth must come from an "
+            "exact corpus 0.6.0 digest join"
+        )
+    if "acquisition_trajectory_digest" in data:
+        raise ValueError(
+            f"line {line_number}: legacy acquisition_trajectory_digest is unsupported "
+            "in evaluation schema 0.5.0; provide behavior_trajectory_digest from the "
+            "record's complete terminal behavior-policy trajectory"
         )
     allowed = {
         "instance_id",
@@ -234,7 +242,7 @@ def parse_outcome(data: dict[str, Any], *, line_number: int = 1) -> EvaluationOu
         "corpus_revision",
         "corpus_digest",
         "corpus_record_sha256",
-        "acquisition_trajectory_digest",
+        "behavior_trajectory_digest",
         "execution_count",
         "cost",
         "subgroup",
@@ -259,14 +267,10 @@ def parse_outcome(data: dict[str, Any], *, line_number: int = 1) -> EvaluationOu
             ),
             action=action,
             policy_id=_require_string(data["policy_id"], "policy_id", line_number),
-            policy_version=_require_string(
-                data["policy_version"], "policy_version", line_number
-            ),
+            policy_version=_require_string(data["policy_version"], "policy_version", line_number),
             run_id=_require_string(data["run_id"], "run_id", line_number),
             seed=_require_integer(data["seed"], "seed", line_number),
-            calibration_id=_require_string(
-                data["calibration_id"], "calibration_id", line_number
-            ),
+            calibration_id=_require_string(data["calibration_id"], "calibration_id", line_number),
             corpus_id=_require_string(data["corpus_id"], "corpus_id", line_number),
             corpus_revision=_require_string(
                 data["corpus_revision"], "corpus_revision", line_number
@@ -279,9 +283,9 @@ def parse_outcome(data: dict[str, Any], *, line_number: int = 1) -> EvaluationOu
                 "corpus_record_sha256",
                 line_number,
             ),
-            acquisition_trajectory_digest=_require_sha256_digest(
-                data["acquisition_trajectory_digest"],
-                "acquisition_trajectory_digest",
+            behavior_trajectory_digest=_require_sha256_digest(
+                data["behavior_trajectory_digest"],
+                "behavior_trajectory_digest",
                 line_number,
             ),
             execution_count=_require_integer(
@@ -303,12 +307,8 @@ def load_outcomes(stream: TextIO) -> list[EvaluationOutcome]:
 
     outcomes: list[EvaluationOutcome] = []
     seen_observations: set[tuple[str, ...]] = set()
-    candidate_declarations: dict[
-        tuple[str, str, str, str], tuple[str, str, str, str]
-    ] = {}
-    run_configuration: dict[
-        tuple[str, str, str, str, str], tuple[int, str]
-    ] = {}
+    candidate_declarations: dict[tuple[str, str, str, str], tuple[str, str, str, str]] = {}
+    run_configuration: dict[tuple[str, str, str, str, str], tuple[int, str]] = {}
     for line_number, raw_line in enumerate(stream, 1):
         line = raw_line.strip()
         if not line:
@@ -325,15 +325,14 @@ def load_outcomes(stream: TextIO) -> list[EvaluationOutcome]:
 
         if outcome.observation_key in seen_observations:
             raise ValueError(
-                f"line {line_number}: duplicate observation identity "
-                f"{outcome.observation_key!r}"
+                f"line {line_number}: duplicate observation identity {outcome.observation_key!r}"
             )
         seen_observations.add(outcome.observation_key)
 
         declaration = (
             outcome.corpus_digest,
             outcome.corpus_record_sha256,
-            outcome.acquisition_trajectory_digest,
+            outcome.behavior_trajectory_digest,
             outcome.subgroup,
         )
         prior_declaration = candidate_declarations.setdefault(
@@ -343,7 +342,7 @@ def load_outcomes(stream: TextIO) -> list[EvaluationOutcome]:
         if prior_declaration != declaration:
             raise ValueError(
                 f"line {line_number}: paired candidate {outcome.candidate_key!r} "
-                "has inconsistent corpus join, acquisition trajectory, or subgroup"
+                "has inconsistent corpus join, behavior trajectory, or subgroup"
             )
 
         run_key = (
@@ -358,9 +357,7 @@ def load_outcomes(stream: TextIO) -> list[EvaluationOutcome]:
             (outcome.seed, outcome.calibration_id),
         )
         if prior_configuration != (outcome.seed, outcome.calibration_id):
-            raise ValueError(
-                f"line {line_number}: run {run_key!r} changes seed or calibration_id"
-            )
+            raise ValueError(f"line {line_number}: run {run_key!r} changes seed or calibration_id")
         outcomes.append(outcome)
     if not outcomes:
         raise ValueError("outcome file contains no records")
@@ -381,6 +378,7 @@ def _identity_dict(
         joined_corpus_digest,
     ) = identity
     return {
+        "policy_role": "evaluated_target_policy",
         "policy_id": policy_id,
         "policy_version": policy_version,
         "run_id": run_id,
@@ -398,20 +396,54 @@ def _canonical_outcome(outcome: EvaluationOutcome) -> dict[str, Any]:
     return data
 
 
-def _trajectory_identity_dict(outcome: EvaluationOutcome) -> dict[str, Any]:
+def _behavior_logger_identities(
+    record: VerificationGapRecord,
+) -> tuple[tuple[str, str, str], ...]:
+    """Return behavior logger name, version, and implementation identities."""
+
+    return tuple(
+        sorted(
+            {
+                (
+                    step.decision.policy_id,
+                    step.decision.policy_version,
+                    step.decision.policy_code_config_sha256,
+                )
+                for step in record.behavior_trajectory
+            }
+        )
+    )
+
+
+def _behavior_logger_identity_dict(
+    identity: tuple[str, str, str],
+) -> dict[str, Any]:
+    policy_id, policy_version, policy_code_config_sha256 = identity
+    return {
+        "role": "behavior_logger",
+        "policy_id": policy_id,
+        "policy_version": policy_version,
+        "policy_code_config_sha256": policy_code_config_sha256,
+    }
+
+
+def _behavior_trajectory_identity_dict(item: JoinedOutcome) -> dict[str, Any]:
+    outcome = item.outcome
+    record = item.record
+    terminal_decision = record.behavior_trajectory[-1].decision
     return {
         "corpus_id": outcome.corpus_id,
         "corpus_revision": outcome.corpus_revision,
         "corpus_digest": outcome.corpus_digest,
-        "corpus_record_sha256": outcome.corpus_record_sha256,
-        "instance_id": outcome.instance_id,
-        "candidate_id": outcome.candidate_id,
-        "policy_id": outcome.policy_id,
-        "policy_version": outcome.policy_version,
-        "run_id": outcome.run_id,
-        "seed": outcome.seed,
-        "calibration_id": outcome.calibration_id,
-        "acquisition_trajectory_digest": outcome.acquisition_trajectory_digest,
+        "corpus_record_sha256": record.canonical_digest(),
+        "instance_id": record.manifest.instance_id,
+        "candidate_id": record.manifest.candidate_id,
+        "behavior_trajectory_digest": record.behavior_trajectory_digest(),
+        "behavior_terminal_action": terminal_decision.chosen_offer.route_action.value,
+        "behavior_loggers": [
+            _behavior_logger_identity_dict(identity)
+            for identity in _behavior_logger_identities(record)
+        ],
     }
 
 
@@ -428,9 +460,7 @@ def _validate_outcome_set(outcomes: list[EvaluationOutcome]) -> None:
     """Protect direct API callers from duplicate or contradictory pooling."""
 
     seen: set[tuple[str, ...]] = set()
-    declarations: dict[
-        tuple[str, str, str, str], tuple[str, str, str, str]
-    ] = {}
+    declarations: dict[tuple[str, str, str, str], tuple[str, str, str, str]] = {}
     runs: dict[tuple[str, str, str, str, str], tuple[int, str]] = {}
     for index, outcome in enumerate(outcomes):
         if not isinstance(outcome, EvaluationOutcome):
@@ -441,7 +471,7 @@ def _validate_outcome_set(outcomes: list[EvaluationOutcome]) -> None:
         declaration = (
             outcome.corpus_digest,
             outcome.corpus_record_sha256,
-            outcome.acquisition_trajectory_digest,
+            outcome.behavior_trajectory_digest,
             outcome.subgroup,
         )
         prior_declaration = declarations.setdefault(
@@ -451,7 +481,7 @@ def _validate_outcome_set(outcomes: list[EvaluationOutcome]) -> None:
         if prior_declaration != declaration:
             raise ValueError(
                 f"paired candidate {outcome.candidate_key!r} has inconsistent corpus "
-                "join, acquisition trajectory, or subgroup"
+                "join, behavior trajectory, or subgroup"
             )
         run_key = (
             outcome.corpus_id,
@@ -507,9 +537,7 @@ def _binary_calibration_report(
     *,
     calibration_bins: int,
 ) -> dict[str, Any]:
-    buckets: list[list[tuple[float, bool]]] = [
-        [] for _ in range(calibration_bins)
-    ]
+    buckets: list[list[tuple[float, bool]]] = [[] for _ in range(calibration_bins)]
     for probability, truth in rows:
         index = min(int(probability * calibration_bins), calibration_bins - 1)
         buckets[index].append((probability, truth))
@@ -530,17 +558,19 @@ def _binary_calibration_report(
             empirical_frequency = None
             absolute_gap = None
             weighted_gap = None
-        rendered_bins.append({
-            "index": index,
-            "lower_bound": index / calibration_bins,
-            "upper_bound": (index + 1) / calibration_bins,
-            "count": len(bucket),
-            "positive_count": positive_count,
-            "mean_probability": mean_probability,
-            "empirical_frequency": empirical_frequency,
-            "absolute_gap": absolute_gap,
-            "weighted_gap": weighted_gap,
-        })
+        rendered_bins.append(
+            {
+                "index": index,
+                "lower_bound": index / calibration_bins,
+                "upper_bound": (index + 1) / calibration_bins,
+                "count": len(bucket),
+                "positive_count": positive_count,
+                "mean_probability": mean_probability,
+                "empirical_frequency": empirical_frequency,
+                "absolute_gap": absolute_gap,
+                "weighted_gap": weighted_gap,
+            }
+        )
 
     brier_sum = sum((probability - float(truth)) ** 2 for probability, truth in rows)
     positives = sum(truth for _, truth in rows)
@@ -560,19 +590,44 @@ def _binary_calibration_report(
     }
 
 
+def _record_behavior_trajectory_digest(record: VerificationGapRecord) -> str:
+    """Return one complete terminal behavior-policy trajectory identity."""
+
+    if not record.behavior_trajectory:
+        raise ValueError(
+            f"corpus record {record.key!r} does not contain a valid nonempty "
+            "behavior-policy trajectory"
+        )
+    if not record.behavior_trajectory[-1].decision.terminal:
+        raise ValueError(
+            f"corpus record {record.key!r} behavior-policy trajectory must end "
+            "in a terminal logged decision"
+        )
+    try:
+        digest = record.behavior_trajectory_digest()
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"corpus record {record.key!r} does not contain a valid nonempty "
+            "behavior-policy trajectory: {exc}"
+        ) from exc
+    if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+        raise ValueError(
+            f"corpus record {record.key!r} behavior_trajectory_digest must be "
+            "64 lowercase hexadecimal characters and represent a nonempty live "
+            "behavior-policy trajectory"
+        )
+    return digest
+
+
 def _join_outcomes_to_corpus(
     outcomes: list[EvaluationOutcome],
     corpus_records: list[VerificationGapRecord],
 ) -> list[JoinedOutcome]:
     validate_corpus(corpus_records, require_paired=True)
     exact_corpus_digest = corpus_digest(corpus_records)
-    corpus_identities = {
-        (outcome.corpus_id, outcome.corpus_revision) for outcome in outcomes
-    }
+    corpus_identities = {(outcome.corpus_id, outcome.corpus_revision) for outcome in outcomes}
     if len(corpus_identities) != 1:
-        raise ValueError(
-            "one evaluation invocation must target one corpus_id/corpus_revision"
-        )
+        raise ValueError("one evaluation invocation must target one corpus_id/corpus_revision")
     index = {record.key: record for record in corpus_records}
     joined: list[JoinedOutcome] = []
     for outcome in outcomes:
@@ -584,21 +639,17 @@ def _join_outcomes_to_corpus(
         key = (outcome.instance_id, outcome.candidate_id)
         record = index.get(key)
         if record is None:
-            raise ValueError(
-                f"outcome {outcome.candidate_key!r} has no exact corpus record"
-            )
+            raise ValueError(f"outcome {outcome.candidate_key!r} has no exact corpus record")
         if outcome.corpus_record_sha256 != record.canonical_digest():
             raise ValueError(
                 f"outcome {outcome.candidate_key!r} corpus_record_sha256 does not "
                 "match the supplied corpus record"
             )
-        if (
-            outcome.acquisition_trajectory_digest
-            != record.acquisition_trajectory_digest()
-        ):
+        behavior_trajectory_digest = _record_behavior_trajectory_digest(record)
+        if outcome.behavior_trajectory_digest != behavior_trajectory_digest:
             raise ValueError(
-                f"outcome {outcome.candidate_key!r} acquisition trajectory does not "
-                "match the supplied corpus record"
+                f"outcome {outcome.candidate_key!r} behavior trajectory does not "
+                "match the supplied corpus record's live policy history"
             )
         joined.append(JoinedOutcome(outcome=outcome, record=record))
     return joined
@@ -627,7 +678,7 @@ def _candidate_metric_outcome(item: JoinedOutcome) -> VerificationOutcome | None
         calibration_id=outcome.calibration_id,
         corpus_id=outcome.corpus_id,
         corpus_revision=outcome.corpus_revision,
-        acquisition_trajectory_digest=outcome.acquisition_trajectory_digest,
+        behavior_trajectory_digest=outcome.behavior_trajectory_digest,
         execution_count=outcome.execution_count,
         cost=outcome.cost,
         subgroup=outcome.subgroup,
@@ -674,9 +725,7 @@ def _disposition_report(rows: list[JoinedOutcome]) -> dict[str, Any]:
         rendered[state] = {
             "records": len(outcomes),
             "actions": actions,
-            "execution_count": sum(
-                outcome.execution_count for outcome in outcomes
-            ),
+            "execution_count": sum(outcome.execution_count for outcome in outcomes),
             "cost": sum(outcome.cost for outcome in outcomes),
             "requires_quarantine": requires_quarantine,
             "correct_quarantine_count": abstentions if requires_quarantine else 0,
@@ -691,9 +740,7 @@ def _disposition_report(rows: list[JoinedOutcome]) -> dict[str, Any]:
             "correct_abstentions": correct_quarantines,
             "incorrect_non_abstentions": quarantine_eligible - correct_quarantines,
             "accuracy": (
-                correct_quarantines / quarantine_eligible
-                if quarantine_eligible
-                else None
+                correct_quarantines / quarantine_eligible if quarantine_eligible else None
             ),
             "rule": (
                 "abstain is the only correct disposition for invalid tasks, "
@@ -712,9 +759,7 @@ def _raw_totals(rows: list[JoinedOutcome]) -> dict[str, Any]:
             action.value: sum(outcome.action == action for outcome in outcomes)
             for action in (RouteAction.ACCEPT, RouteAction.REJECT, RouteAction.ABSTAIN)
         },
-        "records_with_execution": sum(
-            outcome.execution_count > 0 for outcome in outcomes
-        ),
+        "records_with_execution": sum(outcome.execution_count > 0 for outcome in outcomes),
         "execution_count": sum(outcome.execution_count for outcome in outcomes),
         "total_cost": total_cost,
         "mean_cost": total_cost / len(outcomes),
@@ -736,10 +781,12 @@ def _task_validity_report(
         if validity == TaskValidity.INDETERMINATE:
             excluded_indeterminate += 1
         else:
-            scored.append((
-                item.outcome.probability_task_valid,
-                validity == TaskValidity.VALID,
-            ))
+            scored.append(
+                (
+                    item.outcome.probability_task_valid,
+                    validity == TaskValidity.VALID,
+                )
+            )
     return {
         "probability_field": "probability_task_valid",
         "truth_source": "joined_corpus.task_adjudication.task_validity",
@@ -755,9 +802,7 @@ def _candidate_correctness_report(
     calibration_bins: int,
 ) -> dict[str, Any]:
     metric_rows = [
-        outcome
-        for item in rows
-        if (outcome := _candidate_metric_outcome(item)) is not None
+        outcome for item in rows if (outcome := _candidate_metric_outcome(item)) is not None
     ]
     exclusions: dict[str, int] = {}
     for item in rows:
@@ -777,8 +822,7 @@ def _candidate_correctness_report(
             "method": "fixed_width_probability_bins",
             "bin_count": calibration_bins,
             "bins": [
-                asdict(item)
-                for item in calibration_table(metric_rows, bins=calibration_bins)
+                asdict(item) for item in calibration_table(metric_rows, bins=calibration_bins)
             ],
         }
         risk_coverage: dict[str, Any] | None = {
@@ -834,9 +878,7 @@ def _verifier_validity_report(
             adjudication = event.validity_adjudication
             label = adjudication.validity
             label_counts[label.value] = label_counts.get(label.value, 0) + 1
-            source_counts[adjudication.source] = (
-                source_counts.get(adjudication.source, 0) + 1
-            )
+            source_counts[adjudication.source] = source_counts.get(adjudication.source, 0) + 1
             protocol_counts[adjudication.protocol_version] = (
                 protocol_counts.get(adjudication.protocol_version, 0) + 1
             )
@@ -858,9 +900,7 @@ def _verifier_validity_report(
             "excluded_inadequate_adjudication": inadequate_adjudication,
             "excluded_missing_probability": missing_probability,
             "probability_field": "EvidenceObservation.verifier_validity",
-            **_binary_calibration_report(
-                scored, calibration_bins=calibration_bins
-            ),
+            **_binary_calibration_report(scored, calibration_bins=calibration_bins),
         }
     return {
         "unit": "corpus_evidence_event",
@@ -883,16 +923,14 @@ def _evaluation_report(
         "input": {
             "outcome_set_sha256": _outcome_set_digest(outcomes),
             "record_count": len(outcomes),
-            "acquisition_trajectory_count": len({
-                outcome.acquisition_trajectory_digest for outcome in outcomes
-            }),
-            "acquisition_trajectory_digests": sorted({
-                outcome.acquisition_trajectory_digest for outcome in outcomes
-            }),
+            "behavior_trajectory_count": len(
+                {outcome.behavior_trajectory_digest for outcome in outcomes}
+            ),
+            "behavior_trajectory_digests": sorted(
+                {outcome.behavior_trajectory_digest for outcome in outcomes}
+            ),
         },
-        "task_validity": _task_validity_report(
-            rows, calibration_bins=calibration_bins
-        ),
+        "task_validity": _task_validity_report(rows, calibration_bins=calibration_bins),
         "raw_totals": _raw_totals(rows),
         "candidate_correctness": _candidate_correctness_report(
             rows, calibration_bins=calibration_bins
@@ -918,9 +956,7 @@ def build_evaluation_report(
     _validate_outcome_set(outcomes)
     joined = _join_outcomes_to_corpus(outcomes, corpus_records)
 
-    grouped: dict[
-        tuple[str, str, str, int, str, str, str, str], list[JoinedOutcome]
-    ] = {}
+    grouped: dict[tuple[str, str, str, int, str, str, str, str], list[JoinedOutcome]] = {}
     for item in joined:
         grouped.setdefault(item.outcome.evaluation_identity, []).append(item)
     evaluations = [
@@ -929,8 +965,7 @@ def build_evaluation_report(
     ]
 
     candidate_sets = [
-        {item.outcome.candidate_key for item in rows}
-        for _, rows in sorted(grouped.items())
+        {item.outcome.candidate_key for item in rows} for _, rows in sorted(grouped.items())
     ]
     candidate_union = set().union(*candidate_sets)
     candidate_intersection = set.intersection(*candidate_sets) if candidate_sets else set()
@@ -939,38 +974,61 @@ def build_evaluation_report(
     identities = [_identity_dict(identity) for identity in sorted(grouped)]
     exact_corpus_digest = corpus_digest(corpus_records)
     joined_record_keys = {(item.record.key) for item in joined}
+    joined_records: dict[tuple[str, str], JoinedOutcome] = {}
+    for item in joined:
+        joined_records.setdefault(item.record.key, item)
+    behavior_logger_identities = sorted(
+        {
+            identity
+            for item in joined_records.values()
+            for identity in _behavior_logger_identities(item.record)
+        }
+    )
     return {
         "schema_version": EVALUATION_SCHEMA_VERSION,
         "input": {
             "outcome_set_sha256": _outcome_set_digest(outcomes),
             "record_count": len(outcomes),
-            "truth_source": "exact_corpus_0.5.0_record_and_corpus_digest_join",
+            "truth_source": "exact_corpus_0.6.0_record_and_corpus_digest_join",
             "corpus_digest": exact_corpus_digest,
             "corpus_record_count": len(corpus_records),
             "joined_unique_corpus_records": len(joined_record_keys),
             "corpus_record_coverage": len(joined_record_keys) / len(corpus_records),
-            "acquisition_trajectory_count": len({
-                outcome.acquisition_trajectory_digest for outcome in outcomes
-            }),
+            "behavior_trajectory_count": len(
+                {outcome.behavior_trajectory_digest for outcome in outcomes}
+            ),
         },
         "identities": {
+            "policy_role_contract": {
+                "outcome_policy_role": "evaluated_target_policy",
+                "trajectory_policy_role": "behavior_logger",
+                "behavior_logger_source": ("joined_corpus_record.behavior_trajectory[*].decision"),
+                "identity_equality_required": False,
+            },
             "evaluation_units": identities,
-            "policies": [
-                {"policy_id": policy_id, "policy_version": policy_version}
-                for policy_id, policy_version in sorted({
-                    (outcome.policy_id, outcome.policy_version) for outcome in outcomes
-                })
+            "target_policies": [
+                {
+                    "role": "evaluated_target_policy",
+                    "policy_id": policy_id,
+                    "policy_version": policy_version,
+                }
+                for policy_id, policy_version in sorted(
+                    {(outcome.policy_id, outcome.policy_version) for outcome in outcomes}
+                )
+            ],
+            "behavior_loggers": [
+                _behavior_logger_identity_dict(identity) for identity in behavior_logger_identities
             ],
             "calibrations": sorted({outcome.calibration_id for outcome in outcomes}),
             "corpora": [
                 {"corpus_id": corpus_id, "corpus_revision": corpus_revision}
-                for corpus_id, corpus_revision in sorted({
-                    (outcome.corpus_id, outcome.corpus_revision) for outcome in outcomes
-                })
+                for corpus_id, corpus_revision in sorted(
+                    {(outcome.corpus_id, outcome.corpus_revision) for outcome in outcomes}
+                )
             ],
-            "acquisition_trajectories": [
-                _trajectory_identity_dict(outcome)
-                for outcome in sorted(outcomes, key=lambda item: item.observation_key)
+            "behavior_trajectories": [
+                _behavior_trajectory_identity_dict(item)
+                for _, item in sorted(joined_records.items())
             ],
         },
         "pairing": {
@@ -997,9 +1055,10 @@ def build_evaluation_report(
         "off_policy_evaluation": {
             "computed": False,
             "reason": (
-                "acquisition_trajectory_digest is an auditable join key only; "
-                "this outcome file does not establish behavior-policy propensity "
-                "validity, target-policy overlap, or a causal estimand"
+                "target-policy outcomes and behavior-logger identities are separate; "
+                "the joined trajectory is auditable, but this outcome file does not "
+                "establish logger propensity validity, target-policy probabilities, "
+                "history-conditioned overlap, or a causal estimand"
             ),
         },
     }
@@ -1020,12 +1079,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "outcomes",
-        help="Strict truth-free evaluation 0.4.0 JSONL file, or '-' for stdin",
+        help="Strict truth-free evaluation 0.5.0 JSONL file, or '-' for stdin",
     )
     parser.add_argument(
         "--corpus",
         required=True,
-        help="Exact paired corpus 0.5.0 JSONL supplying joined truth",
+        help="Exact paired corpus 0.6.0 JSONL supplying joined truth",
     )
     parser.add_argument("--output", help="Write JSON report here instead of stdout")
     parser.add_argument(

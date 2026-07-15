@@ -86,9 +86,7 @@ def _timestamp(second: int) -> str:
 def bindings(monkeypatch: pytest.MonkeyPatch) -> SchedulerBindings:
     """Load real bindings while isolating this source-under-edit hash cycle."""
 
-    validator = importlib.import_module(
-        "experiments.prospective_pilot.validate_protocol"
-    )
+    validator = importlib.import_module("experiments.prospective_pilot.validate_protocol")
     protocol_path = ROOT / "experiments/prospective_pilot/preregistration.json"
     configuration = {
         "collection_policy": hashlib.sha256(
@@ -110,10 +108,12 @@ def bindings(monkeypatch: pytest.MonkeyPatch) -> SchedulerBindings:
 
 
 def _generic_spec(action_id: str) -> bytes:
-    return strict_json_dumps({
-        "schema_version": "prospective-dispatcher-test-generic-v1",
-        "action_id": action_id,
-    }).encode()
+    return strict_json_dumps(
+        {
+            "schema_version": "prospective-dispatcher-test-generic-v1",
+            "action_id": action_id,
+        }
+    ).encode()
 
 
 def _catalog() -> tuple[ActionOffer, ...]:
@@ -135,25 +135,23 @@ def _catalog() -> tuple[ActionOffer, ...]:
             available, reason = True, "semantic_binding_available"
         else:
             available, reason = True, "execution_binding_available"
-        offers.append(ActionOffer(
-            action_id=action_id,
-            route_action=action,
-            evidence_kind=None if terminal else _ACTION_KIND[action],
-            adapter_id=(
-                "adapter-oracle-hardening"
-                if action_id == "hardening_curator"
-                else f"adapter-{action_id}"
-            ),
-            adapter_version="v1",
-            action_spec_sha256=hashlib.sha256(
-                _generic_spec(action_id)
-            ).hexdigest(),
-            available=available,
-            availability_reason=reason,
-            expected_cost=(
-                EvidenceCost() if terminal else EvidenceCost(wall_seconds=1.0)
-            ),
-        ))
+        offers.append(
+            ActionOffer(
+                action_id=action_id,
+                route_action=action,
+                evidence_kind=None if terminal else _ACTION_KIND[action],
+                adapter_id=(
+                    "adapter-oracle-hardening"
+                    if action_id == "hardening_curator"
+                    else f"adapter-{action_id}"
+                ),
+                adapter_version="v1",
+                action_spec_sha256=hashlib.sha256(_generic_spec(action_id)).hexdigest(),
+                available=available,
+                availability_reason=reason,
+                expected_cost=(EvidenceCost() if terminal else EvidenceCost(wall_seconds=1.0)),
+            )
+        )
     return tuple(offers)
 
 
@@ -165,7 +163,7 @@ def _initial_manifest(task_id: str, candidate_id: str) -> ValidityManifest:
         verifier_risk=0.3,
         expected_information_gain=0.35,
         estimated_relative_cost=0.01,
-        reasons=("deterministic static bootstrap",),
+        reasons=("deterministic_bootstrap",),
         terminal=False,
     )
     observation = EvidenceObservation(
@@ -203,9 +201,7 @@ def _candidate_input(
     catalog: tuple[ActionOffer, ...],
 ) -> CandidateRoundInput:
     bootstrap = BootstrapHistoryStep(
-        receipt_sha256=_sha(
-            f"bootstrap-receipt:{manifest.instance_id}:{manifest.candidate_id}"
-        ),
+        receipt_sha256=_sha(f"bootstrap-receipt:{manifest.instance_id}:{manifest.candidate_id}"),
         route=RouterRouteStep.from_route_decision(manifest.route_history[0]),
         observation=manifest.evidence[0],
     )
@@ -256,9 +252,7 @@ def _provisioning_receipt(
     return ProvisioningReceipt(
         provisioner_id="dispatcher-fixture-provisioner",
         provisioner_version="v1",
-        receipt_sha256=hashlib.sha256(
-            strict_json_dumps(payload).encode()
-        ).hexdigest(),
+        receipt_sha256=hashlib.sha256(strict_json_dumps(payload).encode()).hexdigest(),
         workspace_id=workspace_id,
         workspace_identity_sha256=workspace_identity_sha256,
         base_commit="a" * 40,
@@ -291,16 +285,19 @@ def _make_spec(
     workspace.mkdir(parents=True)
     state.mkdir(parents=True)
     workspace_id = "sha256:" + _sha(f"workspace:{salt}")
-    marker_payload = strict_json_dumps(
-        {
-            "schema_version": WORKSPACE_IDENTITY_SCHEMA_VERSION,
-            "instance_id": initial.instance_id,
-            "candidate_id": initial.candidate_id,
-            "base_commit": "a" * 40,
-            "workspace_id": workspace_id,
-        },
-        indent=2,
-    ) + "\n"
+    marker_payload = (
+        strict_json_dumps(
+            {
+                "schema_version": WORKSPACE_IDENTITY_SCHEMA_VERSION,
+                "instance_id": initial.instance_id,
+                "candidate_id": initial.candidate_id,
+                "base_commit": "a" * 40,
+                "workspace_id": workspace_id,
+            },
+            indent=2,
+        )
+        + "\n"
+    )
     marker = workspace / ".bench-cleanser-workspace.json"
     marker.write_text(marker_payload, encoding="utf-8")
     marker_sha = hashlib.sha256(marker_payload.encode()).hexdigest()
@@ -459,12 +456,14 @@ def _dispatch_fixture(
         spec = specs[logged.candidate_id]
         assert logged.chosen_offer.action_spec_sha256 == spec.canonical_digest()
         preimages[spec.canonical_digest()] = spec.canonical_preimage()
-        reservations.append(ReservationRequest(
-            acquisition_id=logged.acquisition_id,
-            resource_kind=spec.resource_kind,
-            resource_key=spec.resource_key,
-            details=spec.reservation_details(),
-        ))
+        reservations.append(
+            ReservationRequest(
+                acquisition_id=logged.acquisition_id,
+                resource_kind=spec.resource_kind,
+                resource_key=spec.resource_key,
+                details=spec.reservation_details(),
+            )
+        )
         target = target or logged.acquisition_id
     assert target is not None
     used_digests = {
@@ -586,9 +585,7 @@ def test_manifest_route_plan_request_and_reservation_tamper_precedes_claim(
     fixture = _dispatch_fixture(tmp_path / "tamper", bindings)
     ledger = _commit(tmp_path / "tamper.sqlite3", bindings, fixture)
     envelope = ledger.load_dispatch_envelope(fixture.target_acquisition_id)
-    manifest, route, plan = envelope.action_spec.execution_inputs(
-        fixture.target_acquisition_id
-    )
+    manifest, route, plan = envelope.action_spec.execution_inputs(fixture.target_acquisition_id)
 
     manifest_value = manifest.to_dict()
     manifest_value["provenance"]["dataset_revision"] = "tampered"
@@ -624,9 +621,7 @@ def test_manifest_route_plan_request_and_reservation_tamper_precedes_claim(
 
     other = _dispatch_fixture(tmp_path / "reservation", bindings)
     reservation = next(
-        item
-        for item in other.reservations
-        if item.acquisition_id == other.target_acquisition_id
+        item for item in other.reservations if item.acquisition_id == other.target_acquisition_id
     )
     wrong = replace(reservation, resource_key=reservation.resource_key + "-tampered")
     reservations = tuple(
@@ -686,9 +681,7 @@ def test_live_claim_recovery_never_halts_and_operator_halt_is_explicit(
     fixture = _dispatch_fixture(tmp_path / "recovery", bindings)
     ledger = _commit(tmp_path / "recovery.sqlite3", bindings, fixture)
     envelope = ledger.load_dispatch_envelope(fixture.target_acquisition_id)
-    manifest, route, plan = envelope.action_spec.execution_inputs(
-        fixture.target_acquisition_id
-    )
+    manifest, route, plan = envelope.action_spec.execution_inputs(fixture.target_acquisition_id)
     claimed = ledger.claim_executable_dispatch(
         fixture.target_acquisition_id,
         claimant="live-owner",
@@ -721,11 +714,14 @@ def test_live_claim_recovery_never_halts_and_operator_halt_is_explicit(
     )
     assert incident.inserted is True
     assert ledger.table_counts()["incidents"] == 1
-    assert ledger.claim_dispatch(
-        fixture.target_acquisition_id,
-        claimant="late-worker",
-        claimed_at=_timestamp(6),
-    ) is None
+    assert (
+        ledger.claim_dispatch(
+            fixture.target_acquisition_id,
+            claimant="late-worker",
+            claimed_at=_timestamp(6),
+        )
+        is None
+    )
 
 
 def test_full_repeat_equivalence_and_distinct_fresh_identities(
@@ -733,9 +729,7 @@ def test_full_repeat_equivalence_and_distinct_fresh_identities(
 ) -> None:
     candidate_id = "sha256:" + _sha("repeat-candidate")
     initial = _initial_manifest("django__django-11299", candidate_id)
-    full_offer = next(
-        offer for offer in _catalog() if offer.action_id == "full_primary"
-    )
+    full_offer = next(offer for offer in _catalog() if offer.action_id == "full_primary")
     launch = (tmp_path / "repeat-launches.txt").resolve()
     primary = _make_spec(
         tmp_path,
@@ -785,9 +779,7 @@ def test_symlinked_raw_artifact_is_never_recovered_or_auto_halted(
     fixture = _dispatch_fixture(tmp_path / "symlink", bindings)
     ledger = _commit(tmp_path / "symlink.sqlite3", bindings, fixture)
     envelope = ledger.load_dispatch_envelope(fixture.target_acquisition_id)
-    manifest, route, plan = envelope.action_spec.execution_inputs(
-        fixture.target_acquisition_id
-    )
+    manifest, route, plan = envelope.action_spec.execution_inputs(fixture.target_acquisition_id)
     claimed = ledger.claim_executable_dispatch(
         fixture.target_acquisition_id,
         claimant="symlink-owner",
@@ -798,9 +790,7 @@ def test_symlinked_raw_artifact_is_never_recovered_or_auto_halted(
     )
     assert claimed is not None
     execute_route_acquisition(manifest, route, plan)
-    artifact = pathlib.Path(plan.artifact_directory) / (
-        f"{fixture.target_acquisition_id}.json"
-    )
+    artifact = pathlib.Path(plan.artifact_directory) / (f"{fixture.target_acquisition_id}.json")
     retained_copy = artifact.with_name("retained-copy.json")
     shutil.copyfile(artifact, retained_copy)
     artifact.unlink()

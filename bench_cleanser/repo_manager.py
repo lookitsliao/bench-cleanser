@@ -15,15 +15,15 @@ import subprocess
 import threading
 from collections.abc import Sequence
 
+from bench_cleanser.models import TaskRecord
+
 logger = logging.getLogger(__name__)
 
 # Per-repo lock to prevent concurrent clone of the same repo+commit.
 _clone_locks: dict[str, threading.Lock] = {}
 _lock_guard = threading.Lock()
 
-_REPO_IDENTIFIER_RE = re.compile(
-    r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}/[A-Za-z0-9][A-Za-z0-9._-]{0,99}"
-)
+_REPO_IDENTIFIER_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}/[A-Za-z0-9][A-Za-z0-9._-]{0,99}")
 _FULL_COMMIT_RE = re.compile(r"[0-9a-fA-F]{40}")
 
 
@@ -49,9 +49,7 @@ def validate_repo_identifier(repo: str) -> str:
 def validate_full_commit_hash(base_commit: str) -> str:
     """Validate and normalize a full 40-character Git commit hash."""
     if not isinstance(base_commit, str) or not _FULL_COMMIT_RE.fullmatch(base_commit):
-        raise ValueError(
-            "base_commit must be a full 40-character hexadecimal Git commit hash"
-        )
+        raise ValueError("base_commit must be a full 40-character hexadecimal Git commit hash")
     return base_commit.lower()
 
 
@@ -201,7 +199,7 @@ class RepoManager:
 
     def pre_clone_repos(
         self,
-        tasks: list,
+        tasks: Sequence[TaskRecord | tuple[str, str]],
     ) -> dict[str, pathlib.Path | None]:
         """Clone all unique repos needed by *tasks*.
 

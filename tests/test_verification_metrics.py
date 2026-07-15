@@ -41,9 +41,7 @@ def _outcome(
         calibration_id="calibration-1",
         corpus_id="corpus",
         corpus_revision="rev-1",
-        acquisition_trajectory_digest=hashlib.sha256(
-            instance_id.encode()
-        ).hexdigest(),
+        behavior_trajectory_digest=hashlib.sha256(instance_id.encode()).hexdigest(),
         execution_count=execution_count,
         cost=cost,
     )
@@ -110,17 +108,17 @@ def test_action_conditioned_confidence_uses_the_action_actually_taken() -> None:
     assert abstain.confidence is None
 
 
-def test_acquisition_trajectory_digest_is_a_strict_join_identity() -> None:
+def test_behavior_trajectory_digest_is_a_strict_join_identity() -> None:
     outcome = _outcome("join", 0.8, True, RouteAction.ACCEPT)
 
-    assert outcome.acquisition_trajectory_key == (
+    assert outcome.behavior_trajectory_key == (
         *outcome.candidate_key,
-        outcome.acquisition_trajectory_digest,
+        outcome.behavior_trajectory_digest,
     )
     with pytest.raises(ValueError, match="64 lowercase hexadecimal"):
-        replace(outcome, acquisition_trajectory_digest="sha256:" + "a" * 64)
+        replace(outcome, behavior_trajectory_digest="sha256:" + "a" * 64)
     with pytest.raises(ValueError, match="64 lowercase hexadecimal"):
-        replace(outcome, acquisition_trajectory_digest="A" * 64)
+        replace(outcome, behavior_trajectory_digest="A" * 64)
 
 
 def test_roc_auc_has_tie_handling_and_single_class_is_undefined() -> None:
